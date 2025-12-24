@@ -1,12 +1,13 @@
 package com.barofarm.buyer.product.application.dto;
 
 import com.barofarm.buyer.product.domain.ProductCategory;
+import com.barofarm.buyer.product.domain.UserType;
 import java.util.List;
 import java.util.UUID;
 
 public record ProductCreateCommand(
     UUID sellerId,
-    String role,
+    UserType role,
     String productName,
     String description,
     ProductCategory productCategory,

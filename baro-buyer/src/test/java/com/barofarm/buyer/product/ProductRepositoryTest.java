@@ -30,7 +30,6 @@ public class ProductRepositoryTest extends BaseRepositoryTest {
                 "직접 재배한 감자입니다",
                 ProductCategory.ROOT,
                 15000L,
-                1,
                 ProductStatus.ON_SALE
             );
 
