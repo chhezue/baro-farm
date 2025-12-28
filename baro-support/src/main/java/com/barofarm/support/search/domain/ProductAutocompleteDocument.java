@@ -1,4 +1,4 @@
-package com.barofarm.support.search.product.domain;
+package com.barofarm.support.search.domain;
 
 import java.util.UUID;
 import lombok.Getter;

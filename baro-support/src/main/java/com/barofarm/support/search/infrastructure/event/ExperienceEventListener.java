@@ -1,15 +1,15 @@
-package com.barofarm.support.search.experience.infrastructure.kafka;
+package com.barofarm.support.search.infrastructure.event;
 
 import com.barofarm.support.event.ExperienceEvent;
-import com.barofarm.support.search.experience.application.ExperienceSearchService;
-import com.barofarm.support.search.experience.application.dto.ExperienceIndexRequest;
+import com.barofarm.support.search.application.ExperienceSearchService;
+import com.barofarm.support.search.application.dto.ExperienceIndexRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
-public class ExperienceEventConsumer {
+public class ExperienceEventListener {
 
     private final ExperienceSearchService experienceSearchService;
 

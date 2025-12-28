@@ -1,6 +1,6 @@
-package com.barofarm.support.search.experience.infrastructure.elasticsearch;
+package com.barofarm.support.search.infrastructure.elasticsearch;
 
-import com.barofarm.support.search.experience.domain.ExperienceDocument;
+import com.barofarm.support.search.domain.ExperienceDocument;
 import java.util.UUID;
 import org.springframework.data.elasticsearch.repository.ElasticsearchRepository;
 

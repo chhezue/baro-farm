@@ -1,6 +1,6 @@
-package com.barofarm.support.search.experience.infrastructure.elasticsearch;
+package com.barofarm.support.search.infrastructure.elasticsearch;
 
-import com.barofarm.support.search.experience.domain.ExperienceAutocompleteDocument;
+import com.barofarm.support.search.domain.ExperienceAutocompleteDocument;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.elasticsearch.annotations.Query;

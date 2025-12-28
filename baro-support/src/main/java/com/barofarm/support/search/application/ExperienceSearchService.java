@@ -1,4 +1,4 @@
-package com.barofarm.support.search.experience.application;
+package com.barofarm.support.search.application;
 
 import static com.barofarm.support.search.util.KoreanChosungUtil.extract;
 
@@ -6,10 +6,12 @@ import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
 import com.barofarm.support.common.response.CustomPage;
-import com.barofarm.support.search.experience.application.dto.ExperienceIndexRequest;
-import com.barofarm.support.search.experience.application.dto.ExperienceSearchItem;
-import com.barofarm.support.search.experience.domain.ExperienceDocument;
-import com.barofarm.support.search.experience.infrastructure.elasticsearch.ExperienceSearchRepository;
+import com.barofarm.support.search.application.dto.ExperienceAutoItem;
+import com.barofarm.support.search.application.dto.ExperienceIndexRequest;
+import com.barofarm.support.search.application.dto.ExperienceSearchItem;
+import com.barofarm.support.search.domain.ExperienceDocument;
+import com.barofarm.support.search.infrastructure.elasticsearch.ExperienceAutocompleteRepository;
+import com.barofarm.support.search.infrastructure.elasticsearch.ExperienceSearchRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -25,6 +27,7 @@ import org.springframework.stereotype.Service;
 public class ExperienceSearchService {
     private final ElasticsearchOperations operations;
     private final ExperienceSearchRepository repository;
+    private final ExperienceAutocompleteRepository autocompleteRepository;
 
     // 체험 문서를 ES에 저장 (인덱싱), updatedAt은 현재 시각으로 자동 설정
     // Kafka Consumer에서 호출됨
@@ -146,5 +149,13 @@ public class ExperienceSearchService {
                  .value("ON_SALE") // 판매 중인 상품만
             )
         );
+    }
+
+    public List<ExperienceAutoItem> autocomplete(String query) {
+        return autocompleteRepository.findByPrefix(query).stream()
+            .map(document -> new ExperienceAutoItem(document.getExperienceId(), document.getExperienceName()))
+            .distinct()
+            .limit(5) // 자동완성 5개까지 출력
+            .toList();
     }
 }

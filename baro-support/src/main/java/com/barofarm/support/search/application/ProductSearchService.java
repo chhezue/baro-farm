@@ -1,4 +1,4 @@
-package com.barofarm.support.search.product.application;
+package com.barofarm.support.search.application;
 
 import static com.barofarm.support.search.util.KoreanChosungUtil.extract;
 
@@ -7,10 +7,12 @@ import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
 import com.barofarm.support.common.response.CustomPage;
-import com.barofarm.support.search.product.application.dto.ProductIndexRequest;
-import com.barofarm.support.search.product.application.dto.ProductSearchItem;
-import com.barofarm.support.search.product.domain.ProductDocument;
-import com.barofarm.support.search.product.infrastructure.elasticsearch.ProductSearchRepository;
+import com.barofarm.support.search.application.dto.ProductAutoItem;
+import com.barofarm.support.search.application.dto.ProductIndexRequest;
+import com.barofarm.support.search.application.dto.ProductSearchItem;
+import com.barofarm.support.search.domain.ProductDocument;
+import com.barofarm.support.search.infrastructure.elasticsearch.ProductAutocompleteRepository;
+import com.barofarm.support.search.infrastructure.elasticsearch.ProductSearchRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -26,6 +28,7 @@ import org.springframework.stereotype.Service;
 public class ProductSearchService {
     private final ElasticsearchOperations operations;
     private final ProductSearchRepository repository;
+    private final ProductAutocompleteRepository autocompleteRepository;
 
     // 상품 문서를 ES에 저장 (인덱싱), updatedAt은 현재 시각으로 자동 설정
     // Kafka Consumer에서 호출됨
@@ -148,5 +151,13 @@ public class ProductSearchService {
                  ))
             )
         );
+    }
+
+    public List<ProductAutoItem> autocomplete(String query) {
+        return autocompleteRepository.findByPrefix(query).stream()
+            .map(document -> new ProductAutoItem(document.getProductId(), document.getProductName()))
+            .distinct()
+            .limit(5) // 자동완성 5개까지 출력
+            .toList();
     }
 }

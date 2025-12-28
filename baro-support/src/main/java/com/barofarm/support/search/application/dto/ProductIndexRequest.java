@@ -1,4 +1,4 @@
-package com.barofarm.support.search.product.application.dto;
+package com.barofarm.support.search.application.dto;
 
 import java.util.UUID;
 

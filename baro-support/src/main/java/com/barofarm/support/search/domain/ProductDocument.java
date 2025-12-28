@@ -1,4 +1,4 @@
-package com.barofarm.support.search.product.domain;
+package com.barofarm.support.search.domain;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import java.time.Instant;
