@@ -1,13 +1,12 @@
 package com.barofarm.support.experience.application;
 
-import com.barofarm.support.common.client.FarmClient;
 import com.barofarm.support.common.exception.CustomException;
 import com.barofarm.support.experience.application.dto.ExperienceServiceRequest;
 import com.barofarm.support.experience.application.dto.ExperienceServiceResponse;
 import com.barofarm.support.experience.domain.Experience;
 import com.barofarm.support.experience.domain.ExperienceRepository;
 import com.barofarm.support.experience.exception.ExperienceErrorCode;
-import feign.FeignException;
+import com.barofarm.support.experience.infrastructure.cache.FarmCacheService;
 import java.math.BigInteger;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ExperienceService {
 
     private final ExperienceRepository experienceRepository;
-    private final FarmClient farmClient;
+    private final FarmCacheService farmCacheService;
 
     /**
      * 체험 프로그램 ID로 조회 (null 체크 및 존재 여부 검증 포함)
@@ -79,23 +78,18 @@ public class ExperienceService {
     }
 
     /**
-     * 사용자 ID로 농장 ID 조회
+     * 사용자 ID로 농장 ID 조회 (Redis 캐시 우선, 없으면 Feign fallback)
      *
-     * <p>seller-service에서 404를 반환하면 농장이 없다고 보고 null을 반환한다.
-     * 그 외 상태 코드는 그대로 예외를 전파한다.</p>
+     * Redis에서 먼저 조회하고, 없으면 Feign으로 조회한 후 Redis에 저장
      *
      * @param userId 사용자 ID
      * @return 농장 ID 또는 null
      */
     private UUID getUserFarmIdOrNull(UUID userId) {
-        try {
-            return farmClient.getFarmIdByUserId(userId);
-        } catch (FeignException e) {
-            if (e.status() == 404) {
-                return null;
-            }
-            throw e;
-        }
+        // 2단계 확인
+        // 1. Redis에서 조회
+        // 2. Redis에 없으면 Feign으로 조회
+        return farmCacheService.getFarmIdByUserId(userId);
     }
 
     /**
@@ -108,13 +102,12 @@ public class ExperienceService {
     @Transactional
     public ExperienceServiceResponse createExperience(UUID userId, ExperienceServiceRequest request) {
         Experience experience = request.toEntity();
-        // Feign 클라이언트를 통해 사용자가 소유한 farmId 조회
+        // FarmCacheService를 통해 사용자가 소유한 farmId 조회 (Redis 캐시 우선, 없으면 Feign fallback)
         UUID userFarmId = getUserFarmIdOrNull(userId);
-        // TODO: seller-service 연동 안정화 후, userFarmId == null인 경우에도 ACCESS_DENIED를 던지도록 원복할 것
-        if (userFarmId != null) {
-            // 농장이 확인되는 경우에만 권한 체크 수행
-            validateAccess(experience, userFarmId);
+        if (userFarmId == null) {
+            throw new CustomException(ExperienceErrorCode.ACCESS_DENIED);
         }
+        validateAccess(experience, userFarmId);
         validateExperience(experience);
         Experience savedExperience = experienceRepository.save(experience);
 
@@ -154,7 +147,7 @@ public class ExperienceService {
      * @return 체험 프로그램 페이지
      */
     public Page<ExperienceServiceResponse> getMyExperiences(UUID userId, UUID farmId, Pageable pageable) {
-        // 선택적으로 전달된 farmId가 있으면 우선 사용하고, 없으면 Feign 클라이언트를 통해 조회
+        // 선택적으로 전달된 farmId가 있으면 우선 사용하고, 없으면 FarmCacheService를 통해 조회 (Redis 캐시 우선, 없으면 Feign fallback)
         UUID effectiveFarmId = farmId != null ? farmId : getUserFarmIdOrNull(userId);
         // seller-service에 농장이 없거나 API에서 404를 반환하는 경우 빈 페이지를 반환한다.
         if (effectiveFarmId == null) {
@@ -191,13 +184,12 @@ public class ExperienceService {
             UUID userId, UUID experienceId, ExperienceServiceRequest request) {
         Experience existingExperience = findExperienceById(experienceId);
 
-        // Feign 클라이언트를 통해 사용자가 소유한 farmId 조회
+        // FarmCacheService를 통해 사용자가 소유한 farmId 조회 (Redis 캐시 우선, 없으면 Feign fallback)
         UUID userFarmId = getUserFarmIdOrNull(userId);
-        // TODO: seller-service 연동 안정화 후, userFarmId == null인 경우에도 ACCESS_DENIED를 던지도록 원복할 것
-        if (userFarmId != null) {
-            // 농장이 확인되는 경우에만 권한 체크 수행
-            validateAccess(existingExperience, userFarmId);
+        if (userFarmId == null) {
+            throw new CustomException(ExperienceErrorCode.ACCESS_DENIED);
         }
+        validateAccess(existingExperience, userFarmId);
 
         existingExperience.update(
                 request.getTitle(),
@@ -227,13 +219,12 @@ public class ExperienceService {
     public void deleteExperience(UUID userId, UUID experienceId) {
         Experience experience = findExperienceById(experienceId);
 
-        // Feign 클라이언트를 통해 사용자가 소유한 farmId 조회
+        // FarmCacheService를 통해 사용자가 소유한 farmId 조회 (Redis 캐시 우선, 없으면 Feign fallback)
         UUID userFarmId = getUserFarmIdOrNull(userId);
-        // TODO: seller-service 연동 후, userFarmId == null인 경우에도 ACCESS_DENIED를 던지도록 원복할 것
-        if (userFarmId != null) {
-            // 농장이 확인되는 경우에만 권한 체크 수행
-            validateAccess(experience, userFarmId);
+        if (userFarmId == null) {
+            throw new CustomException(ExperienceErrorCode.ACCESS_DENIED);
         }
+        validateAccess(experience, userFarmId);
 
         experienceRepository.deleteById(experienceId);
     }

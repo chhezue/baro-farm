@@ -2,11 +2,13 @@ package com.barofarm.support.experience.infrastructure;
 
 import com.barofarm.support.experience.domain.Reservation;
 import com.barofarm.support.experience.domain.ReservationStatus;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -33,6 +35,7 @@ public interface ReservationJpaRepository extends JpaRepository<Reservation, UUI
 
     /**
      * 특정 체험, 날짜, 시간대의 예약 인원 합계 조회 (확정/요청 상태만)
+     * Pessimistic Lock을 사용하여 동시성 제어 (Race Condition 방지)
      *
      * @param experienceId 체험 ID
      * @param reservedDate 예약 날짜
@@ -46,6 +49,7 @@ public interface ReservationJpaRepository extends JpaRepository<Reservation, UUI
            "AND r.reservedDate = :reservedDate " +
            "AND r.reservedTimeSlot = :reservedTimeSlot " +
            "AND r.status IN (:status1, :status2)")
+    @Lock(LockModeType.PESSIMISTIC_WRITE)  // SELECT FOR UPDATE - 비관적 락
     int sumHeadCountByExperienceIdAndReservedDateAndReservedTimeSlot(
         @Param("experienceId") UUID experienceId,
         @Param("reservedDate") LocalDate reservedDate,

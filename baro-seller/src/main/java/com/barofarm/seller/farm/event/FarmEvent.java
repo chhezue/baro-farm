@@ -1,4 +1,4 @@
-package com.barofarm.support.event;
+package com.barofarm.seller.farm.event;
 
 import java.time.Instant;
 import java.util.UUID;

@@ -40,8 +40,8 @@ spring:
       auto-offset-reset: latest  # earliest에서 latest로 변경하여 오래된 메시지 건너뛰기
       # auto-offset-reset: earliest
     producer:
-      # key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      # value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
 eureka:
   client:

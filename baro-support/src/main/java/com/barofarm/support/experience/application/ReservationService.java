@@ -1,6 +1,5 @@
 package com.barofarm.support.experience.application;
 
-import com.barofarm.support.common.client.FarmClient;
 import com.barofarm.support.common.exception.CustomException;
 import com.barofarm.support.experience.application.dto.ReservationServiceRequest;
 import com.barofarm.support.experience.application.dto.ReservationServiceResponse;
@@ -12,15 +11,19 @@ import com.barofarm.support.experience.domain.ReservationRepository;
 import com.barofarm.support.experience.domain.ReservationStatus;
 import com.barofarm.support.experience.exception.ExperienceErrorCode;
 import com.barofarm.support.experience.exception.ReservationErrorCode;
-import feign.FeignException;
+import com.barofarm.support.experience.application.event.ReservationEventPublisher;
+import com.barofarm.support.experience.infrastructure.cache.FarmCacheService;
+import jakarta.persistence.OptimisticLockException;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 예약 애플리케이션 서비스 */
+@Slf4j
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
@@ -28,26 +31,22 @@ public class ReservationService {
 
     private final ReservationRepository reservationRepository;
     private final ExperienceRepository experienceRepository;
-    private final FarmClient farmClient;
+    private final FarmCacheService farmCacheService;
+    private final ReservationEventPublisher reservationEventPublisher;
 
     /**
-     * 사용자 ID로 농장 ID 조회
+     * 사용자 ID로 농장 ID 조회 (Redis 캐시 우선, 없으면 Feign fallback)
      *
-     * <p>seller-service에서 404를 반환하면 농장이 없다고 보고 null을 반환한다.
-     * 그 외 상태 코드는 그대로 예외를 전파한다.</p>
+     * <p>Redis에서 먼저 조회하고, 없으면 Feign으로 조회한 후 Redis에 저장한다.</p>
      *
      * @param userId 사용자 ID
      * @return 농장 ID 또는 null
      */
     private UUID getUserFarmIdOrNull(UUID userId) {
-        try {
-            return farmClient.getFarmIdByUserId(userId);
-        } catch (FeignException e) {
-            if (e.status() == 404) {
-                return null;
-            }
-            throw e;
-        }
+        // 2단계 확인
+        // 1. Redis에서 조회
+        // 2. Redis에 없으면 Feign으로 조회
+        return farmCacheService.getFarmIdByUserId(userId);
     }
 
     /**
@@ -115,11 +114,8 @@ public class ReservationService {
      */
     private void validateSellerAccess(Experience experience, UUID userId) {
         UUID userFarmId = getUserFarmIdOrNull(userId);
-        // TODO: seller-service 연동 안정화 후, userFarmId == null인 경우에도 ACCESS_DENIED를 던지도록 원복할 것
         if (userFarmId == null) {
-            // throw new CustomException(ReservationErrorCode.ACCESS_DENIED);
-            // 임시로 농장이 없는 경우는 권한 체크를 건너뛴다.
-            return;
+            throw new CustomException(ReservationErrorCode.ACCESS_DENIED);
         }
         if (!experience.getFarmId().equals(userFarmId)) {
             throw new CustomException(ReservationErrorCode.ACCESS_DENIED);
@@ -140,14 +136,10 @@ public class ReservationService {
             return true;
         }
 
-        // TODO: seller-service 연동 안정화 후, userFarmId == null인 경우에도 ACCESS_DENIED를 던지도록 원복할 것
         Experience experience = findExperienceById(reservation.getExperienceId());
         UUID userFarmId = getUserFarmIdOrNull(userId);
-        // seller-service에서 404를 반환하면 판매자 권한 체크를 건너뛴다.
         if (userFarmId == null) {
-            // throw new CustomException(ReservationErrorCode.ACCESS_DENIED);
-            // 임시로 농장이 없는 경우는 권한 체크를 건너뛴다.
-            return false;
+            throw new CustomException(ReservationErrorCode.ACCESS_DENIED);
         }
 
         boolean isSeller = experience.getFarmId().equals(userFarmId);
@@ -274,6 +266,16 @@ public class ReservationService {
         Reservation reservation = request.toEntity();
         reservation.changeStatus(ReservationStatus.REQUESTED);
         Reservation savedReservation = reservationRepository.save(reservation);
+        
+        // 예약 생성 이벤트 발행 (비동기)
+        try {
+            reservationEventPublisher.publishReservationCreated(savedReservation);
+        } catch (Exception e) {
+            // 이벤트 발행 실패는 예약 생성 실패로 이어지지 않음
+            // 로깅만 수행하고 계속 진행
+            log.error("예약 생성 이벤트 발행 실패: reservationId={}", savedReservation.getReservationId(), e);
+        }
+        
         return ReservationServiceResponse.from(savedReservation);
     }
 
@@ -339,23 +341,42 @@ public class ReservationService {
     @Transactional
     public ReservationServiceResponse updateReservationStatus(
             UUID userId, UUID reservationId, ReservationStatus status) {
-        Reservation reservation = findReservationById(reservationId);
+        try {
+            Reservation reservation = findReservationById(reservationId);
 
-        // 상태 변경 가능 여부 검증 (최종 상태 체크를 먼저 수행하여 불필요한 권한 검증 방지)
-        validateStatusTransition(reservation.getStatus(), status);
+            // 상태 변경 가능 여부 검증 (최종 상태 체크를 먼저 수행하여 불필요한 권한 검증 방지)
+            validateStatusTransition(reservation.getStatus(), status);
 
-        // 상태에 따라 권한이 다를 수 있음 (구매자는 CANCELED만 가능, 판매자는 CONFIRMED/COMPLETED 가능)
-        if (status == ReservationStatus.CANCELED) {
-            validateBuyerAccess(reservation, userId);
-        } else {
-            // CONFIRMED, COMPLETED는 판매자만 가능
-            Experience experience = findExperienceById(reservation.getExperienceId());
-            validateSellerAccess(experience, userId);
+            // 상태에 따라 권한이 다를 수 있음 (구매자는 CANCELED만 가능, 판매자는 CONFIRMED/COMPLETED 가능)
+            if (status == ReservationStatus.CANCELED) {
+                validateBuyerAccess(reservation, userId);
+            } else {
+                // CONFIRMED, COMPLETED는 판매자만 가능
+                Experience experience = findExperienceById(reservation.getExperienceId());
+                validateSellerAccess(experience, userId);
+            }
+
+            reservation.changeStatus(status);
+            // JPA 더티 체킹, @Transactional 종료 시 자동으로 변경사항이 DB에 반영됨
+            // @Version 필드가 있으면 자동으로 낙관적 락 적용
+            // 저장 시 버전이 변경되면 OptimisticLockException 발생
+            
+            // 예약 상태 변경 이벤트 발행 (비동기)
+            try {
+                reservationEventPublisher.publishReservationStatusChanged(reservation);
+            } catch (Exception e) {
+                // 이벤트 발행 실패는 상태 변경 실패로 이어지지 않음
+                log.error("예약 상태 변경 이벤트 발행 실패: reservationId={}, status={}", 
+                    reservation.getReservationId(), status, e);
+            }
+            
+            return ReservationServiceResponse.from(reservation);
+        } catch (OptimisticLockException e) {
+            // 낙관적 락 실패: 다른 트랜잭션이 먼저 수정함
+            log.warn("예약 상태 변경 시 동시 수정 감지: reservationId={}, status={}", 
+                reservationId, status, e);
+            throw new CustomException(ReservationErrorCode.CONCURRENT_MODIFICATION);
         }
-
-        reservation.changeStatus(status);
-        // JPA 더티 체킹, @Transactional 종료 시 자동으로 변경사항이 DB에 반영됨
-        return ReservationServiceResponse.from(reservation);
     }
 
     /**

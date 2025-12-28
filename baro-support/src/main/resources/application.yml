@@ -45,6 +45,11 @@ spring:
       
   elasticsearch:
     uris: ${SPRING_ELASTICSEARCH_URIS:http://elasticsearch:9200}
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      # password: ${SPRING_REDIS_PASSWORD:}  # 필요시
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     consumer:
@@ -71,6 +76,9 @@ spring:
         connections.max.idle.ms: 540000    # 최대 유휴 연결 시간 (9분)
       auto-offset-reset: latest  # earliest에서 latest로 변경하여 오래된 메시지 건너뛰기
       # auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
     listener:
       # Consumer 재시작 설정
       auto-startup: true                   # 자동 시작
