@@ -16,6 +16,9 @@
 
 set -e
 
+# 에러 트랩: 스크립트가 실패한 위치를 로그로 출력 (로그 함수가 정의되기 전에는 사용 불가)
+# trap는 나중에 설정됨 (로그 함수 정의 후)
+
 # 색상 정의
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -394,7 +397,9 @@ fi
 DEPLOYMENT_FILE="$DEPLOY_PATH/deployment.yaml"
 TEMP_DEPLOYMENT=""
 
+log_info "🔍 Deployment 파일 확인: $DEPLOYMENT_FILE"
 if [ -f "$DEPLOYMENT_FILE" ]; then
+    log_info "✅ Deployment 파일 존재 확인됨"
     # 임시 파일 생성 (원본 파일 보존)
     TEMP_DEPLOYMENT=$(mktemp)
     cp "$DEPLOYMENT_FILE" "$TEMP_DEPLOYMENT"
@@ -543,10 +548,19 @@ log_info "Applying resources from: $DEPLOY_PATH"
 log_info "Data EC2 IP: $DATA_EC2_IP, Image Tag: $IMAGE_TAG"
 
 # 배포 시도 (에러 출력을 변수에 저장)
+log_info "📤 kubectl apply 실행 중..."
+log_info "   명령: $KUBECTL_CMD apply -k $DEPLOY_PATH"
+
+# set -e를 일시적으로 비활성화하여 에러를 캡처
+set +e
 APPLY_OUTPUT=$($KUBECTL_CMD apply -k "$DEPLOY_PATH" 2>&1)
 APPLY_EXIT_CODE=$?
+set -e
 
 if [ $APPLY_EXIT_CODE -ne 0 ]; then
+    log_error "❌ kubectl apply 실패 (exit code: $APPLY_EXIT_CODE)"
+    log_error "출력:"
+    echo "$APPLY_OUTPUT"
     # selector immutable 에러 확인
     if echo "$APPLY_OUTPUT" | grep -q "selector.*immutable\|field is immutable"; then
         log_warn "⚠️  Deployment selector 충돌 감지. 기존 Deployment를 삭제하고 재생성합니다..."
