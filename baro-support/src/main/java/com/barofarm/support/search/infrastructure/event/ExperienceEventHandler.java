@@ -84,7 +84,7 @@ public class ExperienceEventHandler {
         return new ExperienceIndexRequest(
             experience.getExperienceId(),
             experience.getTitle(),
-            experience.getPricePerPerson().longValue(),  // BigInteger → Long 변환
+            experience.getPricePerPerson(),
             experience.getCapacity(),
             experience.getDurationMinutes(),
             experience.getAvailableStartDate().toLocalDate(), // LocalDateTime -> LocalDate
