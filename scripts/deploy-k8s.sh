@@ -510,7 +510,27 @@ fi
 log_step "📦 k8s 리소스 적용 중 (kustomize)..."
 log_info "Applying resources from: $DEPLOY_PATH"
 log_info "Data EC2 IP: $DATA_EC2_IP, Image Tag: $IMAGE_TAG"
-$KUBECTL_CMD apply -k "$DEPLOY_PATH"
+
+# 배포 시도
+if ! $KUBECTL_CMD apply -k "$DEPLOY_PATH" 2>&1; then
+    # selector immutable 에러 확인
+    if $KUBECTL_CMD apply -k "$DEPLOY_PATH" 2>&1 | grep -q "selector.*immutable\|field is immutable"; then
+        log_warn "⚠️  Deployment selector 충돌 감지. 기존 Deployment를 삭제하고 재생성합니다..."
+        if [ -n "$DEPLOYMENT_NAME" ]; then
+            log_info "기존 Deployment 삭제: $DEPLOYMENT_NAME"
+            $KUBECTL_CMD delete deployment "$DEPLOYMENT_NAME" -n baro-prod --ignore-not-found=true
+            sleep 2
+            log_info "Deployment 재생성 중..."
+            $KUBECTL_CMD apply -k "$DEPLOY_PATH"
+        else
+            log_error "❌ Deployment 이름을 찾을 수 없습니다. 수동으로 삭제 후 재배포하세요."
+            exit 1
+        fi
+    else
+        log_error "❌ 배포 실패. 에러를 확인하세요."
+        exit 1
+    fi
+fi
 
 # ===================================
 # 배포 상태 확인
