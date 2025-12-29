@@ -1,12 +1,12 @@
 package com.barofarm.support.search.application;
 
 import com.barofarm.support.common.response.CustomPage;
-import com.barofarm.support.search.application.dto.ExperienceAutoItem;
-import com.barofarm.support.search.application.dto.ExperienceSearchItem;
-import com.barofarm.support.search.application.dto.ProductAutoItem;
-import com.barofarm.support.search.application.dto.ProductSearchItem;
 import com.barofarm.support.search.application.dto.UnifiedAutoCompleteResponse;
 import com.barofarm.support.search.application.dto.UnifiedSearchResponse;
+import com.barofarm.support.search.application.dto.experience.ExperienceAutoCompleteResponse;
+import com.barofarm.support.search.application.dto.experience.ExperienceSearchResponse;
+import com.barofarm.support.search.application.dto.product.ProductAutoCompleteResponse;
+import com.barofarm.support.search.application.dto.product.ProductSearchResponse;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
@@ -22,9 +22,9 @@ public class UnifiedSearchService {
     // 통합 검색
     public UnifiedSearchResponse search(String q, Pageable pageable) {
         // 비동기 처리를 위해 CompletableFuture 사용 (두 개의 ES 쿼리 병렬 실행)
-        CompletableFuture<CustomPage<ProductSearchItem>> productsFuture =
+        CompletableFuture<CustomPage<ProductSearchResponse>> productsFuture =
             CompletableFuture.supplyAsync(() -> productSearchService.searchProducts(q, pageable));
-        CompletableFuture<CustomPage<ExperienceSearchItem>> experiencesFuture =
+        CompletableFuture<CustomPage<ExperienceSearchResponse>> experiencesFuture =
             CompletableFuture.supplyAsync(() -> experienceSearchService.searchExperiences(q, pageable));
 
         return new UnifiedSearchResponse(
@@ -36,9 +36,9 @@ public class UnifiedSearchService {
     // 통합 자동완성
     public UnifiedAutoCompleteResponse autocomplete(String q) {
         // 비동기 처리를 위해 CompletableFuture 사용 (두 개의 ES 쿼리 병렬 실행)
-        CompletableFuture<List<ProductAutoItem>> productsFuture =
+        CompletableFuture<List<ProductAutoCompleteResponse>> productsFuture =
             CompletableFuture.supplyAsync(() -> productSearchService.autocomplete(q));
-        CompletableFuture<List<ExperienceAutoItem>> experiencesFuture =
+        CompletableFuture<List<ExperienceAutoCompleteResponse>> experiencesFuture =
             CompletableFuture.supplyAsync(() -> experienceSearchService.autocomplete(q));
 
         return new UnifiedAutoCompleteResponse(

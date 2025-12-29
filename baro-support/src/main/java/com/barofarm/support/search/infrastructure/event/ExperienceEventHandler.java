@@ -3,7 +3,7 @@ package com.barofarm.support.search.infrastructure.event;
 import com.barofarm.support.experience.application.event.ExperienceTransactionEvent;
 import com.barofarm.support.experience.domain.Experience;
 import com.barofarm.support.search.application.ExperienceSearchService;
-import com.barofarm.support.search.application.dto.ExperienceIndexRequest;
+import com.barofarm.support.search.application.dto.experience.ExperienceIndexRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.retry.annotation.Backoff;

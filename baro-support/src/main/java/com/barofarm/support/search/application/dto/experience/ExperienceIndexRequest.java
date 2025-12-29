@@ -1,4 +1,4 @@
-package com.barofarm.support.search.application.dto;
+package com.barofarm.support.search.application.dto.experience;
 
 import java.time.LocalDate;
 import java.util.UUID;

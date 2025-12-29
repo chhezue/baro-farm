@@ -7,9 +7,10 @@ import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
 import com.barofarm.support.common.response.CustomPage;
-import com.barofarm.support.search.application.dto.ProductAutoItem;
-import com.barofarm.support.search.application.dto.ProductIndexRequest;
-import com.barofarm.support.search.application.dto.ProductSearchItem;
+import com.barofarm.support.search.application.dto.product.ProductAutoCompleteResponse;
+import com.barofarm.support.search.application.dto.product.ProductIndexRequest;
+import com.barofarm.support.search.application.dto.product.ProductSearchRequest;
+import com.barofarm.support.search.application.dto.product.ProductSearchResponse;
 import com.barofarm.support.search.domain.ProductAutocompleteDocument;
 import com.barofarm.support.search.domain.ProductDocument;
 import com.barofarm.support.search.infrastructure.elasticsearch.ProductAutocompleteRepository;
@@ -62,7 +63,8 @@ public class ProductSearchService {
         autocompleteRepository.deleteById(productId); // 자동완성 삭제
     }
 
-    public CustomPage<ProductSearchItem> searchProducts(String keyword, Pageable pageable) {
+    // 통합 검색을 위한 상품 검색 (키워드 하나만으로 검색)
+    public CustomPage<ProductSearchResponse> searchProducts(String keyword, Pageable pageable) {
 
         NativeQuery query =
             NativeQuery.builder()
@@ -88,10 +90,54 @@ public class ProductSearchService {
 
         SearchHits<ProductDocument> hits = operations.search(query, ProductDocument.class);
 
-        List<ProductSearchItem> items =
+        List<ProductSearchResponse> items =
             hits.getSearchHits().stream()
                 .map(h -> h.getContent())
-                .map(d -> new ProductSearchItem(
+                .map(d -> new ProductSearchResponse(
+                    d.getProductId(),
+                    d.getProductName(),
+                    d.getProductCategory(),
+                    d.getPrice()
+                ))
+                .toList();
+
+        return CustomPage.of(hits.getTotalHits(), items, pageable);
+    }
+
+    // 상품 단독 검색 (필터링 조건 추가)
+    public CustomPage<ProductSearchResponse> searchOnlyProducts(ProductSearchRequest request, Pageable pageable) {
+
+        NativeQuery query =
+            NativeQuery.builder()
+                .withQuery(q -> q.bool(b -> {
+
+                    // 키워드가 있는 경우에만 검색 조건을 추가
+                    if (request.keyword() != null && !request.keyword().isBlank()) {
+                        String keyword = request.keyword();
+                        applyExactMatch(b, keyword);
+                        applyNormalMatch(b, keyword);
+                        applyChosungMatch(b, keyword);
+                        applyFuzzyMatch(b, keyword);
+                        // should 조건 중 최소 하나는 만족해야 검색 결과에 포함
+                        b.minimumShouldMatch("1");
+                    }
+                    applyStatusFilter(b);
+                    applyCategoryFilter(b, request.categories());
+                    applyPriceFilter(b, request.priceMin(), request.priceMax());
+
+                    return b;
+                }))
+                .withSort(s -> s.score(sc -> sc.order(SortOrder.Desc)))
+                .withSort(s -> s.field(f -> f.field("updatedAt").order(SortOrder.Desc)))
+                .withPageable(pageable)
+                .build();
+
+        SearchHits<ProductDocument> hits = operations.search(query, ProductDocument.class);
+
+        List<ProductSearchResponse> items =
+            hits.getSearchHits().stream()
+                .map(h -> h.getContent())
+                .map(d -> new ProductSearchResponse(
                     d.getProductId(),
                     d.getProductName(),
                     d.getProductCategory(),
@@ -165,13 +211,53 @@ public class ProductSearchService {
         );
     }
 
+    // 카테고리 필터
+    private void applyCategoryFilter(BoolQuery.Builder b, List<String> categories) {
+        if (categories == null || categories.isEmpty()) {
+            return; // 카테고리 필터 없음
+        }
+
+        b.filter(f ->
+            f.terms(t ->
+                t.field("productCategory")
+                    .terms(v ->
+                        v.value(
+                            categories.stream()
+                                .map(FieldValue::of)
+                                .toList()
+                        )
+                    )
+            )
+        );
+    }
+
+    // 가격 필터
+    private void applyPriceFilter(BoolQuery.Builder b, Long priceMin, Long priceMax) {
+        if (priceMin == null && priceMax == null) {
+            return; // 가격 필터 없음
+        }
+
+        b.filter(f ->
+            f.range(r -> r.number(n -> {
+                var numberRange = n.field("price");
+                if (priceMin != null) {
+                    numberRange = numberRange.gte(priceMin.doubleValue());
+                }
+                if (priceMax != null) {
+                    numberRange = numberRange.lte(priceMax.doubleValue());
+                }
+                return numberRange;
+            }))
+        );
+    }
+
     @Cacheable(value = "autocomplete", key = "#query")
-    public List<ProductAutoItem> autocomplete(String query) {
+    public List<ProductAutoCompleteResponse> autocomplete(String query) {
         if (query == null || query.length() < 2) {
             return List.of(); // 최소 2글자 이상으로 제한
         }
         return autocompleteRepository.findByPrefix(query).stream()
-            .map(document -> new ProductAutoItem(document.getProductId(), document.getProductName()))
+            .map(document -> new ProductAutoCompleteResponse(document.getProductId(), document.getProductName()))
             .distinct()
             .toList();
     }

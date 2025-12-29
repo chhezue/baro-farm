@@ -6,9 +6,10 @@ import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
 import com.barofarm.support.common.response.CustomPage;
-import com.barofarm.support.search.application.dto.ExperienceAutoItem;
-import com.barofarm.support.search.application.dto.ExperienceIndexRequest;
-import com.barofarm.support.search.application.dto.ExperienceSearchItem;
+import com.barofarm.support.search.application.dto.experience.ExperienceAutoCompleteResponse;
+import com.barofarm.support.search.application.dto.experience.ExperienceIndexRequest;
+import com.barofarm.support.search.application.dto.experience.ExperienceSearchRequest;
+import com.barofarm.support.search.application.dto.experience.ExperienceSearchResponse;
 import com.barofarm.support.search.domain.ExperienceAutocompleteDocument;
 import com.barofarm.support.search.domain.ExperienceDocument;
 import com.barofarm.support.search.infrastructure.elasticsearch.ExperienceAutocompleteRepository;
@@ -64,7 +65,8 @@ public class ExperienceSearchService {
         autocompleteRepository.deleteById(experienceId); // 자동완성 삭제
     }
 
-    public CustomPage<ExperienceSearchItem> searchExperiences(String keyword, Pageable pageable) {
+    // 통합 검색을 위한 체험 검색 (키워드 하나만으로 검색)
+    public CustomPage<ExperienceSearchResponse> searchExperiences(String keyword, Pageable pageable) {
 
         NativeQuery query =
             NativeQuery.builder()
@@ -90,10 +92,57 @@ public class ExperienceSearchService {
 
         SearchHits<ExperienceDocument> hits = operations.search(query, ExperienceDocument.class);
 
-        List<ExperienceSearchItem> items =
+        List<ExperienceSearchResponse> items =
             hits.getSearchHits().stream()
                 .map(h -> h.getContent())
-                .map(d -> new ExperienceSearchItem(
+                .map(d -> new ExperienceSearchResponse(
+                    d.getExperienceId(),
+                    d.getExperienceName(),
+                    d.getPricePerPerson(),
+                    d.getCapacity(),
+                    d.getDurationMinutes()
+                ))
+                .toList();
+
+        return CustomPage.of(hits.getTotalHits(), items, pageable);
+    }
+
+    // 체험 단독 검색 (필터링 조건 추가)
+    public CustomPage<ExperienceSearchResponse> searchOnlyExperiences(
+        ExperienceSearchRequest request, Pageable pageable) {
+
+        NativeQuery query =
+            NativeQuery.builder()
+                .withQuery(q -> q.bool(b -> {
+
+                    // 키워드가 있는 경우에만 검색 조건을 추가
+                    if (request.keyword() != null && !request.keyword().isBlank()) {
+                        String keyword = request.keyword();
+                        applyExactMatch(b, keyword);
+                        applyNormalMatch(b, keyword);
+                        applyChosungMatch(b, keyword);
+                        applyFuzzyMatch(b, keyword);
+                        // should 조건 중 최소 하나는 만족해야 검색 결과에 포함
+                        b.minimumShouldMatch("1");
+                    }
+                    applyStatusFilter(b);
+                    applyCapacityFilter(b, request.capacityMin(), request.capacityMax());
+                    applyDurationFilter(b, request.durationMin(), request.durationMax());
+                    applyPricePerPersonFilter(b, request.pricePerPersonMin(), request.pricePerPersonMax());
+
+                    return b;
+                }))
+                .withSort(s -> s.score(sc -> sc.order(SortOrder.Desc)))
+                .withSort(s -> s.field(f -> f.field("updatedAt").order(SortOrder.Desc)))
+                .withPageable(pageable)
+                .build();
+
+        SearchHits<ExperienceDocument> hits = operations.search(query, ExperienceDocument.class);
+
+        List<ExperienceSearchResponse> items =
+            hits.getSearchHits().stream()
+                .map(h -> h.getContent())
+                .map(d -> new ExperienceSearchResponse(
                     d.getExperienceId(),
                     d.getExperienceName(),
                     d.getPricePerPerson(),
@@ -163,13 +212,75 @@ public class ExperienceSearchService {
         );
     }
 
+    // 1인당 가격 필터
+    private void applyPricePerPersonFilter(BoolQuery.Builder b, Long min, Long max) {
+        if (min == null && max == null) {
+            return;
+        }
+
+        b.filter(f ->
+            f.range(r -> r.number(n -> {
+                var range = n.field("pricePerPerson");
+                if (min != null) {
+                    range = range.gte(min.doubleValue());
+                }
+                if (max != null) {
+                    range = range.lte(max.doubleValue());
+                }
+                return range;
+            }))
+        );
+    }
+
+    // 수용 인원 필터
+    private void applyCapacityFilter(BoolQuery.Builder b, Integer min, Integer max) {
+        if (min == null && max == null) {
+            return;
+        }
+
+        b.filter(f ->
+            f.range(r -> r.number(n -> {
+                var range = n.field("capacity");
+                if (min != null) {
+                    range = range.gte(min.doubleValue());
+                }
+                if (max != null) {
+                    range = range.lte(max.doubleValue());
+                }
+                return range;
+            }))
+        );
+    }
+
+    // 소요 시간 필터 (분 단위)
+    private void applyDurationFilter(BoolQuery.Builder b, Integer min, Integer max) {
+        if (min == null && max == null) {
+            return;
+        }
+
+        b.filter(f ->
+            f.range(r -> r.number(n -> {
+                var range = n.field("duration");
+                if (min != null) {
+                    range = range.gte(min.doubleValue());
+                }
+                if (max != null) {
+                    range = range.lte(max.doubleValue());
+                }
+                return range;
+            }))
+        );
+    }
+
     @Cacheable(value = "autocomplete", key = "#query")
-    public List<ExperienceAutoItem> autocomplete(String query) {
+    public List<ExperienceAutoCompleteResponse> autocomplete(String query) {
         if (query == null || query.length() < 2) {
             return List.of(); // 최소 2글자 이상으로 제한
         }
         return autocompleteRepository.findByPrefix(query).stream()
-            .map(document -> new ExperienceAutoItem(document.getExperienceId(), document.getExperienceName()))
+            .map(document -> new ExperienceAutoCompleteResponse(
+                document.getExperienceId(),
+                document.getExperienceName()))
             .distinct()
             .toList();
     }
