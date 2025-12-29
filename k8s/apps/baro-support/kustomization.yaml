@@ -7,11 +7,13 @@ resources:
   - deployment.yaml
   - service.yaml
 
-commonLabels:
-  app: baro-support
-  component: app
+labels:
+  - includeSelectors: true
+    includeTemplates: true
+    pairs:
+      app: baro-support
+      component: app
 
 images:
   - name: ghcr.io/do-develop-space/baro-support
     newTag: latest
-

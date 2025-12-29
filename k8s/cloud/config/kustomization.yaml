@@ -7,11 +7,13 @@ resources:
   - deployment.yaml
   - service.yaml
 
-commonLabels:
-  app: config
-  component: cloud
+labels:
+  - includeSelectors: true
+    includeTemplates: true
+    pairs:
+      app: config
+      component: cloud
 
 images:
   - name: ghcr.io/do-develop-space/config
     newTag: latest
-

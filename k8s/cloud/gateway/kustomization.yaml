@@ -7,11 +7,13 @@ resources:
   - deployment.yaml
   - service.yaml
 
-commonLabels:
-  app: gateway
-  component: cloud
+labels:
+  - includeSelectors: true
+    includeTemplates: true
+    pairs:
+      app: gateway
+      component: cloud
 
 images:
   - name: ghcr.io/do-develop-space/gateway
     newTag: latest
-

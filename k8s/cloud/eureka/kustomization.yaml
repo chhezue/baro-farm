@@ -7,11 +7,13 @@ resources:
   - deployment.yaml
   - service.yaml
 
-commonLabels:
-  app: eureka
-  component: cloud
+labels:
+  - includeSelectors: true
+    includeTemplates: true
+    pairs:
+      app: eureka
+      component: cloud
 
 images:
   - name: ghcr.io/do-develop-space/eureka
     newTag: latest
-

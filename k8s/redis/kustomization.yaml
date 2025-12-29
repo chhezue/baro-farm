@@ -7,11 +7,13 @@ resources:
   - deployment.yaml
   - service.yaml
 
-commonLabels:
-  app: redis
-  component: cache
+labels:
+  - includeSelectors: true
+    includeTemplates: true
+    pairs:
+      app: redis
+      component: cache
 
 images:
   - name: redis
     newTag: 7.2-alpine
-

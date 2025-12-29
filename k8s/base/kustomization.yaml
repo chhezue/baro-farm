@@ -6,6 +6,8 @@ namespace: baro-prod
 resources:
   - namespace.yaml
 
-commonLabels:
-  environment: production
-
+labels:
+  - includeSelectors: true
+    includeTemplates: true
+    pairs:
+      environment: production

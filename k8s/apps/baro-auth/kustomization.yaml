@@ -7,9 +7,12 @@ resources:
   - deployment.yaml
   - service.yaml
 
-commonLabels:
-  app: baro-auth
-  component: app
+labels:
+  - includeSelectors: true
+    includeTemplates: true
+    pairs:
+      app: baro-auth
+      component: app
 
 images:
   - name: ghcr.io/do-develop-space/baro-auth

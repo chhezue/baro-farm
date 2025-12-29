@@ -7,11 +7,13 @@ resources:
   - deployment.yaml
   - service.yaml
 
-commonLabels:
-  app: baro-order
-  component: app
+labels:
+  - includeSelectors: true
+    includeTemplates: true
+    pairs:
+      app: baro-order
+      component: app
 
 images:
   - name: ghcr.io/do-develop-space/baro-order
     newTag: latest
-
