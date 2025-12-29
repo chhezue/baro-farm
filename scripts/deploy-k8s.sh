@@ -16,6 +16,9 @@
 
 set -e
 
+# 에러 트랩: 스크립트가 실패한 위치를 로그로 출력 (로그 함수가 정의되기 전에는 사용 불가)
+# trap는 나중에 설정됨 (로그 함수 정의 후)
+
 # 색상 정의
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -394,7 +397,9 @@ fi
 DEPLOYMENT_FILE="$DEPLOY_PATH/deployment.yaml"
 TEMP_DEPLOYMENT=""
 
+log_info "🔍 Deployment 파일 확인: $DEPLOYMENT_FILE"
 if [ -f "$DEPLOYMENT_FILE" ]; then
+    log_info "✅ Deployment 파일 존재 확인됨"
     # 임시 파일 생성 (원본 파일 보존)
     TEMP_DEPLOYMENT=$(mktemp)
     cp "$DEPLOYMENT_FILE" "$TEMP_DEPLOYMENT"
@@ -505,12 +510,103 @@ else
 fi
 
 # ===================================
+# Deployment 이름 추출 (selector 충돌 처리에 필요)
+# ===================================
+DEPLOYMENT_NAME=""
+if [ -f "$DEPLOYMENT_FILE" ]; then
+    # deployment.yaml에서 metadata.name 추출 (여러 방법 시도)
+    # 방법 1: 일반적인 패턴 (들여쓰기 2칸)
+    DEPLOYMENT_NAME=$(grep -E "^  name:" "$DEPLOYMENT_FILE" | head -1 | awk '{print $2}' 2>/dev/null)
+    
+    # 방법 2: 다른 들여쓰기 패턴
+    if [ -z "$DEPLOYMENT_NAME" ]; then
+        DEPLOYMENT_NAME=$(grep -E "^\s+name:" "$DEPLOYMENT_FILE" | grep -v "namespace:" | head -1 | awk '{print $2}' 2>/dev/null)
+    fi
+    
+    # 방법 3: metadata 섹션 내의 name 찾기
+    if [ -z "$DEPLOYMENT_NAME" ]; then
+        DEPLOYMENT_NAME=$(sed -n '/^metadata:/,/^spec:/p' "$DEPLOYMENT_FILE" | grep "name:" | head -1 | awk '{print $2}' 2>/dev/null)
+    fi
+fi
+
+# 여전히 없으면 APP_NAME 사용 (fallback)
+if [ -z "$DEPLOYMENT_NAME" ] && [ -n "$APP_NAME" ]; then
+    DEPLOYMENT_NAME="$APP_NAME"
+    log_info "💡 DEPLOYMENT_NAME을 APP_NAME으로 설정: $DEPLOYMENT_NAME"
+fi
+
+# 최종 확인: DEPLOYMENT_NAME이 설정되었는지
+if [ -z "$DEPLOYMENT_NAME" ]; then
+    log_warn "⚠️  DEPLOYMENT_NAME을 추출할 수 없습니다. APP_NAME: $APP_NAME"
+fi
+
+# ===================================
 # k8s 배포 (kustomize 사용)
 # ===================================
 log_step "📦 k8s 리소스 적용 중 (kustomize)..."
 log_info "Applying resources from: $DEPLOY_PATH"
 log_info "Data EC2 IP: $DATA_EC2_IP, Image Tag: $IMAGE_TAG"
-$KUBECTL_CMD apply -k "$DEPLOY_PATH"
+
+# 배포 시도 (에러 출력을 변수에 저장)
+log_info "📤 kubectl apply 실행 중..."
+log_info "   명령: $KUBECTL_CMD apply -k $DEPLOY_PATH"
+
+# set -e를 일시적으로 비활성화하여 에러를 캡처
+set +e
+APPLY_OUTPUT=$($KUBECTL_CMD apply -k "$DEPLOY_PATH" 2>&1)
+APPLY_EXIT_CODE=$?
+set -e
+
+if [ $APPLY_EXIT_CODE -ne 0 ]; then
+    log_error "❌ kubectl apply 실패 (exit code: $APPLY_EXIT_CODE)"
+    log_error "출력:"
+    echo "$APPLY_OUTPUT"
+    # selector immutable 에러 확인
+    if echo "$APPLY_OUTPUT" | grep -q "selector.*immutable\|field is immutable"; then
+        log_warn "⚠️  Deployment selector 충돌 감지. 기존 Deployment를 삭제하고 재생성합니다..."
+        
+        # DEPLOYMENT_NAME이 없으면 APP_NAME으로 시도
+        if [ -z "$DEPLOYMENT_NAME" ] && [ -n "$APP_NAME" ]; then
+            DEPLOYMENT_NAME="$APP_NAME"
+        fi
+        
+        if [ -n "$DEPLOYMENT_NAME" ]; then
+            log_info "기존 Deployment 삭제: $DEPLOYMENT_NAME"
+            $KUBECTL_CMD delete deployment "$DEPLOYMENT_NAME" -n baro-prod --ignore-not-found=true
+            sleep 2
+            log_info "Deployment 재생성 중..."
+            
+            # 재생성 시도 (에러 캡처)
+            set +e
+            RECREATE_OUTPUT=$($KUBECTL_CMD apply -k "$DEPLOY_PATH" 2>&1)
+            RECREATE_EXIT_CODE=$?
+            set -e
+            
+            if [ $RECREATE_EXIT_CODE -eq 0 ]; then
+                log_info "✅ Deployment 재생성 완료"
+                echo "$RECREATE_OUTPUT"
+            else
+                log_error "❌ Deployment 재생성 실패 (exit code: $RECREATE_EXIT_CODE)"
+                echo "$RECREATE_OUTPUT"
+                exit 1
+            fi
+        else
+            log_error "❌ Deployment 이름을 찾을 수 없습니다. (APP_NAME: $APP_NAME)"
+            log_error "수동으로 다음 명령어를 실행하세요:"
+            log_error "  kubectl delete deployment <deployment-name> -n baro-prod"
+            log_error "  kubectl apply -k $DEPLOY_PATH"
+            exit 1
+        fi
+    else
+        # 다른 종류의 에러
+        echo "$APPLY_OUTPUT"
+        log_error "❌ 배포 실패. 에러를 확인하세요."
+        exit 1
+    fi
+else
+    # 성공 시 출력
+    echo "$APPLY_OUTPUT"
+fi
 
 # ===================================
 # 배포 상태 확인
