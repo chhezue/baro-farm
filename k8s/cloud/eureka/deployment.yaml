@@ -38,13 +38,13 @@ spec:
               value: "eureka"
             - name: JAVA_OPTS
               value: "-Xms128m -Xmx256m"
-          resources:
-            requests:
-              memory: "128Mi"
-              cpu: "100m"
-            limits:
-              memory: "256Mi"
-              cpu: "500m"
+          # resources:
+          #   requests:
+          #     memory: "128Mi"
+          #     cpu: "100m"
+          #   limits:
+          #     memory: "256Mi"
+          #     cpu: "500m"
           livenessProbe:
             httpGet:
               path: /actuator/health

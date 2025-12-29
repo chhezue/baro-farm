@@ -42,13 +42,13 @@ spec:
               value: "http://localhost:8761/eureka/"  # hostNetwork: true 사용 시 localhost
             - name: JAVA_OPTS
               value: "-Xms256m -Xmx384m"
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "200m"
-            limits:
-              memory: "384Mi"
-              cpu: "1000m"
+          # resources:
+          #   requests:
+          #     memory: "256Mi"
+          #     cpu: "200m"
+          #   limits:
+          #     memory: "384Mi"
+          #     cpu: "1000m"
           livenessProbe:
             httpGet:
               path: /actuator/health
