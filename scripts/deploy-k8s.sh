@@ -505,31 +505,84 @@ else
 fi
 
 # ===================================
+# Deployment 이름 추출 (selector 충돌 처리에 필요)
+# ===================================
+DEPLOYMENT_NAME=""
+if [ -f "$DEPLOYMENT_FILE" ]; then
+    # deployment.yaml에서 metadata.name 추출 (여러 방법 시도)
+    # 방법 1: 일반적인 패턴 (들여쓰기 2칸)
+    DEPLOYMENT_NAME=$(grep -E "^  name:" "$DEPLOYMENT_FILE" | head -1 | awk '{print $2}' 2>/dev/null)
+    
+    # 방법 2: 다른 들여쓰기 패턴
+    if [ -z "$DEPLOYMENT_NAME" ]; then
+        DEPLOYMENT_NAME=$(grep -E "^\s+name:" "$DEPLOYMENT_FILE" | grep -v "namespace:" | head -1 | awk '{print $2}' 2>/dev/null)
+    fi
+    
+    # 방법 3: metadata 섹션 내의 name 찾기
+    if [ -z "$DEPLOYMENT_NAME" ]; then
+        DEPLOYMENT_NAME=$(sed -n '/^metadata:/,/^spec:/p' "$DEPLOYMENT_FILE" | grep "name:" | head -1 | awk '{print $2}' 2>/dev/null)
+    fi
+fi
+
+# 여전히 없으면 APP_NAME 사용 (fallback)
+if [ -z "$DEPLOYMENT_NAME" ] && [ -n "$APP_NAME" ]; then
+    DEPLOYMENT_NAME="$APP_NAME"
+    log_info "💡 DEPLOYMENT_NAME을 APP_NAME으로 설정: $DEPLOYMENT_NAME"
+fi
+
+# 최종 확인: DEPLOYMENT_NAME이 설정되었는지
+if [ -z "$DEPLOYMENT_NAME" ]; then
+    log_warn "⚠️  DEPLOYMENT_NAME을 추출할 수 없습니다. APP_NAME: $APP_NAME"
+fi
+
+# ===================================
 # k8s 배포 (kustomize 사용)
 # ===================================
 log_step "📦 k8s 리소스 적용 중 (kustomize)..."
 log_info "Applying resources from: $DEPLOY_PATH"
 log_info "Data EC2 IP: $DATA_EC2_IP, Image Tag: $IMAGE_TAG"
 
-# 배포 시도
-if ! $KUBECTL_CMD apply -k "$DEPLOY_PATH" 2>&1; then
+# 배포 시도 (에러 출력을 변수에 저장)
+APPLY_OUTPUT=$($KUBECTL_CMD apply -k "$DEPLOY_PATH" 2>&1)
+APPLY_EXIT_CODE=$?
+
+if [ $APPLY_EXIT_CODE -ne 0 ]; then
     # selector immutable 에러 확인
-    if $KUBECTL_CMD apply -k "$DEPLOY_PATH" 2>&1 | grep -q "selector.*immutable\|field is immutable"; then
+    if echo "$APPLY_OUTPUT" | grep -q "selector.*immutable\|field is immutable"; then
         log_warn "⚠️  Deployment selector 충돌 감지. 기존 Deployment를 삭제하고 재생성합니다..."
+        
+        # DEPLOYMENT_NAME이 없으면 APP_NAME으로 시도
+        if [ -z "$DEPLOYMENT_NAME" ] && [ -n "$APP_NAME" ]; then
+            DEPLOYMENT_NAME="$APP_NAME"
+        fi
+        
         if [ -n "$DEPLOYMENT_NAME" ]; then
             log_info "기존 Deployment 삭제: $DEPLOYMENT_NAME"
             $KUBECTL_CMD delete deployment "$DEPLOYMENT_NAME" -n baro-prod --ignore-not-found=true
             sleep 2
             log_info "Deployment 재생성 중..."
-            $KUBECTL_CMD apply -k "$DEPLOY_PATH"
+            if $KUBECTL_CMD apply -k "$DEPLOY_PATH"; then
+                log_info "✅ Deployment 재생성 완료"
+            else
+                log_error "❌ Deployment 재생성 실패"
+                exit 1
+            fi
         else
-            log_error "❌ Deployment 이름을 찾을 수 없습니다. 수동으로 삭제 후 재배포하세요."
+            log_error "❌ Deployment 이름을 찾을 수 없습니다. (APP_NAME: $APP_NAME)"
+            log_error "수동으로 다음 명령어를 실행하세요:"
+            log_error "  kubectl delete deployment <deployment-name> -n baro-prod"
+            log_error "  kubectl apply -k $DEPLOY_PATH"
             exit 1
         fi
     else
+        # 다른 종류의 에러
+        echo "$APPLY_OUTPUT"
         log_error "❌ 배포 실패. 에러를 확인하세요."
         exit 1
     fi
+else
+    # 성공 시 출력
+    echo "$APPLY_OUTPUT"
 fi
 
 # ===================================
