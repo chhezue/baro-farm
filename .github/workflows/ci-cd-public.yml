@@ -676,6 +676,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
           IMAGE_TAG: ${{ needs.determine-service.outputs.image_tag }}
           MODULE_NAME: ${{ steps.module.outputs.name }}
+          DATA_EC2_IP: ${{ secrets.DATA_EC2_IP || '' }}  # Data EC2 Private IP (필수, 없으면 배포 실패)
           KUBECONFIG: ~/.kube/config
         run: |
           export KUBECONFIG=~/.kube/config

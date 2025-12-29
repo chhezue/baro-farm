@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: baro-prod
+
+resources:
+  - deployment.yaml
+  - service.yaml
+
+labels:
+  - includeSelectors: true
+    includeTemplates: true
+    pairs:
+      app: baro-seller
+      component: app
+
+images:
+  - name: ghcr.io/do-develop-space/baro-seller
+    newTag: latest

@@ -504,38 +504,68 @@ jobs:
       - name: Setup kubeconfig
         run: |
           # Private EC2는 worker node이므로 Public EC2의 control-plane에 연결
-          # kubeconfig는 Public EC2의 control-plane을 가리켜야 함
-          if [ -f /etc/rancher/k3s/k3s.yaml ]; then
-            echo "📋 [Private EC2 - Worker Node] k3s kubeconfig 파일 설정 중..."
-            mkdir -p ~/.kube
+          # Worker node에는 /etc/rancher/k3s/k3s.yaml이 없으므로,
+          # 이미 설정된 ~/.kube/config를 사용하거나, control-plane의 kubeconfig를 가져와야 함
+          mkdir -p ~/.kube
+          
+          # 방법 1: 이미 ~/.kube/config가 설정되어 있는지 확인
+          if [ -f ~/.kube/config ]; then
+            echo "✅ [Private EC2 - Worker Node] 기존 kubeconfig 파일 발견"
+            CURRENT_SERVER=$(grep -E "^\s*server:" ~/.kube/config | awk '{print $2}' | sed 's|https://||' | sed 's|:6443||' | head -1)
+            if [ -n "$CURRENT_SERVER" ] && [ "$CURRENT_SERVER" != "127.0.0.1" ]; then
+              echo "✅ kubeconfig가 이미 Public EC2 control-plane을 가리키고 있습니다: $CURRENT_SERVER"
+              
+              # Public EC2 IP가 환경변수로 제공되면 확인
+              PUBLIC_EC2_IP="${PUBLIC_EC2_CONTROL_PLANE_IP:-}"
+              if [ -n "$PUBLIC_EC2_IP" ] && [ "$CURRENT_SERVER" != "$PUBLIC_EC2_IP" ]; then
+                echo "🔧 [Private EC2 - Worker Node] kubeconfig의 server 주소를 Public EC2 control-plane IP로 변경: $PUBLIC_EC2_IP"
+                sed -i "s|server:.*|server: https://$PUBLIC_EC2_IP:6443|g" ~/.kube/config || true
+                echo "✅ kubeconfig 설정 완료 (server: https://$PUBLIC_EC2_IP:6443)"
+              fi
+            else
+              echo "⚠️  kubeconfig의 server 주소가 localhost입니다. Public EC2 IP로 변경 필요"
+              PUBLIC_EC2_IP="${PUBLIC_EC2_CONTROL_PLANE_IP:-}"
+              if [ -z "$PUBLIC_EC2_IP" ]; then
+                echo "❌ PUBLIC_EC2_CONTROL_PLANE_IP 환경변수가 설정되지 않았습니다."
+                echo "   GitHub Secrets에 PUBLIC_EC2_CONTROL_PLANE_IP를 추가하거나,"
+                echo "   kubeconfig를 수동으로 설정해주세요."
+                exit 1
+              else
+                echo "🔧 [Private EC2 - Worker Node] kubeconfig의 server 주소를 Public EC2 control-plane IP로 변경: $PUBLIC_EC2_IP"
+                sed -i "s|server:.*|server: https://$PUBLIC_EC2_IP:6443|g" ~/.kube/config || true
+                echo "✅ kubeconfig 설정 완료 (server: https://$PUBLIC_EC2_IP:6443)"
+              fi
+            fi
+          # 방법 2: /etc/rancher/k3s/k3s.yaml이 있다면 복사 (일부 설정에서 존재할 수 있음)
+          elif [ -f /etc/rancher/k3s/k3s.yaml ]; then
+            echo "📋 [Private EC2 - Worker Node] /etc/rancher/k3s/k3s.yaml 파일에서 kubeconfig 복사 중..."
             sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
             sudo chown $USER:$USER ~/.kube/config
             chmod 600 ~/.kube/config
             
             # Public EC2의 control-plane IP로 변경
-            # 환경 변수에서 가져오거나, kubeconfig에 이미 설정되어 있을 수 있음
             PUBLIC_EC2_IP="${PUBLIC_EC2_CONTROL_PLANE_IP:-}"
             if [ -z "$PUBLIC_EC2_IP" ]; then
-              # kubeconfig에서 server 주소 추출
-              CURRENT_SERVER=$(grep -E "^\s*server:" ~/.kube/config | awk '{print $2}' | sed 's|https://||' | sed 's|:6443||')
-              if [ -n "$CURRENT_SERVER" ] && [ "$CURRENT_SERVER" != "127.0.0.1" ]; then
-                echo "✅ kubeconfig가 이미 Public EC2 control-plane을 가리키고 있습니다: $CURRENT_SERVER"
-              else
-                echo "⚠️  Public EC2 control-plane IP가 설정되지 않았습니다."
-                echo "   환경 변수 PUBLIC_EC2_CONTROL_PLANE_IP를 설정하거나,"
-                echo "   kubeconfig를 수동으로 설정해주세요."
-                echo "   현재 server: $CURRENT_SERVER"
-              fi
+              echo "⚠️  PUBLIC_EC2_CONTROL_PLANE_IP 환경변수가 설정되지 않았습니다."
+              echo "   GitHub Secrets에 PUBLIC_EC2_CONTROL_PLANE_IP를 추가하거나,"
+              echo "   kubeconfig를 수동으로 설정해주세요."
+              exit 1
             else
               echo "🔧 [Private EC2 - Worker Node] kubeconfig의 server 주소를 Public EC2 control-plane IP로 변경: $PUBLIC_EC2_IP"
               sed -i "s|server:.*|server: https://$PUBLIC_EC2_IP:6443|g" ~/.kube/config || true
               echo "✅ kubeconfig 설정 완료 (server: https://$PUBLIC_EC2_IP:6443)"
             fi
           else
-            echo "⚠️  /etc/rancher/k3s/k3s.yaml 파일을 찾을 수 없습니다."
+            echo "❌ [Private EC2 - Worker Node] kubeconfig 파일을 찾을 수 없습니다."
             echo "디버그 정보:"
+            echo "  - ~/.kube/config 존재 여부: $([ -f ~/.kube/config ] && echo 'yes' || echo 'no')"
+            echo "  - /etc/rancher/k3s/k3s.yaml 존재 여부: $([ -f /etc/rancher/k3s/k3s.yaml ] && echo 'yes' || echo 'no')"
             echo "  - k3s-agent 설치 확인:"
             sudo systemctl status k3s-agent 2>&1 | head -10 || true
+            echo ""
+            echo "해결 방법:"
+            echo "  1. Public EC2 control-plane에서 kubeconfig를 가져와 ~/.kube/config에 설정하거나"
+            echo "  2. GitHub Secrets에 PUBLIC_EC2_CONTROL_PLANE_IP를 설정하고 kubeconfig를 수동으로 구성하세요"
             exit 1
           fi
 
@@ -617,6 +647,7 @@ jobs:
           IMAGE_TAG: ${{ needs.determine-service.outputs.image_tag }}
           MODULE_NAME: ${{ steps.module.outputs.name }}
           KUBECONFIG: ~/.kube/config
+          DATA_EC2_IP: ${{ secrets.DATA_EC2_IP || '' }}  # Data EC2 Private IP (필수, 없으면 배포 실패)
         run: |
           export KUBECONFIG=~/.kube/config
           
