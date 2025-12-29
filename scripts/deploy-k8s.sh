@@ -575,10 +575,19 @@ if [ $APPLY_EXIT_CODE -ne 0 ]; then
             $KUBECTL_CMD delete deployment "$DEPLOYMENT_NAME" -n baro-prod --ignore-not-found=true
             sleep 2
             log_info "Deployment 재생성 중..."
-            if $KUBECTL_CMD apply -k "$DEPLOY_PATH"; then
+            
+            # 재생성 시도 (에러 캡처)
+            set +e
+            RECREATE_OUTPUT=$($KUBECTL_CMD apply -k "$DEPLOY_PATH" 2>&1)
+            RECREATE_EXIT_CODE=$?
+            set -e
+            
+            if [ $RECREATE_EXIT_CODE -eq 0 ]; then
                 log_info "✅ Deployment 재생성 완료"
+                echo "$RECREATE_OUTPUT"
             else
-                log_error "❌ Deployment 재생성 실패"
+                log_error "❌ Deployment 재생성 실패 (exit code: $RECREATE_EXIT_CODE)"
+                echo "$RECREATE_OUTPUT"
                 exit 1
             fi
         else
