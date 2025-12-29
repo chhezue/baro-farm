@@ -8,6 +8,7 @@ import com.barofarm.support.search.application.dto.ProductSearchItem;
 import com.barofarm.support.search.application.dto.UnifiedAutoCompleteResponse;
 import com.barofarm.support.search.application.dto.UnifiedSearchResponse;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -20,18 +21,29 @@ public class UnifiedSearchService {
 
     // 통합 검색
     public UnifiedSearchResponse search(String q, Pageable pageable) {
-        // 각 서비스에서 CustomPage를 직접 반환받아서 조합
-        CustomPage<ProductSearchItem> products = productSearchService.searchProducts(q, pageable);
-        CustomPage<ExperienceSearchItem> experiences = experienceSearchService.searchExperiences(q, pageable);
+        // 비동기 처리를 위해 CompletableFuture 사용 (두 개의 ES 쿼리 병렬 실행)
+        CompletableFuture<CustomPage<ProductSearchItem>> productsFuture =
+            CompletableFuture.supplyAsync(() -> productSearchService.searchProducts(q, pageable));
+        CompletableFuture<CustomPage<ExperienceSearchItem>> experiencesFuture =
+            CompletableFuture.supplyAsync(() -> experienceSearchService.searchExperiences(q, pageable));
 
-        return new UnifiedSearchResponse(products, experiences);
+        return new UnifiedSearchResponse(
+            productsFuture.join(),
+            experiencesFuture.join()
+        );
     }
 
     // 통합 자동완성
     public UnifiedAutoCompleteResponse autocomplete(String q) {
-        List<ProductAutoItem> autoProducts = productSearchService.autocomplete(q);
-        List<ExperienceAutoItem> autoExperiences = experienceSearchService.autocomplete(q);
+        // 비동기 처리를 위해 CompletableFuture 사용 (두 개의 ES 쿼리 병렬 실행)
+        CompletableFuture<List<ProductAutoItem>> productsFuture =
+            CompletableFuture.supplyAsync(() -> productSearchService.autocomplete(q));
+        CompletableFuture<List<ExperienceAutoItem>> experiencesFuture =
+            CompletableFuture.supplyAsync(() -> experienceSearchService.autocomplete(q));
 
-        return new UnifiedAutoCompleteResponse(autoProducts, autoExperiences); // 최대 15개 반환됨.
+        return new UnifiedAutoCompleteResponse(
+            productsFuture.join(),
+            experiencesFuture.join()
+        );
     }
 }

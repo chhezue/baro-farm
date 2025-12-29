@@ -10,6 +10,7 @@ import com.barofarm.support.common.response.CustomPage;
 import com.barofarm.support.search.application.dto.ProductAutoItem;
 import com.barofarm.support.search.application.dto.ProductIndexRequest;
 import com.barofarm.support.search.application.dto.ProductSearchItem;
+import com.barofarm.support.search.domain.ProductAutocompleteDocument;
 import com.barofarm.support.search.domain.ProductDocument;
 import com.barofarm.support.search.infrastructure.elasticsearch.ProductAutocompleteRepository;
 import com.barofarm.support.search.infrastructure.elasticsearch.ProductSearchRepository;
@@ -17,10 +18,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -32,6 +35,7 @@ public class ProductSearchService {
 
     // 상품 문서를 ES에 저장 (인덱싱), updatedAt은 현재 시각으로 자동 설정
     // Kafka Consumer에서 호출됨
+    @Async
     public ProductDocument indexProduct(ProductIndexRequest request) {
         ProductDocument doc =
             new ProductDocument(
@@ -42,12 +46,20 @@ public class ProductSearchService {
                 request.price(),
                 request.status(),
                 Instant.now());
+
+        // 자동완성 인덱스에도 저장 (status 포함하여 필터링 가능하도록)
+        ProductAutocompleteDocument autocompleteDoc =
+            new ProductAutocompleteDocument(request.productId(), request.productName(), request.status());
+        autocompleteRepository.save(autocompleteDoc);
+
         return repository.save(doc);
     }
 
-    // 상품 삭제 (추후 Kafka Consumer에서 호출 예정)
+    // 상품 삭제 (Kafka Consumer에서 호출됨)
+    @Async
     public void deleteProduct(UUID productId) {
-        repository.deleteById(productId);
+        repository.deleteById(productId); // Document 삭제
+        autocompleteRepository.deleteById(productId); // 자동완성 삭제
     }
 
     public CustomPage<ProductSearchItem> searchProducts(String keyword, Pageable pageable) {
@@ -153,11 +165,14 @@ public class ProductSearchService {
         );
     }
 
+    @Cacheable(value = "autocomplete", key = "#query")
     public List<ProductAutoItem> autocomplete(String query) {
+        if (query == null || query.length() < 2) {
+            return List.of(); // 최소 2글자 이상으로 제한
+        }
         return autocompleteRepository.findByPrefix(query).stream()
             .map(document -> new ProductAutoItem(document.getProductId(), document.getProductName()))
             .distinct()
-            .limit(5) // 자동완성 5개까지 출력
             .toList();
     }
 }

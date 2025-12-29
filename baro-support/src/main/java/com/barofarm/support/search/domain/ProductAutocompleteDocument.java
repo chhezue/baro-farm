@@ -19,8 +19,12 @@ public class ProductAutocompleteDocument {
     @Field(type = FieldType.Text, analyzer = "autocomplete_analyzer", searchAnalyzer = "standard")
     private String productName; // prefix 조각 자동 생성: "토마토" ["토", "토마", "토마토"]
 
-    public ProductAutocompleteDocument(UUID productId, String productName) {
+    @Field(type = FieldType.Keyword)
+    private String status; // 검색 결과 반환 로직 내에서 ON_SALE, DISCOUNTED 상태만 결과에 노출
+
+    public ProductAutocompleteDocument(UUID productId, String productName, String status) {
         this.productId = productId;
         this.productName = productName;
+        this.status = status;
     }
 }

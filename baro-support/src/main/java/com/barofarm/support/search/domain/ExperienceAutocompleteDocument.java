@@ -19,8 +19,12 @@ public class ExperienceAutocompleteDocument {
     @Field(type = FieldType.Text, analyzer = "autocomplete_analyzer", searchAnalyzer = "standard")
     private String experienceName;
 
-    public ExperienceAutocompleteDocument(UUID experienceId, String experienceName) {
+    @Field(type = FieldType.Keyword)
+    private String status; // 검색 결과 반환 로직 내에서 ON_SALE 상태만 결과에 노출
+
+    public ExperienceAutocompleteDocument(UUID experienceId, String experienceName, String status) {
         this.experienceId = experienceId;
         this.experienceName = experienceName;
+        this.status = status;
     }
 }

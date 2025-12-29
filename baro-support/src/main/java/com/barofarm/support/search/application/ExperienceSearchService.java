@@ -9,6 +9,7 @@ import com.barofarm.support.common.response.CustomPage;
 import com.barofarm.support.search.application.dto.ExperienceAutoItem;
 import com.barofarm.support.search.application.dto.ExperienceIndexRequest;
 import com.barofarm.support.search.application.dto.ExperienceSearchItem;
+import com.barofarm.support.search.domain.ExperienceAutocompleteDocument;
 import com.barofarm.support.search.domain.ExperienceDocument;
 import com.barofarm.support.search.infrastructure.elasticsearch.ExperienceAutocompleteRepository;
 import com.barofarm.support.search.infrastructure.elasticsearch.ExperienceSearchRepository;
@@ -16,10 +17,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -31,6 +34,7 @@ public class ExperienceSearchService {
 
     // 체험 문서를 ES에 저장 (인덱싱), updatedAt은 현재 시각으로 자동 설정
     // in-process Listener에서 호출됨
+    @Async
     public ExperienceDocument indexExperience(ExperienceIndexRequest request) {
         ExperienceDocument doc =
             new ExperienceDocument(
@@ -44,12 +48,20 @@ public class ExperienceSearchService {
                 request.availableEndDate(),
                 request.status(),
                 Instant.now());
+
+        // 자동완성 인덱스에도 저장 (status 포함하여 필터링 가능하도록)
+        ExperienceAutocompleteDocument autocompleteDoc =
+            new ExperienceAutocompleteDocument(request.experienceId(), request.experienceName(), request.status());
+        autocompleteRepository.save(autocompleteDoc);
+
         return repository.save(doc);
     }
 
     // 체험 삭제 (in-process Listener에서 호출됨)
+    @Async
     public void deleteExperience(UUID experienceId) {
-        repository.deleteById(experienceId);
+        repository.deleteById(experienceId); // Document 삭제
+        autocompleteRepository.deleteById(experienceId); // 자동완성 삭제
     }
 
     public CustomPage<ExperienceSearchItem> searchExperiences(String keyword, Pageable pageable) {
@@ -151,11 +163,14 @@ public class ExperienceSearchService {
         );
     }
 
+    @Cacheable(value = "autocomplete", key = "#query")
     public List<ExperienceAutoItem> autocomplete(String query) {
+        if (query == null || query.length() < 2) {
+            return List.of(); // 최소 2글자 이상으로 제한
+        }
         return autocompleteRepository.findByPrefix(query).stream()
             .map(document -> new ExperienceAutoItem(document.getExperienceId(), document.getExperienceName()))
             .distinct()
-            .limit(5) // 자동완성 5개까지 출력
             .toList();
     }
 }
