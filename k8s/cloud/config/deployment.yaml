@@ -69,13 +69,13 @@ spec:
             # 기본값: main (환경 변수가 없을 때)
             - name: CONFIG_GIT_BRANCH
               value: "main"
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "500m"
+          # resources:
+          #   requests:
+          #     memory: "128Mi"
+          #     cpu: "100m"
+          #   limits:
+          #     memory: "256Mi"
+          #     cpu: "500m"
           livenessProbe:
             httpGet:
               path: /actuator/health

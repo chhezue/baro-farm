@@ -75,13 +75,13 @@ spec:
                 secretKeyRef:
                   name: baro-secrets
                   key: AWS_S3_BUCKET_NAME
-          resources:
-            requests:
-              memory: "512Mi"
-              cpu: "200m"
-            limits:
-              memory: "768Mi"
-              cpu: "500m"
+          # resources:
+          #   requests:
+          #     memory: "512Mi"
+          #     cpu: "200m"
+          #   limits:
+          #     memory: "768Mi"
+          #     cpu: "500m"
           livenessProbe:
             httpGet:
               path: /actuator/health
