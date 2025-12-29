@@ -8,7 +8,7 @@ resources:
   - service.yaml
 
 labels:
-  - includeSelectors: true
+  - includeSelectors: false  # selector는 immutable이므로 false로 설정
     includeTemplates: true
     pairs:
       app: gateway
