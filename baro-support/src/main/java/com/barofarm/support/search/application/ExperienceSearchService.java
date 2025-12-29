@@ -30,7 +30,7 @@ public class ExperienceSearchService {
     private final ExperienceAutocompleteRepository autocompleteRepository;
 
     // 체험 문서를 ES에 저장 (인덱싱), updatedAt은 현재 시각으로 자동 설정
-    // Kafka Consumer에서 호출됨
+    // in-process Listener에서 호출됨
     public ExperienceDocument indexExperience(ExperienceIndexRequest request) {
         ExperienceDocument doc =
             new ExperienceDocument(
@@ -47,7 +47,7 @@ public class ExperienceSearchService {
         return repository.save(doc);
     }
 
-    // 체험 삭제 (Kafka Consumer에서 호출됨)
+    // 체험 삭제 (in-process Listener에서 호출됨)
     public void deleteExperience(UUID experienceId) {
         repository.deleteById(experienceId);
     }

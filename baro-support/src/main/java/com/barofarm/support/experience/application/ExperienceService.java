@@ -9,7 +9,6 @@ import com.barofarm.support.experience.domain.Experience;
 import com.barofarm.support.experience.domain.ExperienceRepository;
 import com.barofarm.support.experience.exception.ExperienceErrorCode;
 import feign.FeignException;
-import java.math.BigInteger;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -68,7 +67,7 @@ public class ExperienceService {
             throw new CustomException(ExperienceErrorCode.INVALID_DATE_RANGE);
         }
 
-        if (experience.getPricePerPerson().compareTo(BigInteger.ZERO) < 0) {
+        if (experience.getPricePerPerson() < 0) {
             throw new CustomException(ExperienceErrorCode.INVALID_PRICE);
         }
 
@@ -94,10 +93,11 @@ public class ExperienceService {
         try {
             return farmClient.getFarmIdByUserId(userId);
         } catch (FeignException e) {
-            if (e.status() == 404) {
-                return null;
-            }
-            throw e;
+//            if (e.status() == 404) {
+//                return null;
+//            }
+//            throw e;
+            return null;
         }
     }
 
