@@ -1,0 +1,972 @@
+name: CI/CD Pipeline - Public EC2 (K8s Control-Plane Deployment)
+
+# ==================================================
+# Public EC2용 CI/CD Pipeline
+# - 배포 대상: data (MySQL, Redis, Kafka, Elasticsearch 등), cloud (eureka, gateway, config)
+# - 배포 방식: Kubernetes (k8s) - Control-Plane이 Public EC2에 있음
+# - Runner: public-ec2-runner (self-hosted)
+# ==================================================
+
+on:
+  push:
+    branches:
+      - main-data
+      - main-cloud
+      - main-eureka
+      - main-gateway
+      - main-config
+  pull_request:
+    branches:
+      - main-data
+      - main-cloud
+      - main-eureka
+      - main-gateway
+      - main-config
+    types: [opened, synchronize, reopened]
+
+# GITHUB_TOKEN에 패키지 쓰기 권한 부여
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: do-develop-space
+  IMAGE_VERSION: 0.1.0
+
+jobs:
+  # ==================================================
+  # CI: Build, Test, Code Quality
+  # ==================================================
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && 
+       (startsWith(github.ref, 'refs/heads/main-cloud') ||
+        startsWith(github.ref, 'refs/heads/main-eureka') ||
+        startsWith(github.ref, 'refs/heads/main-gateway') ||
+        startsWith(github.ref, 'refs/heads/main-config'))) ||
+      (github.event_name == 'pull_request' && 
+       (startsWith(github.base_ref, 'main-cloud') ||
+        startsWith(github.base_ref, 'main-eureka') ||
+        startsWith(github.base_ref, 'main-gateway') ||
+        startsWith(github.base_ref, 'main-config')))
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Extract module name from branch
+        id: module
+        run: |
+          if [[ "$GITHUB_REF" == refs/heads/main-* ]]; then
+            MODULE=$(echo ${GITHUB_REF#refs/heads/main-} | tr '[:upper:]' '[:lower:]')
+          else
+            MODULE=""
+          fi
+          
+          # 빌드할 모듈 결정 (Public EC2용: cloud, eureka, gateway, config)
+          case "$MODULE" in
+            cloud) BUILD_MODULE=":baro-cloud:eureka,:baro-cloud:gateway,:baro-cloud:config" ;;
+            eureka) BUILD_MODULE=":baro-cloud:eureka" ;;
+            gateway) BUILD_MODULE=":baro-cloud:gateway" ;;
+            config) BUILD_MODULE=":baro-cloud:config" ;;
+            *) BUILD_MODULE="" ;;
+          esac
+          
+          echo "module=$MODULE" >> $GITHUB_OUTPUT
+          echo "build_module=$BUILD_MODULE" >> $GITHUB_OUTPUT
+          echo "Extracted module: $MODULE -> Build: $BUILD_MODULE"
+      
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+      
+      - name: Cache Gradle build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Code formatting check (Spotless)
+        continue-on-error: true
+        run: |
+          BUILD_MODULE="${{ steps.module.outputs.build_module }}"
+          if [ -n "$BUILD_MODULE" ]; then
+            # 쉼표로 구분된 여러 모듈 처리
+            IFS=',' read -ra MODULES <<< "$BUILD_MODULE"
+            for module in "${MODULES[@]}"; do
+              ./gradlew ${module}:spotlessCheck
+            done
+          else
+            ./gradlew spotlessCheck
+          fi
+      
+      - name: Lint check (Checkstyle)
+        continue-on-error: true
+        run: |
+          BUILD_MODULE="${{ steps.module.outputs.build_module }}"
+          if [ -n "$BUILD_MODULE" ]; then
+            # 쉼표로 구분된 여러 모듈 처리
+            IFS=',' read -ra MODULES <<< "$BUILD_MODULE"
+            for module in "${MODULES[@]}"; do
+              ./gradlew ${module}:checkstyleMain
+            done
+          else
+            ./gradlew checkstyleMain
+          fi
+      
+      - name: Build with Gradle
+        run: |
+          BUILD_MODULE="${{ steps.module.outputs.build_module }}"
+          if [ -n "$BUILD_MODULE" ]; then
+            # 쉼표로 구분된 여러 모듈 처리
+            IFS=',' read -ra MODULES <<< "$BUILD_MODULE"
+            for module in "${MODULES[@]}"; do
+              ./gradlew ${module}:build -x test
+            done
+          else
+            ./gradlew build -x test
+          fi
+      
+      - name: Run tests
+        continue-on-error: true
+        run: |
+          BUILD_MODULE="${{ steps.module.outputs.build_module }}"
+          if [ -n "$BUILD_MODULE" ]; then
+            # 쉼표로 구분된 여러 모듈 처리
+            IFS=',' read -ra MODULES <<< "$BUILD_MODULE"
+            for module in "${MODULES[@]}"; do
+              ./gradlew ${module}:test
+            done
+          else
+            ./gradlew test
+          fi
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/build/test-results/test/'
+          if-no-files-found: ignore
+      
+      - name: Determine artifact paths
+        id: artifacts
+        run: |
+          MODULE="${{ steps.module.outputs.module }}"
+          BUILD_MODULE="${{ steps.module.outputs.build_module }}"
+          
+          case "$MODULE" in
+            cloud) ARTIFACT_PATHS="baro-cloud/eureka/build/libs/*.jar
+            baro-cloud/gateway/build/libs/*.jar
+            baro-cloud/config/build/libs/*.jar" ;;
+            eureka) ARTIFACT_PATHS="baro-cloud/eureka/build/libs/*.jar" ;;
+            gateway) ARTIFACT_PATHS="baro-cloud/gateway/build/libs/*.jar" ;;
+            config) ARTIFACT_PATHS="baro-cloud/config/build/libs/*.jar" ;;
+            *) ARTIFACT_PATHS="" ;;
+          esac
+          
+          echo "paths<<EOF" >> $GITHUB_OUTPUT
+          echo "$ARTIFACT_PATHS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Upload build artifacts
+        if: steps.artifacts.outputs.paths != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            ${{ steps.artifacts.outputs.paths }}
+          if-no-files-found: ignore
+
+  # ==================================================
+  # Docker: Build and Push Images
+  # ==================================================
+  determine-service:
+    name: Determine Service to Build
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && 
+       (startsWith(github.ref, 'refs/heads/main-data') ||
+        startsWith(github.ref, 'refs/heads/main-cloud') ||
+        startsWith(github.ref, 'refs/heads/main-eureka') ||
+        startsWith(github.ref, 'refs/heads/main-gateway') ||
+        startsWith(github.ref, 'refs/heads/main-config'))) ||
+      (github.event_name == 'pull_request' && 
+       (startsWith(github.base_ref, 'main-data') ||
+        startsWith(github.base_ref, 'main-cloud') ||
+        startsWith(github.base_ref, 'main-eureka') ||
+        startsWith(github.base_ref, 'main-gateway') ||
+        startsWith(github.base_ref, 'main-config')))
+    outputs:
+      service: ${{ steps.module.outputs.service }}
+      module: ${{ steps.module.outputs.module }}
+      image_tag: ${{ steps.module.outputs.image_tag }}
+    steps:
+      - name: Extract service name from branch
+        id: module
+        run: |
+          if [[ "$GITHUB_REF" == refs/heads/main-* ]]; then
+            MODULE=$(echo ${GITHUB_REF#refs/heads/main-} | tr '[:upper:]' '[:lower:]')
+          else
+            MODULE=""
+          fi
+          
+          # 모듈명을 서비스명으로 변환 (Public EC2용: data, cloud, eureka, gateway, config)
+          case "$MODULE" in
+            data) SERVICE="data" ;;  # data는 빌드 없이 배포만
+            cloud) SERVICE="cloud" ;;  # cloud는 빌드 필요 (eureka, gateway, config)
+            eureka) SERVICE="eureka" ;;
+            gateway) SERVICE="gateway" ;;
+            config) SERVICE="config" ;;
+            *) SERVICE="" ;;
+          esac
+          
+          # 이미지 태그 결정
+          if [[ "$GITHUB_REF" == refs/heads/main-* ]]; then
+            IMAGE_TAG="latest"
+          else
+            IMAGE_TAG="latest"
+          fi
+          
+          echo "module=$MODULE" >> $GITHUB_OUTPUT
+          echo "service=$SERVICE" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "Extracted module: $MODULE -> service: $SERVICE with tag: $IMAGE_TAG"
+
+  # ==================================================
+  # Docker: Build and Push Images
+  # ==================================================
+  docker-build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [build-and-test, determine-service]
+    timeout-minutes: 30
+    if: |
+      github.event_name == 'push' && 
+      startsWith(github.ref, 'refs/heads/main-') &&
+      needs.determine-service.outputs.service != '' &&
+      needs.determine-service.outputs.service != 'data'
+    
+    # cloud 모듈일 때는 eureka, gateway, config를 각각 빌드
+    strategy:
+      matrix:
+        service: ${{ needs.determine-service.outputs.service == 'cloud' && fromJSON('["eureka", "gateway", "config"]') || fromJSON(format('["{0}"]', needs.determine-service.outputs.service)) }}
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+      
+      - name: Cache Gradle build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: build-artifacts
+          path: .
+      
+      - name: Build module if artifact not found
+        run: |
+          SERVICE="${{ matrix.service }}"
+          case "$SERVICE" in
+            eureka) MODULE_PATH="baro-cloud/eureka" ;;
+            gateway) MODULE_PATH="baro-cloud/gateway" ;;
+            config) MODULE_PATH="baro-cloud/config" ;;
+            *) MODULE_PATH="" ;;
+          esac
+          
+          if [ -n "$MODULE_PATH" ]; then
+            JAR_COUNT=$(find "$MODULE_PATH/build/libs" -name "*.jar" 2>/dev/null | wc -l)
+            if [ "$JAR_COUNT" -eq 0 ]; then
+              echo "JAR file not found, building module: $MODULE_PATH"
+              GRADLE_MODULE=$(echo "$MODULE_PATH" | tr '/' ':')
+              ./gradlew :${GRADLE_MODULE}:build -x test
+            else
+              echo "JAR file found in $MODULE_PATH/build/libs"
+            fi
+          fi
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+          buildkitd-flags: --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host
+          version: latest
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: do-develop-space
+          password: ${{ secrets.GHCR_PAT }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}
+          tags: |
+            type=raw,value=latest
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-,format=short
+            type=raw,value={{branch}}-{{date 'YYYYMMDD-HHmmss'}}
+          flavor: |
+            latest=true
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:buildcache,mode=max
+      
+      - name: Make package public
+        if: success()
+        run: |
+          PACKAGE_NAME="${{ matrix.service }}"
+          echo "Making package ${PACKAGE_NAME} public..."
+          
+          curl -X PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/user/packages/container/${PACKAGE_NAME} \
+            -d '{"visibility":"public"}' || echo "Failed to make package public (may already be public or require manual setup)"
+          
+          echo "✅ Package ${PACKAGE_NAME} visibility set to public"
+
+  # ==================================================
+  # CD: Deploy to Public EC2 (K8s - Control-Plane)
+  # ==================================================
+  deploy:
+    name: Deploy to Public EC2 (K8s Control-Plane)
+    # Public EC2의 self-hosted runner에서 실행
+    # Public EC2는 k8s control-plane (master) 역할
+    # Runner 라벨을 사용하여 Public EC2만 선택
+    # 여러 runner가 있을 때 라벨로 명확히 구분
+    runs-on: [self-hosted, public]
+    needs: [build-and-test, determine-service, docker-build]
+    timeout-minutes: 30  # 배포 타임아웃 설정
+    if: |
+      startsWith(github.ref, 'refs/heads/main-') &&
+      needs.determine-service.outputs.module != '' &&
+      always() && 
+      (needs.determine-service.outputs.module == 'data' || 
+       (needs.docker-build.result == 'success' || needs.docker-build.result == 'skipped'))
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Extract module name
+        id: module
+        run: |
+          MODULE="${{ needs.determine-service.outputs.module }}"
+          echo "name=$MODULE" >> $GITHUB_OUTPUT
+          echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+          echo "🚀 [Public EC2 - Control-Plane] Deploying module: $MODULE from branch: ${GITHUB_REF#refs/heads/}"
+          
+          # data 모듈인 경우 추가 파일 복사
+          if [ "${MODULE}" = "data" ]; then
+            echo "ℹ️  [Public EC2 - Control-Plane] data 모듈 배포 준비 중..."
+          fi
+          
+          # cloud 모듈인 경우 추가 확인
+          if [ "${MODULE}" = "cloud" ] || [ "${MODULE}" = "eureka" ] || [ "${MODULE}" = "gateway" ] || [ "${MODULE}" = "config" ]; then
+            echo "ℹ️  [Public EC2 - Control-Plane] cloud 모듈 배포 준비 중..."
+          fi
+
+      - name: Prepare deployment directory
+        run: |
+          mkdir -p /home/ubuntu/apps/BE
+          cd /home/ubuntu/apps/BE
+
+      - name: Copy deployment files
+        run: |
+          MODULE="${{ steps.module.outputs.name }}"
+          mkdir -p /home/ubuntu/apps/BE
+          cd /home/ubuntu/apps/BE
+
+          echo "📦 [Public EC2 - Control-Plane] 배포 파일 복사 중..."
+
+          # k8s 디렉토리 복사
+          if [ -d "$GITHUB_WORKSPACE/k8s" ]; then
+            echo "📦 [Public EC2 - Control-Plane] k8s 디렉토리 복사 중..."
+            echo "   - 소스: $GITHUB_WORKSPACE/k8s"
+            echo "   - 대상: /home/ubuntu/apps/k8s"
+            mkdir -p /home/ubuntu/apps
+            
+            # 서버에 직접 만든 scripts 폴더 등 백업
+            if [ -d "/home/ubuntu/apps/k8s/scripts" ]; then
+              echo "💾 기존 scripts 폴더 백업 중..."
+              cp -r /home/ubuntu/apps/k8s/scripts /tmp/k8s-scripts-backup-$$ 2>/dev/null || true
+            fi
+            
+            # rsync로 파일만 업데이트 (--delete 옵션 없이, 기존 추가 파일 보존)
+            if command -v rsync &> /dev/null; then
+              rsync -av "$GITHUB_WORKSPACE/k8s/" /home/ubuntu/apps/k8s/ || {
+                echo "⚠️  rsync 실패, cp 사용으로 대체..."
+                mkdir -p /home/ubuntu/apps/k8s
+                cp -r "$GITHUB_WORKSPACE/k8s"/* /home/ubuntu/apps/k8s/ 2>/dev/null || {
+                  echo "❌ k8s 디렉토리 복사 실패"
+                  echo "디버그 정보:"
+                  echo "  - 소스 디렉토리 존재: $([ -d "$GITHUB_WORKSPACE/k8s" ] && echo 'yes' || echo 'no')"
+                  echo "  - 소스 디렉토리 내용:"
+                  ls -la "$GITHUB_WORKSPACE/k8s" 2>&1 | head -10 || true
+                  exit 1
+                }
+              }
+            else
+              # rsync가 없으면 cp 사용하되, 기존 디렉토리는 삭제하지 않음
+              echo "⚠️  rsync가 없습니다. cp 사용..."
+              mkdir -p /home/ubuntu/apps/k8s
+              cp -r "$GITHUB_WORKSPACE/k8s"/* /home/ubuntu/apps/k8s/ 2>/dev/null || {
+                echo "❌ k8s 디렉토리 복사 실패"
+                exit 1
+              }
+            fi
+            
+            # 백업한 scripts 폴더 복원
+            if [ -d "/tmp/k8s-scripts-backup-$$" ]; then
+              echo "🔄 기존 scripts 폴더 복원 중..."
+              mkdir -p /home/ubuntu/apps/k8s/scripts
+              cp -r /tmp/k8s-scripts-backup-$$/* /home/ubuntu/apps/k8s/scripts/ 2>/dev/null || true
+              rm -rf /tmp/k8s-scripts-backup-$$
+            fi
+            
+            echo "✅ k8s 디렉토리 복사 완료: /home/ubuntu/apps/k8s (기존 추가 파일 보존)"
+          else
+            echo "⚠️  [Public EC2 - Control-Plane] k8s 디렉토리를 찾을 수 없습니다: $GITHUB_WORKSPACE/k8s"
+            echo "디버그 정보:"
+            echo "  - GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+            echo "  - 현재 디렉토리: $(pwd)"
+            echo "  - 디렉토리 내용:"
+            ls -la "$GITHUB_WORKSPACE" 2>&1 | head -20 || true
+          fi
+
+          # 배포 스크립트 복사 (k8s 배포용)
+          if [ -f "$GITHUB_WORKSPACE/scripts/deploy-k8s.sh" ]; then
+            # /home/ubuntu/apps/BE/scripts/에 복사
+            mkdir -p /home/ubuntu/apps/BE/scripts
+            cp $GITHUB_WORKSPACE/scripts/deploy-k8s.sh ./scripts/ 2>/dev/null || {
+              echo "⚠️  BE/scripts 복사 실패, 재시도..."
+              mkdir -p ./scripts
+              cp $GITHUB_WORKSPACE/scripts/deploy-k8s.sh ./scripts/ || {
+                echo "❌ deploy-k8s.sh 복사 실패"
+                exit 1
+              }
+            }
+            chmod +x ./scripts/deploy-k8s.sh
+            
+            # /home/ubuntu/apps/k8s/scripts/에도 복사
+            mkdir -p /home/ubuntu/apps/k8s/scripts
+            cp $GITHUB_WORKSPACE/scripts/deploy-k8s.sh /home/ubuntu/apps/k8s/scripts/ || {
+              echo "⚠️  k8s/scripts 복사 실패"
+            }
+            chmod +x /home/ubuntu/apps/k8s/scripts/deploy-k8s.sh
+            
+            echo "✅ deploy-k8s.sh 스크립트 복사 완료 (BE/scripts 및 k8s/scripts)"
+          else
+            echo "⚠️  [Public EC2 - Control-Plane] deploy-k8s.sh 스크립트를 찾을 수 없습니다: $GITHUB_WORKSPACE/scripts/deploy-k8s.sh"
+            echo "디버그 정보:"
+            echo "  - scripts 디렉토리 존재: $([ -d "$GITHUB_WORKSPACE/scripts" ] && echo 'yes' || echo 'no')"
+            if [ -d "$GITHUB_WORKSPACE/scripts" ]; then
+              echo "  - scripts 디렉토리 내용:"
+              ls -la "$GITHUB_WORKSPACE/scripts" 2>&1 | head -10 || true
+            fi
+          fi
+
+          # data/docker 인프라 배포용 deploy-module.sh 복사
+          if [ -f "$GITHUB_WORKSPACE/scripts/deploy-module.sh" ]; then
+            mkdir -p /home/ubuntu/apps/BE/scripts
+            cp "$GITHUB_WORKSPACE/scripts/deploy-module.sh" ./scripts/ 2>/dev/null || {
+              echo "⚠️  BE/scripts deploy-module.sh 복사 실패, 재시도..."
+              mkdir -p ./scripts
+              cp "$GITHUB_WORKSPACE/scripts/deploy-module.sh" ./scripts/ || {
+                echo "❌ deploy-module.sh 복사 실패"
+                exit 1
+              }
+            }
+            chmod +x ./scripts/deploy-module.sh
+            echo "✅ deploy-module.sh 스크립트 복사 완료 (BE/scripts)"
+          else
+            echo "⚠️  [Public EC2 - Control-Plane] deploy-module.sh 스크립트를 찾을 수 없습니다: $GITHUB_WORKSPACE/scripts/deploy-module.sh"
+            echo "디버그 정보:"
+            echo "  - scripts 디렉토리 존재: $([ -d "$GITHUB_WORKSPACE/scripts" ] && echo 'yes' || echo 'no')"
+            if [ -d "$GITHUB_WORKSPACE/scripts" ]; then
+              echo "  - scripts 디렉토리 내용:"
+              ls -la "$GITHUB_WORKSPACE/scripts" 2>&1 | head -10 || true
+            fi
+          fi
+
+          # data 모듈인 경우 docker-compose 파일 복사
+          if [ "$MODULE" = "data" ]; then
+            echo "📦 [Public EC2 - Control-Plane] data 모듈용 docker-compose 파일 복사 중..."
+            if [ -f "$GITHUB_WORKSPACE/docker-compose.data.yml" ]; then
+              cp "$GITHUB_WORKSPACE/docker-compose.data.yml" . || {
+                echo "❌ docker-compose.data.yml 복사 실패"
+                exit 1
+              }
+              echo "✅ docker-compose.data.yml 복사 완료"
+            else
+              echo "❌ docker-compose.data.yml 파일을 찾을 수 없습니다: $GITHUB_WORKSPACE/docker-compose.data.yml"
+              exit 1
+            fi
+
+            # Elasticsearch 빌드 컨텍스트 복사 (옵션)
+            if [ -d "$GITHUB_WORKSPACE/docker/baro-es" ]; then
+              echo "📦 [Public EC2 - Control-Plane] Elasticsearch 빌드 컨텍스트 복사 중..."
+              mkdir -p ./docker/baro-es
+              cp -r "$GITHUB_WORKSPACE/docker/baro-es"/* ./docker/baro-es/ 2>/dev/null || {
+                echo "⚠️  Elasticsearch 빌드 컨텍스트 복사 실패 (계속 진행)"
+              }
+            fi
+          fi
+
+          # Elasticsearch 빌드 컨텍스트 복사 (커스텀 이미지 빌드용)
+          if [ -d "$GITHUB_WORKSPACE/docker/baro-es" ]; then
+            mkdir -p ./docker/baro-es
+            cp -r $GITHUB_WORKSPACE/docker/baro-es/* ./docker/baro-es/ 2>/dev/null || {
+              echo "⚠️  Elasticsearch 빌드 컨텍스트 복사 실패 (계속 진행)"
+            }
+            echo "✅ Elasticsearch 빌드 컨텍스트 복사 완료"
+          else
+            echo "ℹ️  [Public EC2 - Control-Plane] Elasticsearch 빌드 컨텍스트가 없습니다 (공식 이미지 사용): $GITHUB_WORKSPACE/docker/baro-es"
+          fi
+
+      - name: Setup kubeconfig
+        run: |
+          # k3s kubeconfig를 홈 디렉토리로 복사하고 권한 설정
+          if [ -f /etc/rancher/k3s/k3s.yaml ]; then
+            echo "📋 [Public EC2 - Control-Plane] k3s kubeconfig 파일 설정 중..."
+            mkdir -p ~/.kube
+            sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+            sudo chown $USER:$USER ~/.kube/config
+            chmod 600 ~/.kube/config
+            
+            # Public EC2의 실제 IP로 변경 (worker node 연결용)
+            # localhost를 Public EC2의 Private IP로 변경
+            PUBLIC_EC2_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4 2>/dev/null || hostname -I | awk '{print $1}')
+            if [ -n "$PUBLIC_EC2_IP" ]; then
+              echo "🔧 [Public EC2 - Control-Plane] kubeconfig의 server 주소를 Public EC2 IP로 변경: $PUBLIC_EC2_IP"
+              sed -i "s|127.0.0.1|$PUBLIC_EC2_IP|g" ~/.kube/config || true
+              echo "✅ kubeconfig 설정 완료 (server: https://$PUBLIC_EC2_IP:6443)"
+            else
+              echo "⚠️  Public EC2 IP를 가져올 수 없습니다. localhost 사용"
+              echo "✅ kubeconfig 설정 완료 (server: https://127.0.0.1:6443)"
+            fi
+          else
+            echo "⚠️  /etc/rancher/k3s/k3s.yaml 파일을 찾을 수 없습니다."
+            echo "디버그 정보:"
+            echo "  - k3s 설치 확인:"
+            sudo systemctl status k3s 2>&1 | head -10 || true
+            exit 1
+          fi
+
+      - name: Check k3s availability
+        id: k3s-check
+        run: |
+          # kubeconfig 환경 변수 설정
+          if [ -f ~/.kube/config ]; then
+            export KUBECONFIG=~/.kube/config
+          fi
+          
+          # kubectl 명령어 확인
+          KUBECTL_CMD=""
+          if command -v kubectl &> /dev/null; then
+            # 일반 kubectl 사용 (kubeconfig가 설정되어 있으면 자동으로 사용)
+            KUBECTL_CMD="kubectl"
+            echo "✅ [Public EC2 - Control-Plane] kubectl 명령어 발견: kubectl"
+          elif command -v k3s &> /dev/null; then
+            # k3s가 설치되어 있으면 k3s kubectl 사용
+            # kubeconfig가 설정되어 있으면 일반 kubectl처럼 사용 가능
+            if [ -f ~/.kube/config ]; then
+              # k3s는 kubectl을 /usr/local/bin/kubectl에 심볼릭 링크로 설치
+              if [ -L /usr/local/bin/kubectl ] || [ -f /usr/local/bin/kubectl ]; then
+                KUBECTL_CMD="/usr/local/bin/kubectl"
+                echo "✅ [Public EC2 - Control-Plane] kubectl 명령어 발견: /usr/local/bin/kubectl"
+              else
+                # 직접 경로로 사용 불가능하면 sudo k3s kubectl 사용
+                KUBECTL_CMD="sudo k3s kubectl"
+                echo "✅ [Public EC2 - Control-Plane] k3s kubectl 명령어 사용: sudo k3s kubectl"
+              fi
+            else
+              # kubeconfig가 없으면 sudo k3s kubectl 사용
+              KUBECTL_CMD="sudo k3s kubectl"
+              echo "✅ [Public EC2 - Control-Plane] k3s kubectl 명령어 사용 (kubeconfig 없음): sudo k3s kubectl"
+            fi
+          else
+            echo "k3s_available=false" >> $GITHUB_OUTPUT
+            echo "❌ [Public EC2 - Control-Plane] kubectl 또는 k3s가 설치되어 있지 않습니다."
+            echo "디버그 정보:"
+            echo "  - kubectl 경로: $(which kubectl 2>&1 || echo 'not found')"
+            echo "  - k3s 경로: $(which k3s 2>&1 || echo 'not found')"
+            echo "  - /usr/local/bin/kubectl: $([ -f /usr/local/bin/kubectl ] && echo 'exists' || echo 'not found')"
+            exit 1
+          fi
+          
+          # 클러스터 연결 확인
+          if $KUBECTL_CMD get nodes &> /dev/null 2>&1; then
+            echo "k3s_available=true" >> $GITHUB_OUTPUT
+            echo "kubectl_cmd=$KUBECTL_CMD" >> $GITHUB_OUTPUT
+            echo "✅ [Public EC2 - Control-Plane] k3s가 사용 가능합니다. k8s 배포를 진행합니다."
+            echo "클러스터 노드 정보:"
+            $KUBECTL_CMD get nodes 2>&1 || true
+            echo ""
+            echo "클러스터 정보:"
+            $KUBECTL_CMD cluster-info 2>&1 || true
+          else
+            echo "k3s_available=false" >> $GITHUB_OUTPUT
+            echo "❌ [Public EC2 - Control-Plane] kubectl은 있지만 클러스터에 연결할 수 없습니다."
+            echo "디버그 정보:"
+            $KUBECTL_CMD get nodes 2>&1 || true
+            if [ -f ~/.kube/config ]; then
+              echo "kubeconfig 위치: $KUBECONFIG"
+              echo "kubeconfig 권한:"
+              ls -la ~/.kube/ 2>&1 || true
+              echo "kubeconfig 내용 (일부):"
+              head -5 ~/.kube/config 2>&1 || true
+            else
+              echo "⚠️  kubeconfig 파일이 없습니다: ~/.kube/config"
+            fi
+            exit 1
+          fi
+
+      - name: Deploy to k8s
+        if: steps.k3s-check.outputs.k3s_available == 'true' && steps.module.outputs.name != 'data'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+          IMAGE_TAG: ${{ needs.determine-service.outputs.image_tag }}
+          MODULE_NAME: ${{ steps.module.outputs.name }}
+          KUBECONFIG: ~/.kube/config
+        run: |
+          export KUBECONFIG=~/.kube/config
+          
+          # k8s 디렉토리 최신 버전으로 업데이트 (기존 파일 보존)
+          if [ -d "$GITHUB_WORKSPACE/k8s" ]; then
+            echo "📦 [Public EC2 - Control-Plane] k8s 디렉토리 최신 버전으로 업데이트 중..."
+            mkdir -p /home/ubuntu/apps
+            
+            if [ -d "/home/ubuntu/apps/k8s/scripts" ]; then
+              cp -r /home/ubuntu/apps/k8s/scripts /tmp/k8s-scripts-backup-$$ 2>/dev/null || true
+            fi
+            
+            if command -v rsync &> /dev/null; then
+              rsync -av "$GITHUB_WORKSPACE/k8s/" /home/ubuntu/apps/k8s/ || {
+                mkdir -p /home/ubuntu/apps/k8s
+                cp -r "$GITHUB_WORKSPACE/k8s"/* /home/ubuntu/apps/k8s/ 2>/dev/null || true
+              }
+            else
+              mkdir -p /home/ubuntu/apps/k8s
+              cp -r "$GITHUB_WORKSPACE/k8s"/* /home/ubuntu/apps/k8s/ 2>/dev/null || true
+            fi
+            
+            if [ -d "/tmp/k8s-scripts-backup-$$" ]; then
+              mkdir -p /home/ubuntu/apps/k8s/scripts
+              cp -r /tmp/k8s-scripts-backup-$$/* /home/ubuntu/apps/k8s/scripts/ 2>/dev/null || true
+              rm -rf /tmp/k8s-scripts-backup-$$
+            fi
+          fi
+          
+          if [ -f "$GITHUB_WORKSPACE/scripts/deploy-k8s.sh" ]; then
+            mkdir -p /home/ubuntu/apps/BE/scripts
+            cp $GITHUB_WORKSPACE/scripts/deploy-k8s.sh /home/ubuntu/apps/BE/scripts/
+            chmod +x /home/ubuntu/apps/BE/scripts/deploy-k8s.sh
+            
+            mkdir -p /home/ubuntu/apps/k8s/scripts
+            cp $GITHUB_WORKSPACE/scripts/deploy-k8s.sh /home/ubuntu/apps/k8s/scripts/
+            chmod +x /home/ubuntu/apps/k8s/scripts/deploy-k8s.sh
+          fi
+          
+          echo ""
+          echo "🚀 [Public EC2 - Control-Plane] k8s 배포 시작: ${MODULE_NAME} (이미지 태그: ${IMAGE_TAG})"
+          echo "   - 작업 디렉토리: /home/ubuntu/apps/BE"
+          echo "   - k8s 디렉토리: /home/ubuntu/apps/k8s"
+          echo "   - 역할: Control-Plane (Master)"
+          echo ""
+          cd /home/ubuntu/apps/BE
+          
+          # 배포 스크립트 실행
+          if [ -f "./scripts/deploy-k8s.sh" ]; then
+            bash ./scripts/deploy-k8s.sh ${MODULE_NAME} ${IMAGE_TAG} || {
+              echo "❌ [Public EC2 - Control-Plane] 배포 스크립트 실행 실패"
+              echo "디버그 정보:"
+              echo "  - 스크립트 경로: ./scripts/deploy-k8s.sh"
+              echo "  - 모듈명: ${MODULE_NAME}"
+              echo "  - 이미지 태그: ${IMAGE_TAG}"
+              echo "  - 현재 디렉토리: $(pwd)"
+              
+              # Pod 상태 확인
+              KUBECTL_CMD="${{ steps.k3s-check.outputs.kubectl_cmd }}"
+              if [ -n "$KUBECTL_CMD" ]; then
+                echo ""
+                echo "📊 현재 Pod 상태:"
+                $KUBECTL_CMD get pods -n baro-prod 2>&1 || true
+              fi
+              
+              exit 1
+            }
+          else
+            echo "❌ [Public EC2 - Control-Plane] 배포 스크립트를 찾을 수 없습니다: ./scripts/deploy-k8s.sh"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ [Public EC2 - Control-Plane] 배포 완료: ${MODULE_NAME}"
+          
+          # 배포 후 검증
+          echo ""
+          echo "🔍 [Public EC2 - Control-Plane] 배포 검증 중..."
+          sleep 5  # Pod 시작 대기
+          
+          KUBECTL_CMD="${{ steps.k3s-check.outputs.kubectl_cmd }}"
+          
+          if [ -n "$KUBECTL_CMD" ]; then
+            # Pod 상태 확인
+            echo "📊 Pod 상태:"
+            $KUBECTL_CMD get pods -n baro-prod 2>&1 || true
+            
+            # Service 상태 확인
+            echo ""
+            echo "📊 Service 상태:"
+            $KUBECTL_CMD get svc -n baro-prod 2>&1 || true
+            
+            # Node 상태 확인
+            echo ""
+            echo "📊 Node 상태:"
+            $KUBECTL_CMD get nodes 2>&1 || true
+          fi
+
+      - name: Deploy data with docker-compose
+        if: steps.module.outputs.name == 'data'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          cd /home/ubuntu/apps/BE
+          echo ""
+          echo "🚀 [Public EC2 - Control-Plane] data 인프라 docker-compose 배포 시작"
+          echo "   - 작업 디렉토리: /home/ubuntu/apps/BE"
+          echo ""
+
+          # docker-compose.data.yml 존재 여부 확인 (deploy-module.sh도 이 파일을 사용)
+          if [ ! -f "./docker-compose.data.yml" ]; then
+            echo "❌ docker-compose.data.yml 파일을 찾을 수 없습니다. (현재 디렉토리: $(pwd))"
+            echo "디렉토리 내용:"
+            ls -la . 2>&1 | head -30 || true
+            exit 1
+          fi
+
+          # be_baro-network 네트워크 사전 생성 (docker-compose.data.yml이 external로 선언)
+          echo "🌐 Docker 네트워크 확인 및 생성 중..."
+          if ! docker network ls --format '{{.Name}}' | grep -q "^be_baro-network$"; then
+            echo "📦 be_baro-network 네트워크 생성 중..."
+            NETWORK_OUTPUT=$(docker network create be_baro-network 2>&1)
+            NETWORK_EXIT_CODE=$?
+            if [ $NETWORK_EXIT_CODE -eq 0 ]; then
+              echo "✅ be_baro-network 네트워크 생성 완료"
+            elif echo "$NETWORK_OUTPUT" | grep -q "already exists"; then
+              echo "✅ be_baro-network 네트워크가 이미 존재합니다."
+            else
+              echo "❌ be_baro-network 네트워크 생성 실패: $NETWORK_OUTPUT"
+              exit 1
+            fi
+          else
+            echo "✅ be_baro-network 네트워크가 이미 존재합니다."
+          fi
+
+          # 검증된 deploy-module.sh로 data 인프라 배포
+          if [ -f "./scripts/deploy-module.sh" ]; then
+            echo "📝 scripts/deploy-module.sh data 실행 중..."
+            echo "   - 스크립트 경로: $(pwd)/scripts/deploy-module.sh"
+            echo "   - 스크립트 권한: $(ls -la ./scripts/deploy-module.sh 2>&1 || echo 'not found')"
+            GITHUB_TOKEN=${GITHUB_TOKEN} bash ./scripts/deploy-module.sh data || {
+              echo "❌ deploy-module.sh data 실행 실패"
+              echo "디버그 정보:"
+              echo "  - 현재 디렉토리: $(pwd)"
+              echo "  - 스크립트 존재: $([ -f ./scripts/deploy-module.sh ] && echo 'yes' || echo 'no')"
+              echo "  - 네트워크 상태:"
+              docker network ls | grep -E "be_baro-network|NETWORK" || true
+              exit 1
+            }
+          else
+            echo "❌ ./scripts/deploy-module.sh 스크립트를 찾을 수 없습니다."
+            echo "디렉토리 내용:"
+            ls -la ./scripts 2>&1 || echo "scripts 디렉토리가 없습니다."
+            echo "전체 디렉토리 내용:"
+            ls -la . 2>&1 | head -30 || true
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ [Public EC2 - Control-Plane] data 인프라 배포 완료"
+          echo ""
+          echo "📊 컨테이너 상태:"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "baro-|NAMES" || docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+  # ==================================================
+  # Cleanup: 오래된 이미지 정리
+  # ==================================================
+  cleanup:
+    name: Cleanup Old Images
+    runs-on: ubuntu-latest
+    needs: [deploy, determine-service]
+    if: |
+      success() &&
+      needs.determine-service.outputs.service != '' &&
+      needs.determine-service.outputs.service != 'data'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Cleanup container images by tag policy
+        env:
+          SERVICE: ${{ needs.determine-service.outputs.service }}
+          OWNER: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+          IMAGE_VERSION: ${{ env.IMAGE_VERSION }}
+        run: |
+          if [ -z "$SERVICE" ] || [ "$SERVICE" = "data" ]; then
+            echo "No service to clean up. Skipping."
+            exit 0
+          fi
+
+          if [ -z "$GH_TOKEN" ]; then
+            echo "❌ GH_TOKEN is not set."
+            exit 1
+          fi
+
+          echo "🧹 Cleaning up GHCR images for service: $SERVICE (owner: $OWNER)"
+          echo "  - Keep tags: latest, $IMAGE_VERSION"
+
+          sudo apt-get update -y >/dev/null 2>&1 || true
+          sudo apt-get install -y jq >/dev/null 2>&1 || true
+
+          API_ROOT="https://api.github.com"
+
+          # cloud 모듈인 경우 eureka, gateway, config 각각 정리
+          if [ "$SERVICE" = "cloud" ]; then
+            for svc in eureka gateway config; do
+              echo ""
+              echo "🧹 Cleaning up ${svc}..."
+              VERSIONS_JSON=$(curl -sS \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                "${API_ROOT}/users/${OWNER}/packages/container/${svc}/versions?per_page=100")
+
+              if echo "$VERSIONS_JSON" | jq -e 'type=="array"' >/dev/null 2>&1; then
+                KEEP_TAG_1="latest"
+                KEEP_TAG_2="$IMAGE_VERSION"
+
+                echo "$VERSIONS_JSON" | jq -c '.[]' | while read -r row; do
+                  ID=$(echo "$row" | jq -r '.id')
+                  CREATED_AT=$(echo "$row" | jq -r '.created_at')
+                  TAGS=$(echo "$row" | jq -r '.metadata.container.tags | join(",")')
+
+                  if [ "$TAGS" = "null" ] || [ -z "$TAGS" ]; then
+                    SHOULD_DELETE=1
+                  else
+                    SHOULD_DELETE=1
+                    if echo "$TAGS" | grep -q "$KEEP_TAG_1"; then
+                      SHOULD_DELETE=0
+                    fi
+                    if [ "$SHOULD_DELETE" -eq 1 ] && [ -n "$KEEP_TAG_2" ] && echo "$TAGS" | grep -q "$KEEP_TAG_2"; then
+                      SHOULD_DELETE=0
+                    fi
+                  fi
+
+                  if [ "$SHOULD_DELETE" -eq 1 ]; then
+                    echo "  -> Deleting ${svc} version ${ID}"
+                    curl -sS -X DELETE \
+                      -H "Authorization: Bearer $GH_TOKEN" \
+                      -H "Accept: application/vnd.github+json" \
+                      "${API_ROOT}/user/packages/container/${svc}/versions/${ID}" || echo "  ⚠️ Failed to delete version ${ID}"
+                  fi
+                done
+              fi
+            done
+          else
+            # 단일 서비스 정리
+            VERSIONS_JSON=$(curl -sS \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "${API_ROOT}/users/${OWNER}/packages/container/${SERVICE}/versions?per_page=100")
+
+            if echo "$VERSIONS_JSON" | jq -e 'type=="array"' >/dev/null 2>&1; then
+              :
+            else
+              echo "No versions found or failed to fetch versions."
+              exit 0
+            fi
+
+            KEEP_TAG_1="latest"
+            KEEP_TAG_2="$IMAGE_VERSION"
+
+            echo "$VERSIONS_JSON" | jq -c '.[]' | while read -r row; do
+              ID=$(echo "$row" | jq -r '.id')
+              CREATED_AT=$(echo "$row" | jq -r '.created_at')
+              TAGS=$(echo "$row" | jq -r '.metadata.container.tags | join(",")')
+
+              if [ "$TAGS" = "null" ] || [ -z "$TAGS" ]; then
+                SHOULD_DELETE=1
+              else
+                SHOULD_DELETE=1
+                if echo "$TAGS" | grep -q "$KEEP_TAG_1"; then
+                  SHOULD_DELETE=0
+                fi
+                if [ "$SHOULD_DELETE" -eq 1 ] && [ -n "$KEEP_TAG_2" ] && echo "$TAGS" | grep -q "$KEEP_TAG_2"; then
+                  SHOULD_DELETE=0
+                fi
+              fi
+
+              echo "Version ID=${ID}, created_at=${CREATED_AT}, tags=[${TAGS}]"
+
+              if [ "$SHOULD_DELETE" -eq 1 ]; then
+                echo "  -> Deleting this version"
+                curl -sS -X DELETE \
+                  -H "Authorization: Bearer $GH_TOKEN" \
+                  -H "Accept: application/vnd.github+json" \
+                  "${API_ROOT}/user/packages/container/${SERVICE}/versions/${ID}" || echo "  ⚠️ Failed to delete version ${ID}"
+              else
+                echo "  -> Keeping this version"
+              fi
+            done
+          fi

@@ -12,13 +12,14 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123} --maxmemory 512mb --maxmemory-policy allkeys-lru
+      - /mnt/s3:/mnt/s3:rw
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123} --maxmemory 256mb --maxmemory-policy allkeys-lru
     deploy:
       resources:
         limits:
-          memory: 768M
+          memory: 384M
         reservations:
-          memory: 256M
+          memory: 128M
     restart: unless-stopped
     networks:
       - baro-network
@@ -39,10 +40,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
-        reservations:
           memory: 512M
-    command: --innodb-buffer-pool-size=768M --max-connections=100 --lower-case-table-names=1
+        reservations:
+          memory: 256M
+    command: --innodb-buffer-pool-size=256M --max-connections=100 --lower-case-table-names=1
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
       - MYSQL_DATABASE=${MYSQL_DATABASE:-barofarm}
@@ -61,6 +62,7 @@ services:
       # - always-create-databases.sh: 수동 실행용 (일부 데이터베이스만 있는 경우 사용)
       # 자세한 사용법: scripts/init-db/README.md 참조
       - ./scripts/init-db:/docker-entrypoint-initdb.d
+      - /mnt/s3:/mnt/s3:rw
     restart: unless-stopped
     networks:
       - baro-network
@@ -110,7 +112,7 @@ services:
       # 로그 설정
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       # 메모리 제한
-      KAFKA_HEAP_OPTS: -Xmx384m -Xms256m
+      KAFKA_HEAP_OPTS: -Xmx256m -Xms192m
     deploy:
       resources:
         limits:
@@ -119,6 +121,7 @@ services:
           memory: 256M
     volumes:
       - kafka-data:/var/lib/kafka/data
+      - /mnt/s3:/mnt/s3:rw
     restart: unless-stopped
     networks:
       - baro-network
@@ -155,7 +158,13 @@ services:
       - cluster.name=docker-cluster
       - discovery.type=single-node
       - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms256m -Xmx512m"
+      - "ES_JAVA_OPTS=-Xms192m -Xmx384m"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
     ulimits:
       memlock:
         soft: -1
@@ -164,6 +173,7 @@ services:
       - "9200:9200"
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
+      - /mnt/s3:/mnt/s3:rw
     restart: unless-stopped
     networks:
       - baro-network

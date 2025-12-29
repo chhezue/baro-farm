@@ -8,6 +8,11 @@ metadata:
     component: cloud
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 0
   selector:
     matchLabels:
       app: gateway
@@ -17,6 +22,7 @@ spec:
         app: gateway
         component: cloud
     spec:
+      hostNetwork: true
       containers:
         - name: gateway
           image: ghcr.io/do-develop-space/gateway:latest
@@ -28,16 +34,20 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
+            - name: SERVER_PORT
+              value: "8080"  # Config Server 설정 덮어쓰기 방지
+            - name: SPRING_CONFIG_IMPORT
+              value: "optional:configserver:http://localhost:8888"  # hostNetwork: true 사용 시 localhost
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-              value: "http://eureka:8761/eureka/"  # Kubernetes Service DNS 사용
+              value: "http://localhost:8761/eureka/"  # hostNetwork: true 사용 시 localhost
             - name: JAVA_OPTS
-              value: "-Xms256m -Xmx512m"
+              value: "-Xms256m -Xmx384m"
           resources:
             requests:
               memory: "256Mi"
               cpu: "200m"
             limits:
-              memory: "512Mi"
+              memory: "384Mi"
               cpu: "1000m"
           livenessProbe:
             httpGet:
