@@ -5,6 +5,13 @@
 # Usage: bash deploy-k8s.sh [MODULE_NAME] [IMAGE_TAG]
 # Example: bash deploy-k8s.sh auth latest
 #          bash deploy-k8s.sh baro-auth main-auth-abc123d
+#
+# 환경변수:
+#   DATA_EC2_IP: Data EC2의 Private IP
+#                - Data EC2와 k8s Worker EC2 분리에서는 필수
+#                - 설정하지 않으면 현재 EC2(스크립트 실행 EC2)의 IP를 자동 감지
+#                  (잘못된 IP가 감지되므로 반드시 설정 필요)
+# Example: DATA_EC2_IP=10.0.1.100 bash deploy-k8s.sh auth latest
 # ===================================
 
 set -e
@@ -127,45 +134,58 @@ fi
 log_info "📦 사용할 kubectl 명령어: $KUBECTL_CMD"
 
 # ===================================
-# EC2 Private IP 자동 감지 (여러 방법 시도)
+# Data EC2 Private IP 설정
 # ===================================
-log_step "🌐 Detecting EC2 Private IP..."
-EC2_IP=""
+# 시나리오 2: Data EC2와 k8s Worker EC2가 분리된 구조
+# Data EC2의 Private IP를 환경변수로 받거나, 자동 감지
+log_step "🌐 Setting Data EC2 Private IP..."
 
-# 방법 1: EC2 메타데이터 서비스
-EC2_IP=$(curl -s --max-time 2 http://169.254.169.254/latest/meta-data/local-ipv4 2>/dev/null || echo "")
+# DATA_EC2_IP 환경변수가 설정되어 있으면 사용
+# 없으면 현재 EC2(스크립트가 실행되는 EC2)의 IP를 자동 감지
+# ⚠️ 주의: 시나리오 2(분리된 EC2)에서는 자동 감지된 IP는 k8s Worker EC2의 IP이므로
+#          Data EC2 IP와 다를 수 있습니다. 반드시 환경변수로 설정하세요.
+DATA_EC2_IP="${DATA_EC2_IP:-}"
 
-# 방법 2: hostname -I 사용
-if [ -z "$EC2_IP" ]; then
-    EC2_IP=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "")
-fi
-
-# 방법 3: ip 명령어 사용
-if [ -z "$EC2_IP" ]; then
-    EC2_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $7; exit}' || echo "")
-fi
-
-if [ -z "$EC2_IP" ]; then
-    log_warn "EC2 Private IP를 자동으로 감지할 수 없습니다."
-    log_warn "hostNetwork를 사용하므로 127.0.0.1을 사용합니다."
-    EC2_IP="127.0.0.1"
-fi
-
-log_info "📍 EC2 Private IP: $EC2_IP"
-
-# ===================================
-# Namespace 생성 (없으면)
-# ===================================
-log_step "📦 Checking namespace: baro-prod..."
-if ! $KUBECTL_CMD get namespace baro-prod &> /dev/null 2>&1; then
-    log_info "Creating namespace: baro-prod..."
-    $KUBECTL_CMD create namespace baro-prod || {
-        log_error "❌ Failed to create namespace baro-prod"
+if [ -z "$DATA_EC2_IP" ]; then
+    log_warn "⚠️  DATA_EC2_IP 환경변수가 설정되지 않았습니다."
+    log_warn "⚠️  현재 EC2(스크립트 실행 EC2)의 IP를 자동 감지합니다."
+    log_warn "⚠️  시나리오 2(분리된 EC2)에서는 이 IP가 Data EC2 IP와 다를 수 있습니다!"
+    
+    # 방법 1: EC2 메타데이터 서비스
+    DATA_EC2_IP=$(curl -s --max-time 2 http://169.254.169.254/latest/meta-data/local-ipv4 2>/dev/null || echo "")
+    
+    # 방법 2: hostname -I 사용
+    if [ -z "$DATA_EC2_IP" ]; then
+        DATA_EC2_IP=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "")
+    fi
+    
+    # 방법 3: ip 명령어 사용
+    if [ -z "$DATA_EC2_IP" ]; then
+        DATA_EC2_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $7; exit}' || echo "")
+    fi
+    
+    if [ -z "$DATA_EC2_IP" ]; then
+        log_error "❌ IP를 자동으로 감지할 수 없습니다."
+        log_error "환경변수 DATA_EC2_IP를 설정하거나, EC2 메타데이터 서비스에 접근할 수 있는지 확인하세요."
         exit 1
-    }
-    log_info "✅ Namespace baro-prod created"
+    fi
+    log_info "✅ 현재 EC2 IP 자동 감지: $DATA_EC2_IP (시나리오 2에서는 Data EC2 IP와 다를 수 있음)"
 else
-    log_info "✅ Namespace baro-prod already exists"
+    log_info "✅ 환경변수 DATA_EC2_IP 사용: $DATA_EC2_IP"
+fi
+
+log_info "📍 Data EC2 Private IP: $DATA_EC2_IP"
+log_info "💡 다른 EC2의 Data 서비스(MySQL, Kafka, Redis, ES)에 접근할 때 이 IP를 사용합니다."
+
+# ===================================
+# Namespace 생성 (base kustomization 사용)
+# ===================================
+log_step "📦 Applying base resources (namespace)..."
+if $KUBECTL_CMD apply -k "$K8S_BASE_DIR/base/"; then
+    log_info "✅ Base resources (namespace) 적용 완료"
+else
+    log_error "❌ Base resources 적용 실패"
+    exit 1
 fi
 
 # ===================================
@@ -241,10 +261,15 @@ if [ "$MODULE_NAME" = "cloud" ]; then
     log_step "☁️  Cloud 모듈 전체 배포 시작..."
     
     log_step "1️⃣ Eureka 배포 중..."
-    $KUBECTL_CMD apply -f "$K8S_BASE_DIR/cloud/eureka/"
-    if [ "$IMAGE_TAG" != "latest" ]; then
-        $KUBECTL_CMD set image deployment/eureka eureka=ghcr.io/do-develop-space/eureka:${IMAGE_TAG} -n baro-prod || true
+    # kustomization.yaml에서 이미지 태그 업데이트
+    KUSTOMIZATION_FILE="$K8S_BASE_DIR/cloud/eureka/kustomization.yaml"
+    if [ -f "$KUSTOMIZATION_FILE" ] && [ "$IMAGE_TAG" != "latest" ]; then
+        log_info "🏷️  Eureka 이미지 태그 업데이트: $IMAGE_TAG"
+        sed -i.bak "s|newTag: latest|newTag: ${IMAGE_TAG}|g" "$KUSTOMIZATION_FILE" 2>/dev/null || \
+        sed -i "s|newTag: latest|newTag: ${IMAGE_TAG}|g" "$KUSTOMIZATION_FILE" 2>/dev/null || true
+        rm -f "${KUSTOMIZATION_FILE}.bak" 2>/dev/null || true
     fi
+    $KUBECTL_CMD apply -k "$K8S_BASE_DIR/cloud/eureka/"
     
     # Pod가 Ready 상태가 될 때까지 대기 (타임아웃: 300초)
     if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=eureka -n baro-prod --timeout=300s 2>&1; then
@@ -270,10 +295,15 @@ if [ "$MODULE_NAME" = "cloud" ]; then
     fi
     
     log_step "2️⃣ Config 배포 중..."
-    $KUBECTL_CMD apply -f "$K8S_BASE_DIR/cloud/config/"
-    if [ "$IMAGE_TAG" != "latest" ]; then
-        $KUBECTL_CMD set image deployment/config config=ghcr.io/do-develop-space/config:${IMAGE_TAG} -n baro-prod || true
+    # kustomization.yaml에서 이미지 태그 업데이트
+    KUSTOMIZATION_FILE="$K8S_BASE_DIR/cloud/config/kustomization.yaml"
+    if [ -f "$KUSTOMIZATION_FILE" ] && [ "$IMAGE_TAG" != "latest" ]; then
+        log_info "🏷️  Config 이미지 태그 업데이트: $IMAGE_TAG"
+        sed -i.bak "s|newTag: latest|newTag: ${IMAGE_TAG}|g" "$KUSTOMIZATION_FILE" 2>/dev/null || \
+        sed -i "s|newTag: latest|newTag: ${IMAGE_TAG}|g" "$KUSTOMIZATION_FILE" 2>/dev/null || true
+        rm -f "${KUSTOMIZATION_FILE}.bak" 2>/dev/null || true
     fi
+    $KUBECTL_CMD apply -k "$K8S_BASE_DIR/cloud/config/"
     
     # Pod가 Ready 상태가 될 때까지 대기 (타임아웃: 300초)
     if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=config -n baro-prod --timeout=300s 2>&1; then
@@ -299,10 +329,15 @@ if [ "$MODULE_NAME" = "cloud" ]; then
     fi
     
     log_step "3️⃣ Gateway 배포 중..."
-    $KUBECTL_CMD apply -f "$K8S_BASE_DIR/cloud/gateway/"
-    if [ "$IMAGE_TAG" != "latest" ]; then
-        $KUBECTL_CMD set image deployment/gateway gateway=ghcr.io/do-develop-space/gateway:${IMAGE_TAG} -n baro-prod || true
+    # kustomization.yaml에서 이미지 태그 업데이트
+    KUSTOMIZATION_FILE="$K8S_BASE_DIR/cloud/gateway/kustomization.yaml"
+    if [ -f "$KUSTOMIZATION_FILE" ] && [ "$IMAGE_TAG" != "latest" ]; then
+        log_info "🏷️  Gateway 이미지 태그 업데이트: $IMAGE_TAG"
+        sed -i.bak "s|newTag: latest|newTag: ${IMAGE_TAG}|g" "$KUSTOMIZATION_FILE" 2>/dev/null || \
+        sed -i "s|newTag: latest|newTag: ${IMAGE_TAG}|g" "$KUSTOMIZATION_FILE" 2>/dev/null || true
+        rm -f "${KUSTOMIZATION_FILE}.bak" 2>/dev/null || true
     fi
+    $KUBECTL_CMD apply -k "$K8S_BASE_DIR/cloud/gateway/"
     
     # Pod가 Ready 상태가 될 때까지 대기 (타임아웃: 300초)
     if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=gateway -n baro-prod --timeout=300s 2>&1; then
@@ -341,7 +376,20 @@ if [ ! -d "$DEPLOY_PATH" ]; then
 fi
 
 # ===================================
-# Deployment 파일에 EC2 IP 및 이미지 태그 설정 (임시 파일 사용)
+# kustomization.yaml에서 이미지 태그 업데이트
+# ===================================
+KUSTOMIZATION_FILE="$DEPLOY_PATH/kustomization.yaml"
+if [ -f "$KUSTOMIZATION_FILE" ] && [ "$IMAGE_TAG" != "latest" ]; then
+    log_step "🏷️  이미지 태그 업데이트: $IMAGE_TAG"
+    # kustomization.yaml에서 이미지 태그 업데이트
+    sed -i.bak "s|newTag: latest|newTag: ${IMAGE_TAG}|g" "$KUSTOMIZATION_FILE" 2>/dev/null || \
+    sed -i "s|newTag: latest|newTag: ${IMAGE_TAG}|g" "$KUSTOMIZATION_FILE" 2>/dev/null || true
+    rm -f "${KUSTOMIZATION_FILE}.bak" 2>/dev/null || true
+    log_info "✅ kustomization.yaml 이미지 태그 업데이트 완료"
+fi
+
+# ===================================
+# Deployment 파일에 EC2 IP 설정 (임시 파일 사용)
 # ===================================
 DEPLOYMENT_FILE="$DEPLOY_PATH/deployment.yaml"
 TEMP_DEPLOYMENT=""
@@ -353,29 +401,22 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
     
     log_step "🔧 Deployment 파일 설정 중..."
     
-    # hostNetwork 여부 확인
+    # hostNetwork 여부 확인 (정보 목적)
     USE_HOST_NETWORK=false
     if grep -q "hostNetwork: true" "$TEMP_DEPLOYMENT"; then
         USE_HOST_NETWORK=true
-        log_info "🌐 hostNetwork: true 감지 - localhost(127.0.0.1) 사용"
+        log_info "🌐 hostNetwork: true 감지"
+        log_info "💡 hostNetwork는 k8s 서비스 접근용이며, Data 서비스는 Data EC2 IP를 사용합니다."
     else
-        log_info "🌐 hostNetwork: false - EC2 IP($EC2_IP) 사용"
+        log_info "🌐 hostNetwork: false"
     fi
     
-    # EC2 IP 설정 (hostNetwork 여부에 따라 다르게 처리)
-    # hostNetwork: true인 경우 -> 127.0.0.1 사용
-    # hostNetwork: false인 경우 -> EC2 IP 사용
+    # Data EC2 IP 설정 (hostNetwork 여부와 무관하게 Data EC2 IP 사용)
+    # 시나리오 2: Data EC2와 k8s Worker EC2가 분리되어 있으므로 항상 Data EC2 IP 사용
     
     if grep -q "CHANGE_ME_TO_EC2_IP" "$TEMP_DEPLOYMENT"; then
-        if [ "$USE_HOST_NETWORK" = "true" ]; then
-            # hostNetwork: true인 경우 127.0.0.1로 치환
-            REPLACEMENT_IP="127.0.0.1"
-            log_info "EC2 IP 설정 중 (hostNetwork: true -> CHANGE_ME_TO_EC2_IP -> 127.0.0.1)"
-        else
-            # hostNetwork: false인 경우 EC2 IP로 치환
-            REPLACEMENT_IP="$EC2_IP"
-            log_info "EC2 IP 설정 중 (hostNetwork: false -> CHANGE_ME_TO_EC2_IP -> $EC2_IP)"
-        fi
+        REPLACEMENT_IP="$DATA_EC2_IP"
+        log_info "Data EC2 IP 설정 중 (CHANGE_ME_TO_EC2_IP -> $DATA_EC2_IP)"
         
         # 모든 CHANGE_ME_TO_EC2_IP를 치환 IP로 변경 (전역 치환)
         if sed -i.bak "s/CHANGE_ME_TO_EC2_IP/$REPLACEMENT_IP/g" "$TEMP_DEPLOYMENT" 2>/dev/null; then
@@ -400,73 +441,51 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
         log_info "ℹ️  CHANGE_ME_TO_EC2_IP 패턴이 없습니다. (이미 치환되었거나 불필요)"
     fi
     
-    # EC2_IP 환경 변수 설정 (hostNetwork 여부에 따라)
+    # EC2_IP 환경 변수 설정 (Data EC2 IP 사용)
     if grep -q "name: EC2_IP" "$TEMP_DEPLOYMENT"; then
-        if [ "$USE_HOST_NETWORK" = "true" ]; then
-            # hostNetwork: true인 경우 EC2_IP 환경 변수도 127.0.0.1로 설정
-            if grep -q 'value: "CHANGE_ME_TO_EC2_IP"' "$TEMP_DEPLOYMENT" || grep -q 'value: "127.0.0.1"' "$TEMP_DEPLOYMENT" || grep -q "value: \"$EC2_IP\"" "$TEMP_DEPLOYMENT"; then
-                log_info "EC2_IP 환경 변수 설정 중 (hostNetwork: true -> 127.0.0.1)"
-                sed "/name: EC2_IP/,/value:/ s|value: \".*\"|value: \"127.0.0.1\"|" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-            fi
-        else
-            # hostNetwork: false인 경우 EC2 IP로 설정
-            if grep -q 'value: "CHANGE_ME_TO_EC2_IP"' "$TEMP_DEPLOYMENT" || grep -q 'value: "127.0.0.1"' "$TEMP_DEPLOYMENT"; then
-                log_info "EC2_IP 환경 변수 설정 중 (hostNetwork: false -> $EC2_IP)"
-                sed "/name: EC2_IP/,/value:/ s|value: \".*\"|value: \"$EC2_IP\"|" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-            fi
+        if grep -q 'value: "CHANGE_ME_TO_EC2_IP"' "$TEMP_DEPLOYMENT" || grep -q 'value: "127.0.0.1"' "$TEMP_DEPLOYMENT" || grep -q "value: \"" "$TEMP_DEPLOYMENT"; then
+            log_info "EC2_IP 환경 변수 설정 중 (Data EC2 IP: $DATA_EC2_IP)"
+            sed "/name: EC2_IP/,/value:/ s|value: \".*\"|value: \"$DATA_EC2_IP\"|" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
         fi
     fi
     
-    # SPRING_DATASOURCE_URL에서 $(EC2_IP) 패턴 처리
-    # hostNetwork: true일 때는 127.0.0.1을 그대로 유지
+    # SPRING_DATASOURCE_URL에서 $(EC2_IP) 패턴 처리 (Data EC2 IP 사용)
     if grep -q "SPRING_DATASOURCE_URL" "$TEMP_DEPLOYMENT"; then
-        log_info "SPRING_DATASOURCE_URL 업데이트 중 (EC2 IP: $EC2_IP, hostNetwork: $USE_HOST_NETWORK)"
-        # $(EC2_IP) 패턴을 실제 IP로 변경
-        sed "s|\$(EC2_IP)|$EC2_IP|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+        log_info "SPRING_DATASOURCE_URL 업데이트 중 (Data EC2 IP: $DATA_EC2_IP)"
+        # $(EC2_IP) 패턴을 Data EC2 IP로 변경
+        sed "s|\$(EC2_IP)|$DATA_EC2_IP|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
         mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
         
-        # hostNetwork: false인 경우에만 127.0.0.1:3306을 EC2 IP로 변경
-        # hostNetwork: true인 경우 127.0.0.1은 그대로 유지해야 함
-        if [ "$USE_HOST_NETWORK" = "false" ]; then
-            # 127.0.0.1:3306 패턴을 실제 IP로 변경 (데이터베이스 URL만)
-            sed "s|127\.0\.0\.1:3306|$EC2_IP:3306|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+        # 127.0.0.1:3306 패턴도 Data EC2 IP로 변경 (Data EC2가 분리되어 있으므로)
+        sed "s|127\.0\.0\.1:3306|$DATA_EC2_IP:3306|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+        mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+        log_info "SPRING_DATASOURCE_URL: Data EC2 IP($DATA_EC2_IP) 사용"
+    fi
+    
+    # Cloud 서비스 접근 URL 처리 (애플리케이션 모듈만, Cloud 모듈은 제외)
+    # k8s Worker EC2에서 실행되는 애플리케이션 모듈이 Data EC2의 Cloud 서비스에 접근
+    # Cloud 모듈(eureka, config, gateway)은 Data EC2에서 실행되므로 localhost 유지
+    if [[ "$DEPLOY_PATH" == *"/apps/"* ]]; then
+        log_info "애플리케이션 모듈 감지: Cloud 서비스 접근 URL을 Data EC2 IP로 변경"
+        
+        # SPRING_CONFIG_IMPORT: localhost:8888 → Data EC2 IP:8888
+        # YAML에서 name과 value가 다른 줄에 있으므로, 파일 전체에서 localhost:8888 패턴 검색
+        if grep -q "localhost:8888" "$TEMP_DEPLOYMENT"; then
+            sed "s|http://localhost:8888|http://$DATA_EC2_IP:8888|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
             mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-            log_info "SPRING_DATASOURCE_URL: 127.0.0.1:3306 -> $EC2_IP:3306 (hostNetwork: false)"
-        else
-            log_info "SPRING_DATASOURCE_URL: 127.0.0.1:3306 유지 (hostNetwork: true)"
+            log_info "✅ SPRING_CONFIG_IMPORT: localhost:8888 → $DATA_EC2_IP:8888"
+        fi
+        
+        # EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: localhost:8761 → Data EC2 IP:8761
+        # YAML에서 name과 value가 다른 줄에 있으므로, 파일 전체에서 localhost:8761 패턴 검색
+        if grep -q "localhost:8761" "$TEMP_DEPLOYMENT"; then
+            sed "s|http://localhost:8761/eureka/|http://$DATA_EC2_IP:8761/eureka/|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+            log_info "✅ EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: localhost:8761 → $DATA_EC2_IP:8761"
         fi
     fi
     
-    # 이미지 태그 업데이트 (latest가 아니고 변경이 필요한 경우)
-    if [ "$IMAGE_TAG" != "latest" ]; then
-        log_step "🏷️  이미지 태그 업데이트: $IMAGE_TAG"
-        SERVICE_NAME=$(grep -E "image:" "$TEMP_DEPLOYMENT" | head -1 | sed -E 's/.*image:.*\/([^:]+):.*/\1/')
-        if [ -n "$SERVICE_NAME" ]; then
-            sed "s|ghcr.io/do-develop-space/${SERVICE_NAME}:latest|ghcr.io/do-develop-space/${SERVICE_NAME}:${IMAGE_TAG}|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-            log_info "✅ 이미지 태그 업데이트 완료: ${SERVICE_NAME}:${IMAGE_TAG}"
-        fi
-    fi
-else
-    log_error "Deployment 파일을 찾을 수 없습니다: $DEPLOYMENT_FILE"
-    exit 1
-fi
-
-# ===================================
-# k8s 배포
-# ===================================
-log_step "📦 k8s 리소스 적용 중..."
-
-# Service는 원본 파일 사용
-if [ -f "$DEPLOY_PATH/service.yaml" ]; then
-    log_info "Applying Service..."
-    $KUBECTL_CMD apply -f "$DEPLOY_PATH/service.yaml"
-fi
-
-# Deployment는 임시 파일 사용 (EC2 IP 및 이미지 태그가 적용된 버전)
-if [ -n "$TEMP_DEPLOYMENT" ] && [ -f "$TEMP_DEPLOYMENT" ]; then
     # 최종 검증: CHANGE_ME_TO_EC2_IP가 남아있는지 확인
     if grep -q "CHANGE_ME_TO_EC2_IP" "$TEMP_DEPLOYMENT"; then
         log_error "❌ 치환되지 않은 CHANGE_ME_TO_EC2_IP가 남아있습니다!"
@@ -477,15 +496,21 @@ if [ -n "$TEMP_DEPLOYMENT" ] && [ -f "$TEMP_DEPLOYMENT" ]; then
         exit 1
     fi
     
-    log_info "Applying Deployment (EC2 IP: $EC2_IP, Image Tag: $IMAGE_TAG)..."
-    $KUBECTL_CMD apply -f "$TEMP_DEPLOYMENT"
-    # 임시 파일 삭제
+    # 임시 deployment.yaml을 원본 위치에 복사 (kustomize가 읽을 수 있도록)
+    cp "$TEMP_DEPLOYMENT" "$DEPLOYMENT_FILE"
     rm -f "$TEMP_DEPLOYMENT"
 else
-    # 임시 파일이 없으면 원본 사용
-    log_warn "⚠️  임시 파일이 없습니다. 원본 파일을 사용합니다."
-    $KUBECTL_CMD apply -f "$DEPLOY_PATH/"
+    log_error "Deployment 파일을 찾을 수 없습니다: $DEPLOYMENT_FILE"
+    exit 1
 fi
+
+# ===================================
+# k8s 배포 (kustomize 사용)
+# ===================================
+log_step "📦 k8s 리소스 적용 중 (kustomize)..."
+log_info "Applying resources from: $DEPLOY_PATH"
+log_info "Data EC2 IP: $DATA_EC2_IP, Image Tag: $IMAGE_TAG"
+$KUBECTL_CMD apply -k "$DEPLOY_PATH"
 
 # ===================================
 # 배포 상태 확인
