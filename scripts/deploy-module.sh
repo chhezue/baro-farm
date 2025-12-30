@@ -247,9 +247,9 @@ check_cloud_infra() {
                 log_error "❌ Image pull failed for unknown reason"
                 return 1
             fi
-        }
+            }
         
-        docker_compose_cmd -f docker-compose.cloud.yml up -d
+        docker_compose_cmd -f docker-compose.cloud.yml up -d --force-recreate
         log_info "Waiting for Spring Cloud to be ready (30 seconds)..."
         sleep 30
     else
@@ -296,8 +296,9 @@ deploy_module() {
     log_step "🛑 Stopping existing container for $module..."
     docker_compose_cmd -f "$compose_file" down || true
     
-    log_step "🏃 Starting $module..."
-    if ! docker_compose_cmd -f "$compose_file" up -d; then
+    log_step "🏃 Starting $module with new image..."
+    # --force-recreate: 컨테이너를 강제로 재생성하여 새로 pull한 이미지 사용 보장
+    if ! docker_compose_cmd -f "$compose_file" up -d --force-recreate; then
         log_error "❌ Failed to start container for $module"
         log_error "Checking container logs..."
         docker logs baro-${module} --tail 50 2>&1 || echo "Container logs not available"
@@ -333,13 +334,13 @@ deploy_all() {
     # 1. 데이터 인프라
     log_info "Step 1/4: Deploying data infrastructure..."
         docker_compose_cmd -f docker-compose.data.yml pull
-        docker_compose_cmd -f docker-compose.data.yml up -d
+        docker_compose_cmd -f docker-compose.data.yml up -d --force-recreate
     sleep 20
     
     # 2. Spring Cloud 인프라
     log_info "Step 2/4: Deploying Spring Cloud infrastructure..."
         docker_compose_cmd -f docker-compose.cloud.yml pull
-        docker_compose_cmd -f docker-compose.cloud.yml up -d
+        docker_compose_cmd -f docker-compose.cloud.yml up -d --force-recreate
     sleep 30
     
     # 3. 비즈니스 모듈들
@@ -418,7 +419,7 @@ case $MODULE_NAME in
             log_info "Step 1/2: Deploying data infrastructure..."
             docker_compose_cmd -f docker-compose.data.yml pull
             docker_compose_cmd -f docker-compose.data.yml down || true
-            docker_compose_cmd -f docker-compose.data.yml up -d
+            docker_compose_cmd -f docker-compose.data.yml up -d --force-recreate
             sleep 20
         fi
         

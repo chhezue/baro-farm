@@ -153,20 +153,20 @@ if [ -z "$DATA_EC2_IP" ]; then
     log_warn "⚠️  DATA_EC2_IP 환경변수가 설정되지 않았습니다."
     log_warn "⚠️  현재 EC2(스크립트 실행 EC2)의 IP를 자동 감지합니다."
     log_warn "⚠️  시나리오 2(분리된 EC2)에서는 이 IP가 Data EC2 IP와 다를 수 있습니다!"
-    
-    # 방법 1: EC2 메타데이터 서비스
+
+# 방법 1: EC2 메타데이터 서비스
     DATA_EC2_IP=$(curl -s --max-time 2 http://169.254.169.254/latest/meta-data/local-ipv4 2>/dev/null || echo "")
-    
-    # 방법 2: hostname -I 사용
+
+# 방법 2: hostname -I 사용
     if [ -z "$DATA_EC2_IP" ]; then
         DATA_EC2_IP=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "")
-    fi
-    
-    # 방법 3: ip 명령어 사용
+fi
+
+# 방법 3: ip 명령어 사용
     if [ -z "$DATA_EC2_IP" ]; then
         DATA_EC2_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $7; exit}' || echo "")
-    fi
-    
+fi
+
     if [ -z "$DATA_EC2_IP" ]; then
         log_error "❌ IP를 자동으로 감지할 수 없습니다."
         log_error "환경변수 DATA_EC2_IP를 설정하거나, EC2 메타데이터 서비스에 접근할 수 있는지 확인하세요."
@@ -274,6 +274,12 @@ if [ "$MODULE_NAME" = "cloud" ]; then
     fi
     $KUBECTL_CMD apply -k "$K8S_BASE_DIR/cloud/eureka/"
     
+    # IMAGE_TAG가 latest일 때는 Deployment spec이 변경되지 않으므로 rollout restart로 Pod 재시작
+    if [ "$IMAGE_TAG" = "latest" ]; then
+        log_info "🔄 latest 태그 사용 중이므로 Pod 재시작 (rollout restart)..."
+        $KUBECTL_CMD rollout restart deployment/eureka -n baro-prod || true
+    fi
+    
     # Pod가 Ready 상태가 될 때까지 대기 (타임아웃: 300초)
     if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=eureka -n baro-prod --timeout=300s 2>&1; then
         log_warn "⚠️ Eureka Pod가 Ready 상태가 되지 않았습니다. 상태 확인 중..."
@@ -308,6 +314,12 @@ if [ "$MODULE_NAME" = "cloud" ]; then
     fi
     $KUBECTL_CMD apply -k "$K8S_BASE_DIR/cloud/config/"
     
+    # IMAGE_TAG가 latest일 때는 Deployment spec이 변경되지 않으므로 rollout restart로 Pod 재시작
+    if [ "$IMAGE_TAG" = "latest" ]; then
+        log_info "🔄 latest 태그 사용 중이므로 Pod 재시작 (rollout restart)..."
+        $KUBECTL_CMD rollout restart deployment/config -n baro-prod || true
+    fi
+    
     # Pod가 Ready 상태가 될 때까지 대기 (타임아웃: 300초)
     if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=config -n baro-prod --timeout=300s 2>&1; then
         log_warn "⚠️ Config Pod가 Ready 상태가 되지 않았습니다. 상태 확인 중..."
@@ -341,6 +353,12 @@ if [ "$MODULE_NAME" = "cloud" ]; then
         rm -f "${KUSTOMIZATION_FILE}.bak" 2>/dev/null || true
     fi
     $KUBECTL_CMD apply -k "$K8S_BASE_DIR/cloud/gateway/"
+    
+    # IMAGE_TAG가 latest일 때는 Deployment spec이 변경되지 않으므로 rollout restart로 Pod 재시작
+    if [ "$IMAGE_TAG" = "latest" ]; then
+        log_info "🔄 latest 태그 사용 중이므로 Pod 재시작 (rollout restart)..."
+        $KUBECTL_CMD rollout restart deployment/gateway -n baro-prod || true
+    fi
     
     # Pod가 Ready 상태가 될 때까지 대기 (타임아웃: 300초)
     if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=gateway -n baro-prod --timeout=300s 2>&1; then
@@ -451,7 +469,7 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
         if grep -q 'value: "CHANGE_ME_TO_EC2_IP"' "$TEMP_DEPLOYMENT" || grep -q 'value: "127.0.0.1"' "$TEMP_DEPLOYMENT" || grep -q "value: \"" "$TEMP_DEPLOYMENT"; then
             log_info "EC2_IP 환경 변수 설정 중 (Data EC2 IP: $DATA_EC2_IP)"
             sed "/name: EC2_IP/,/value:/ s|value: \".*\"|value: \"$DATA_EC2_IP\"|" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
         fi
     fi
     
@@ -488,7 +506,7 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
             sed "s|http://localhost:8761/eureka/|http://$DATA_EC2_IP:8761/eureka/|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
             mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
             log_info "✅ EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: localhost:8761 → $DATA_EC2_IP:8761"
-        fi
+fi
     fi
     
     # 최종 검증: CHANGE_ME_TO_EC2_IP가 남아있는지 확인
@@ -606,6 +624,14 @@ if [ $APPLY_EXIT_CODE -ne 0 ]; then
 else
     # 성공 시 출력
     echo "$APPLY_OUTPUT"
+fi
+
+# ===================================
+# IMAGE_TAG가 latest일 때 rollout restart (일반 앱 모듈)
+# ===================================
+if [ "$IMAGE_TAG" = "latest" ] && [ -n "$DEPLOYMENT_NAME" ]; then
+    log_info "🔄 latest 태그 사용 중이므로 Pod 재시작 (rollout restart)..."
+    $KUBECTL_CMD rollout restart deployment/"$DEPLOYMENT_NAME" -n baro-prod || true
 fi
 
 # ===================================
