@@ -69,7 +69,7 @@ spring:
             - id: auth-service-openapi
               uri: lb://AUTH-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
               predicates:
-                - Path=/openapi/auth/v3/api-docs
+                - Path=/openapi/auth/v3/api-docs, /openapi/auth/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/auth/(?<segment>.*), /${segment}
 
@@ -77,7 +77,7 @@ spring:
             - id: buyer-service-openapi
               uri: lb://BUYER-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
               predicates:
-                - Path=/openapi/buyer/v3/api-docs
+                - Path=/openapi/buyer/v3/api-docs, /openapi/buyer/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/buyer/(?<segment>.*), /${segment}
 
@@ -85,7 +85,7 @@ spring:
             - id: seller-service-openapi
               uri: lb://SELLER-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
               predicates:
-                - Path=/openapi/seller/v3/api-docs
+                - Path=/openapi/seller/v3/api-docs, /openapi/seller/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/seller/(?<segment>.*), /${segment}
 
@@ -93,7 +93,7 @@ spring:
             - id: order-service-openapi
               uri: lb://ORDER-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
               predicates:
-                - Path=/openapi/order/v3/api-docs
+                - Path=/openapi/order/v3/api-docs, /openapi/order/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/order/(?<segment>.*), /${segment}
 
@@ -101,7 +101,7 @@ spring:
             - id: support-service-openapi
               uri: lb://SUPPORT-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
               predicates:
-                - Path=/openapi/support/v3/api-docs
+                - Path=/openapi/support/v3/api-docs, /openapi/support/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/support/(?<segment>.*), /${segment}
 
