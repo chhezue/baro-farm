@@ -21,13 +21,13 @@ spring:
       discovery:
         locator:
           enabled: true
-          lower-case-service-id: true
+          # lower-case-service-id: true  # 주석처리: 대문자 서비스 ID 사용
       server:
         webflux:
           routes:
             # Auth Service
             - id: auth-service
-              uri: lb://auth-service
+              uri: lb://AUTH-SERVICE
               predicates:
                 - Path=/auth-service/**
               filters:
@@ -35,7 +35,7 @@ spring:
 
             # Buyer Service
             - id: buyer-service
-              uri: lb://buyer-service
+              uri: lb://BUYER-SERVICE
               predicates:
                 - Path=/buyer-service/**
               filters:
@@ -43,7 +43,7 @@ spring:
 
             # Seller Service
             - id: seller-service
-              uri: lb://seller-service
+              uri: lb://SELLER-SERVICE
               predicates:
                 - Path=/seller-service/**
               filters:
@@ -51,7 +51,7 @@ spring:
 
             # Order Service
             - id: order-service
-              uri: lb://order-service
+              uri: lb://ORDER-SERVICE
               predicates:
                 - Path=/order-service/**,/api/payments/**
               filters:
@@ -59,7 +59,7 @@ spring:
 
             # Support Service
             - id: support-service
-              uri: lb://support-service
+              uri: lb://SUPPORT-SERVICE
               predicates:
                 - Path=/support-service/**
               filters:
