@@ -1,6 +1,5 @@
 package com.barofarm.support.search.infrastructure.event;
 
-import com.barofarm.support.event.ProductEvent;
 import com.barofarm.support.search.application.ProductSearchService;
 import com.barofarm.support.search.application.dto.product.ProductIndexRequest;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +15,11 @@ public class ProductEventConsumer {
     private final ProductSearchService productSearchService;
 
     // Product 모듈에서 상품 CRUD 시 product-events 토픽에 메세지 발행
-    @KafkaListener(topics = "product-events", groupId = "search-service")
+    @KafkaListener(
+        topics = "product-events",
+        groupId = "search-service",
+        containerFactory = "kafkaListenerContainerFactory"
+    )
     public void onMessage(ProductEvent event) {
         ProductEvent.ProductEventData data = event.getData();
         log.info("📨 [CONSUMER] Received product event - Type: {}, Product ID: {}, Name: {}, Category: {}, Price: {}",
