@@ -1,4 +1,4 @@
-package com.barofarm.support.event;
+package com.barofarm.support.search.infrastructure.event;
 
 import java.time.Instant;
 import java.util.UUID;
