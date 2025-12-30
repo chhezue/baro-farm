@@ -7,10 +7,11 @@ metadata:
     app: eureka
     component: cloud
 spec:
-  type: ClusterIP
+  type: NodePort  # 외부 접근을 위해 NodePort 사용 (EIP:30761로 접근 가능)
   ports:
     - port: 8761
       targetPort: 8761
+      nodePort: 30761  # NodePort 범위: 30000-32767
       protocol: TCP
       name: http
   selector:
