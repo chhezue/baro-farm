@@ -34,8 +34,7 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
-            - name: EUREKA_INSTANCE_HOSTNAME
-              value: "eureka"
+            # EUREKA_INSTANCE_HOSTNAME 제거: register-with-eureka=false이므로 불필요
             - name: JAVA_OPTS
               value: "-Xms128m -Xmx256m -Djava.net.preferIPv4Stack=true"
             - name: SERVER_ADDRESS
