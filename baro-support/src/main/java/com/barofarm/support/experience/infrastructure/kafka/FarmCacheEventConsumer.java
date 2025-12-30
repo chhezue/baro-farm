@@ -24,12 +24,12 @@ public class FarmCacheEventConsumer {
         try {
             switch (event.getType()) {
                 case FARM_CREATED, FARM_UPDATED -> {
-                    // Redis 캐시 업데이트 (userId → farmId 매핑)
+                    // Redis 캐시 업데이트 (Set에 farmId 추가)
                     farmCacheService.updateCache(data.getSellerId(), data.getFarmId());
                 }
                 case FARM_DELETED -> {
-                    // Redis 캐시 삭제
-                    farmCacheService.deleteCache(data.getSellerId());
+                    // Redis 캐시에서 특정 farmId 제거
+                    farmCacheService.deleteCache(data.getSellerId(), data.getFarmId());
                 }
                 default -> {
                     // enum의 모든 케이스를 처리하므로 도달 불가능하지만 Checkstyle 요구사항 충족

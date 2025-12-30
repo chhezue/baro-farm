@@ -15,6 +15,7 @@ import com.barofarm.support.common.client.FarmClient;
 import com.barofarm.support.common.exception.CustomException;
 import com.barofarm.support.experience.application.dto.ReservationServiceRequest;
 import com.barofarm.support.experience.application.dto.ReservationServiceResponse;
+import com.barofarm.support.experience.application.event.ReservationEventPublisher;
 import com.barofarm.support.experience.domain.Experience;
 import com.barofarm.support.experience.domain.ExperienceRepository;
 import com.barofarm.support.experience.domain.ExperienceStatus;
@@ -22,6 +23,7 @@ import com.barofarm.support.experience.domain.Reservation;
 import com.barofarm.support.experience.domain.ReservationRepository;
 import com.barofarm.support.experience.domain.ReservationStatus;
 import com.barofarm.support.experience.exception.ReservationErrorCode;
+import com.barofarm.support.experience.infrastructure.cache.FarmCacheService;
 import java.math.BigInteger;
 import java.time.LocalDate;
 import java.util.Arrays;
@@ -51,6 +53,12 @@ class ReservationServiceTest {
 
     @Mock
     private FarmClient farmClient;
+
+    @Mock
+    private FarmCacheService farmCacheService;
+
+    @Mock
+    private ReservationEventPublisher reservationEventPublisher;
 
     @InjectMocks
     private ReservationService reservationService;
@@ -93,6 +101,7 @@ class ReservationServiceTest {
         when(reservationRepository.sumHeadCountByExperienceIdAndReservedDateAndReservedTimeSlot(
                 eq(experienceId), any(LocalDate.class), anyString())).thenReturn(0);
         when(reservationRepository.save(any(Reservation.class))).thenReturn(validReservation);
+        doNothing().when(reservationEventPublisher).publishReservationCreated(any(Reservation.class));
 
         // when
         ReservationServiceResponse response = reservationService.createReservation(buyerId, validRequest);
@@ -105,6 +114,7 @@ class ReservationServiceTest {
         verify(reservationRepository, times(1)).sumHeadCountByExperienceIdAndReservedDateAndReservedTimeSlot(
                 eq(experienceId), any(LocalDate.class), anyString());
         verify(reservationRepository, times(1)).save(any(Reservation.class));
+        verify(reservationEventPublisher, times(1)).publishReservationCreated(any(Reservation.class));
     }
 
     @Test
@@ -112,8 +122,7 @@ class ReservationServiceTest {
     void getReservationById() {
         // given
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(validReservation));
-        when(experienceRepository.findById(experienceId)).thenReturn(Optional.of(experience));
-        // buyerId와 일치하므로 접근 가능 (구매자 권한)
+        // buyerId와 일치하므로 구매자 권한으로 접근 가능 (experienceRepository 호출 불필요)
 
         // when
         ReservationServiceResponse response = reservationService.getReservationById(buyerId, reservationId);
@@ -123,7 +132,8 @@ class ReservationServiceTest {
         assertThat(response.getReservationId()).isEqualTo(reservationId);
         assertThat(response.getHeadCount()).isEqualTo(2);
         verify(reservationRepository, times(1)).findById(reservationId);
-        verify(experienceRepository, times(1)).findById(experienceId);
+        // buyerId가 일치하므로 validateBuyerOrSellerAccess에서 experienceRepository 호출하지 않음
+        verify(experienceRepository, never()).findById(any());
     }
 
     @Test
@@ -155,7 +165,7 @@ class ReservationServiceTest {
         Page<Reservation> reservationPage = new PageImpl<>(
                 Arrays.asList(validReservation, reservation2), pageable, 2);
         when(experienceRepository.findById(experienceId)).thenReturn(Optional.of(experience));
-        when(farmClient.getFarmIdByUserId(sellerId)).thenReturn(farmId);
+        when(farmCacheService.getFarmIdByUserId(sellerId)).thenReturn(farmId);
         when(reservationRepository.findByExperienceId(experienceId, pageable))
                 .thenReturn(reservationPage);
 
@@ -167,7 +177,7 @@ class ReservationServiceTest {
         assertThat(responsePage.getContent()).hasSize(2);
         assertThat(responsePage.getContent()).extracting("reservationId").contains(reservationId, reservationId2);
         verify(experienceRepository, times(1)).findById(experienceId);
-        verify(farmClient, times(1)).getFarmIdByUserId(sellerId);
+        verify(farmCacheService, times(1)).getFarmIdByUserId(sellerId);
         verify(reservationRepository, times(1)).findByExperienceId(experienceId, pageable);
     }
 
@@ -202,7 +212,8 @@ class ReservationServiceTest {
         UUID sellerId = UUID.randomUUID();
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(validReservation));
         when(experienceRepository.findById(experienceId)).thenReturn(Optional.of(experience));
-        when(farmClient.getFarmIdByUserId(sellerId)).thenReturn(farmId);
+        when(farmCacheService.getFarmIdByUserId(sellerId)).thenReturn(farmId);
+        doNothing().when(reservationEventPublisher).publishReservationStatusChanged(any(Reservation.class));
 
         // when
         ReservationServiceResponse response = reservationService.updateReservationStatus(sellerId, reservationId,
@@ -213,7 +224,8 @@ class ReservationServiceTest {
         assertThat(response.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
         verify(reservationRepository, times(1)).findById(reservationId);
         verify(experienceRepository, times(1)).findById(experienceId);
-        verify(farmClient, times(1)).getFarmIdByUserId(sellerId);
+        verify(farmCacheService, times(1)).getFarmIdByUserId(sellerId);
+        verify(reservationEventPublisher, times(1)).publishReservationStatusChanged(any(Reservation.class));
         // JPA 더티 체킹 사용하므로 save 호출하지 않음
         verify(reservationRepository, never()).save(any(Reservation.class));
     }
@@ -426,4 +438,5 @@ class ReservationServiceTest {
         // then
         verify(reservationRepository, times(1)).deleteById(reservationId);
     }
+
 }

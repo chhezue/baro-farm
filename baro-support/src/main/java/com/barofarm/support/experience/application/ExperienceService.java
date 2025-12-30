@@ -42,13 +42,15 @@ public class ExperienceService {
 
     /**
      * 체험 프로그램 권한 검증
+     * 사용자가 여러 farm을 소유할 수 있으므로, 체험의 farmId를 소유하고 있는지 확인
      *
      * @param experience 검증할 체험 프로그램
-     * @param userFarmId 사용자가 소유한 농장 ID
+     * @param userId 사용자 ID
      * @throws CustomException 권한이 없는 경우
      */
-    private void validateAccess(Experience experience, UUID userFarmId) {
-        if (!experience.getFarmId().equals(userFarmId)) {
+    private void validateAccess(Experience experience, UUID userId) {
+        UUID experienceFarmId = experience.getFarmId();
+        if (!farmCacheService.hasFarmAccess(userId, experienceFarmId)) {
             throw new CustomException(ExperienceErrorCode.ACCESS_DENIED);
         }
     }
@@ -79,17 +81,14 @@ public class ExperienceService {
 
     /**
      * 사용자 ID로 농장 ID 조회 (Redis 캐시 우선, 없으면 Feign fallback)
-     *
-     * Redis에서 먼저 조회하고, 없으면 Feign으로 조회한 후 Redis에 저장
+     * farmId가 지정된 경우 해당 farm을 소유하고 있는지 확인
      *
      * @param userId 사용자 ID
+     * @param farmId 확인할 farm ID (null이면 첫 번째 farm 반환)
      * @return 농장 ID 또는 null
      */
-    private UUID getUserFarmIdOrNull(UUID userId) {
-        // 2단계 확인
-        // 1. Redis에서 조회
-        // 2. Redis에 없으면 Feign으로 조회
-        return farmCacheService.getFarmIdByUserId(userId);
+    private UUID getUserFarmIdOrNull(UUID userId, UUID farmId) {
+        return farmCacheService.getFarmIdByUserId(userId, farmId);
     }
 
     /**
@@ -102,12 +101,8 @@ public class ExperienceService {
     @Transactional
     public ExperienceServiceResponse createExperience(UUID userId, ExperienceServiceRequest request) {
         Experience experience = request.toEntity();
-        // FarmCacheService를 통해 사용자가 소유한 farmId 조회 (Redis 캐시 우선, 없으면 Feign fallback)
-        UUID userFarmId = getUserFarmIdOrNull(userId);
-        if (userFarmId == null) {
-            throw new CustomException(ExperienceErrorCode.ACCESS_DENIED);
-        }
-        validateAccess(experience, userFarmId);
+        // 체험의 farmId를 소유하고 있는지 확인 (여러 farm 소유 가능)
+        validateAccess(experience, userId);
         validateExperience(experience);
         Experience savedExperience = experienceRepository.save(experience);
 
@@ -147,9 +142,10 @@ public class ExperienceService {
      * @return 체험 프로그램 페이지
      */
     public Page<ExperienceServiceResponse> getMyExperiences(UUID userId, UUID farmId, Pageable pageable) {
-        // 선택적으로 전달된 farmId가 있으면 우선 사용하고, 없으면 FarmCacheService를 통해 조회 (Redis 캐시 우선, 없으면 Feign fallback)
-        UUID effectiveFarmId = farmId != null ? farmId : getUserFarmIdOrNull(userId);
-        // seller-service에 농장이 없거나 API에서 404를 반환하는 경우 빈 페이지를 반환한다.
+        // farmId가 지정된 경우 소유 여부 확인, 없으면 첫 번째 farm 조회
+        // FarmCacheService가 farmId 소유 여부를 확인하고 반환 (보안 검증 포함)
+        UUID effectiveFarmId = getUserFarmIdOrNull(userId, farmId);
+        // seller-service에 농장이 없거나, 지정된 farmId를 소유하지 않는 경우 빈 페이지를 반환한다.
         if (effectiveFarmId == null) {
             return Page.empty(pageable);
         }
@@ -184,12 +180,8 @@ public class ExperienceService {
             UUID userId, UUID experienceId, ExperienceServiceRequest request) {
         Experience existingExperience = findExperienceById(experienceId);
 
-        // FarmCacheService를 통해 사용자가 소유한 farmId 조회 (Redis 캐시 우선, 없으면 Feign fallback)
-        UUID userFarmId = getUserFarmIdOrNull(userId);
-        if (userFarmId == null) {
-            throw new CustomException(ExperienceErrorCode.ACCESS_DENIED);
-        }
-        validateAccess(existingExperience, userFarmId);
+        // 체험의 farmId를 소유하고 있는지 확인 (여러 farm 소유 가능)
+        validateAccess(existingExperience, userId);
 
         existingExperience.update(
                 request.getTitle(),
@@ -219,12 +211,8 @@ public class ExperienceService {
     public void deleteExperience(UUID userId, UUID experienceId) {
         Experience experience = findExperienceById(experienceId);
 
-        // FarmCacheService를 통해 사용자가 소유한 farmId 조회 (Redis 캐시 우선, 없으면 Feign fallback)
-        UUID userFarmId = getUserFarmIdOrNull(userId);
-        if (userFarmId == null) {
-            throw new CustomException(ExperienceErrorCode.ACCESS_DENIED);
-        }
-        validateAccess(experience, userFarmId);
+        // 체험의 farmId를 소유하고 있는지 확인 (여러 farm 소유 가능)
+        validateAccess(experience, userId);
 
         experienceRepository.deleteById(experienceId);
     }

@@ -35,21 +35,6 @@ public class ReservationService {
     private final ReservationEventPublisher reservationEventPublisher;
 
     /**
-     * 사용자 ID로 농장 ID 조회 (Redis 캐시 우선, 없으면 Feign fallback)
-     *
-     * <p>Redis에서 먼저 조회하고, 없으면 Feign으로 조회한 후 Redis에 저장한다.</p>
-     *
-     * @param userId 사용자 ID
-     * @return 농장 ID 또는 null
-     */
-    private UUID getUserFarmIdOrNull(UUID userId) {
-        // 2단계 확인
-        // 1. Redis에서 조회
-        // 2. Redis에 없으면 Feign으로 조회
-        return farmCacheService.getFarmIdByUserId(userId);
-    }
-
-    /**
      * 예약 ID로 조회 (null 체크 및 존재 여부 검증 포함)
      *
      * @param reservationId 예약 ID
@@ -107,17 +92,15 @@ public class ReservationService {
 
     /**
      * 판매자 권한 검증
+     * 사용자가 여러 farm을 소유할 수 있으므로, 체험의 farmId를 소유하고 있는지 확인
      *
      * @param experience 체험 프로그램
      * @param userId 사용자 ID
      * @throws CustomException 권한이 없는 경우
      */
     private void validateSellerAccess(Experience experience, UUID userId) {
-        UUID userFarmId = getUserFarmIdOrNull(userId);
-        if (userFarmId == null) {
-            throw new CustomException(ReservationErrorCode.ACCESS_DENIED);
-        }
-        if (!experience.getFarmId().equals(userFarmId)) {
+        UUID experienceFarmId = experience.getFarmId();
+        if (!farmCacheService.hasFarmAccess(userId, experienceFarmId)) {
             throw new CustomException(ReservationErrorCode.ACCESS_DENIED);
         }
     }
@@ -137,12 +120,8 @@ public class ReservationService {
         }
 
         Experience experience = findExperienceById(reservation.getExperienceId());
-        UUID userFarmId = getUserFarmIdOrNull(userId);
-        if (userFarmId == null) {
-            throw new CustomException(ReservationErrorCode.ACCESS_DENIED);
-        }
-
-        boolean isSeller = experience.getFarmId().equals(userFarmId);
+        // 체험의 farmId를 소유하고 있는지 확인 (여러 farm 소유 가능)
+        boolean isSeller = farmCacheService.hasFarmAccess(userId, experience.getFarmId());
         if (!isSeller) {
             throw new CustomException(ReservationErrorCode.ACCESS_DENIED);
         }
