@@ -37,7 +37,9 @@ spec:
             - name: EUREKA_INSTANCE_HOSTNAME
               value: "eureka"
             - name: JAVA_OPTS
-              value: "-Xms128m -Xmx256m"
+              value: "-Xms128m -Xmx256m -Djava.net.preferIPv4Stack=true"
+            - name: SERVER_ADDRESS
+              value: "0.0.0.0"
           # resources:
           #   requests:
           #     memory: "128Mi"

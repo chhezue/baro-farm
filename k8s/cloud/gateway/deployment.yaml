@@ -36,12 +36,14 @@ spec:
               value: "prod"
             - name: SERVER_PORT
               value: "8080"  # Config Server 설정 덮어쓰기 방지
+            - name: SERVER_ADDRESS
+              value: "0.0.0.0"  # hostNetwork: true 사용 시 모든 네트워크 인터페이스에 바인딩
             - name: SPRING_CONFIG_IMPORT
               value: "optional:configserver:http://localhost:8888"  # hostNetwork: true 사용 시 localhost
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: "http://localhost:8761/eureka/"  # hostNetwork: true 사용 시 localhost
             - name: JAVA_OPTS
-              value: "-Xms256m -Xmx384m"
+              value: "-Xms256m -Xmx384m -Djava.net.preferIPv4Stack=true"
           # resources:
           #   requests:
           #     memory: "256Mi"

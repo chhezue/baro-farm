@@ -7,11 +7,10 @@ metadata:
     app: gateway
     component: cloud
 spec:
-  type: NodePort  # 외부 접근을 위해 NodePort 사용 (EIP:30808로 접근 가능)
+  type: ClusterIP  # hostNetwork: true를 사용하므로 직접 노드 IP:8080로 접근
   ports:
     - port: 8080
       targetPort: 8080
-      nodePort: 30808  # NodePort 범위: 30000-32767
       protocol: TCP
       name: http
   selector:
