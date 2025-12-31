@@ -18,6 +18,15 @@ spec:
         component: app
     spec:
       hostNetwork: true  # k8s 서비스의 접근을 위해 필요. Data 서비스는 Data EC2 IP로 접근
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+                  - key: node-role.kubernetes.io/master
+                    operator: DoesNotExist
       containers:
         - name: baro-support
           image: ghcr.io/do-develop-space/baro-support:latest
