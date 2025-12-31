@@ -44,8 +44,6 @@ class ExperienceControllerTest {
     private UUID farmId;
     private UUID experienceId;
     private UUID userId;
-    private String userEmail;
-    private String userRole;
     private ExperienceCreateRequest createRequest;
     private ExperienceUpdateRequest updateRequest;
     private ExperienceServiceResponse serviceResponse;
@@ -55,8 +53,6 @@ class ExperienceControllerTest {
         farmId = UUID.randomUUID();
         experienceId = UUID.randomUUID();
         userId = UUID.randomUUID();
-        userEmail = "test@example.com";
-        userRole = "SELLER";
 
         createRequest = new ExperienceCreateRequest(farmId, "딸기 수확 체험", "신선한 딸기를 직접 수확해보세요", BigInteger.valueOf(15000), 20,
                 120, LocalDateTime.of(2025, 3, 1, 9, 0), LocalDateTime.of(2025, 5, 31, 18, 0), ExperienceStatus.ON_SALE);
@@ -74,7 +70,7 @@ class ExperienceControllerTest {
     void createExperience() {
         when(experienceService.createExperience(eq(userId), any())).thenReturn(serviceResponse);
 
-        ResponseDto<ExperienceResponse> result = experienceController.createExperience(userId, userEmail, userRole, createRequest);
+        ResponseDto<ExperienceResponse> result = experienceController.createExperience(userId, createRequest);
 
         assertThat(result).isNotNull();
         assertThat(result.data()).isNotNull();
@@ -161,7 +157,7 @@ class ExperienceControllerTest {
 
         // when
         ResponseDto<CustomPage<ExperienceResponse>> result =
-                experienceController.getMyExperiences(userId, userEmail, userRole, customFarmId, pageable);
+                experienceController.getMyExperiences(userId, customFarmId, pageable);
 
         // then
         assertThat(result).isNotNull();
@@ -182,7 +178,7 @@ class ExperienceControllerTest {
         when(experienceService.updateExperience(eq(userId), eq(experienceId), any())).thenReturn(updatedServiceResponse);
 
         // when
-        ResponseDto<ExperienceResponse> result = experienceController.updateExperience(userId, userEmail, userRole, experienceId, updateRequest);
+        ResponseDto<ExperienceResponse> result = experienceController.updateExperience(userId, experienceId, updateRequest);
 
         // then
         assertThat(result).isNotNull();
@@ -199,7 +195,7 @@ class ExperienceControllerTest {
         doNothing().when(experienceService).deleteExperience(userId, experienceId);
 
         // when
-        ResponseDto<Void> result = experienceController.deleteExperience(userId, userEmail, userRole, experienceId);
+        ResponseDto<Void> result = experienceController.deleteExperience(userId, experienceId);
 
         // then
         assertThat(result).isNotNull();
