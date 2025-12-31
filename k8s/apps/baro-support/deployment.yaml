@@ -8,6 +8,11 @@ metadata:
     component: app
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0  # hostNetwork 사용 시 포트 충돌 방지
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: baro-support
@@ -25,8 +30,6 @@ spec:
               - matchExpressions:
                   - key: node-role.kubernetes.io/control-plane
                     operator: DoesNotExist
-                  - key: node-role.kubernetes.io/master
-                    operator: DoesNotExist
       containers:
         - name: baro-support
           image: ghcr.io/do-develop-space/baro-support:latest
@@ -38,6 +41,8 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
+            - name: SPRING_APPLICATION_NAME
+              value: "support-service"  # Eureka 등록명 (소문자로 통일)
             - name: SERVER_PORT
               value: "8089"  # Config Server 설정 덮어쓰기 방지
             - name: SPRING_CONFIG_IMPORT

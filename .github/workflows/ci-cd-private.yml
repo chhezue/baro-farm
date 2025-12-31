@@ -267,11 +267,11 @@ jobs:
         run: chmod +x gradlew
       
       - name: Download build artifacts
+        continue-on-error: true  # 아티팩트가 없어도 계속 진행
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
           path: .
-          continue-on-error: true  # 아티팩트가 없어도 계속 진행
       
       - name: Build module if artifact not found
         run: |
