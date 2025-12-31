@@ -165,7 +165,7 @@ class ReservationServiceTest {
         Page<Reservation> reservationPage = new PageImpl<>(
                 Arrays.asList(validReservation, reservation2), pageable, 2);
         when(experienceRepository.findById(experienceId)).thenReturn(Optional.of(experience));
-        when(farmCacheService.getFarmIdByUserId(sellerId)).thenReturn(farmId);
+        when(farmCacheService.hasFarmAccess(sellerId, farmId)).thenReturn(true);
         when(reservationRepository.findByExperienceId(experienceId, pageable))
                 .thenReturn(reservationPage);
 
@@ -177,7 +177,7 @@ class ReservationServiceTest {
         assertThat(responsePage.getContent()).hasSize(2);
         assertThat(responsePage.getContent()).extracting("reservationId").contains(reservationId, reservationId2);
         verify(experienceRepository, times(1)).findById(experienceId);
-        verify(farmCacheService, times(1)).getFarmIdByUserId(sellerId);
+        verify(farmCacheService, times(1)).hasFarmAccess(sellerId, farmId);
         verify(reservationRepository, times(1)).findByExperienceId(experienceId, pageable);
     }
 
@@ -212,7 +212,7 @@ class ReservationServiceTest {
         UUID sellerId = UUID.randomUUID();
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(validReservation));
         when(experienceRepository.findById(experienceId)).thenReturn(Optional.of(experience));
-        when(farmCacheService.getFarmIdByUserId(sellerId)).thenReturn(farmId);
+        when(farmCacheService.hasFarmAccess(sellerId, farmId)).thenReturn(true);
         doNothing().when(reservationEventPublisher).publishReservationStatusChanged(any(Reservation.class));
 
         // when
@@ -224,7 +224,7 @@ class ReservationServiceTest {
         assertThat(response.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
         verify(reservationRepository, times(1)).findById(reservationId);
         verify(experienceRepository, times(1)).findById(experienceId);
-        verify(farmCacheService, times(1)).getFarmIdByUserId(sellerId);
+        verify(farmCacheService, times(1)).hasFarmAccess(sellerId, farmId);
         verify(reservationEventPublisher, times(1)).publishReservationStatusChanged(any(Reservation.class));
         // JPA 더티 체킹 사용하므로 save 호출하지 않음
         verify(reservationRepository, never()).save(any(Reservation.class));
