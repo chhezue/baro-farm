@@ -25,6 +25,14 @@ spec:
       hostNetwork: true
       nodeSelector:
         kubernetes.io/hostname: ip-10-0-5-208  # 마스터 노드에 고정 배치
+      tolerations:
+        # Master node taint 허용 (master node 메모리 보호를 위한 taint가 설정된 경우)
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          # NoSchedule: 새로운 Pod는 스케줄링하지 않음 (이미 실행 중인 Pod는 유지)
+          # PreferNoSchedule: 가능하면 스케줄링하지 않음 (부득이하면 허용)
+          # NoExecute: 새로운 Pod는 스케줄링하지 않음 + 이미 실행 중인 Pod도 제거 가능
+          effect: NoSchedule
       containers:
         - name: gateway
           image: ghcr.io/do-develop-space/gateway:latest
