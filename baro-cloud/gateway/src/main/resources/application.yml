@@ -21,13 +21,13 @@ spring:
       discovery:
         locator:
           enabled: true
-          # lower-case-service-id: true  # 주석처리: 대문자 서비스 ID 사용
+          lower-case-service-id: true  # 소문자 서비스 ID 사용
       server:
         webflux:
           routes:
             # Auth Service
             - id: auth-service
-              uri: lb://AUTH-SERVICE
+              uri: lb://auth-service
               predicates:
                 - Path=/auth-service/**
               filters:
@@ -35,7 +35,7 @@ spring:
 
             # Buyer Service
             - id: buyer-service
-              uri: lb://BUYER-SERVICE
+              uri: lb://buyer-service
               predicates:
                 - Path=/buyer-service/**
               filters:
@@ -43,7 +43,7 @@ spring:
 
             # Seller Service
             - id: seller-service
-              uri: lb://SELLER-SERVICE
+              uri: lb://seller-service
               predicates:
                 - Path=/seller-service/**
               filters:
@@ -51,7 +51,7 @@ spring:
 
             # Order Service
             - id: order-service
-              uri: lb://ORDER-SERVICE
+              uri: lb://order-service
               predicates:
                 - Path=/order-service/**,/api/payments/**
               filters:
@@ -59,7 +59,7 @@ spring:
 
             # Support Service
             - id: support-service
-              uri: lb://SUPPORT-SERVICE
+              uri: lb://support-service
               predicates:
                 - Path=/support-service/**
               filters:
@@ -67,7 +67,7 @@ spring:
 
             # Auth Service API 문서 프록시
             - id: auth-service-openapi
-              uri: lb://AUTH-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
+              uri: lb://auth-service
               predicates:
                 - Path=/openapi/auth/v3/api-docs, /openapi/auth/v3/api-docs/**
               filters:
@@ -75,7 +75,7 @@ spring:
 
             # Buyer Service API 문서 프록시
             - id: buyer-service-openapi
-              uri: lb://BUYER-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
+              uri: lb://buyer-service
               predicates:
                 - Path=/openapi/buyer/v3/api-docs, /openapi/buyer/v3/api-docs/**
               filters:
@@ -83,7 +83,7 @@ spring:
 
             # Seller Service API 문서 프록시
             - id: seller-service-openapi
-              uri: lb://SELLER-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
+              uri: lb://seller-service
               predicates:
                 - Path=/openapi/seller/v3/api-docs, /openapi/seller/v3/api-docs/**
               filters:
@@ -91,7 +91,7 @@ spring:
 
             # Order Service API 문서 프록시
             - id: order-service-openapi
-              uri: lb://ORDER-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
+              uri: lb://order-service
               predicates:
                 - Path=/openapi/order/v3/api-docs, /openapi/order/v3/api-docs/**
               filters:
@@ -99,7 +99,7 @@ spring:
 
             # Support Service API 문서 프록시
             - id: support-service-openapi
-              uri: lb://SUPPORT-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
+              uri: lb://support-service
               predicates:
                 - Path=/openapi/support/v3/api-docs, /openapi/support/v3/api-docs/**
               filters:

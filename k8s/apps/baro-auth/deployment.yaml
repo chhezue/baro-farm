@@ -8,6 +8,11 @@ metadata:
     component: app
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0  # hostNetwork 사용 시 포트 충돌 방지
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: baro-auth
@@ -18,6 +23,13 @@ spec:
         component: app
     spec:
       hostNetwork: true  # k8s 서비스의 접근을 위해 필요. Data 서비스는 Data EC2 IP로 접근
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
       containers:
         - name: baro-auth
           image: ghcr.io/do-develop-space/baro-auth:latest
@@ -29,6 +41,8 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
+            - name: SPRING_APPLICATION_NAME
+              value: "auth-service"  # Eureka 등록명 (소문자로 통일)
             - name: SERVER_PORT
               value: "8081"  # Config Server 설정 덮어쓰기 방지
             - name: SPRING_CONFIG_IMPORT
