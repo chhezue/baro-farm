@@ -9,7 +9,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -45,7 +44,7 @@ public class Experience extends BaseEntity {
     private String description;
 
     @Column(name = "price_per_person", nullable = false)
-    private BigInteger pricePerPerson;
+    private Long pricePerPerson;
 
     @Column(nullable = false)
     private Integer capacity;
@@ -78,7 +77,7 @@ public class Experience extends BaseEntity {
     public void update(
             String title,
             String description,
-            BigInteger pricePerPerson,
+            Long pricePerPerson,
             Integer capacity,
             Integer durationMinutes,
             LocalDateTime availableStartDate,
