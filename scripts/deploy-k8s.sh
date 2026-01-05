@@ -506,7 +506,14 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
             sed "s|http://localhost:8761/eureka/|http://$DATA_EC2_IP:8761/eureka/|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
             mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
             log_info "✅ EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: localhost:8761 → $DATA_EC2_IP:8761"
-fi
+        fi
+        
+        # Elasticsearch URI는 치환하지 않음 (localhost:9200 유지)
+        # Elasticsearch는 Private EC2에 docker-compose로 실행되므로 localhost로 접근
+        # hostNetwork: true를 사용하는 Pod이므로 localhost:9200이 올바른 접근 방법
+        if grep -q "localhost:9200" "$TEMP_DEPLOYMENT"; then
+            log_info "ℹ️  Elasticsearch URI는 localhost:9200으로 유지 (Private EC2에서 실행 중)"
+        fi
     fi
     
     # 최종 검증: CHANGE_ME_TO_EC2_IP가 남아있는지 확인

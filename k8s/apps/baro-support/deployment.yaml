@@ -79,12 +79,12 @@ spec:
               value: "CHANGE_ME_TO_EC2_IP"  # 배포 스크립트가 자동으로 Data EC2 IP로 치환
             - name: SPRING_DATASOURCE_URL
               value: "jdbc:mysql://CHANGE_ME_TO_EC2_IP:3306/barosupport?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true"
-            # Kafka 설정
+            # Kafka 설정 (Data EC2 - Public EC2)
             - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-              value: "CHANGE_ME_TO_EC2_IP:29092"
-            # Elasticsearch 설정
+              value: "CHANGE_ME_TO_EC2_IP:29092"  # 배포 스크립트가 자동으로 Data EC2 IP로 치환
+            # Elasticsearch 설정 (Private EC2 - hostNetwork 사용으로 localhost 접근)
             - name: SPRING_ELASTICSEARCH_URIS
-              value: "http://CHANGE_ME_TO_EC2_IP:9200"
+              value: "http://localhost:9200"  # Elasticsearch는 같은 Private EC2에 docker-compose로 실행됨
             # AWS 설정
             - name: AWS_ACCESS_KEY
               valueFrom:

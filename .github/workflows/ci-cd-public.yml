@@ -2,7 +2,8 @@ name: CI/CD Pipeline - Public EC2 (K8s Control-Plane Deployment)
 
 # ==================================================
 # Public EC2용 CI/CD Pipeline
-# - 배포 대상: data (MySQL, Redis, Kafka, Elasticsearch 등), cloud (eureka, gateway, config)
+# - 배포 대상: data (MySQL, Redis, Kafka), cloud (eureka, gateway, config)
+#   (Elasticsearch는 Private EC2에 별도 배포)
 # - 배포 방식: Kubernetes (k8s) - Control-Plane이 Public EC2에 있음
 # - Runner: public-ec2-runner (self-hosted)
 # ==================================================
@@ -551,25 +552,8 @@ jobs:
               exit 1
             fi
 
-            # Elasticsearch 빌드 컨텍스트 복사 (옵션)
-            if [ -d "$GITHUB_WORKSPACE/docker/baro-es" ]; then
-              echo "📦 [Public EC2 - Control-Plane] Elasticsearch 빌드 컨텍스트 복사 중..."
-              mkdir -p ./docker/baro-es
-              cp -r "$GITHUB_WORKSPACE/docker/baro-es"/* ./docker/baro-es/ 2>/dev/null || {
-                echo "⚠️  Elasticsearch 빌드 컨텍스트 복사 실패 (계속 진행)"
-              }
-            fi
-          fi
-
-          # Elasticsearch 빌드 컨텍스트 복사 (커스텀 이미지 빌드용)
-          if [ -d "$GITHUB_WORKSPACE/docker/baro-es" ]; then
-            mkdir -p ./docker/baro-es
-            cp -r $GITHUB_WORKSPACE/docker/baro-es/* ./docker/baro-es/ 2>/dev/null || {
-              echo "⚠️  Elasticsearch 빌드 컨텍스트 복사 실패 (계속 진행)"
-            }
-            echo "✅ Elasticsearch 빌드 컨텍스트 복사 완료"
-          else
-            echo "ℹ️  [Public EC2 - Control-Plane] Elasticsearch 빌드 컨텍스트가 없습니다 (공식 이미지 사용): $GITHUB_WORKSPACE/docker/baro-es"
+            # Elasticsearch는 Private EC2에 별도 배포되므로 빌드 컨텍스트 복사 불필요
+            # (docker-compose.data.yml에서도 elasticsearch가 주석처리되어 있음)
           fi
 
       - name: Setup kubeconfig

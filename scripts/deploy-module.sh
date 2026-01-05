@@ -68,15 +68,16 @@ if [ -z "$MODULE_NAME" ]; then
     echo "Usage: bash deploy-module.sh [MODULE_NAME]"
     echo ""
     echo "Available modules:"
-    echo "  - data    (데이터 인프라: Redis, MySQL, Kafka, Elasticsearch)"
-    echo "  - cloud   (Spring Cloud: Eureka, Gateway, Config)"
-    echo "  - infra   (data + cloud)"
-    echo "  - auth    (인증 모듈)"
-    echo "  - buyer   (구매자 모듈)"
-    echo "  - seller  (판매자 모듈)"
-    echo "  - order   (주문 모듈)"
-    echo "  - support (지원 모듈)"
-    echo "  - all     (전체 배포)"
+    echo "  - data         (데이터 인프라: Redis, MySQL, Kafka)"
+    echo "  - elasticsearch (Elasticsearch 검색 엔진)"
+    echo "  - cloud        (Spring Cloud: Eureka, Gateway, Config)"
+    echo "  - infra        (data + cloud)"
+    echo "  - auth         (인증 모듈)"
+    echo "  - buyer        (구매자 모듈)"
+    echo "  - seller       (판매자 모듈)"
+    echo "  - order        (주문 모듈)"
+    echo "  - support      (지원 모듈)"
+    echo "  - all          (전체 배포)"
     exit 1
 fi
 
@@ -382,6 +383,51 @@ case $MODULE_NAME in
         log_info "✅ Data infrastructure deployed successfully!"
         ;;
     
+    elasticsearch)
+        log_step "Deploying Elasticsearch..."
+        # 네트워크가 없으면 생성
+        if ! docker network ls --format '{{.Name}}' | grep -q "^be_baro-network$"; then
+            log_info "Creating be_baro-network..."
+            CREATE_OUTPUT=$(docker network create be_baro-network 2>&1)
+            CREATE_EXIT_CODE=$?
+            if [ $CREATE_EXIT_CODE -eq 0 ]; then
+                log_info "✅ Created be_baro-network"
+            elif echo "$CREATE_OUTPUT" | grep -q "already exists"; then
+                log_info "✅ be_baro-network already exists"
+            else
+                log_error "❌ Failed to create be_baro-network: $CREATE_OUTPUT"
+                exit 1
+            fi
+        fi
+        
+        # docker-compose.elasticsearch.yml 파일 확인
+        if [ ! -f "docker-compose.elasticsearch.yml" ]; then
+            log_error "❌ docker-compose.elasticsearch.yml 파일을 찾을 수 없습니다."
+            exit 1
+        fi
+        
+        # Elasticsearch 커스텀 이미지 빌드 (필요한 경우)
+        if [ -d "docker/baro-es" ] && [ -f "docker/baro-es/Dockerfile" ]; then
+            log_step "🔨 Building Elasticsearch custom image..."
+            if docker_compose_cmd -f docker-compose.elasticsearch.yml build 2>&1; then
+                log_info "✅ Elasticsearch image built successfully"
+            else
+                log_warn "⚠️ Elasticsearch build failed, will try to use existing image or pull"
+            fi
+        else
+            log_info "ℹ️  Elasticsearch custom build context not found, using official image or existing image"
+        fi
+        
+        # 이미지 pull 시도 (빌드 실패 시 대비)
+        docker_compose_cmd -f docker-compose.elasticsearch.yml pull || log_warn "⚠️ Image pull failed, using existing image"
+        
+        # 기존 컨테이너 중지 및 새로 시작
+        docker_compose_cmd -f docker-compose.elasticsearch.yml down || true
+        docker_compose_cmd -f docker-compose.elasticsearch.yml up -d
+        
+        log_info "✅ Elasticsearch deployed successfully!"
+        ;;
+    
     cloud)
         log_step "Deploying Spring Cloud infrastructure..."
         # 네트워크 확인
@@ -458,7 +504,7 @@ case $MODULE_NAME in
     
     *)
         log_error "Unknown module: $MODULE_NAME"
-        log_info "Available modules: data, cloud, infra, auth, buyer, seller, order, support"
+        log_info "Available modules: data, elasticsearch, cloud, infra, auth, buyer, seller, order, support"
         log_info "Unavailable modules: infra, all"
         exit 1
         ;;
