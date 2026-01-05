@@ -50,13 +50,15 @@ jobs:
         startsWith(github.ref, 'refs/heads/main-buyer') ||
         startsWith(github.ref, 'refs/heads/main-seller') ||
         startsWith(github.ref, 'refs/heads/main-order') ||
-        startsWith(github.ref, 'refs/heads/main-support'))) ||
+        startsWith(github.ref, 'refs/heads/main-support') ||
+        startsWith(github.ref, 'refs/heads/main-elasticsearch'))) ||
       (github.event_name == 'pull_request' && 
        (startsWith(github.base_ref, 'main-auth') ||
         startsWith(github.base_ref, 'main-buyer') ||
         startsWith(github.base_ref, 'main-seller') ||
         startsWith(github.base_ref, 'main-order') ||
-        startsWith(github.base_ref, 'main-support')))
+        startsWith(github.base_ref, 'main-support') ||
+        startsWith(github.base_ref, 'main-elasticsearch')))
     
     steps:
       - name: Checkout code
@@ -195,13 +197,15 @@ jobs:
         startsWith(github.ref, 'refs/heads/main-buyer') ||
         startsWith(github.ref, 'refs/heads/main-seller') ||
         startsWith(github.ref, 'refs/heads/main-order') ||
-        startsWith(github.ref, 'refs/heads/main-support'))) ||
+        startsWith(github.ref, 'refs/heads/main-support') ||
+        startsWith(github.ref, 'refs/heads/main-elasticsearch'))) ||
       (github.event_name == 'pull_request' && 
        (startsWith(github.base_ref, 'main-auth') ||
         startsWith(github.base_ref, 'main-buyer') ||
         startsWith(github.base_ref, 'main-seller') ||
         startsWith(github.base_ref, 'main-order') ||
-        startsWith(github.base_ref, 'main-support')))
+        startsWith(github.base_ref, 'main-support') ||
+        startsWith(github.base_ref, 'main-elasticsearch')))
     outputs:
       service: ${{ steps.module.outputs.service }}
       module: ${{ steps.module.outputs.module }}
