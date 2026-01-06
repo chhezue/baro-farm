@@ -68,8 +68,9 @@ if [ -z "$MODULE_NAME" ]; then
     echo "Usage: bash deploy-module.sh [MODULE_NAME]"
     echo ""
     echo "Available modules:"
-    echo "  - data         (데이터 인프라: Redis, MySQL, Kafka)"
-    echo "  - elasticsearch (Elasticsearch 검색 엔진)"
+    echo "  - data         (데이터 인프라: Redis, MySQL)"
+    echo "  - kafka        (Kafka 메시지 큐 - docker-compose.kafka.yml 사용)"
+    echo "  - elasticsearch (Elasticsearch 검색 엔진 - docker-compose.elasticsearch.yml 사용)"
     echo "  - cloud        (Spring Cloud: Eureka, Gateway, Config)"
     echo "  - infra        (data + cloud)"
     echo "  - auth         (인증 모듈)"
@@ -149,31 +150,25 @@ fi
 # ===================================
 check_data_infra() {
     log_step "🔍 Checking data infrastructure..."
-    # MySQL, Kafka가 모두 실행 중인지 확인
+    # MySQL만 실행 중인지 확인 (Redis도 함께 확인)
     MYSQL_RUNNING=$(docker ps --format '{{.Names}}' | grep -q "^baro-mysql$" && echo "yes" || echo "no")
-    KAFKA_RUNNING=$(docker ps --format '{{.Names}}' | grep -q "^baro-kafka$" && echo "yes" || echo "no")
+    REDIS_RUNNING=$(docker ps --format '{{.Names}}' | grep -q "^baro-redis$" && echo "yes" || echo "no")
     
-    if [ "$MYSQL_RUNNING" = "no" ] || [ "$KAFKA_RUNNING" = "no" ]; then
+    if [ "$MYSQL_RUNNING" = "no" ] || [ "$REDIS_RUNNING" = "no" ]; then
         log_warn "Data infrastructure not running. Starting data infrastructure first..."
-        # Elasticsearch는 build가 필요하므로 build 먼저 시도
-        if [ -f "docker/baro-es/Dockerfile" ]; then
-            log_info "Building Elasticsearch image..."
-            if docker_compose_cmd -f docker-compose.data.yml build elasticsearch 2>&1; then
-                log_info "✅ Elasticsearch image built successfully"
-            else
-                log_warn "⚠️ Elasticsearch build failed, will try to use existing image or skip"
-            fi
-        fi
-        # pull은 build가 필요한 이미지는 제외하고 실행
-        docker_compose_cmd -f docker-compose.data.yml pull mysql kafka 2>/dev/null || true
-        # Elasticsearch가 없어도 MySQL, Kafka는 시작
-        docker_compose_cmd -f docker-compose.data.yml up -d mysql kafka
-        # Elasticsearch는 별도로 시도 (실패해도 계속 진행)
-        docker_compose_cmd -f docker-compose.data.yml up -d elasticsearch 2>/dev/null || log_warn "⚠️ Elasticsearch start failed, continuing without it"
+        # docker-compose.data.yml은 Redis와 MySQL만 포함 (kafka, elasticsearch는 분리됨)
+        docker_compose_cmd -f docker-compose.data.yml pull 2>/dev/null || true
+        docker_compose_cmd -f docker-compose.data.yml up -d
         log_info "Waiting for data infrastructure to be ready (20 seconds)..."
         sleep 20
     else
-        log_info "✅ Data infrastructure is already running (MySQL: $MYSQL_RUNNING, Kafka: $KAFKA_RUNNING)."
+        log_info "✅ Data infrastructure is already running (MySQL: $MYSQL_RUNNING, Redis: $REDIS_RUNNING)."
+    fi
+    
+    # Kafka와 Elasticsearch는 선택사항 (필요시 별도 배포)
+    KAFKA_RUNNING=$(docker ps --format '{{.Names}}' | grep -q "^baro-kafka$" && echo "yes" || echo "no")
+    if [ "$KAFKA_RUNNING" = "no" ]; then
+        log_warn "⚠️  Kafka is not running. If needed, deploy separately: bash deploy-module.sh kafka"
     fi
     
     # MySQL이 실행 중이면 데이터베이스 초기화 확인 및 실행
@@ -359,7 +354,7 @@ deploy_all() {
 # ===================================
 case $MODULE_NAME in
     data)
-        log_step "Deploying data infrastructure..."
+        log_step "Deploying data infrastructure (Redis + MySQL)..."
         # 네트워크가 없으면 생성 (data 인프라가 네트워크를 생성함)
         if ! docker network ls --format '{{.Name}}' | grep -q "^be_baro-network$"; then
             log_info "Creating be_baro-network..."
@@ -374,13 +369,45 @@ case $MODULE_NAME in
                 exit 1
             fi
         fi
-        # Elasticsearch 커스텀 이미지 빌드가 필요하므로 pull 대신 build
-        log_step "🔨 Building Elasticsearch image (if needed)..."
-        docker_compose_cmd -f docker-compose.data.yml build elasticsearch || log_warn "Build failed, trying pull..."
-        docker_compose_cmd -f docker-compose.data.yml pull || true
-        docker_compose_cmd -f docker-compose.data.yml down || true
-        docker_compose_cmd -f docker-compose.data.yml up -d
+        
+        # 기본: Redis + MySQL만 배포
+        COMPOSE_FILES="-f docker-compose.data.yml"
+        
+        # 환경변수로 Kafka 추가 배포 선택
+        if [ "${DEPLOY_KAFKA:-false}" = "true" ]; then
+            if [ -f "docker-compose.kafka.yml" ]; then
+                COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.kafka.yml"
+                log_info "📦 Kafka 추가 배포 예정 (DEPLOY_KAFKA=true)"
+            else
+                log_warn "⚠️  docker-compose.kafka.yml 파일을 찾을 수 없습니다. Kafka 배포를 건너뜁니다."
+            fi
+        fi
+        
+        # 환경변수로 Elasticsearch 추가 배포 선택
+        if [ "${DEPLOY_ELASTICSEARCH:-false}" = "true" ]; then
+            if [ -f "docker-compose.elasticsearch.yml" ]; then
+                COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.elasticsearch.yml"
+                log_info "📦 Elasticsearch 추가 배포 예정 (DEPLOY_ELASTICSEARCH=true)"
+            else
+                log_warn "⚠️  docker-compose.elasticsearch.yml 파일을 찾을 수 없습니다. Elasticsearch 배포를 건너뜁니다."
+            fi
+        fi
+        
+        # docker-compose 실행 (여러 파일 조합)
+        docker_compose_cmd $COMPOSE_FILES pull || true
+        docker_compose_cmd $COMPOSE_FILES down || true
+        docker_compose_cmd $COMPOSE_FILES up -d
+        
         log_info "✅ Data infrastructure deployed successfully!"
+        if [ "${DEPLOY_KAFKA:-false}" = "true" ] || [ "${DEPLOY_ELASTICSEARCH:-false}" = "true" ]; then
+            log_info "📊 배포된 서비스: Redis, MySQL"
+            [ "${DEPLOY_KAFKA:-false}" = "true" ] && log_info "   + Kafka"
+            [ "${DEPLOY_ELASTICSEARCH:-false}" = "true" ] && log_info "   + Elasticsearch"
+        else
+            log_info "📊 배포된 서비스: Redis, MySQL"
+            log_info "ℹ️  Kafka 또는 Elasticsearch를 추가하려면 환경변수를 설정하세요:"
+            log_info "   DEPLOY_KAFKA=true DEPLOY_ELASTICSEARCH=true bash deploy-module.sh data"
+        fi
         ;;
     
     elasticsearch)
@@ -483,8 +510,40 @@ case $MODULE_NAME in
         log_info "✅ All infrastructure deployed successfully!"
         ;;
     
+    kafka)
+        log_step "Deploying Kafka..."
+        # 네트워크가 없으면 생성
+        if ! docker network ls --format '{{.Name}}' | grep -q "^be_baro-network$"; then
+            log_info "Creating be_baro-network..."
+            CREATE_OUTPUT=$(docker network create be_baro-network 2>&1)
+            CREATE_EXIT_CODE=$?
+            if [ $CREATE_EXIT_CODE -eq 0 ]; then
+                log_info "✅ Created be_baro-network"
+            elif echo "$CREATE_OUTPUT" | grep -q "already exists"; then
+                log_info "✅ be_baro-network already exists"
+            else
+                log_error "❌ Failed to create be_baro-network: $CREATE_OUTPUT"
+                exit 1
+            fi
+        fi
+        
+        # docker-compose.kafka.yml 파일 확인
+        if [ ! -f "docker-compose.kafka.yml" ]; then
+            log_error "❌ docker-compose.kafka.yml 파일을 찾을 수 없습니다."
+            exit 1
+        fi
+        
+        docker_compose_cmd -f docker-compose.kafka.yml pull || log_warn "⚠️ Image pull failed, using existing image"
+        
+        # 기존 컨테이너 중지 및 새로 시작
+        docker_compose_cmd -f docker-compose.kafka.yml down || true
+        docker_compose_cmd -f docker-compose.kafka.yml up -d
+        
+        log_info "✅ Kafka deployed successfully!"
+        ;;
+    
     auth|buyer|seller|order|support)
-        # 데이터 인프라는 필수 (Redis, MySQL, Kafka)
+        # 데이터 인프라는 필수 (Redis, MySQL) - Kafka는 선택사항
         check_data_infra
         # Cloud 인프라는 선택적 (이미 실행 중이면 체크만, 없으면 경고만)
         if ! docker ps | grep -q baro-eureka; then
@@ -504,8 +563,8 @@ case $MODULE_NAME in
     
     *)
         log_error "Unknown module: $MODULE_NAME"
-        log_info "Available modules: data, elasticsearch, cloud, infra, auth, buyer, seller, order, support"
-        log_info "Unavailable modules: infra, all"
+        log_info "Available modules: data, kafka, elasticsearch, cloud, infra, auth, buyer, seller, order, support"
+        log_info "Unavailable modules: all"
         exit 1
         ;;
 esac

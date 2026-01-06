@@ -2,8 +2,11 @@ name: CI/CD Pipeline - Public EC2 (K8s Control-Plane Deployment)
 
 # ==================================================
 # Public EC2용 CI/CD Pipeline
-# - 배포 대상: data (MySQL, Redis, Kafka), cloud (eureka, gateway, config)
-#   (Elasticsearch는 Private EC2에 별도 배포)
+# - 배포 대상: data (MySQL, Redis), cloud (eureka, gateway, config)
+#   - data 배포 시 환경변수로 Kafka/Elasticsearch 추가 선택 가능:
+#     * DEPLOY_KAFKA=true: Kafka 추가 배포 (docker-compose.kafka.yml)
+#     * DEPLOY_ELASTICSEARCH=true: Elasticsearch 추가 배포 (docker-compose.elasticsearch.yml)
+#     * 기본값: Redis + MySQL만 배포
 # - 배포 방식: Kubernetes (k8s) - Control-Plane이 Public EC2에 있음
 # - Runner: public-ec2-runner (self-hosted)
 # ==================================================
@@ -552,8 +555,20 @@ jobs:
               exit 1
             fi
 
-            # Elasticsearch는 Private EC2에 별도 배포되므로 빌드 컨텍스트 복사 불필요
-            # (docker-compose.data.yml에서도 elasticsearch가 주석처리되어 있음)
+            # Kafka와 Elasticsearch 파일도 복사 (선택적 배포용)
+            if [ -f "$GITHUB_WORKSPACE/docker-compose.kafka.yml" ]; then
+              cp "$GITHUB_WORKSPACE/docker-compose.kafka.yml" . || {
+                echo "⚠️  docker-compose.kafka.yml 복사 실패 (계속 진행)"
+              }
+              echo "✅ docker-compose.kafka.yml 복사 완료 (DEPLOY_KAFKA=true로 배포 가능)"
+            fi
+            
+            if [ -f "$GITHUB_WORKSPACE/docker-compose.elasticsearch.yml" ]; then
+              cp "$GITHUB_WORKSPACE/docker-compose.elasticsearch.yml" . || {
+                echo "⚠️  docker-compose.elasticsearch.yml 복사 실패 (계속 진행)"
+              }
+              echo "✅ docker-compose.elasticsearch.yml 복사 완료 (DEPLOY_ELASTICSEARCH=true로 배포 가능)"
+            fi
           fi
 
       - name: Setup kubeconfig
@@ -764,6 +779,10 @@ jobs:
         if: steps.module.outputs.name == 'data'
         env:
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+          #   - DEPLOY_KAFKA 변수 추가 (값: true/false)
+          #   - DEPLOY_ELASTICSEARCH 변수 추가 (값: true/false)
+          DEPLOY_KAFKA: ${{ vars.DEPLOY_KAFKA || 'false' }}
+          DEPLOY_ELASTICSEARCH: ${{ vars.DEPLOY_ELASTICSEARCH || 'false' }}
         run: |
           cd /home/ubuntu/apps/BE
           echo ""
