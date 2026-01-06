@@ -51,7 +51,10 @@ baro-farm/
 ├── baro-ai/                      # F. AI 모듈
 │   ├── src/main/java/com/barofarm/ai/
 │   │   ├── AiApplication.java
-│   │   └── ai/                   # AI 서비스
+│   │   ├── eventLog/
+│   │   ├── recommend/            # 추천 서비스
+│   │   ├── chatbot/              # 챗봇 서비스
+│   │   └── season/               # 제철 서비스
 │   └── build.gradle
 │
 └── baro-cloud/                   # G. 인프라 모듈
