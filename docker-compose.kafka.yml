@@ -38,7 +38,7 @@ services:
       # 로그 설정
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       # 메모리 제한
-      KAFKA_HEAP_OPTS: -Xmx256m -Xms192m
+      KAFKA_HEAP_OPTS: -Xms192m -Xmx256m
     # deploy:
     #   resources:
     #     limits:
