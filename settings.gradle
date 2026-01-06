@@ -19,3 +19,4 @@ include 'baro-support'   // E. 지원 모듈 (settlement, delivery, notification
 include 'baro-cloud:gateway'
 include 'baro-cloud:config'
 include 'baro-cloud:eureka'
+include 'baro-common'
