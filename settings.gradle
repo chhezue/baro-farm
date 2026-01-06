@@ -12,6 +12,7 @@ include 'baro-buyer'     // B. 구매자 모듈 (buyer, cart, product)
 include 'baro-seller'    // C. 판매자 모듈 (seller, farm)
 include 'baro-order'     // D. 주문 모듈 (order, payment)
 include 'baro-support'   // E. 지원 모듈 (settlement, delivery, notification, experience, search, review)
+include 'baro-ai'        // F. AI 모듈
 
 // ============================================
 // 인프라 모듈 (개별 배포)
