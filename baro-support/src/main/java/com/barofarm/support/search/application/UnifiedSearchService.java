@@ -34,12 +34,12 @@ public class UnifiedSearchService {
     }
 
     // 통합 자동완성
-    public UnifiedAutoCompleteResponse autocomplete(String q) {
+    public UnifiedAutoCompleteResponse autocomplete(String q, int pSize, int eSize) {
         // 비동기 처리를 위해 CompletableFuture 사용 (두 개의 ES 쿼리 병렬 실행)
         CompletableFuture<List<ProductAutoCompleteResponse>> productsFuture =
-            CompletableFuture.supplyAsync(() -> productSearchService.autocomplete(q));
+            CompletableFuture.supplyAsync(() -> productSearchService.autocomplete(q, pSize));
         CompletableFuture<List<ExperienceAutoCompleteResponse>> experiencesFuture =
-            CompletableFuture.supplyAsync(() -> experienceSearchService.autocomplete(q));
+            CompletableFuture.supplyAsync(() -> experienceSearchService.autocomplete(q, eSize));
 
         return new UnifiedAutoCompleteResponse(
             productsFuture.join(),

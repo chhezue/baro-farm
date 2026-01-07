@@ -36,8 +36,10 @@ public class UnifiedSearchController {
     @Operation(summary = "통합 자동완성", description = "키워드로 상품, 체험 자동완성 반환")
     @GetMapping("/autocomplete")
     public ResponseDto<UnifiedAutoCompleteResponse> autocomplete(
-        @Parameter(description = "자동완성 검색어", example = "토마") @RequestParam String q) {
-        UnifiedAutoCompleteResponse response = unifiedSearchService.autocomplete(q);
+        @Parameter(description = "자동완성 검색어", example = "토마") @RequestParam String q,
+        @Parameter(description = "제품 자동완성 값 개수") @RequestParam(required = false, defaultValue = "5") int pSize,
+        @Parameter(description = "체험 자동완성 값 개수") @RequestParam(required = false, defaultValue = "5") int eSize) {
+        UnifiedAutoCompleteResponse response = unifiedSearchService.autocomplete(q, pSize, eSize);
         return ResponseDto.ok(response);
     }
 }

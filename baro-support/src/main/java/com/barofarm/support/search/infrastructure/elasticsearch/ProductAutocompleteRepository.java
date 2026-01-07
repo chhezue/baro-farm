@@ -27,8 +27,8 @@ public interface ProductAutocompleteRepository
               }
             }
           },
-          "size": 3
+          "size": ?1
         }
         """)
-    List<ProductAutocompleteDocument> findByPrefix(String prefix);
+    List<ProductAutocompleteDocument> findByPrefix(String prefix, int size);
 }

@@ -12,7 +12,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,8 +27,9 @@ public class ExperienceSearchController {
 
     @Operation(summary = "체험 검색", description = "키워드로 체험을 검색 (체험만)")
     @GetMapping
+    // 프론트는 Query Parameter로 보내고, 백엔드는 @ModelAttribute로 묶어서 받음.
     public CustomPage<ExperienceSearchResponse> searchExperiences(
-        @Parameter(description = "검색 조건 DTO") @RequestBody ExperienceSearchRequest request,
+        @Parameter(description = "검색 조건 DTO") @ModelAttribute ExperienceSearchRequest request,
         @Parameter(description = "페이지 정보") Pageable pageable) {
         return service.searchOnlyExperiences(request, pageable);
     }
@@ -36,7 +37,8 @@ public class ExperienceSearchController {
     @Operation(summary = "체험 자동완성", description = "키워드로 체험명 자동완성 (체험만)")
     @GetMapping("/autocomplete")
     public List<ExperienceAutoCompleteResponse> autocomplete(
-        @Parameter(description = "자동완성 키워드", example = "농") @RequestParam String query) {
-        return service.autocomplete(query);
+        @Parameter(description = "자동완성 키워드", example = "농") @RequestParam String query,
+        @Parameter(description = "자동완성 값 개수") @RequestParam(required = false, defaultValue = "5") int size) {
+        return service.autocomplete(query, size);
     }
 }

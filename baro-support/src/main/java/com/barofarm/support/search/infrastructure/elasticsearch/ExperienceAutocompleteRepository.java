@@ -27,8 +27,8 @@ public interface ExperienceAutocompleteRepository
               }
             }
           },
-          "size": 3
+          "size": ?1
         }
         """)
-    List<ExperienceAutocompleteDocument> findByPrefix(String prefix);
+    List<ExperienceAutocompleteDocument> findByPrefix(String prefix, int size);
 }

@@ -75,7 +75,12 @@ public class ProductSearchService {
                         applyExactMatch(b, keyword);
                         applyNormalMatch(b, keyword);
                         applyChosungMatch(b, keyword);
-                        applyFuzzyMatch(b, keyword);
+
+                        // 3글자 이상인 경우에만 오탈자 검색 허용
+                        if (keyword.length() >= 3) {
+                            applyFuzzyMatch(b, keyword);
+                        }
+
                         // should 조건 중 최소 하나는 만족해야 검색 결과에 포함
                         b.minimumShouldMatch("1");
                     }
@@ -114,10 +119,16 @@ public class ProductSearchService {
                     // 키워드가 있는 경우에만 검색 조건을 추가
                     if (request.keyword() != null && !request.keyword().isBlank()) {
                         String keyword = request.keyword();
+
                         applyExactMatch(b, keyword);
                         applyNormalMatch(b, keyword);
                         applyChosungMatch(b, keyword);
-                        applyFuzzyMatch(b, keyword);
+
+                        // 3글자 이상인 경우에만 오탈자 검색 허용
+                        if (keyword.length() >= 3) {
+                            applyFuzzyMatch(b, keyword);
+                        }
+
                         // should 조건 중 최소 하나는 만족해야 검색 결과에 포함
                         b.minimumShouldMatch("1");
                     }
@@ -252,13 +263,12 @@ public class ProductSearchService {
     }
 
     @Cacheable(value = "autocomplete", key = "#query")
-    public List<ProductAutoCompleteResponse> autocomplete(String query) {
+    public List<ProductAutoCompleteResponse> autocomplete(String query, int size) {
         if (query == null || query.length() < 2) {
             return List.of(); // 최소 2글자 이상으로 제한
         }
-        return autocompleteRepository.findByPrefix(query).stream()
+        return autocompleteRepository.findByPrefix(query, size).stream()
             .map(document -> new ProductAutoCompleteResponse(document.getProductId(), document.getProductName()))
-            .distinct()
             .toList();
     }
 }
