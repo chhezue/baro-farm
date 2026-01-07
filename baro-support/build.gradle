@@ -56,6 +56,10 @@ dependencies {
     // Kafka 연결
     implementation 'org.springframework.kafka:spring-kafka'
 
+    // in-process 관련 설정
+    implementation 'org.springframework.retry:spring-retry'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+
     // Database
     runtimeOnly 'com.mysql:mysql-connector-j'
 }

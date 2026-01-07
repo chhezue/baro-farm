@@ -3,7 +3,6 @@ package com.barofarm.support.experience.presentation.dto;
 import com.barofarm.support.experience.application.dto.ReservationServiceResponse;
 import com.barofarm.support.experience.domain.ReservationStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -37,7 +36,7 @@ public class ReservationResponse {
     private Integer headCount;
 
     @Schema(description = "총 금액", example = "60000")
-    private BigInteger totalPrice;
+    private Long totalPrice;
 
     @Schema(description = "예약 상태", example = "REQUESTED")
     private ReservationStatus status;
