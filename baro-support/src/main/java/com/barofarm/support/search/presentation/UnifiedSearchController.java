@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class UnifiedSearchController {
     private final UnifiedSearchService unifiedSearchService;
 
-    @Operation(summary = "통합 검색", description = "검색어로 상품, 농장, 체험을 통합 검색한다.")
+    @Operation(summary = "통합 검색", description = "키워드로 상품, 체험을 통합 검색")
     @GetMapping
     public ResponseDto<UnifiedSearchResponse> search(
         @Parameter(description = "검색어", example = "토마토") @RequestParam String q,
@@ -33,10 +33,13 @@ public class UnifiedSearchController {
         return ResponseDto.ok(response);
     }
 
+    @Operation(summary = "통합 자동완성", description = "키워드로 상품, 체험 자동완성 반환")
     @GetMapping("/autocomplete")
     public ResponseDto<UnifiedAutoCompleteResponse> autocomplete(
-        @Parameter(description = "자동완성 검색어", example = "토마") @RequestParam String q) {
-        UnifiedAutoCompleteResponse response = unifiedSearchService.autocomplete(q);
+        @Parameter(description = "자동완성 검색어", example = "토마") @RequestParam String q,
+        @Parameter(description = "제품 자동완성 값 개수") @RequestParam(required = false, defaultValue = "5") int pSize,
+        @Parameter(description = "체험 자동완성 값 개수") @RequestParam(required = false, defaultValue = "5") int eSize) {
+        UnifiedAutoCompleteResponse response = unifiedSearchService.autocomplete(q, pSize, eSize);
         return ResponseDto.ok(response);
     }
 }

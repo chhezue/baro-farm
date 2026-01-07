@@ -1,7 +1,7 @@
 package com.barofarm.support.search.infrastructure.event;
 
 import com.barofarm.support.search.application.ProductSearchService;
-import com.barofarm.support.search.application.dto.ProductIndexRequest;
+import com.barofarm.support.search.application.dto.product.ProductIndexRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;

@@ -9,15 +9,26 @@ import org.springframework.data.elasticsearch.repository.ElasticsearchRepository
 public interface ProductAutocompleteRepository
     extends ElasticsearchRepository<ProductAutocompleteDocument, UUID> {
 
-    // "토마"가 입력되면 productNam이 "토마"로 시작하는 문서만 찾아서 반환
+    // "토마"가 입력되면 productName이 "토마"로 시작하고 status가 ON_SALE 또는 DISCOUNTED인 문서만 반환
     @Query("""
         {
-                   "match_phrase_prefix": {
-                     "productName": {
-                       "query": "?0"
-                     }
-                   }
-                 }
+          "bool": {
+            "must": {
+              "match_phrase_prefix": {
+                "productName": {
+                  "query": "?0",
+                  "max_expansions": 10
+                }
+              }
+            },
+            "filter": {
+              "terms": {
+                "status": ["ON_SALE", "DISCOUNTED"]
+              }
+            }
+          },
+          "size": ?1
+        }
         """)
-    List<ProductAutocompleteDocument> findByPrefix(String prefix);
+    List<ProductAutocompleteDocument> findByPrefix(String prefix, int size);
 }
