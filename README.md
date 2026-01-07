@@ -236,7 +236,7 @@ java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
 | 구분 | 모듈 | 포트 | 포함 도메인 |
 |------|------|------|------------|
 | **인프라** | redis | 6379 | Cache Server |
-| | kafka | 9092, 9093 | Message Broker (KRaft 모드) |
+| | kafka | 29092 | Message Broker (KRaft 모드) |
 | | mysql | 3306 | Database |
 | | elasticsearch | 9200 | Search Engine |
 | **Spring Cloud** | eureka | 8761 | Service Registry |
