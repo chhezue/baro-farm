@@ -40,7 +40,6 @@ baro-farm/
 ├── baro-support/                 # E. 지원 모듈
 │   ├── src/main/java/com/barofarm/support/
 │   │   ├── SupportApplication.java
-│   │   ├── settlement/           # 정산 관리
 │   │   ├── delivery/             # 배송 관리
 │   │   ├── notification/         # 알림 관리
 │   │   ├── experience/           # 체험 프로그램 관리
@@ -48,7 +47,13 @@ baro-farm/
 │   │   └── review/               # 리뷰 관리
 │   └── build.gradle
 │
-├── baro-ai/                      # F. AI 모듈
+├── baro-settlement/              # F. 정산 모듈
+│   ├── src/main/java/com/barofarm/settlement/
+│   │   ├── SettlementApplication.java
+│   │   └── settlement/           # 정산 관리 (DaemonSet 배포)
+│   └── build.gradle
+│
+├── baro-ai/                      # G. AI 모듈
 │   ├── src/main/java/com/barofarm/ai/
 │   │   ├── AiApplication.java
 │   │   ├── eventLog/
@@ -57,7 +62,7 @@ baro-farm/
 │   │   └── season/               # 제철 서비스
 │   └── build.gradle
 │
-└── baro-cloud/                   # G. 인프라 모듈
+└── baro-cloud/                   # H. 인프라 모듈
     ├── gateway/                  # API Gateway
     ├── config/                   # Config Server
     └── eureka/                   # Service Registry
@@ -189,7 +194,7 @@ docker run -d --name baro-kafka \
 # 1. Eureka Server (서비스 디스커버리)
 ./gradlew :baro-cloud:eureka:bootRun
 
-# 2. Config Server (설정 서버) - 선택사항
+# 2. Config Server (설정 서버)
 ./gradlew :baro-cloud:config:bootRun
 
 # 3. Gateway Service (API Gateway)
@@ -197,11 +202,13 @@ docker run -d --name baro-kafka \
 
 # 4. 비즈니스 모듈 실행
 ./gradlew :baro-auth:bootRun      # 인증 모듈
-./gradlew :baro-buyer:bootRun     # 구매자 모듈 (cart + product + inventory)
-./gradlew :baro-seller:bootRun    # 판매자 모듈 (seller + farm)
-./gradlew :baro-order:bootRun     # 주문 모듈 (order + payment + deposit)
-./gradlew :baro-support:bootRun   # 지원 모듈 (6개 도메인)
-./gradlew :baro-ai:bootRun        # AI 모듈
+./gradlew :baro-buyer:bootRun     # 구매자 모듈 (cart, product, inventory)
+./gradlew :baro-seller:bootRun    # 판매자 모듈 (seller, farm)
+./gradlew :baro-order:bootRun     # 주문 모듈 (order)
+./gradlew :baro-order:bootRun     # 결제 모듈 (payment, deposit)
+./gradlew :baro-support:bootRun   # 지원 모듈 (delivery, notification, experience, review)
+./gradlew :baro-settlement:bootRun # 정산 모듈 (settlement)
+./gradlew :baro-ai:bootRun        # AI 모듈 (search, recommend, chatbot, season)
 ```
 
 #### JAR로 실행
@@ -218,7 +225,9 @@ java -jar baro-auth/build/libs/baro-auth-0.0.1-SNAPSHOT.jar
 java -jar baro-buyer/build/libs/baro-buyer-0.0.1-SNAPSHOT.jar
 java -jar baro-seller/build/libs/baro-seller-0.0.1-SNAPSHOT.jar
 java -jar baro-order/build/libs/baro-order-0.0.1-SNAPSHOT.jar
+java -jar baro-order/build/libs/baro-payment-0.0.1-SNAPSHOT.jar
 java -jar baro-support/build/libs/baro-support-0.0.1-SNAPSHOT.jar
+java -jar baro-settlement/build/libs/baro-settlement-0.0.1-SNAPSHOT.jar
 java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
 ```
 
@@ -236,9 +245,11 @@ java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
 | **비즈니스** | baro-auth | 8081 | auth |
 | | baro-buyer | 8082 | buyer, cart, product |
 | | baro-seller | 8085 | seller, farm |
-| | baro-order | 8087 | order, payment |
-| | baro-support | 8089 | settlement, delivery, notification, experience, search, review |
-| | baro-ai | 8092 | recommend, chatbot, season |
+| | baro-order | 8087 | order |
+| | baro-order | 8088 | payment, deposit |
+| | baro-support | 8089 | delivery, notification, experience, review |
+| | baro-settlement | 8090 | settlement (DaemonSet 배포) |
+| | baro-ai | 8092 | search, recommend, chatbot, season |
 
 ## 💾 리소스 제한 사항
 
@@ -261,19 +272,23 @@ java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
 
 | 서비스 | 메모리 제한 (JVM) | 의존성 | 비고 |
 |--------|------------------|--------|------|
-| **baro-auth** | `-Xms256m -Xmx384m` | MySQL | 인증/인가 서비스 |
-| **baro-buyer** | `-Xms256m -Xmx384m` | MySQL, Kafka | 구매자, 장바구니, 상품 관리 |
-| **baro-seller** | `-Xms256m -Xmx384m` | MySQL, Kafka | 판매자, 농장 관리 |
-| **baro-order** | `-Xms256m -Xmx384m` | MySQL, Kafka | 주문, 결제 관리 |
-| **baro-support** | `-Xms256m -Xmx512m` | MySQL, Kafka | 정산, 배송, 알림, 체험, 검색, 리뷰 |
-| **baro-ai** | `-Xms256m -Xmx384m` | - | 추천, 챗봇, 제철 |
+| **baro-auth** | `-Xms64m -Xmx128m` | MySQL | 인증/인가 서비스, 구매자 |
+| **baro-buyer** | `-Xms64m -Xmx128m` | MySQL, Kafka | 장바구니, 상품 관리 |
+| **baro-seller** | `-Xms64m -Xmx128m` | MySQL, Kafka | 판매자, 농장 관리 |
+| **baro-order** | `-Xms64m -Xmx128m` | MySQL, Kafka | 주문 |
+| **baro-payment** | `-Xms64m -Xmx128m` | MySQL, Kafka | 결제, 예치금 관리 |
+| **baro-support** | `-Xms64m -Xmx128m` | MySQL, Kafka | 배송, 알림, 체험, 리뷰 관리 |
+| **baro-settlement** | `-Xms64m -Xmx128m` | MySQL | 정산 관리 (DaemonSet 배포) |
+| **baro-ai** | `-Xms64m -Xmx128m` | Kafka, Elasticsearch | 검색, 추천, 챗봇, 제철 AI |
 
 **설정 파일:**
 - `docker-compose.auth.yml`
 - `docker-compose.buyer.yml`
 - `docker-compose.seller.yml`
 - `docker-compose.order.yml`
+- `docker-compose.payment.yml`
 - `docker-compose.support.yml`
+- `docker-compose.settlement.yml`
 - `docker-compose.ai.yml`
 
 ### 데이터 인프라 모듈
@@ -289,12 +304,15 @@ java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
 | **배포 노드** | Master Node | - |
 | **InnoDB 버퍼 풀** | 256M | `innodb-buffer-pool-size` |
 | **최대 연결 수** | 100 | `max-connections` |
+| **예상 최대 메모리** | ~400MB | InnoDB 버퍼 풀 + 프로세스 메모리 |
 
 **설정 위치:** `docker-compose.data.yml`
 
 ```yaml
-command: --innodb-buffer-pool-size=256M --max-connections=100
+command: --innodb-buffer-pool-size=256M --max-connections=100 --lower-case-table-names=1
 ```
+
+**참고:** MySQL의 실제 메모리 사용량은 InnoDB 버퍼 풀(256M)과 프로세스 오버헤드(약 100-150M)를 합쳐 약 400MB 정도입니다.
 
 #### Redis
 
@@ -357,19 +375,21 @@ healthcheck:
 | | config | 256MB |
 | | gateway | 512MB |
 | | **소계** | **1,024MB** |
-| **비즈니스 서비스** | baro-auth | 384MB |
-| | baro-buyer | 384MB |
-| | baro-seller | 384MB |
-| | baro-order | 384MB |
-| | baro-support | 512MB |
-| | baro-ai | 384MB |
-| | **소계** | **2,432MB** |
-| **데이터 인프라** | mysql | - |
+| **비즈니스 서비스** | baro-auth | 128MB |
+| | baro-buyer | 128MB |
+| | baro-seller | 128MB |
+| | baro-order | 128MB |
+| | baro-payment | 128MB |
+| | baro-support | 128MB |
+| | baro-settlement | 128MB |
+| | baro-ai | 128MB |
+| | **소계** | **1.0GB** |
+| **데이터 인프라** | mysql | 400MB |
 | | redis | 256MB |
 | | kafka | 256MB |
 | | elasticsearch | 384MB |
-| | **소계** | **896MB** |
-| **총합** | | **~4.1GB** |
+| | **소계** | **1,296MB** |
+| **총합** | | **~3.2GB** |
 
 > **참고:**
 > - **Master Node (t3.medium 4GB)**: OS 및 Docker 데몬 ~1GB, 시스템 버퍼 ~0.5GB, 실제 사용 가능 ~2.5GB
@@ -401,7 +421,7 @@ free -h
 
 2. **JVM GC 튜닝** (메모리 효율 향상)
    ```yaml
-   JAVA_OPTS=-Xms256m -Xmx384m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
+   JAVA_OPTS=-Xms64m -Xmx128m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
    ```
 
 3. **비활성 서비스 중지** (일시적)
@@ -456,7 +476,9 @@ main                          # 최종 배포 (Production)
  ├── main-buyer               # Buyer 모듈 안정 버전
  ├── main-seller              # Seller 모듈 안정 버전
  ├── main-order               # Order 모듈 안정 버전
+ ├── main-payment               # Payment 모듈 안정 버전
  ├── main-support             # Support 모듈 안정 버전
+ ├── main-settlement          # Settlement 모듈 안정 버전
  ├── main-ai                  # AI 모듈 안정 버전
  └── main-cloud               # Cloud 모듈 안정 버전
       │
@@ -464,7 +486,9 @@ main                          # 최종 배포 (Production)
       ├── dev-buyer           # Buyer 모듈 개발
       ├── dev-seller          # Seller 모듈 개발
       ├── dev-order           # Order 모듈 개발
+      ├── dev-payment           # Payment 모듈 개발
       ├── dev-support         # Support 모듈 개발
+      ├── dev-settlement      # Settlement 모듈 개발
       ├── dev-ai              # AI 모듈 개발
       └── dev-cloud           # Cloud 모듈 개발
            │
@@ -544,7 +568,7 @@ git merge dev-buyer
   - GitHub Actions Runner 설치
   - Kafka (Docker Compose)
   - 비즈니스 서비스 모듈 (k3s Pod)
-    - baro-auth, baro-buyer, baro-seller, baro-order, baro-support, baro-ai
+    - baro-auth, baro-buyer, baro-seller, baro-order, baro-payment, baro-support, baro-settlement (DaemonSet), baro-ai
 
 #### 배포 방식
 
@@ -593,10 +617,12 @@ k8s/
 │   ├── baro-buyer/
 │   ├── baro-seller/
 │   ├── baro-order/
+│   ├── baro-payment/
 │   ├── baro-support/
+│   ├── baro-settlement/
 │   └── baro-ai/
 │
-└── redis/                   # Redis 캐시
+└── redis/                   # Redis 캐시: Docker Container로 별도 관리 
     ├── deployment.yaml
     ├── service.yaml
     └── kustomization.yaml
@@ -646,7 +672,9 @@ kubectl apply -k k8s/apps/baro-auth/
 kubectl apply -k k8s/apps/baro-buyer/
 kubectl apply -k k8s/apps/baro-seller/
 kubectl apply -k k8s/apps/baro-order/
+kubectl apply -k k8s/apps/baro-payment/
 kubectl apply -k k8s/apps/baro-support/
+kubectl apply -k k8s/apps/baro-settlement/  # DaemonSet 배포
 kubectl apply -k k8s/apps/baro-ai/
 ```
 
@@ -684,8 +712,6 @@ kubectl kustomize k8s/apps/baro-auth/ | grep -A 10 "kind: Deployment"
 5. **이미지 태그 관리**: CI/CD 파이프라인에서 쉽게 이미지 태그 변경
 
 **📚 상세 가이드:**
-- [k8s/README.md](k8s/README.md) - k8s 배포 매니페스트 상세 가이드
-
 ### GitHub Actions 자동 배포
 
 이 프로젝트는 각 서버에 설치된 **GitHub Actions Runner**를 통해 자동으로 빌드, 테스트, 배포됩니다.
