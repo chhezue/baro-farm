@@ -3,7 +3,6 @@ package com.barofarm.support.experience.presentation.dto;
 import com.barofarm.support.experience.application.dto.ExperienceServiceResponse;
 import com.barofarm.support.experience.domain.ExperienceStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
@@ -30,7 +29,7 @@ public class ExperienceResponse {
     private String description;
 
     @Schema(description = "1인당 가격 (원)", example = "30000")
-    private BigInteger pricePerPerson;
+    private Long pricePerPerson;
 
     @Schema(description = "수용 인원", example = "20")
     private Integer capacity;

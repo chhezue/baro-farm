@@ -2,7 +2,6 @@ package com.barofarm.support.experience.application.dto;
 
 import com.barofarm.support.experience.domain.Experience;
 import com.barofarm.support.experience.domain.ExperienceStatus;
-import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
@@ -19,7 +18,7 @@ public class ExperienceServiceResponse {
     private UUID farmId;
     private String title;
     private String description;
-    private BigInteger pricePerPerson;
+    private Long pricePerPerson;
     private Integer capacity;
     private Integer durationMinutes;
     private LocalDateTime availableStartDate;
