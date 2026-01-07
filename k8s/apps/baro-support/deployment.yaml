@@ -125,7 +125,7 @@ spec:
             requests:
               memory: "128Mi"
             limits:
-              memory: "330Mi"
+              memory: "335Mi"
           livenessProbe:
             httpGet:
               path: /actuator/health
