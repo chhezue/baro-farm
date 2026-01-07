@@ -1,0 +1,33 @@
+package com.barofarm.settlement.application;
+
+import com.barofarm.settlement.common.exception.CustomException;
+import com.barofarm.settlement.application.dto.SettlementResponse;
+import com.barofarm.settlement.domain.SettlementStatement;
+import com.barofarm.settlement.domain.SettlementStatementRepository;
+import com.barofarm.settlement.exception.SettlementErrorCode;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class SettlementService {
+
+    private final SettlementStatementRepository settlementRepository;
+
+    public SettlementResponse getSettlement(UUID sellerId) {
+
+        YearMonth settlementMonth = YearMonth.now().minusMonths(1);
+        LocalDate start = settlementMonth.atDay(1);
+        LocalDate end = settlementMonth.atEndOfMonth();
+
+        SettlementStatement statement = settlementRepository
+            .findBySellerIdAndPeriodStartAndPeriodEnd(sellerId, start, end)
+            .orElseThrow(() -> new CustomException(SettlementErrorCode.SETTLEMENT_NOT_FOUND));
+
+        return SettlementResponse.from(statement);
+    }
+}
+
