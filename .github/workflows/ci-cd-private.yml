@@ -58,7 +58,10 @@ jobs:
         startsWith(github.ref, 'refs/heads/main-buyer') ||
         startsWith(github.ref, 'refs/heads/main-seller') ||
         startsWith(github.ref, 'refs/heads/main-order') ||
+        startsWith(github.ref, 'refs/heads/main-payment') ||
         startsWith(github.ref, 'refs/heads/main-support') ||
+        startsWith(github.ref, 'refs/heads/main-settlement') ||
+        startsWith(github.ref, 'refs/heads/main-ai') ||
         startsWith(github.ref, 'refs/heads/main-kafka') ||
         startsWith(github.ref, 'refs/heads/main-elasticsearch'))) ||
       (github.event_name == 'pull_request' && 
@@ -66,7 +69,10 @@ jobs:
         startsWith(github.base_ref, 'main-buyer') ||
         startsWith(github.base_ref, 'main-seller') ||
         startsWith(github.base_ref, 'main-order') ||
+        startsWith(github.base_ref, 'main-payment') ||
         startsWith(github.base_ref, 'main-support') ||
+        startsWith(github.base_ref, 'main-settlement') ||
+        startsWith(github.base_ref, 'main-ai') ||
         startsWith(github.base_ref, 'main-kafka') ||
         startsWith(github.base_ref, 'main-elasticsearch')))
     
