@@ -545,13 +545,6 @@ jobs:
             
             echo "✅ deploy-daemonset.sh 스크립트 복사 완료"
           fi
-            echo "디버그 정보:"
-            echo "  - scripts 디렉토리 존재: $([ -d "$GITHUB_WORKSPACE/scripts" ] && echo 'yes' || echo 'no')"
-            if [ -d "$GITHUB_WORKSPACE/scripts" ]; then
-              echo "  - scripts 디렉토리 내용:"
-              ls -la "$GITHUB_WORKSPACE/scripts" 2>&1 || true
-            fi
-          fi
 
           # kafka 모듈인 경우 docker-compose 파일 복사
           if [ "$MODULE" = "kafka" ]; then
