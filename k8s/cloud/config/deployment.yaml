@@ -52,7 +52,7 @@ spec:
             - name: JAVA_OPTS
               value: "-Xms64m -Xmx128m -Djava.net.preferIPv4Stack=true"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms64m -Xmx128m"
+              value: "-Xms64m -Xmx128m -XX:NativeMemoryTracking=summary"
             # Git 저장소 설정 (선택사항, 기본값 사용 시 생략 가능)
             - name: CONFIG_GIT_URI
               value: "https://github.com/prgrms-be-adv-devcourse/beadv2_2_dogs_BE"

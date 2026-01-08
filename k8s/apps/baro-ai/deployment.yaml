@@ -61,7 +61,7 @@ spec:
             - name: JAVA_OPTS
               value: "-Xms64m -Xmx128m"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms64m -Xmx128m"
+              value: "-Xms64m -Xmx128m -XX:NativeMemoryTracking=summary"
             # 실제 배포 시 deploy-k8s.sh 스크립트가 자동으로 Data EC2 IP로 치환
             - name: EC2_IP
               value: "CHANGE_ME_TO_EC2_IP"  # 배포 스크립트가 자동으로 Data EC2 IP로 치환
@@ -110,7 +110,7 @@ spec:
             requests:
               memory: "128Mi"
             limits:
-              memory: "256Mi"
+              memory: "300Mi"
           livenessProbe:
             httpGet:
               path: /actuator/health
