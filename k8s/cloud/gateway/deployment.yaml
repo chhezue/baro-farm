@@ -59,7 +59,9 @@ spec:
             - name: EUREKA_CLIENT_FETCH_REGISTRY
               value: "true"
             - name: JAVA_OPTS
-              value: "-Xms256m -Xmx384m -Djava.net.preferIPv4Stack=true"
+              value: "-Xms64m -Xmx128m -Djava.net.preferIPv4Stack=true"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms64m -Xmx128m"
           # resources:
           #   requests:
           #     memory: "256Mi"
