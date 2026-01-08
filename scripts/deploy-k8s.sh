@@ -54,14 +54,17 @@ if [ -z "$MODULE_NAME" ]; then
     echo "Usage: bash deploy-k8s.sh [MODULE_NAME] [IMAGE_TAG]"
     echo ""
     echo "Available modules:"
-    echo "  - cloud   (Spring Cloud: Eureka, Gateway, Config)"
-    echo "  - auth    (인증 모듈)"
-    echo "  - buyer   (구매자 모듈)"
-    echo "  - seller  (판매자 모듈)"
-    echo "  - order   (주문 모듈)"
-    echo "  - support (지원 모듈)"
-    echo "  - redis   (Redis 캐시)"
-    echo "  - data    (데이터 인프라: MySQL, Kafka, Elasticsearch - docker-compose로 배포)"
+    echo "  - cloud      (Spring Cloud: Eureka, Gateway, Config)"
+    echo "  - auth       (인증 모듈)"
+    echo "  - buyer      (구매자 모듈)"
+    echo "  - seller     (판매자 모듈)"
+    echo "  - order      (주문 모듈)"
+    echo "  - payment    (결제 모듈)"
+    echo "  - support    (지원 모듈)"
+    echo "  - settlement (정산 모듈)"
+    echo "  - ai         (AI 모듈)"
+    echo "  - redis      (Redis 캐시)"
+    echo "  - data       (데이터 인프라: MySQL, Kafka, Elasticsearch - docker-compose로 배포)"
     exit 1
 fi
 
@@ -223,9 +226,21 @@ case "$MODULE_NAME" in
         DEPLOY_PATH="$K8S_BASE_DIR/apps/baro-order"
         APP_NAME="baro-order"
         ;;
+    payment|baro-payment)
+        DEPLOY_PATH="$K8S_BASE_DIR/apps/baro-payment"
+        APP_NAME="baro-payment"
+        ;;
     support|baro-support)
         DEPLOY_PATH="$K8S_BASE_DIR/apps/baro-support"
         APP_NAME="baro-support"
+        ;;
+    settlement|baro-settlement)
+        DEPLOY_PATH="$K8S_BASE_DIR/apps/baro-settlement"
+        APP_NAME="baro-settlement"
+        ;;
+    ai|baro-ai)
+        DEPLOY_PATH="$K8S_BASE_DIR/apps/baro-ai"
+        APP_NAME="baro-ai"
         ;;
     data)
         # data 모듈은 docker-compose로 배포
@@ -252,7 +267,7 @@ case "$MODULE_NAME" in
         ;;
     *)
         log_error "알 수 없는 모듈: $MODULE_NAME"
-        log_info "사용 가능한 모듈: cloud, eureka, config, gateway, redis, auth, buyer, seller, order, support, data"
+        log_info "사용 가능한 모듈: cloud, eureka, config, gateway, redis, auth, buyer, seller, order, payment, support, settlement, ai, data"
         exit 1
         ;;
 esac
@@ -506,7 +521,14 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
             sed "s|http://localhost:8761/eureka/|http://$DATA_EC2_IP:8761/eureka/|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
             mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
             log_info "✅ EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: localhost:8761 → $DATA_EC2_IP:8761"
-fi
+        fi
+        
+        # Elasticsearch URI는 치환하지 않음 (localhost:9200 유지)
+        # Elasticsearch는 Private EC2에 docker-compose로 실행되므로 localhost로 접근
+        # hostNetwork: true를 사용하는 Pod이므로 localhost:9200이 올바른 접근 방법
+        if grep -q "localhost:9200" "$TEMP_DEPLOYMENT"; then
+            log_info "ℹ️  Elasticsearch URI는 localhost:9200으로 유지 (Private EC2에서 실행 중)"
+        fi
     fi
     
     # 최종 검증: CHANGE_ME_TO_EC2_IP가 남아있는지 확인

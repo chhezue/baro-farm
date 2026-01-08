@@ -2,7 +2,11 @@ name: CI/CD Pipeline - Public EC2 (K8s Control-Plane Deployment)
 
 # ==================================================
 # Public EC2용 CI/CD Pipeline
-# - 배포 대상: data (MySQL, Redis, Kafka, Elasticsearch 등), cloud (eureka, gateway, config)
+# - 배포 대상: data (MySQL, Redis), cloud (eureka, gateway, config)
+#   - data 배포 시 환경변수로 Kafka/Elasticsearch 추가 선택 가능:
+#     * DEPLOY_KAFKA=true: Kafka 추가 배포 (docker-compose.kafka.yml)
+#     * DEPLOY_ELASTICSEARCH=true: Elasticsearch 추가 배포 (docker-compose.elasticsearch.yml)
+#     * 기본값: Redis + MySQL만 배포
 # - 배포 방식: Kubernetes (k8s) - Control-Plane이 Public EC2에 있음
 # - Runner: public-ec2-runner (self-hosted)
 # ==================================================
@@ -551,25 +555,20 @@ jobs:
               exit 1
             fi
 
-            # Elasticsearch 빌드 컨텍스트 복사 (옵션)
-            if [ -d "$GITHUB_WORKSPACE/docker/baro-es" ]; then
-              echo "📦 [Public EC2 - Control-Plane] Elasticsearch 빌드 컨텍스트 복사 중..."
-              mkdir -p ./docker/baro-es
-              cp -r "$GITHUB_WORKSPACE/docker/baro-es"/* ./docker/baro-es/ 2>/dev/null || {
-                echo "⚠️  Elasticsearch 빌드 컨텍스트 복사 실패 (계속 진행)"
+            # Kafka와 Elasticsearch 파일도 복사 (선택적 배포용)
+            if [ -f "$GITHUB_WORKSPACE/docker-compose.kafka.yml" ]; then
+              cp "$GITHUB_WORKSPACE/docker-compose.kafka.yml" . || {
+                echo "⚠️  docker-compose.kafka.yml 복사 실패 (계속 진행)"
               }
+              echo "✅ docker-compose.kafka.yml 복사 완료 (DEPLOY_KAFKA=true로 배포 가능)"
             fi
-          fi
-
-          # Elasticsearch 빌드 컨텍스트 복사 (커스텀 이미지 빌드용)
-          if [ -d "$GITHUB_WORKSPACE/docker/baro-es" ]; then
-            mkdir -p ./docker/baro-es
-            cp -r $GITHUB_WORKSPACE/docker/baro-es/* ./docker/baro-es/ 2>/dev/null || {
-              echo "⚠️  Elasticsearch 빌드 컨텍스트 복사 실패 (계속 진행)"
-            }
-            echo "✅ Elasticsearch 빌드 컨텍스트 복사 완료"
-          else
-            echo "ℹ️  [Public EC2 - Control-Plane] Elasticsearch 빌드 컨텍스트가 없습니다 (공식 이미지 사용): $GITHUB_WORKSPACE/docker/baro-es"
+            
+            if [ -f "$GITHUB_WORKSPACE/docker-compose.elasticsearch.yml" ]; then
+              cp "$GITHUB_WORKSPACE/docker-compose.elasticsearch.yml" . || {
+                echo "⚠️  docker-compose.elasticsearch.yml 복사 실패 (계속 진행)"
+              }
+              echo "✅ docker-compose.elasticsearch.yml 복사 완료 (DEPLOY_ELASTICSEARCH=true로 배포 가능)"
+            fi
           fi
 
       - name: Setup kubeconfig
@@ -780,6 +779,10 @@ jobs:
         if: steps.module.outputs.name == 'data'
         env:
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+          #   - DEPLOY_KAFKA 변수 추가 (값: true/false)
+          #   - DEPLOY_ELASTICSEARCH 변수 추가 (값: true/false)
+          DEPLOY_KAFKA: ${{ vars.DEPLOY_KAFKA || 'false' }}
+          DEPLOY_ELASTICSEARCH: ${{ vars.DEPLOY_ELASTICSEARCH || 'false' }}
         run: |
           cd /home/ubuntu/apps/BE
           echo ""

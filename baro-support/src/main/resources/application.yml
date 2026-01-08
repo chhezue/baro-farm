@@ -25,14 +25,7 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
         use_sql_comments: true
-  batch:
-    job:
-      enabled: false
-  task:
-    scheduling:
-      cron:
-        settlement: "0 0 0 1 * *"
-
+        
   mail:
     host: smtp.naver.com
     port: 465
@@ -53,9 +46,9 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "*"
-        spring.json.type.mapping: productEvent:com.barofarm.support.event.ProductEvent
+        spring.json.type.mapping: productEvent:com.barofarm.support.search.infrastructure.event.ProductEvent
         spring.json.use.type.headers: false
-        spring.json.value.default.type: com.barofarm.support.event.ProductEvent
+        spring.json.value.default.type: com.barofarm.support.search.infrastructure.event.ProductEvent
         # 재연결 설정
         reconnect.backoff.ms: 50          # 재연결 시 초기 백오프 시간 (50ms)
         reconnect.backoff.max.ms: 1000    # 재연결 시 최대 백오프 시간 (1초)

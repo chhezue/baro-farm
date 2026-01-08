@@ -2,8 +2,9 @@ name: CI/CD Pipeline - Private EC2 (K8s Deployment)
 
 # ==================================================
 # Private EC2용 CI/CD Pipeline
-# - 배포 대상: auth, buyer, seller, order, support
-# - 배포 방식: Kubernetes (k8s)
+# - 배포 대상: auth, buyer, seller, order, payment, support, settlement, ai, kafka, elasticsearch
+# - 배포 방식: Kubernetes (k8s) - 애플리케이션 모듈
+#            Docker Compose - Kafka, Elasticsearch (데이터 인프라)
 # - Runner: private-ec2-runner (self-hosted)
 # ==================================================
 
@@ -14,14 +15,24 @@ on:
       - main-buyer
       - main-seller
       - main-order
+      - main-payment
       - main-support
+      - main-settlement
+      - main-ai
+      - main-kafka
+      - main-elasticsearch
   pull_request:
     branches:
       - main-auth
       - main-buyer
       - main-seller
       - main-order
+      - main-payment
       - main-support
+      - main-settlement
+      - main-ai
+      - main-kafka
+      - main-elasticsearch
     types: [opened, synchronize, reopened]
 
 # GITHUB_TOKEN에 패키지 쓰기 권한 부여
@@ -47,13 +58,17 @@ jobs:
         startsWith(github.ref, 'refs/heads/main-buyer') ||
         startsWith(github.ref, 'refs/heads/main-seller') ||
         startsWith(github.ref, 'refs/heads/main-order') ||
-        startsWith(github.ref, 'refs/heads/main-support'))) ||
+        startsWith(github.ref, 'refs/heads/main-support') ||
+        startsWith(github.ref, 'refs/heads/main-kafka') ||
+        startsWith(github.ref, 'refs/heads/main-elasticsearch'))) ||
       (github.event_name == 'pull_request' && 
        (startsWith(github.base_ref, 'main-auth') ||
         startsWith(github.base_ref, 'main-buyer') ||
         startsWith(github.base_ref, 'main-seller') ||
         startsWith(github.base_ref, 'main-order') ||
-        startsWith(github.base_ref, 'main-support')))
+        startsWith(github.base_ref, 'main-support') ||
+        startsWith(github.base_ref, 'main-kafka') ||
+        startsWith(github.base_ref, 'main-elasticsearch')))
     
     steps:
       - name: Checkout code
@@ -68,13 +83,19 @@ jobs:
             MODULE=""
           fi
           
-          # 빌드할 모듈 결정 (Private EC2용: auth, buyer, seller, order, support만)
+          # 빌드할 모듈 결정 (Private EC2용: auth, buyer, seller, order, payment, support, settlement, ai만)
+          # kafka와 elasticsearch는 빌드 불필요 (docker-compose로 배포)
           case "$MODULE" in
             auth) BUILD_MODULE=":baro-auth" ;;
             buyer) BUILD_MODULE=":baro-buyer" ;;
             seller) BUILD_MODULE=":baro-seller" ;;
             order) BUILD_MODULE=":baro-order" ;;
+            payment) BUILD_MODULE=":baro-payment" ;;
             support) BUILD_MODULE=":baro-support" ;;
+            settlement) BUILD_MODULE=":baro-settlement" ;;
+            ai) BUILD_MODULE=":baro-ai" ;;
+            kafka) BUILD_MODULE="" ;;  # kafka는 빌드 불필요
+            elasticsearch) BUILD_MODULE="" ;;  # elasticsearch는 빌드 불필요
             *) BUILD_MODULE="" ;;
           esac
           
@@ -160,7 +181,11 @@ jobs:
             buyer) ARTIFACT_PATHS="baro-buyer/build/libs/*.jar" ;;
             seller) ARTIFACT_PATHS="baro-seller/build/libs/*.jar" ;;
             order) ARTIFACT_PATHS="baro-order/build/libs/*.jar" ;;
+            payment) ARTIFACT_PATHS="baro-payment/build/libs/*.jar" ;;
             support) ARTIFACT_PATHS="baro-support/build/libs/*.jar" ;;
+            settlement) ARTIFACT_PATHS="baro-settlement/build/libs/*.jar" ;;
+            ai) ARTIFACT_PATHS="baro-ai/build/libs/*.jar" ;;
+            elasticsearch) ARTIFACT_PATHS="" ;;  # elasticsearch는 빌드 불필요
             *) ARTIFACT_PATHS="" ;;
           esac
           
@@ -189,13 +214,23 @@ jobs:
         startsWith(github.ref, 'refs/heads/main-buyer') ||
         startsWith(github.ref, 'refs/heads/main-seller') ||
         startsWith(github.ref, 'refs/heads/main-order') ||
-        startsWith(github.ref, 'refs/heads/main-support'))) ||
+        startsWith(github.ref, 'refs/heads/main-payment') ||
+        startsWith(github.ref, 'refs/heads/main-support') ||
+        startsWith(github.ref, 'refs/heads/main-settlement') ||
+        startsWith(github.ref, 'refs/heads/main-ai') ||
+        startsWith(github.ref, 'refs/heads/main-kafka') ||
+        startsWith(github.ref, 'refs/heads/main-elasticsearch'))) ||
       (github.event_name == 'pull_request' && 
        (startsWith(github.base_ref, 'main-auth') ||
         startsWith(github.base_ref, 'main-buyer') ||
         startsWith(github.base_ref, 'main-seller') ||
         startsWith(github.base_ref, 'main-order') ||
-        startsWith(github.base_ref, 'main-support')))
+        startsWith(github.base_ref, 'main-payment') ||
+        startsWith(github.base_ref, 'main-support') ||
+        startsWith(github.base_ref, 'main-settlement') ||
+        startsWith(github.base_ref, 'main-ai') ||
+        startsWith(github.base_ref, 'main-kafka') ||
+        startsWith(github.base_ref, 'main-elasticsearch')))
     outputs:
       service: ${{ steps.module.outputs.service }}
       module: ${{ steps.module.outputs.module }}
@@ -211,12 +246,18 @@ jobs:
           fi
           
           # 모듈명을 서비스명으로 변환 (Private EC2용만)
+          # kafka와 elasticsearch는 docker-compose로 배포하므로 빌드 불필요
           case "$MODULE" in
             auth) SERVICE="baro-auth" ;;
             buyer) SERVICE="baro-buyer" ;;
             seller) SERVICE="baro-seller" ;;
             order) SERVICE="baro-order" ;;
+            payment) SERVICE="baro-payment" ;;
             support) SERVICE="baro-support" ;;
+            settlement) SERVICE="baro-settlement" ;;
+            ai) SERVICE="baro-ai" ;;
+            kafka) SERVICE="" ;;  # kafka는 빌드 불필요
+            elasticsearch) SERVICE="" ;;  # elasticsearch는 빌드 불필요
             *) SERVICE="" ;;
           esac
           
@@ -241,7 +282,9 @@ jobs:
     if: |
       github.event_name == 'push' && 
       startsWith(github.ref, 'refs/heads/main-') &&
-      needs.determine-service.outputs.service != ''
+      needs.determine-service.outputs.service != '' &&
+      needs.determine-service.outputs.module != 'kafka' &&
+      needs.determine-service.outputs.module != 'elasticsearch'
     
     steps:
       - name: Checkout code
@@ -282,7 +325,10 @@ jobs:
             baro-buyer) MODULE_PATH="baro-buyer" ;;
             baro-seller) MODULE_PATH="baro-seller" ;;
             baro-order) MODULE_PATH="baro-order" ;;
+            baro-payment) MODULE_PATH="baro-payment" ;;
             baro-support) MODULE_PATH="baro-support" ;;
+            baro-settlement) MODULE_PATH="baro-settlement" ;;
+            baro-ai) MODULE_PATH="baro-ai" ;;
             *) MODULE_PATH="" ;;
           esac
           
@@ -366,7 +412,10 @@ jobs:
     if: |
       startsWith(github.ref, 'refs/heads/main-') &&
       needs.determine-service.outputs.module != '' &&
-      always() && (needs.docker-build.result == 'success' || needs.docker-build.result == 'skipped')
+      always() && 
+      (needs.determine-service.outputs.module == 'kafka' ||
+       needs.determine-service.outputs.module == 'elasticsearch' ||
+       (needs.docker-build.result == 'success' || needs.docker-build.result == 'skipped'))
     
     steps:
       - name: Checkout code
@@ -501,7 +550,96 @@ jobs:
             fi
           fi
 
+          # kafka 모듈인 경우 docker-compose 파일 복사
+          if [ "$MODULE" = "kafka" ]; then
+            echo "📦 [Private EC2] kafka 모듈용 docker-compose 파일 복사 중..."
+            if [ -f "$GITHUB_WORKSPACE/docker-compose.kafka.yml" ]; then
+              cp "$GITHUB_WORKSPACE/docker-compose.kafka.yml" . || {
+                echo "❌ docker-compose.kafka.yml 복사 실패"
+                exit 1
+              }
+              echo "✅ docker-compose.kafka.yml 복사 완료"
+            else
+              echo "❌ docker-compose.kafka.yml 파일을 찾을 수 없습니다: $GITHUB_WORKSPACE/docker-compose.kafka.yml"
+              exit 1
+            fi
+
+            # deploy-module.sh 스크립트 복사
+            if [ -f "$GITHUB_WORKSPACE/scripts/deploy-module.sh" ]; then
+              mkdir -p /home/ubuntu/apps/BE/scripts
+              cp "$GITHUB_WORKSPACE/scripts/deploy-module.sh" ./scripts/ 2>/dev/null || {
+                echo "⚠️  BE/scripts deploy-module.sh 복사 실패, 재시도..."
+                mkdir -p ./scripts
+                cp "$GITHUB_WORKSPACE/scripts/deploy-module.sh" ./scripts/ || {
+                  echo "❌ deploy-module.sh 복사 실패"
+                  exit 1
+                }
+              }
+              chmod +x ./scripts/deploy-module.sh
+              echo "✅ deploy-module.sh 스크립트 복사 완료 (BE/scripts)"
+            else
+              echo "⚠️  [Private EC2] deploy-module.sh 스크립트를 찾을 수 없습니다: $GITHUB_WORKSPACE/scripts/deploy-module.sh"
+              echo "디버그 정보:"
+              echo "  - scripts 디렉토리 존재: $([ -d "$GITHUB_WORKSPACE/scripts" ] && echo 'yes' || echo 'no')"
+              if [ -d "$GITHUB_WORKSPACE/scripts" ]; then
+                echo "  - scripts 디렉토리 내용:"
+                ls -la "$GITHUB_WORKSPACE/scripts" 2>&1 | head -10 || true
+              fi
+            fi
+          fi
+
+          # elasticsearch 모듈인 경우 docker-compose 파일 복사
+          if [ "$MODULE" = "elasticsearch" ]; then
+            echo "📦 [Private EC2] elasticsearch 모듈용 docker-compose 파일 복사 중..."
+            if [ -f "$GITHUB_WORKSPACE/docker-compose.elasticsearch.yml" ]; then
+              cp "$GITHUB_WORKSPACE/docker-compose.elasticsearch.yml" . || {
+                echo "❌ docker-compose.elasticsearch.yml 복사 실패"
+                exit 1
+              }
+              echo "✅ docker-compose.elasticsearch.yml 복사 완료"
+            else
+              echo "❌ docker-compose.elasticsearch.yml 파일을 찾을 수 없습니다: $GITHUB_WORKSPACE/docker-compose.elasticsearch.yml"
+              exit 1
+            fi
+
+            # Elasticsearch 빌드 컨텍스트 복사
+            if [ -d "$GITHUB_WORKSPACE/docker/baro-es" ]; then
+              echo "📦 [Private EC2] Elasticsearch 빌드 컨텍스트 복사 중..."
+              mkdir -p ./docker/baro-es
+              cp -r "$GITHUB_WORKSPACE/docker/baro-es"/* ./docker/baro-es/ 2>/dev/null || {
+                echo "⚠️  Elasticsearch 빌드 컨텍스트 복사 실패 (계속 진행)"
+              }
+              echo "✅ Elasticsearch 빌드 컨텍스트 복사 완료"
+            else
+              echo "ℹ️  [Private EC2] Elasticsearch 빌드 컨텍스트가 없습니다 (공식 이미지 사용): $GITHUB_WORKSPACE/docker/baro-es"
+            fi
+
+            # deploy-module.sh 스크립트 복사
+            if [ -f "$GITHUB_WORKSPACE/scripts/deploy-module.sh" ]; then
+              mkdir -p /home/ubuntu/apps/BE/scripts
+              cp "$GITHUB_WORKSPACE/scripts/deploy-module.sh" ./scripts/ 2>/dev/null || {
+                echo "⚠️  BE/scripts deploy-module.sh 복사 실패, 재시도..."
+                mkdir -p ./scripts
+                cp "$GITHUB_WORKSPACE/scripts/deploy-module.sh" ./scripts/ || {
+                  echo "❌ deploy-module.sh 복사 실패"
+                  exit 1
+                }
+              }
+              chmod +x ./scripts/deploy-module.sh
+              echo "✅ deploy-module.sh 스크립트 복사 완료 (BE/scripts)"
+            else
+              echo "⚠️  [Private EC2] deploy-module.sh 스크립트를 찾을 수 없습니다: $GITHUB_WORKSPACE/scripts/deploy-module.sh"
+              echo "디버그 정보:"
+              echo "  - scripts 디렉토리 존재: $([ -d "$GITHUB_WORKSPACE/scripts" ] && echo 'yes' || echo 'no')"
+              if [ -d "$GITHUB_WORKSPACE/scripts" ]; then
+                echo "  - scripts 디렉토리 내용:"
+                ls -la "$GITHUB_WORKSPACE/scripts" 2>&1 | head -10 || true
+              fi
+            fi
+          fi
+
       - name: Setup kubeconfig
+        if: steps.module.outputs.name != 'kafka' && steps.module.outputs.name != 'elasticsearch'
         run: |
           # Private EC2는 worker node이므로 Public EC2의 control-plane에 연결
           # Worker node에는 /etc/rancher/k3s/k3s.yaml이 없으므로,
@@ -570,6 +708,7 @@ jobs:
           fi
 
       - name: Check k3s availability
+        if: steps.module.outputs.name != 'elasticsearch'
         id: k3s-check
         run: |
           # kubeconfig 환경 변수 설정
@@ -640,8 +779,88 @@ jobs:
             exit 1
           fi
 
+      - name: Deploy elasticsearch with docker-compose
+        if: steps.module.outputs.name == 'elasticsearch'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          cd /home/ubuntu/apps/BE
+          echo ""
+          echo "🚀 [Private EC2] Elasticsearch docker-compose 배포 시작"
+          echo "   - 작업 디렉토리: /home/ubuntu/apps/BE"
+          echo ""
+
+          # deploy-module.sh 스크립트로 elasticsearch 배포
+          if [ -f "./scripts/deploy-module.sh" ]; then
+            echo "📝 scripts/deploy-module.sh elasticsearch 실행 중..."
+            echo "   - 스크립트 경로: $(pwd)/scripts/deploy-module.sh"
+            echo "   - 스크립트 권한: $(ls -la ./scripts/deploy-module.sh 2>&1 || echo 'not found')"
+            GITHUB_TOKEN=${GITHUB_TOKEN} bash ./scripts/deploy-module.sh elasticsearch || {
+              echo "❌ deploy-module.sh elasticsearch 실행 실패"
+              echo "디버그 정보:"
+              echo "  - 현재 디렉토리: $(pwd)"
+              echo "  - 스크립트 존재: $([ -f ./scripts/deploy-module.sh ] && echo 'yes' || echo 'no')"
+              echo "  - 네트워크 상태:"
+              docker network ls | grep -E "be_baro-network|NETWORK" || true
+              exit 1
+            }
+          else
+            echo "❌ ./scripts/deploy-module.sh 스크립트를 찾을 수 없습니다."
+            echo "디렉토리 내용:"
+            ls -la ./scripts 2>&1 || echo "scripts 디렉토리가 없습니다."
+            echo "전체 디렉토리 내용:"
+            ls -la . 2>&1 | head -30 || true
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ [Private EC2] Elasticsearch 배포 완료"
+          echo ""
+          echo "📊 컨테이너 상태:"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "baro-elasticsearch|NAMES" || docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+      - name: Deploy kafka with docker-compose
+        if: steps.module.outputs.name == 'kafka'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          cd /home/ubuntu/apps/BE
+          echo ""
+          echo "🚀 [Private EC2] Kafka docker-compose 배포 시작"
+          echo "   - 작업 디렉토리: /home/ubuntu/apps/BE"
+          echo ""
+
+          # deploy-module.sh 스크립트로 kafka 배포
+          if [ -f "./scripts/deploy-module.sh" ]; then
+            echo "📝 scripts/deploy-module.sh kafka 실행 중..."
+            echo "   - 스크립트 경로: $(pwd)/scripts/deploy-module.sh"
+            echo "   - 스크립트 권한: $(ls -la ./scripts/deploy-module.sh 2>&1 || echo 'not found')"
+            GITHUB_TOKEN=${GITHUB_TOKEN} bash ./scripts/deploy-module.sh kafka || {
+              echo "❌ deploy-module.sh kafka 실행 실패"
+              echo "디버그 정보:"
+              echo "  - 현재 디렉토리: $(pwd)"
+              echo "  - 스크립트 존재: $([ -f ./scripts/deploy-module.sh ] && echo 'yes' || echo 'no')"
+              echo "  - 네트워크 상태:"
+              docker network ls | grep -E "be_baro-network|NETWORK" || true
+              exit 1
+            }
+          else
+            echo "❌ ./scripts/deploy-module.sh 스크립트를 찾을 수 없습니다."
+            echo "디렉토리 내용:"
+            ls -la ./scripts 2>&1 || echo "scripts 디렉토리가 없습니다."
+            echo "전체 디렉토리 내용:"
+            ls -la . 2>&1 | head -30 || true
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ [Private EC2] Kafka 배포 완료"
+          echo ""
+          echo "📊 컨테이너 상태:"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "baro-kafka|NAMES" || docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
       - name: Deploy to k8s
-        if: steps.k3s-check.outputs.k3s_available == 'true'
+        if: steps.k3s-check.outputs.k3s_available == 'true' && steps.module.outputs.name != 'kafka' && steps.module.outputs.name != 'elasticsearch'
         env:
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
           IMAGE_TAG: ${{ needs.determine-service.outputs.image_tag }}

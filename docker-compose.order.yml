@@ -15,12 +15,10 @@ services:
       - MYSQL_DATABASE=${MYSQL_DATABASE_ORDER:-baroorder}
       - MYSQL_USER=${MYSQL_USER:-barouser}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD:-baropassword}
-      # Toss Secret Key (Spring relaxed binding: PAYMENT_TOSS_SECRET_KEY -> payment.toss.secret-key)
-      - PAYMENT_TOSS_SECRET_KEY=${TOSS_SECRET_KEY}
       - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
       - AWS_SECRET_KEY=${AWS_SECRET_KEY}
       - AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME}
-      - JAVA_OPTS=-Xms256m -Xmx384m
+      - JAVA_OPTS=-Xms64m -Xmx128m
     volumes:
       - /mnt/s3:/mnt/s3:rw
     restart: unless-stopped
