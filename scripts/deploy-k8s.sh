@@ -61,7 +61,6 @@ if [ -z "$MODULE_NAME" ]; then
     echo "  - order      (주문 모듈)"
     echo "  - payment    (결제 모듈)"
     echo "  - support    (지원 모듈)"
-    echo "  - settlement (정산 모듈)"
     echo "  - ai         (AI 모듈)"
     echo "  - redis      (Redis 캐시)"
     echo "  - data       (데이터 인프라: MySQL, Kafka, Elasticsearch - docker-compose로 배포)"
@@ -234,10 +233,6 @@ case "$MODULE_NAME" in
         DEPLOY_PATH="$K8S_BASE_DIR/apps/baro-support"
         APP_NAME="baro-support"
         ;;
-    settlement|baro-settlement)
-        DEPLOY_PATH="$K8S_BASE_DIR/apps/baro-settlement"
-        APP_NAME="baro-settlement"
-        ;;
     ai|baro-ai)
         DEPLOY_PATH="$K8S_BASE_DIR/apps/baro-ai"
         APP_NAME="baro-ai"
@@ -267,7 +262,8 @@ case "$MODULE_NAME" in
         ;;
     *)
         log_error "알 수 없는 모듈: $MODULE_NAME"
-        log_info "사용 가능한 모듈: cloud, eureka, config, gateway, redis, auth, buyer, seller, order, payment, support, settlement, ai, data"
+        log_info "사용 가능한 모듈: cloud, eureka, config, gateway, redis, auth, buyer, seller, order, payment, support, ai, data"
+        log_info "💡 DaemonSet 배포는 deploy-daemonset.sh를 사용하세요."
         exit 1
         ;;
 esac
