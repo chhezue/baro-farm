@@ -106,11 +106,11 @@ spec:
                 secretKeyRef:
                   name: baro-secrets
                   key: AWS_S3_BUCKET_NAME
-          resources:
-            requests:
-              memory: "128Mi"
-            limits:
-              memory: "310Mi"
+          # resources:
+          #   requests:
+          #     memory: "128Mi"
+          #   limits:
+          #     memory: "310Mi"
           livenessProbe:
             httpGet:
               path: /actuator/health
