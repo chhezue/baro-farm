@@ -106,6 +106,12 @@ spec:
                 secretKeyRef:
                   name: baro-secrets
                   key: SPRING_MAIL_PASSWORD
+            # OpenAI API 키 설정
+            - name: SPRING_AI_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: baro-secrets
+                  key: SPRING_AI_OPENAI_API_KEY
           # resources:
           #   requests:
           #     memory: "128Mi"
