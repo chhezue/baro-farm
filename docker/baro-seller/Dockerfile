@@ -6,10 +6,8 @@ WORKDIR /app
 
 ENV APP_NAME=baro-seller
 
-# JDK에서 jcmd 및 필요한 라이브러리 복사
+# JDK에서 jcmd 복사
 COPY --from=jdk-tools /opt/java/openjdk/bin/jcmd /usr/local/bin/jcmd
-# jcmd 실행에 필요한 tools.jar 복사
-COPY --from=jdk-tools /opt/java/openjdk/lib/tools.jar /opt/java/openjdk/lib/tools.jar
 
 COPY baro-seller/build/libs/baro-seller-*.jar app.jar
 EXPOSE 8085
