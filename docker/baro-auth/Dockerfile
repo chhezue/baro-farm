@@ -1,10 +1,17 @@
-# Multi-stage build
+# Multi-stage build: JDK에서 jcmd 및 도구 복사
+FROM eclipse-temurin:21-jdk-alpine AS jdk-tools
+
 FROM eclipse-temurin:21-jre-alpine AS runtime
 
 # 작업 디렉토리 설정
 WORKDIR /app
 
 ENV APP_NAME=baro-auth
+
+# JDK에서 jcmd 및 필요한 라이브러리 복사
+COPY --from=jdk-tools /opt/java/openjdk/bin/jcmd /usr/local/bin/jcmd
+# jcmd 실행에 필요한 tools.jar 복사
+COPY --from=jdk-tools /opt/java/openjdk/lib/tools.jar /opt/java/openjdk/lib/tools.jar
 
 # JAR 파일 복사
 COPY baro-auth/build/libs/baro-auth-*.jar app.jar
