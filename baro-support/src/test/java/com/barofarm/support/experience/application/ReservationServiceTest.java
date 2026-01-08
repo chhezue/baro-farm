@@ -107,12 +107,12 @@ class ReservationServiceTest {
     }
 
     @Test
-    @DisplayName("ID로 예약을 조회할 수 있다")
+    @DisplayName("ID로 예약을 조회할 수 있다 (구매자)")
     void getReservationById() {
         // given
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(validReservation));
-        when(experienceRepository.findById(experienceId)).thenReturn(Optional.of(experience));
-        // buyerId와 일치하므로 접근 가능 (구매자 권한)
+        // buyerId와 일치하므로 구매자 권한으로 접근 가능
+        // 구매자인 경우 experience를 조회하지 않음
 
         // when
         ReservationServiceResponse response = reservationService.getReservationById(buyerId, reservationId);
@@ -122,7 +122,7 @@ class ReservationServiceTest {
         assertThat(response.getReservationId()).isEqualTo(reservationId);
         assertThat(response.getHeadCount()).isEqualTo(2);
         verify(reservationRepository, times(1)).findById(reservationId);
-        verify(experienceRepository, times(1)).findById(experienceId);
+        // 구매자인 경우 experience를 조회하지 않으므로 verify 불필요
     }
 
     @Test

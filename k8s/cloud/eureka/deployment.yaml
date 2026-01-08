@@ -46,7 +46,9 @@ spec:
               value: "prod"
             # EUREKA_INSTANCE_HOSTNAME 제거: register-with-eureka=false이므로 불필요
             - name: JAVA_OPTS
-              value: "-Xms128m -Xmx256m -Djava.net.preferIPv4Stack=true"
+              value: "-Xms64m -Xmx128m -Djava.net.preferIPv4Stack=true"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms64m -Xmx128m"
             - name: SERVER_ADDRESS
               value: "0.0.0.0"
           # resources:
