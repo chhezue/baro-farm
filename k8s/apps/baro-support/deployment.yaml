@@ -121,11 +121,11 @@ spec:
                 secretKeyRef:
                   name: baro-secrets
                   key: SPRING_MAIL_PASSWORD
-          resources:
-            requests:
-              memory: "128Mi"
-            limits:
-              memory: "360Mi"
+          # resources:
+          #   requests:
+          #     memory: "128Mi"
+          #   limits:
+          #     memory: "360Mi"
           livenessProbe:
             httpGet:
               path: /actuator/health
