@@ -74,8 +74,7 @@ com.barofarm.ai/
 │   │   ├── elasticsearch/      # ES Repository (상품/체험 검색/자동완성)
 │   │   └── event/              # ProductEvent, ExperienceEvent Consumer (ES 인덱싱용)
 │   ├── application/            # ProductSearchService, ExperienceSearchService, UnifiedSearchService
-│   ├── presentation/           # 검색/자동완성 API (상품/체험/통합)
-│   └── util/                   # KoreanChosungUtil 등 검색 유틸
+│   └── presentation/           # 검색/자동완성 API (상품/체험/통합)
 
 ├── recommend/                  # 추천 도메인 (개인화/레시피/유사 상품)
 │   ├── model/
@@ -155,7 +154,7 @@ com.barofarm.ai/
 ### 2.6 `search/` – AI 관점 검색 뷰
 
 **역할**
-- ES 기반 상품/체험 검색 + 자동완성 (키워드 + 초성 + 오탈자 허용)
+- ES 기반 상품/체험 검색 + 자동완성 (키워드 + 오탈자 허용)
 - 추천/레시피에서 **부족 재료 매핑**이나 **상품 후보 조회** 시 내부 클라이언트로 사용
 
 **흐름 예**
@@ -281,10 +280,7 @@ PUT /experience
       "experienceId": { "type": "keyword" },
       "experienceName": {
         "type": "text",
-        "analyzer": "nori",
-        "fields": {
-          "chosung": { "type": "keyword" }
-        }
+        "analyzer": "nori"
       },
       "embedding": {
         "type": "dense_vector",

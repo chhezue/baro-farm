@@ -32,23 +32,18 @@ public class ProductDocument {
     @JsonFormat(pattern = "uuuu-MM-dd'T'HH:mm:ssX", timezone = "UTC")
     private Instant updatedAt; // 검색 결과 반환 로직 내에서 최신순으로 정렬
 
-    @Field(type = FieldType.Keyword)
-    private String productNameChosung;
-
     public ProductDocument() {
     }
 
     public ProductDocument(
         UUID productId,
         String productName,
-        String productNameChosung,
         String productCategory,
         Long price,
         String status,
         Instant updatedAt) {
         this.productId = productId;
         this.productName = productName;
-        this.productNameChosung = productNameChosung;
         this.productCategory = productCategory;
         this.price = price;
         this.status = status;

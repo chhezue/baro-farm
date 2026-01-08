@@ -1,7 +1,5 @@
 package com.barofarm.ai.search.application;
 
-import static com.barofarm.ai.search.util.KoreanChosungUtil.extract;
-
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
@@ -39,7 +37,6 @@ public class ExperienceSearchService {
             new ExperienceDocument(
                 request.experienceId(),
                 request.experienceName(),
-                extract(request.experienceName()),
                 request.pricePerPerson(),
                 request.capacity(),
                 request.durationMinutes(),
@@ -73,7 +70,6 @@ public class ExperienceSearchService {
                     if (keyword != null && !keyword.isBlank()) {
                         applyExactMatch(b, keyword);
                         applyNormalMatch(b, keyword);
-                        applyChosungMatch(b, keyword);
 
                         // 3글자 이상인 경우에만 오탈자 검색 허용
                         if (keyword.length() >= 3) {
@@ -123,7 +119,6 @@ public class ExperienceSearchService {
 
                         applyExactMatch(b, keyword);
                         applyNormalMatch(b, keyword);
-                        applyChosungMatch(b, keyword);
 
                         // 3글자 이상인 경우에만 오탈자 검색 허용
                         if (keyword.length() >= 3) {
@@ -182,17 +177,6 @@ public class ExperienceSearchService {
                   .query(keyword)
                   .operator(Operator.Or)
                   .boost(1.0f)
-            )
-        );
-    }
-
-    // 초성 검색
-    private void applyChosungMatch(BoolQuery.Builder b, String keyword) {
-        b.should(m ->
-            m.prefix(p -> // prefix 비교만 수행
-                p.field("experienceNameChosung")
-                 .value(keyword)
-                 .boost(0.5f)
             )
         );
     }
