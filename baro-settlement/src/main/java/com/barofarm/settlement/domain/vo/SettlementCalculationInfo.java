@@ -9,4 +9,3 @@ public record SettlementCalculationInfo(
     SettlementStatus status,
     LocalDate settlementMonth
 ) {}
-

@@ -1,8 +1,8 @@
 package com.barofarm.settlement.batch.reader;
 
-import com.barofarm.settlement.common.response.CustomPage;
 import com.barofarm.settlement.client.OrderItemSettlementResponse;
 import com.barofarm.settlement.client.OrderSettlementClient;
+import com.barofarm.settlement.common.response.CustomPage;
 import java.time.LocalDate;
 import java.util.Iterator;
 import org.springframework.batch.item.ItemReader;
@@ -44,4 +44,3 @@ public class OrderItemFeignReader implements ItemReader<OrderItemSettlementRespo
         return iterator.next();
     }
 }
-

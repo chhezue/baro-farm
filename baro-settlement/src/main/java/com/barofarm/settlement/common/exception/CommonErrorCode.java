@@ -27,4 +27,3 @@ public enum CommonErrorCode implements BaseErrorCode {
         return message;
     }
 }
-

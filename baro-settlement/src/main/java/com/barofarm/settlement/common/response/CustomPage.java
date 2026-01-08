@@ -64,4 +64,3 @@ public record CustomPage<T>(
         );
     }
 }
-

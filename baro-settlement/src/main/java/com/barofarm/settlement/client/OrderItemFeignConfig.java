@@ -11,4 +11,3 @@ public class OrderItemFeignConfig {
         return new OrderItemFeignErrorDecoder();
     }
 }
-

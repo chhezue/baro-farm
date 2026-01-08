@@ -90,4 +90,3 @@ public class MonthSettlementBatchConfig{
         return writer;
     }
 }
-
