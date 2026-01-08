@@ -59,7 +59,7 @@ services:
           memory: 320M
         reservations:
           memory: 160M
-    command: --innodb-buffer-pool-size=96M --max-connections=50 --performance-schema=OFF --lower-case-table-names=1
+    command: --innodb-buffer-pool-size=96M --max-connections=70 --performance-schema=OFF --lower-case-table-names=1
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
       - MYSQL_DATABASE=${MYSQL_DATABASE:-barofarm}
