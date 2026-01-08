@@ -36,8 +36,8 @@ spring:
       mail.smtp.ssl.enable: true
       mail.smtp.ssl.trust: smtp.naver.com
       
-  elasticsearch:
-    uris: ${SPRING_ELASTICSEARCH_URIS:http://elasticsearch:9200}
+  # elasticsearch:
+  #   uris: ${SPRING_ELASTICSEARCH_URIS:http://elasticsearch:9200}
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     producer:
