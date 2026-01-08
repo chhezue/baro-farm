@@ -55,7 +55,7 @@ spec:
             - name: JAVA_OPTS
               value: "-Xms64m -Xmx128m"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms64m -Xmx128m"
+              value: "-Xms64m -Xmx128m -XX:NativeMemoryTracking=summary"
             # MySQL 설정
             - name: MYSQL_DATABASE
               value: "barosettlement"
@@ -79,7 +79,7 @@ spec:
             requests:
               memory: "128Mi"
             limits:
-              memory: "256Mi"
+              memory: "300Mi"
           livenessProbe:
             httpGet:
               path: /actuator/health
