@@ -61,7 +61,7 @@ spec:
             - name: JAVA_OPTS
               value: "-Xms64m -Xmx128m -Djava.net.preferIPv4Stack=true"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms64m -Xmx128m"
+              value: "-Xms64m -Xmx128m -XX:NativeMemoryTracking=summary"
           # resources:
           #   requests:
           #     memory: "256Mi"
