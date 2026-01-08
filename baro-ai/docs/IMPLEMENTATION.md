@@ -723,3 +723,36 @@ public class CostTracker {
 ```
 
 이 가이드를 따라 각 기능을 구현하면 바로팜 AI 시스템의 핵심 기능을 완성할 수 있습니다! 🚀
+
+## 🔢 임베딩 계층 설계
+
+### 1. TextEmbeddingService (중앙 임베딩 엔진)
+
+패키지: `embedding.service.TextEmbeddingService`
+
+- 역할:
+  - Spring AI `EmbeddingModel`을 감싸는 공통 유틸
+  - 텍스트 → float[] 벡터 변환 담당
+- 제공 메서드:
+  - `float[] embedText(String text)`
+  - `float[] embedProduct(String productName, String description, Long price)`
+  - `float[] embedExperience(String title, Long pricePerPerson, Integer capacity, Integer durationMinutes)`
+
+> 이 클래스는 **LLM/임베딩 모델에 대한 모든 직접 의존성을 한 곳에 모으는 것**이 목표다.  
+> 나머지 도메인별 서비스(ProductEmbeddingService, ExperienceEmbeddingService, UserProfileEmbeddingService)는 
+> 이 엔진을 주입받아 “무엇을 어떻게 텍스트로 합칠지”만 결정한다.
+
+### 2. 도메인별 임베딩 서비스
+
+- `ProductEmbeddingService`
+  - `ProductEvent`를 입력으로 받아 상품 이름/설명/카테고리/가격을 TextEmbeddingService에 넘김
+  - 결과 벡터를 `ProductEmbeddingDocument`로 만들어 ES 인덱스에 저장
+
+- `ExperienceEmbeddingService`
+  - `ExperienceEvent`를 입력으로 받아 체험 제목/설명/가격/소요시간 등을 EmbeddingService에 넘김
+  - 결과 벡터를 `ExperienceEmbeddingDocument`로 만들어 ES 인덱스에 저장
+
+- `UserProfileEmbeddingService`
+  - `LogReadService`를 통해 userId별 검색/장바구니/주문 로그를 조회
+  - 검색어/상품명/카테고리를 이어붙인 텍스트를 EmbeddingService에 넘김
+  - 결과 벡터를 `UserProfileEmbeddingDocument`로 만들어 ES 인덱스에 저장

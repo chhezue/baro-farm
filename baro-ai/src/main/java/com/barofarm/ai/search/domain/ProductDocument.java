@@ -32,6 +32,9 @@ public class ProductDocument {
     @JsonFormat(pattern = "uuuu-MM-dd'T'HH:mm:ssX", timezone = "UTC")
     private Instant updatedAt; // 검색 결과 반환 로직 내에서 최신순으로 정렬
 
+    @Field(type = FieldType.Dense_Vector, dims = 1536)
+    private float[] vector; // OpenAI 임베딩 벡터 (1536차원)
+
     public ProductDocument() {
     }
 
@@ -41,12 +44,14 @@ public class ProductDocument {
         String productCategory,
         Long price,
         String status,
-        Instant updatedAt) {
+        Instant updatedAt,
+        float[] vector) {
         this.productId = productId;
         this.productName = productName;
         this.productCategory = productCategory;
         this.price = price;
         this.status = status;
         this.updatedAt = updatedAt;
+        this.vector = vector;
     }
 }

@@ -2,7 +2,7 @@
 
 ## 🎯 1. **로그 기반 개인화 추천** (핵심 기능)
 
-**관여 패키지**: `event.consumer`, `log.*`, `embedding.service`, `recommend.service`, `presentation`
+**관여 패키지**: `event.consumer`, `log.*`, `embedding.*`, `recommend.service`, `presentation`
 
 ### 기능 개요
 사용자의 **장바구니, 검색, 주문 내역**을 분석하여 개인 취향을 학습하고 맞춤 상품을 추천합니다.
@@ -11,6 +11,12 @@
 - **장바구니(cart)**: 현재 담긴 상품
 - **검색 로그(search)**: 검색한 키워드와 상품
 - **주문 내역(order)**: 실제 구매한 상품
+
+
+- **벡터 준비 단계**:
+  - ProductEvent/ExperienceEvent 기반으로 상품/체험 벡터를 선행 생성 (ProductEmbeddingService, ExperienceEmbeddingService)
+  - Log 기반으로 userId별 취향 벡터를 생성 (UserProfileEmbeddingService)
+  - 모든 벡터 생성은 내부적으로 `embedding.service.TextEmbeddingService`를 통해 동일 EmbeddingModel을 사용
 
 ### 추천 순서
 

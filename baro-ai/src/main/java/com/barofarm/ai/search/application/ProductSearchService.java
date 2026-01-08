@@ -1,10 +1,13 @@
 package com.barofarm.ai.search.application;
 
+import static org.hibernate.query.sqm.tree.SqmNode.log;
+
 import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
 import com.barofarm.ai.common.response.CustomPage;
+import com.barofarm.ai.embedding.service.TextEmbeddingService;
 import com.barofarm.ai.search.application.dto.product.ProductAutoCompleteResponse;
 import com.barofarm.ai.search.application.dto.product.ProductIndexRequest;
 import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
@@ -30,10 +33,22 @@ public class ProductSearchService {
     private final ElasticsearchOperations operations;
     private final ProductSearchRepository repository;
     private final ProductAutocompleteRepository autocompleteRepository;
+    private final TextEmbeddingService textEmbeddingService;
 
     // 상품 문서를 ES에 저장 (인덱싱), updatedAt은 현재 시각으로 자동 설정
     // Kafka Consumer에서 호출됨
     public ProductDocument indexProduct(ProductIndexRequest request) {
+        float[] vector = null;
+
+        // 임베딩이 실패하더라도 인덱싱은 계속되어야 함.
+        try {
+            // 상품 이름을 기반으로 임베딩 생성
+            vector = textEmbeddingService.embedProduct(request.productName());
+        } catch (Exception e) {
+            log.error("❌ Product embedding failed. productId={}", request.productId(), e);
+            // vector는 null 유지
+        }
+
         ProductDocument doc =
             new ProductDocument(
                 request.productId(),
@@ -41,7 +56,8 @@ public class ProductSearchService {
                 request.productCategory(),
                 request.price(),
                 request.status(),
-                Instant.now());
+                Instant.now(),
+                vector);
 
         // 자동완성 인덱스에도 저장 (status 포함하여 필터링 가능하도록)
         ProductAutocompleteDocument autocompleteDoc =
