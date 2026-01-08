@@ -61,7 +61,7 @@ spec:
             - name: JAVA_OPTS
               value: "-Xms64m -Xmx96m"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms64m -Xmx96m -Xss512k -XX:MaxMetaspaceSize=96m -XX:CompressedClassSpaceSize=48m -XX:MaxDirectMemorySize=32m -XX:ReservedCodeCacheSize=16m -XX:NativeMemoryTracking=summary"
+              value: "-Xms64m -Xmx96m -XX:MaxMetaspaceSize=96m -XX:CompressedClassSpaceSize=48m -XX:MaxDirectMemorySize=32m -XX:NativeMemoryTracking=summary"
             # 실제 배포 시 deploy-k8s.sh 스크립트가 자동으로 Data EC2 IP로 치환
             - name: EC2_IP
               value: "CHANGE_ME_TO_EC2_IP"  # 배포 스크립트가 자동으로 Data EC2 IP로 치환
