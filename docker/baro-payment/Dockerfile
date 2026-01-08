@@ -6,8 +6,11 @@ WORKDIR /app
 
 ENV APP_NAME=baro-payment
 
-# JDK에서 jcmd 복사
+# JDK에서 jcmd 및 필요한 라이브러리 복사
 COPY --from=jdk-tools /opt/java/openjdk/bin/jcmd /usr/local/bin/jcmd
+# jcmd 실행에 필요한 libjli.so 복사
+RUN mkdir -p /opt/java/openjdk/lib
+COPY --from=jdk-tools /opt/java/openjdk/lib/libjli.so /opt/java/openjdk/lib/libjli.so
 
 # JAR 복사
 COPY baro-order/payment-service/build/libs/payment-service-*.jar app.jar
