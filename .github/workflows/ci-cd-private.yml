@@ -413,7 +413,7 @@ jobs:
       needs.determine-service.outputs.module != '' &&
       always() && 
       (needs.determine-service.outputs.module == 'kafka' ||
-       (needs.determine-service.outputs.module == 'elasticsearch' && (vars.DEPLOY_ELASTICSEARCH != 'true' && secrets.DEPLOY_ELASTICSEARCH != 'true')) ||
+       (needs.determine-service.outputs.module == 'elasticsearch' && vars.DEPLOY_ELASTICSEARCH != 'true') ||
        (needs.docker-build.result == 'success' || needs.docker-build.result == 'skipped'))
     
     steps:
@@ -756,8 +756,7 @@ jobs:
       - name: Deploy elasticsearch with docker-compose
         if: |
           steps.module.outputs.name == 'elasticsearch' &&
-          vars.DEPLOY_ELASTICSEARCH != 'true' &&
-          secrets.DEPLOY_ELASTICSEARCH != 'true'
+          vars.DEPLOY_ELASTICSEARCH != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
         run: |
