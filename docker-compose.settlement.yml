@@ -1,0 +1,27 @@
+# Settlement 모듈
+# 정산 관리 (DaemonSet 배포용)
+
+services:
+  baro-settlement:
+    image: ${DOCKER_REGISTRY:-ghcr.io/do-develop-space}/baro-settlement:${IMAGE_TAG:-latest}
+    container_name: baro-settlement
+    ports:
+      - "8090:8090"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:8761/eureka/
+      - SPRING_DATASOURCE_URL=jdbc:mysql://baro-mysql:3306/${MYSQL_DATABASE_SETTLEMENT:-barosettlement}?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true
+      - MYSQL_DATABASE=${MYSQL_DATABASE_SETTLEMENT:-barosettlement}
+      - MYSQL_USER=${MYSQL_USER:-barouser}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-baropassword}
+      - JAVA_OPTS=-Xms64m -Xmx128m
+    restart: unless-stopped
+    networks:
+      - baro-network
+
+networks:
+  baro-network:
+    name: be_baro-network  # 네트워크 이름 명시적으로 지정
+    external: true
+
+

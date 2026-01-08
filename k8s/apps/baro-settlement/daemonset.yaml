@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: baro-settlement
+  namespace: baro-prod
+  labels:
+    app: baro-settlement
+    component: app
+spec:
+  selector:
+    matchLabels:
+      app: baro-settlement
+  template:
+    metadata:
+      labels:
+        app: baro-settlement
+        component: app
+    spec:
+      hostNetwork: true  # k8s 서비스의 접근을 위해 필요. Data 서비스는 Data EC2 IP로 접근
+      # Worker node 전용 taint 허용 (master node의 시스템 Pod들이 worker node에 스케줄링되지 않도록)
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: worker
+          # NoSchedule: 새로운 Pod는 스케줄링하지 않음 (이미 실행 중인 Pod는 유지)
+          # PreferNoSchedule: 가능하면 스케줄링하지 않음 (부득이하면 허용)
+          # NoExecute: 새로운 Pod는 스케줄링하지 않음 + 이미 실행 중인 Pod도 제거 가능
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+      containers:
+        - name: baro-settlement
+          image: ghcr.io/do-develop-space/baro-settlement:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8090
+              name: http
+              protocol: TCP
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: SPRING_APPLICATION_NAME
+              value: "settlement-service"  # Eureka 등록명 (소문자로 통일)
+            - name: SERVER_PORT
+              value: "8090"  # Config Server 설정 덮어쓰기 방지
+            - name: SPRING_CONFIG_IMPORT
+              value: "optional:configserver:http://localhost:8888"  # 배포 스크립트가 자동으로 Data EC2 IP로 치환 (Cloud 모듈이 Data EC2에서 실행됨)
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: "http://localhost:8761/eureka/"  # 배포 스크립트가 자동으로 Data EC2 IP로 치환 (Cloud 모듈이 Data EC2에서 실행됨)
+            - name: JAVA_OPTS
+              value: "-Xms64m -Xmx128m"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms64m -Xmx128m"
+            # MySQL 설정
+            - name: MYSQL_DATABASE
+              value: "barosettlement"
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: baro-secrets
+                  key: MYSQL_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: baro-secrets
+                  key: MYSQL_PASSWORD
+            # MySQL 호스트 (Data EC2 Private IP)
+            # 실제 배포 시 deploy-k8s.sh 스크립트가 자동으로 Data EC2 IP로 치환
+            - name: EC2_IP
+              value: "CHANGE_ME_TO_EC2_IP"  # 배포 스크립트가 자동으로 Data EC2 IP로 치환
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://CHANGE_ME_TO_EC2_IP:3306/barosettlement?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true"
+          resources:
+            requests:
+              memory: "128Mi"
+            limits:
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8090
+              scheme: HTTP
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8090
+              scheme: HTTP
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8090
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 30

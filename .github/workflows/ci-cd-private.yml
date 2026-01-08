@@ -2,7 +2,7 @@ name: CI/CD Pipeline - Private EC2 (K8s Deployment)
 
 # ==================================================
 # Private EC2용 CI/CD Pipeline
-# - 배포 대상: auth, buyer, seller, order, support, kafka, elasticsearch
+# - 배포 대상: auth, buyer, seller, order, payment, support, settlement, ai, kafka, elasticsearch
 # - 배포 방식: Kubernetes (k8s) - 애플리케이션 모듈
 #            Docker Compose - Kafka, Elasticsearch (데이터 인프라)
 # - Runner: private-ec2-runner (self-hosted)
@@ -15,7 +15,10 @@ on:
       - main-buyer
       - main-seller
       - main-order
+      - main-payment
       - main-support
+      - main-settlement
+      - main-ai
       - main-kafka
       - main-elasticsearch
   pull_request:
@@ -24,7 +27,10 @@ on:
       - main-buyer
       - main-seller
       - main-order
+      - main-payment
       - main-support
+      - main-settlement
+      - main-ai
       - main-kafka
       - main-elasticsearch
     types: [opened, synchronize, reopened]
@@ -77,14 +83,17 @@ jobs:
             MODULE=""
           fi
           
-          # 빌드할 모듈 결정 (Private EC2용: auth, buyer, seller, order, support만)
+          # 빌드할 모듈 결정 (Private EC2용: auth, buyer, seller, order, payment, support, settlement, ai만)
           # kafka와 elasticsearch는 빌드 불필요 (docker-compose로 배포)
           case "$MODULE" in
             auth) BUILD_MODULE=":baro-auth" ;;
             buyer) BUILD_MODULE=":baro-buyer" ;;
             seller) BUILD_MODULE=":baro-seller" ;;
             order) BUILD_MODULE=":baro-order" ;;
+            payment) BUILD_MODULE=":baro-payment" ;;
             support) BUILD_MODULE=":baro-support" ;;
+            settlement) BUILD_MODULE=":baro-settlement" ;;
+            ai) BUILD_MODULE=":baro-ai" ;;
             kafka) BUILD_MODULE="" ;;  # kafka는 빌드 불필요
             elasticsearch) BUILD_MODULE="" ;;  # elasticsearch는 빌드 불필요
             *) BUILD_MODULE="" ;;
@@ -172,7 +181,10 @@ jobs:
             buyer) ARTIFACT_PATHS="baro-buyer/build/libs/*.jar" ;;
             seller) ARTIFACT_PATHS="baro-seller/build/libs/*.jar" ;;
             order) ARTIFACT_PATHS="baro-order/build/libs/*.jar" ;;
+            payment) ARTIFACT_PATHS="baro-payment/build/libs/*.jar" ;;
             support) ARTIFACT_PATHS="baro-support/build/libs/*.jar" ;;
+            settlement) ARTIFACT_PATHS="baro-settlement/build/libs/*.jar" ;;
+            ai) ARTIFACT_PATHS="baro-ai/build/libs/*.jar" ;;
             elasticsearch) ARTIFACT_PATHS="" ;;  # elasticsearch는 빌드 불필요
             *) ARTIFACT_PATHS="" ;;
           esac
@@ -202,7 +214,10 @@ jobs:
         startsWith(github.ref, 'refs/heads/main-buyer') ||
         startsWith(github.ref, 'refs/heads/main-seller') ||
         startsWith(github.ref, 'refs/heads/main-order') ||
+        startsWith(github.ref, 'refs/heads/main-payment') ||
         startsWith(github.ref, 'refs/heads/main-support') ||
+        startsWith(github.ref, 'refs/heads/main-settlement') ||
+        startsWith(github.ref, 'refs/heads/main-ai') ||
         startsWith(github.ref, 'refs/heads/main-kafka') ||
         startsWith(github.ref, 'refs/heads/main-elasticsearch'))) ||
       (github.event_name == 'pull_request' && 
@@ -210,7 +225,10 @@ jobs:
         startsWith(github.base_ref, 'main-buyer') ||
         startsWith(github.base_ref, 'main-seller') ||
         startsWith(github.base_ref, 'main-order') ||
+        startsWith(github.base_ref, 'main-payment') ||
         startsWith(github.base_ref, 'main-support') ||
+        startsWith(github.base_ref, 'main-settlement') ||
+        startsWith(github.base_ref, 'main-ai') ||
         startsWith(github.base_ref, 'main-kafka') ||
         startsWith(github.base_ref, 'main-elasticsearch')))
     outputs:
@@ -234,7 +252,10 @@ jobs:
             buyer) SERVICE="baro-buyer" ;;
             seller) SERVICE="baro-seller" ;;
             order) SERVICE="baro-order" ;;
+            payment) SERVICE="baro-payment" ;;
             support) SERVICE="baro-support" ;;
+            settlement) SERVICE="baro-settlement" ;;
+            ai) SERVICE="baro-ai" ;;
             kafka) SERVICE="" ;;  # kafka는 빌드 불필요
             elasticsearch) SERVICE="" ;;  # elasticsearch는 빌드 불필요
             *) SERVICE="" ;;
@@ -303,7 +324,10 @@ jobs:
             baro-buyer) MODULE_PATH="baro-buyer" ;;
             baro-seller) MODULE_PATH="baro-seller" ;;
             baro-order) MODULE_PATH="baro-order" ;;
+            baro-payment) MODULE_PATH="baro-payment" ;;
             baro-support) MODULE_PATH="baro-support" ;;
+            baro-settlement) MODULE_PATH="baro-settlement" ;;
+            baro-ai) MODULE_PATH="baro-ai" ;;
             *) MODULE_PATH="" ;;
           esac
           

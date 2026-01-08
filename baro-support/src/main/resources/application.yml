@@ -25,14 +25,7 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
         use_sql_comments: true
-  batch:
-    job:
-      enabled: false
-  task:
-    scheduling:
-      cron:
-        settlement: "0 0 0 1 * *"
-
+        
   mail:
     host: smtp.naver.com
     port: 465
