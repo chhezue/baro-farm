@@ -8,6 +8,7 @@ import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
 import com.barofarm.ai.common.response.CustomPage;
 import com.barofarm.ai.embedding.service.TextEmbeddingService;
+import com.barofarm.ai.log.application.LogWriteService;
 import com.barofarm.ai.search.application.dto.product.ProductAutoCompleteResponse;
 import com.barofarm.ai.search.application.dto.product.ProductIndexRequest;
 import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
@@ -33,6 +34,7 @@ public class ProductSearchService {
     private final ElasticsearchOperations operations;
     private final ProductSearchRepository repository;
     private final ProductAutocompleteRepository autocompleteRepository;
+    private final LogWriteService logWriteService;
     private final TextEmbeddingService textEmbeddingService;
 
     // 상품 문서를 ES에 저장 (인덱싱), updatedAt은 현재 시각으로 자동 설정
@@ -45,8 +47,7 @@ public class ProductSearchService {
             // 상품 이름을 기반으로 임베딩 생성
             vector = textEmbeddingService.embedProduct(request.productName());
         } catch (Exception e) {
-            log.error("❌ Product embedding failed. productId={}", request.productId(), e);
-            // vector는 null 유지
+            log.error("❌ Product embedding failed. productId=" + request.productId() + ", error=" + e.getMessage(), e);
         }
 
         ProductDocument doc =
@@ -74,7 +75,7 @@ public class ProductSearchService {
     }
 
     // 통합 검색을 위한 상품 검색 (키워드 하나만으로 검색)
-    public CustomPage<ProductSearchResponse> searchProducts(String keyword, Pageable pageable) {
+    public CustomPage<ProductSearchResponse> searchProducts(UUID userId, String keyword, Pageable pageable) {
 
         NativeQuery query =
             NativeQuery.builder()
@@ -115,11 +116,32 @@ public class ProductSearchService {
                 ))
                 .toList();
 
+        // 🔹 "product 관련" 통합 검색 로그만 남긴다.
+        // - userId가 있을 때만 개인화 추천용 로그 저장
+        // - q가 비어있으면 검색 행동으로 간주하지 않음
+        // - 로그 저장 실패가 검색 결과에는 영향을 주지 않음
+        if (userId != null && keyword != null && !keyword.isBlank()) {
+            try {
+                logWriteService.saveSearchLog(
+                    userId,
+                    keyword,
+                    null,
+                    Instant.now()
+                );
+            } catch (Exception e) {
+                log.warn("❌ Failed to save search log for user: " + userId + ", error: " + e.getMessage(), e);
+            }
+        }
+
         return CustomPage.of(hits.getTotalHits(), items, pageable);
     }
 
-    // 상품 단독 검색 (필터링 조건 추가)
-    public CustomPage<ProductSearchResponse> searchOnlyProducts(ProductSearchRequest request, Pageable pageable) {
+    // 상품 단독 검색 (필터링 조건 추가) + "상품 관련 사용자 행동 로그" 기록
+    public CustomPage<ProductSearchResponse> searchOnlyProducts(
+        UUID userId,
+        ProductSearchRequest request,
+        Pageable pageable
+    ) {
 
         NativeQuery query =
             NativeQuery.builder()
@@ -164,7 +186,34 @@ public class ProductSearchService {
                 ))
                 .toList();
 
-        return CustomPage.of(hits.getTotalHits(), items, pageable);
+        CustomPage<ProductSearchResponse> page =
+            CustomPage.of(hits.getTotalHits(), items, pageable);
+
+        // TODO 현재는 첫 번째 카테고리만 저장: 추후에 방안 고안
+        String category =
+            (request.categories() != null && !request.categories().isEmpty())
+                ? request.categories().getFirst()
+                : null;
+
+        // 🔹 "product 관련" 검색 로그만 남긴다.
+        // - UUID(userId)는 선택 사항: 존재할 때만 로그 저장
+        // - keyword가 없거나 공백이면 검색 행동 로깅 대상에서 제외
+        // - 로그 저장 실패가 검색 결과에는 영향을 주지 않음
+        if (userId != null && request.keyword() != null && !request.keyword().isBlank()) {
+            try {
+                logWriteService.saveSearchLog(
+                    userId,
+                    request.keyword(),
+                    category,
+                    Instant.now()
+                );
+            } catch (Exception e) {
+                log.warn("❌ Failed to save search log for user: " + userId +
+                    ", keyword: " + request.keyword() + ", error: " + e.getMessage(), e);
+            }
+        }
+
+        return page;
     }
 
     // 정확한 문구 검색
