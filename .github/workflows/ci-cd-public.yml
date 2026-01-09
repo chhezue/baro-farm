@@ -481,21 +481,27 @@ jobs:
             # 기존 k8s 디렉토리의 추가 파일들 백업 (scripts, README.md, .env 등)
             ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ubuntu/apps/BE/k8s && if [ -d /home/ubuntu/apps/BE/k8s/scripts ] && [ \"\$(ls -A /home/ubuntu/apps/BE/k8s/scripts 2>/dev/null)\" ]; then mkdir -p /home/ubuntu/apps/BE/k8s.backup.scripts.\$(date +%Y%m%d_%H%M%S) && cp -r /home/ubuntu/apps/BE/k8s/scripts /home/ubuntu/apps/BE/k8s.backup.scripts.\$(date +%Y%m%d_%H%M%S)/ 2>/dev/null || true; fi"
             # rsync를 사용하여 기존 파일 보존하며 복사 (같은 이름 파일은 업데이트, 다른 파일은 보존)
+            # deployment.yaml, service.yaml, kustomization.yaml 등은 항상 최신 버전으로 덮어쓰기
+            echo "📦 k8s 디렉토리 복사 중 (최신 파일로 덮어쓰기)..."
             if command -v rsync &> /dev/null; then
-              # rsync -av는 같은 이름 파일은 업데이트하지만, 소스에 없는 파일은 삭제하지 않음 (안전)
-              rsync -av k8s/ ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/k8s/ 2>/dev/null || {
-                echo "⚠️  rsync 실패, scp로 재시도 (기존 파일은 백업됨)..."
-                # scp는 같은 이름 파일만 덮어씀 (다른 파일은 삭제하지 않음)
-                scp -o StrictHostKeyChecking=no -r k8s/* ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/k8s/ 2>/dev/null || {
-                  echo "⚠️  k8s 디렉토리 복사 실패 (기존 파일 사용)"
+              # rsync -av는 기본적으로 파일을 덮어쓰지만, 확실하게 하기 위해 먼저 특정 파일 삭제
+              ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "find /home/ubuntu/apps/BE/k8s -type f \\( -name 'deployment.yaml' -o -name 'service.yaml' -o -name 'kustomization.yaml' -o -name 'daemonset.yaml' \\) -delete 2>/dev/null || true"
+              rsync -av k8s/ ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/k8s/ || {
+                echo "⚠️  rsync 실패, scp로 재시도..."
+                scp -o StrictHostKeyChecking=no -r k8s/* ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/k8s/ || {
+                  echo "❌ k8s 디렉토리 복사 실패"
+                  exit 1
                 }
               }
             else
-              # rsync가 없으면 scp 사용 (같은 이름 파일만 덮어씀, 다른 파일은 보존)
-              scp -o StrictHostKeyChecking=no -r k8s/* ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/k8s/ 2>/dev/null || {
-                echo "⚠️  k8s 디렉토리 복사 실패 (기존 파일 사용)"
+              # scp 사용 시에도 먼저 특정 파일 삭제
+              ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "find /home/ubuntu/apps/BE/k8s -type f \\( -name 'deployment.yaml' -o -name 'service.yaml' -o -name 'kustomization.yaml' -o -name 'daemonset.yaml' \\) -delete 2>/dev/null || true"
+              scp -o StrictHostKeyChecking=no -r k8s/* ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/k8s/ || {
+                echo "❌ k8s 디렉토리 복사 실패"
+                exit 1
               }
             fi
+            echo "✅ k8s 디렉토리 복사 완료 (최신 파일로 업데이트됨)"
             # 백업한 scripts 디렉토리 복원 (복사된 k8s에 scripts가 없거나 덮어씌워진 경우)
             ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "BACKUP_SCRIPTS=\$(ls -td /home/ubuntu/apps/BE/k8s.backup.scripts.* 2>/dev/null | head -1) && if [ -n \"\$BACKUP_SCRIPTS\" ] && [ -d \"\$BACKUP_SCRIPTS/scripts\" ] && [ ! -d /home/ubuntu/apps/BE/k8s/scripts ] || [ -z \"\$(ls -A /home/ubuntu/apps/BE/k8s/scripts 2>/dev/null)\" ]; then mkdir -p /home/ubuntu/apps/BE/k8s/scripts && cp -r \"\$BACKUP_SCRIPTS/scripts\"/* /home/ubuntu/apps/BE/k8s/scripts/ 2>/dev/null || true && echo '✅ scripts 디렉토리 복원 완료'; fi"
           fi
