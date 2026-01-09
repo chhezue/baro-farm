@@ -761,14 +761,53 @@ else
         log_info "   SPRING_ELASTICSEARCH_URIS:"
         grep -A 1 "SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE" | grep "value:" || true
     fi
+    
+    # unchanged가 나왔지만 deployment.yaml이 수정되었는지 확인
+    DEPLOYMENT_WAS_MODIFIED=false
+    if echo "$APPLY_OUTPUT" | grep -q "unchanged"; then
+        log_info "🔍 kubectl apply에서 'unchanged' 감지됨"
+        # deployment.yaml이 수정되었는지 확인 (127.0.0.1이나 localhost가 없고 DATA_EC2_IP가 있는지)
+        if [ -f "$DEPLOYMENT_FILE" ] && [ -n "$DATA_EC2_IP" ]; then
+            # Kafka나 Elasticsearch 설정에 DATA_EC2_IP가 포함되어 있고, 127.0.0.1이나 localhost가 없으면 수정된 것
+            if grep -q "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$DEPLOYMENT_FILE" && \
+               grep "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$DEPLOYMENT_FILE" | grep -q "$DATA_EC2_IP" && \
+               ! grep "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$DEPLOYMENT_FILE" | grep -qE "127\.0\.0\.1|localhost"; then
+                DEPLOYMENT_WAS_MODIFIED=true
+                log_info "✅ deployment.yaml이 수정되었습니다 (Kafka: $DATA_EC2_IP 사용)"
+            fi
+            if grep -q "SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE" && \
+               grep "SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE" | grep -q "$DATA_EC2_IP" && \
+               ! grep "SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE" | grep -qE "127\.0\.0\.1|localhost"; then
+                DEPLOYMENT_WAS_MODIFIED=true
+                log_info "✅ deployment.yaml이 수정되었습니다 (Elasticsearch: $DATA_EC2_IP 사용)"
+            fi
+            # CHANGE_ME_TO_EC2_IP가 없고 DATA_EC2_IP가 있으면 수정된 것
+            if ! grep -q "CHANGE_ME_TO_EC2_IP" "$DEPLOYMENT_FILE" && grep -q "$DATA_EC2_IP" "$DEPLOYMENT_FILE"; then
+                DEPLOYMENT_WAS_MODIFIED=true
+                log_info "✅ deployment.yaml이 수정되었습니다 (IP 치환 완료)"
+            fi
+        fi
+        
+        if [ "$DEPLOYMENT_WAS_MODIFIED" = true ]; then
+            log_warn "⚠️  deployment.yaml이 수정되었지만 kubectl apply가 'unchanged'로 표시했습니다."
+            log_warn "⚠️  변경사항을 적용하기 위해 강제로 Pod를 재시작합니다."
+        fi
+    fi
 fi
 
 # ===================================
-# IMAGE_TAG가 latest일 때 rollout restart (일반 앱 모듈)
+# Pod 재시작 (rollout restart)
 # ===================================
-if [ "$IMAGE_TAG" = "latest" ] && [ -n "$DEPLOYMENT_NAME" ]; then
-    log_info "🔄 latest 태그 사용 중이므로 Pod 재시작 (rollout restart)..."
-    $KUBECTL_CMD rollout restart deployment/"$DEPLOYMENT_NAME" -n baro-prod || true
+# 1. IMAGE_TAG가 latest일 때
+# 2. 또는 deployment.yaml이 수정되었는데 unchanged가 나왔을 때
+if [ -n "$DEPLOYMENT_NAME" ]; then
+    if [ "$IMAGE_TAG" = "latest" ]; then
+        log_info "🔄 latest 태그 사용 중이므로 Pod 재시작 (rollout restart)..."
+        $KUBECTL_CMD rollout restart deployment/"$DEPLOYMENT_NAME" -n baro-prod || true
+    elif [ "$DEPLOYMENT_WAS_MODIFIED" = true ]; then
+        log_info "🔄 deployment.yaml 변경사항 적용을 위해 Pod 재시작 (rollout restart)..."
+        $KUBECTL_CMD rollout restart deployment/"$DEPLOYMENT_NAME" -n baro-prod || true
+    fi
 fi
 
 # ===================================
