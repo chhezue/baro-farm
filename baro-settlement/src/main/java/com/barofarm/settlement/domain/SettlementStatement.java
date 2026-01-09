@@ -67,4 +67,3 @@ public class SettlementStatement {
         this.status = status;
     }
 }
-

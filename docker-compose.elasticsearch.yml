@@ -18,13 +18,14 @@ services:
       - cluster.name=docker-cluster
       - discovery.type=single-node
       - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms192m -Xmx384m"
-    # deploy:
-    #   resources:
-    #     limits:
-    #       memory: 1G
-    #     reservations:
-    #       memory: 512M
+      - "ES_JAVA_OPTS=-Xms256m -Xmx512m"
+      - TINI_SUBREAPER=1
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 512M
     ulimits:
       memlock:
         soft: -1

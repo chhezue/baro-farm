@@ -14,4 +14,3 @@ public class SettlementApplication {
         SpringApplication.run(SettlementApplication.class, args);
     }
 }
-

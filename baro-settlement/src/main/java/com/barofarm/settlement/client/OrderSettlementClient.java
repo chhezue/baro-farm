@@ -17,4 +17,3 @@ public interface OrderSettlementClient {
         @RequestParam int size
     );
 }
-

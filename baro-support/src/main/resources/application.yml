@@ -36,10 +36,13 @@ spring:
       mail.smtp.ssl.enable: true
       mail.smtp.ssl.trust: smtp.naver.com
       
-  elasticsearch:
-    uris: ${SPRING_ELASTICSEARCH_URIS:http://elasticsearch:9200}
+  # elasticsearch:
+  #   uris: ${SPRING_ELASTICSEARCH_URIS:http://elasticsearch:9200}
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
     consumer:
       group-id: support-service
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer

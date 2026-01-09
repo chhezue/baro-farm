@@ -1,7 +1,7 @@
 package com.barofarm.settlement.application;
 
-import com.barofarm.settlement.common.exception.CustomException;
 import com.barofarm.settlement.application.dto.SettlementResponse;
+import com.barofarm.settlement.common.exception.CustomException;
 import com.barofarm.settlement.domain.SettlementStatement;
 import com.barofarm.settlement.domain.SettlementStatementRepository;
 import com.barofarm.settlement.exception.SettlementErrorCode;
@@ -30,4 +30,3 @@ public class SettlementService {
         return SettlementResponse.from(statement);
     }
 }
-

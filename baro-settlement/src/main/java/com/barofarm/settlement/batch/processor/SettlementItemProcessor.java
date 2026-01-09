@@ -54,4 +54,3 @@ public class SettlementItemProcessor
         return SettlementItem.of(orderInfo, calcInfo);
     }
 }
-

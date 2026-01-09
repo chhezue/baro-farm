@@ -11,4 +11,3 @@ public interface SettlementStatementRepository {
         LocalDate periodEnd
     );
 }
-

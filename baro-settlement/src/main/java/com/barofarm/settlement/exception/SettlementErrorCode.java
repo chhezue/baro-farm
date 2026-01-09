@@ -15,4 +15,3 @@ public enum SettlementErrorCode implements BaseErrorCode {
     private final HttpStatus status;
     private final String message;
 }
-

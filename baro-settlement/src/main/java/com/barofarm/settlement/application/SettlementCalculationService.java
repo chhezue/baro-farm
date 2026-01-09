@@ -25,4 +25,3 @@ public class SettlementCalculationService {
         return YearMonth.from(orderDate);
     }
 }
-

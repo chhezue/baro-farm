@@ -61,7 +61,15 @@ spec:
             - name: JAVA_OPTS
               value: "-Xms64m -Xmx128m"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms64m -Xmx128m -XX:NativeMemoryTracking=summary"
+              value: >
+                -Duser.timezone=Asia/Seoul
+                -Xms64m
+                -Xmx128m
+                -XX:MaxMetaspaceSize=128m
+                -XX:CompressedClassSpaceSize=64m
+                -XX:MaxDirectMemorySize=16m
+                -XX:ReservedCodeCacheSize=24m
+                -XX:NativeMemoryTracking=summary
             # MySQL 설정
             - name: MYSQL_DATABASE
               value: "baroauth"
@@ -82,6 +90,12 @@ spec:
               value: "CHANGE_ME_TO_EC2_IP"  # 배포 스크립트가 자동으로 Data EC2 IP로 치환
             - name: SPRING_DATASOURCE_URL
               value: "jdbc:mysql://CHANGE_ME_TO_EC2_IP:3306/baroauth?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true"
+            # Kafka 설정 (Data EC2 - Public EC2)
+            # DEPLOY_KAFKA == false 일 때 localhost:29092 사용
+            # DEPLOY_KAFKA == true 일 때 CHANGE_ME_TO_EC2_IP:29092 사용
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: "CHANGE_ME_TO_EC2_IP:29092"  # 배포 스크립트가 자동으로 Data EC2 IP로 치환
+              # value: "http://localhost:29092" # Kafka는 같은 Private EC2에 docker-compose로 실행됨
             # 이메일 설정
             - name: SPRING_MAIL_USERNAME
               valueFrom:
@@ -93,11 +107,13 @@ spec:
                 secretKeyRef:
                   name: baro-secrets
                   key: SPRING_MAIL_PASSWORD
-          resources:
-            requests:
-              memory: "128Mi"
-            limits:
-              memory: "310Mi"
+          # resources:
+          #   requests:
+          #     cpu: "100m"
+          #     memory: "256Mi"
+          #   limits:
+          #     cpu: "500m"
+          #     memory: "416Mi"  # 실제 RSS: 339MB
           livenessProbe:
             httpGet:
               path: /actuator/health

@@ -27,4 +27,3 @@ public record ResponseDto<T>(
         return new ResponseDto<>(status, null, message);
     }
 }
-
