@@ -644,15 +644,12 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
     fi
     
     # 임시 deployment.yaml을 원본 위치에 복사 (kustomize가 읽을 수 있도록)
-    # 원본 파일이 존재하면 백업 생성 (기존 파일 보존)
-    if [ -f "$DEPLOYMENT_FILE" ]; then
-        BACKUP_FILE="${DEPLOYMENT_FILE}.bak.$(date +%Y%m%d_%H%M%S)"
-        cp "$DEPLOYMENT_FILE" "$BACKUP_FILE" 2>/dev/null || true
-        log_info "💾 원본 파일 백업: $BACKUP_FILE"
-    fi
+    # 매 배포마다 GitHub Actions가 최신 k8s 디렉토리를 복사하므로, 수정된 파일을 그대로 사용
     cp "$TEMP_DEPLOYMENT" "$DEPLOYMENT_FILE"
     rm -f "$TEMP_DEPLOYMENT"
-    log_info "✅ Deployment 파일 업데이트 완료 (원본 파일 백업됨)"
+    log_info "✅ Deployment 파일 업데이트 완료 (수정된 파일로 배포 예정)"
+    log_info "📝 수정된 deployment.yaml 내용 확인:"
+    grep -A 2 "SPRING_KAFKA_BOOTSTRAP_SERVERS\|SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE" || true
 else
     log_error "Deployment 파일을 찾을 수 없습니다: $DEPLOYMENT_FILE"
     exit 1
@@ -755,6 +752,14 @@ if [ $APPLY_EXIT_CODE -ne 0 ]; then
 else
     # 성공 시 출력
     echo "$APPLY_OUTPUT"
+    log_info "✅ kubectl apply 성공!"
+    log_info "📝 배포에 사용된 deployment.yaml의 환경 변수 확인:"
+    if [ -f "$DEPLOYMENT_FILE" ]; then
+        log_info "   SPRING_KAFKA_BOOTSTRAP_SERVERS:"
+        grep -A 1 "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$DEPLOYMENT_FILE" | grep "value:" || true
+        log_info "   SPRING_ELASTICSEARCH_URIS:"
+        grep -A 1 "SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE" | grep "value:" || true
+    fi
 fi
 
 # ===================================
