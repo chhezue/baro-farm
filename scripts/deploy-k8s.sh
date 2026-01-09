@@ -75,6 +75,7 @@ K8S_BASE_DIR=""
 
 # 여러 경로에서 k8s 디렉토리 찾기 (우선순위 순)
 # GitHub Actions runner에서는 워크스페이스의 k8s 디렉토리를 우선 사용
+# EC2 배포 시에는 /home/ubuntu/apps/k8s를 사용 (배포 기준 디렉토리)
 if [ -d "$SCRIPT_DIR/../k8s/cloud" ]; then
     # 스크립트 기준 상대 경로 (GitHub Actions runner에서 가장 가능성 높음)
     K8S_BASE_DIR="$SCRIPT_DIR/../k8s"
@@ -85,10 +86,10 @@ elif [ -d "./k8s/cloud" ]; then
     # 현재 디렉토리 기준
     K8S_BASE_DIR="./k8s"
 elif [ -d "/home/ubuntu/apps/k8s/cloud" ]; then
-    # EC2 배포 기준 디렉토리 (self-hosted runner용)
+    # EC2 배포 기준 디렉토리 (배포 스크립트가 사용하는 경로)
     K8S_BASE_DIR="/home/ubuntu/apps/k8s"
 elif [ -d "/home/ubuntu/apps/BE/k8s/cloud" ]; then
-    # EC2 BE 디렉토리
+    # EC2 BE 디렉토리 (fallback)
     K8S_BASE_DIR="/home/ubuntu/apps/BE/k8s"
 else
     log_error "k8s 디렉토리를 찾을 수 없습니다."
