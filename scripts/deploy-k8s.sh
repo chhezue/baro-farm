@@ -538,15 +538,29 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
         # Kafka는 Public EC2에 docker-compose로 실행되므로 Public EC2 IP 사용
         # DEPLOY_KAFKA=true일 때 Public EC2에 배포되므로 Data EC2 IP 사용
         if grep -q "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT"; then
+            log_info "🔍 Kafka Bootstrap Servers 치환 전 확인:"
+            grep -A 1 "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT" || true
+            
             # 127.0.0.1:29092 패턴을 Data EC2 IP로 변경 (Kafka가 Public EC2에 있으므로)
             sed "s|127\.0\.0\.1:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
             mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
             # localhost:29092 패턴도 Data EC2 IP로 변경
             sed "s|localhost:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
             mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+            # http://localhost:29092 패턴도 처리
+            sed "s|http://localhost:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+            
+            log_info "🔍 Kafka Bootstrap Servers 치환 후 확인:"
+            grep -A 1 "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT" || true
+            
             # 이미 전역 치환으로 DATA_EC2_IP:29092로 설정되어 있거나, 위에서 치환됨
             if grep -q "$DATA_EC2_IP:29092" "$TEMP_DEPLOYMENT"; then
                 log_info "✅ SPRING_KAFKA_BOOTSTRAP_SERVERS: $DATA_EC2_IP:29092 사용 (Public EC2에서 실행 중)"
+            else
+                log_warn "⚠️  SPRING_KAFKA_BOOTSTRAP_SERVERS에 $DATA_EC2_IP:29092가 설정되지 않았습니다!"
+                log_warn "현재 설정값:"
+                grep -A 1 "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT" || true
             fi
         fi
         
@@ -578,6 +592,33 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
         log_error "배포를 중단합니다. 스크립트를 확인하세요."
         rm -f "$TEMP_DEPLOYMENT"
         exit 1
+    fi
+    
+    # 최종 검증: 127.0.0.1이나 localhost가 Kafka/Elasticsearch에 남아있는지 확인
+    if [[ "$DEPLOY_PATH" == *"/apps/"* ]]; then
+        if grep -q "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT"; then
+            if grep -q "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT" && (grep -q "127\.0\.0\.1:29092\|localhost:29092" "$TEMP_DEPLOYMENT"); then
+                log_warn "⚠️  SPRING_KAFKA_BOOTSTRAP_SERVERS에 127.0.0.1 또는 localhost가 남아있습니다!"
+                log_warn "강제로 $DATA_EC2_IP:29092로 변경합니다."
+                sed -i.bak "s|value: \".*127\.0\.0\.1:29092.*\"|value: \"$DATA_EC2_IP:29092\"|g" "$TEMP_DEPLOYMENT" 2>/dev/null || \
+                sed "s|value: \".*127\.0\.0\.1:29092.*\"|value: \"$DATA_EC2_IP:29092\"|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp" && mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                sed -i.bak "s|value: \".*localhost:29092.*\"|value: \"$DATA_EC2_IP:29092\"|g" "$TEMP_DEPLOYMENT" 2>/dev/null || \
+                sed "s|value: \".*localhost:29092.*\"|value: \"$DATA_EC2_IP:29092\"|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp" && mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                rm -f "${TEMP_DEPLOYMENT}.bak" 2>/dev/null || true
+            fi
+        fi
+        
+        if grep -q "SPRING_ELASTICSEARCH_URIS" "$TEMP_DEPLOYMENT"; then
+            if grep -q "SPRING_ELASTICSEARCH_URIS" "$TEMP_DEPLOYMENT" && (grep -q "127\.0\.0\.1:9200\|localhost:9200" "$TEMP_DEPLOYMENT"); then
+                log_warn "⚠️  SPRING_ELASTICSEARCH_URIS에 127.0.0.1 또는 localhost가 남아있습니다!"
+                log_warn "강제로 $DATA_EC2_IP:9200로 변경합니다."
+                sed -i.bak "s|value: \".*127\.0\.0\.1:9200.*\"|value: \"$DATA_EC2_IP:9200\"|g" "$TEMP_DEPLOYMENT" 2>/dev/null || \
+                sed "s|value: \".*127\.0\.0\.1:9200.*\"|value: \"$DATA_EC2_IP:9200\"|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp" && mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                sed -i.bak "s|value: \".*localhost:9200.*\"|value: \"$DATA_EC2_IP:9200\"|g" "$TEMP_DEPLOYMENT" 2>/dev/null || \
+                sed "s|value: \".*localhost:9200.*\"|value: \"$DATA_EC2_IP:9200\"|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp" && mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                rm -f "${TEMP_DEPLOYMENT}.bak" 2>/dev/null || true
+            fi
+        fi
     fi
     
     # 임시 deployment.yaml을 원본 위치에 복사 (kustomize가 읽을 수 있도록)
