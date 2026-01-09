@@ -74,8 +74,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K8S_BASE_DIR=""
 
 # 여러 경로에서 k8s 디렉토리 찾기 (우선순위 순)
-# GitHub Actions runner에서는 워크스페이스의 k8s 디렉토리를 우선 사용
-if [ -d "$SCRIPT_DIR/../k8s/cloud" ]; then
+# EC2 배포 시에는 절대 경로 /home/ubuntu/apps/k8s를 우선 사용 (GitHub Actions가 복사하는 경로)
+# GitHub Actions runner에서는 워크스페이스의 k8s 디렉토리를 사용
+if [ -d "/home/ubuntu/apps/k8s/cloud" ]; then
+    # EC2 배포 기준 디렉토리 (GitHub Actions가 복사하는 경로 - 최우선)
+    K8S_BASE_DIR="/home/ubuntu/apps/k8s"
+elif [ -d "$SCRIPT_DIR/../k8s/cloud" ]; then
     # 스크립트 기준 상대 경로 (GitHub Actions runner에서 가장 가능성 높음)
     K8S_BASE_DIR="$SCRIPT_DIR/../k8s"
 elif [ -d "$SCRIPT_DIR/../../k8s/cloud" ]; then
@@ -84,19 +88,16 @@ elif [ -d "$SCRIPT_DIR/../../k8s/cloud" ]; then
 elif [ -d "./k8s/cloud" ]; then
     # 현재 디렉토리 기준
     K8S_BASE_DIR="./k8s"
-elif [ -d "/home/ubuntu/apps/k8s/cloud" ]; then
-    # EC2 배포 기준 디렉토리 (self-hosted runner용)
-    K8S_BASE_DIR="/home/ubuntu/apps/k8s"
 elif [ -d "/home/ubuntu/apps/BE/k8s/cloud" ]; then
-    # EC2 BE 디렉토리
+    # EC2 BE 디렉토리 (fallback)
     K8S_BASE_DIR="/home/ubuntu/apps/BE/k8s"
 else
     log_error "k8s 디렉토리를 찾을 수 없습니다."
     log_error "다음 경로를 확인했습니다:"
+    log_error "  - /home/ubuntu/apps/k8s"
     log_error "  - $SCRIPT_DIR/../k8s"
     log_error "  - $SCRIPT_DIR/../../k8s"
     log_error "  - ./k8s"
-    log_error "  - /home/ubuntu/apps/k8s"
     log_error "  - /home/ubuntu/apps/BE/k8s"
     exit 1
 fi
@@ -534,11 +535,75 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
             log_info "✅ EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: localhost:8761 → $DATA_EC2_IP:8761"
         fi
         
-        # Elasticsearch URI는 치환하지 않음 (localhost:9200 유지)
-        # Elasticsearch는 Private EC2에 docker-compose로 실행되므로 localhost로 접근
-        # hostNetwork: true를 사용하는 Pod이므로 localhost:9200이 올바른 접근 방법
-        if grep -q "localhost:9200" "$TEMP_DEPLOYMENT"; then
-            log_info "ℹ️  Elasticsearch URI는 localhost:9200으로 유지 (Private EC2에서 실행 중)"
+        # Kafka Bootstrap Servers 처리
+        # DEPLOY_KAFKA=true일 때: Public EC2에 배포되므로 DATA_EC2_IP 사용
+        # DEPLOY_KAFKA=false일 때: Private EC2에 배포되거나 미배포이므로 localhost 사용
+        if grep -q "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT"; then
+            log_info "🔍 Kafka Bootstrap Servers 치환 전 확인:"
+            grep -A 1 "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT" || true
+            
+            if [ "${DEPLOY_KAFKA:-false}" = "true" ]; then
+                log_info "📦 DEPLOY_KAFKA=true: Kafka는 Public EC2에 배포되므로 $DATA_EC2_IP:29092 사용"
+                # 127.0.0.1:29092 패턴을 Data EC2 IP로 변경
+                sed "s|127\.0\.0\.1:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # localhost:29092 패턴도 Data EC2 IP로 변경
+                sed "s|localhost:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # http://localhost:29092 패턴도 처리
+                sed "s|http://localhost:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # CHANGE_ME_TO_EC2_IP:29092는 이미 전역 치환으로 DATA_EC2_IP:29092로 변경됨
+                if grep -q "$DATA_EC2_IP:29092" "$TEMP_DEPLOYMENT"; then
+                    log_info "✅ SPRING_KAFKA_BOOTSTRAP_SERVERS: $DATA_EC2_IP:29092 사용 (Public EC2에서 실행 중)"
+                fi
+            else
+                log_info "📦 DEPLOY_KAFKA=false: Kafka는 Private EC2에 배포되거나 미배포이므로 localhost:29092 유지"
+                # CHANGE_ME_TO_EC2_IP:29092를 localhost:29092로 변경
+                sed "s|$DATA_EC2_IP:29092|localhost:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # localhost:29092가 이미 설정되어 있으면 유지
+                if grep -q "localhost:29092\|127\.0\.0\.1:29092" "$TEMP_DEPLOYMENT"; then
+                    log_info "✅ SPRING_KAFKA_BOOTSTRAP_SERVERS: localhost:29092 사용 (Private EC2에서 실행 중 또는 미배포)"
+                fi
+            fi
+            
+            log_info "🔍 Kafka Bootstrap Servers 치환 후 확인:"
+            grep -A 1 "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT" || true
+        fi
+        
+        # Elasticsearch URI 처리
+        # DEPLOY_ELASTICSEARCH=true일 때: Public EC2에 배포되므로 DATA_EC2_IP 사용
+        # DEPLOY_ELASTICSEARCH=false일 때: Private EC2에 배포되거나 미배포이므로 localhost 사용
+        if grep -q "SPRING_ELASTICSEARCH_URIS" "$TEMP_DEPLOYMENT"; then
+            if [ "${DEPLOY_ELASTICSEARCH:-false}" = "true" ]; then
+                log_info "📦 DEPLOY_ELASTICSEARCH=true: Elasticsearch는 Public EC2에 배포되므로 $DATA_EC2_IP:9200 사용"
+                # 127.0.0.1:9200 패턴을 Data EC2 IP로 변경
+                sed "s|127\.0\.0\.1:9200|$DATA_EC2_IP:9200|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # localhost:9200 패턴도 Data EC2 IP로 변경
+                sed "s|localhost:9200|$DATA_EC2_IP:9200|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # http://localhost:9200 패턴도 처리
+                sed "s|http://localhost:9200|http://$DATA_EC2_IP:9200|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # CHANGE_ME_TO_EC2_IP:9200는 이미 전역 치환으로 DATA_EC2_IP:9200로 변경됨
+                if grep -q "$DATA_EC2_IP:9200" "$TEMP_DEPLOYMENT"; then
+                    log_info "✅ SPRING_ELASTICSEARCH_URIS: $DATA_EC2_IP:9200 사용 (Public EC2에서 실행 중)"
+                fi
+            else
+                log_info "📦 DEPLOY_ELASTICSEARCH=false: Elasticsearch는 Private EC2에 배포되거나 미배포이므로 localhost:9200 유지"
+                # CHANGE_ME_TO_EC2_IP:9200를 localhost:9200로 변경
+                sed "s|$DATA_EC2_IP:9200|localhost:9200|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # http://localhost:9200 패턴도 유지
+                sed "s|http://$DATA_EC2_IP:9200|http://localhost:9200|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # localhost:9200가 이미 설정되어 있으면 유지
+                if grep -q "localhost:9200\|127\.0\.0\.1:9200" "$TEMP_DEPLOYMENT"; then
+                    log_info "✅ SPRING_ELASTICSEARCH_URIS: localhost:9200 사용 (Private EC2에서 실행 중 또는 미배포)"
+                fi
+            fi
         fi
     fi
     
@@ -552,16 +617,40 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
         exit 1
     fi
     
-    # 임시 deployment.yaml을 원본 위치에 복사 (kustomize가 읽을 수 있도록)
-    # 원본 파일이 존재하면 백업 생성 (기존 파일 보존)
-    if [ -f "$DEPLOYMENT_FILE" ]; then
-        BACKUP_FILE="${DEPLOYMENT_FILE}.bak.$(date +%Y%m%d_%H%M%S)"
-        cp "$DEPLOYMENT_FILE" "$BACKUP_FILE" 2>/dev/null || true
-        log_info "💾 원본 파일 백업: $BACKUP_FILE"
+    # 최종 검증: 127.0.0.1이나 localhost가 Kafka/Elasticsearch에 남아있는지 확인
+    if [[ "$DEPLOY_PATH" == *"/apps/"* ]]; then
+        if grep -q "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT"; then
+            if grep -q "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT" && (grep -q "127\.0\.0\.1:29092\|localhost:29092" "$TEMP_DEPLOYMENT"); then
+                log_warn "⚠️  SPRING_KAFKA_BOOTSTRAP_SERVERS에 127.0.0.1 또는 localhost가 남아있습니다!"
+                log_warn "강제로 $DATA_EC2_IP:29092로 변경합니다."
+                sed -i.bak "s|value: \".*127\.0\.0\.1:29092.*\"|value: \"$DATA_EC2_IP:29092\"|g" "$TEMP_DEPLOYMENT" 2>/dev/null || \
+                sed "s|value: \".*127\.0\.0\.1:29092.*\"|value: \"$DATA_EC2_IP:29092\"|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp" && mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                sed -i.bak "s|value: \".*localhost:29092.*\"|value: \"$DATA_EC2_IP:29092\"|g" "$TEMP_DEPLOYMENT" 2>/dev/null || \
+                sed "s|value: \".*localhost:29092.*\"|value: \"$DATA_EC2_IP:29092\"|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp" && mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                rm -f "${TEMP_DEPLOYMENT}.bak" 2>/dev/null || true
+            fi
+        fi
+        
+        if grep -q "SPRING_ELASTICSEARCH_URIS" "$TEMP_DEPLOYMENT"; then
+            if grep -q "SPRING_ELASTICSEARCH_URIS" "$TEMP_DEPLOYMENT" && (grep -q "127\.0\.0\.1:9200\|localhost:9200" "$TEMP_DEPLOYMENT"); then
+                log_warn "⚠️  SPRING_ELASTICSEARCH_URIS에 127.0.0.1 또는 localhost가 남아있습니다!"
+                log_warn "강제로 $DATA_EC2_IP:9200로 변경합니다."
+                sed -i.bak "s|value: \".*127\.0\.0\.1:9200.*\"|value: \"$DATA_EC2_IP:9200\"|g" "$TEMP_DEPLOYMENT" 2>/dev/null || \
+                sed "s|value: \".*127\.0\.0\.1:9200.*\"|value: \"$DATA_EC2_IP:9200\"|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp" && mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                sed -i.bak "s|value: \".*localhost:9200.*\"|value: \"$DATA_EC2_IP:9200\"|g" "$TEMP_DEPLOYMENT" 2>/dev/null || \
+                sed "s|value: \".*localhost:9200.*\"|value: \"$DATA_EC2_IP:9200\"|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp" && mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                rm -f "${TEMP_DEPLOYMENT}.bak" 2>/dev/null || true
+            fi
+        fi
     fi
+    
+    # 임시 deployment.yaml을 원본 위치에 복사 (kustomize가 읽을 수 있도록)
+    # 매 배포마다 GitHub Actions가 최신 k8s 디렉토리를 복사하므로, 수정된 파일을 그대로 사용
     cp "$TEMP_DEPLOYMENT" "$DEPLOYMENT_FILE"
     rm -f "$TEMP_DEPLOYMENT"
-    log_info "✅ Deployment 파일 업데이트 완료 (원본 파일 백업됨)"
+    log_info "✅ Deployment 파일 업데이트 완료 (수정된 파일로 배포 예정)"
+    log_info "📝 수정된 deployment.yaml 내용 확인:"
+    grep -A 2 "SPRING_KAFKA_BOOTSTRAP_SERVERS\|SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE" || true
 else
     log_error "Deployment 파일을 찾을 수 없습니다: $DEPLOYMENT_FILE"
     exit 1
@@ -664,14 +753,61 @@ if [ $APPLY_EXIT_CODE -ne 0 ]; then
 else
     # 성공 시 출력
     echo "$APPLY_OUTPUT"
+    log_info "✅ kubectl apply 성공!"
+    log_info "📝 배포에 사용된 deployment.yaml의 환경 변수 확인:"
+    if [ -f "$DEPLOYMENT_FILE" ]; then
+        log_info "   SPRING_KAFKA_BOOTSTRAP_SERVERS:"
+        grep -A 1 "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$DEPLOYMENT_FILE" | grep "value:" || true
+        log_info "   SPRING_ELASTICSEARCH_URIS:"
+        grep -A 1 "SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE" | grep "value:" || true
+    fi
+    
+    # unchanged가 나왔지만 deployment.yaml이 수정되었는지 확인
+    DEPLOYMENT_WAS_MODIFIED=false
+    if echo "$APPLY_OUTPUT" | grep -q "unchanged"; then
+        log_info "🔍 kubectl apply에서 'unchanged' 감지됨"
+        # deployment.yaml이 수정되었는지 확인 (127.0.0.1이나 localhost가 없고 DATA_EC2_IP가 있는지)
+        if [ -f "$DEPLOYMENT_FILE" ] && [ -n "$DATA_EC2_IP" ]; then
+            # Kafka나 Elasticsearch 설정에 DATA_EC2_IP가 포함되어 있고, 127.0.0.1이나 localhost가 없으면 수정된 것
+            if grep -q "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$DEPLOYMENT_FILE" && \
+               grep "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$DEPLOYMENT_FILE" | grep -q "$DATA_EC2_IP" && \
+               ! grep "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$DEPLOYMENT_FILE" | grep -qE "127\.0\.0\.1|localhost"; then
+                DEPLOYMENT_WAS_MODIFIED=true
+                log_info "✅ deployment.yaml이 수정되었습니다 (Kafka: $DATA_EC2_IP 사용)"
+            fi
+            if grep -q "SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE" && \
+               grep "SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE" | grep -q "$DATA_EC2_IP" && \
+               ! grep "SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE" | grep -qE "127\.0\.0\.1|localhost"; then
+                DEPLOYMENT_WAS_MODIFIED=true
+                log_info "✅ deployment.yaml이 수정되었습니다 (Elasticsearch: $DATA_EC2_IP 사용)"
+            fi
+            # CHANGE_ME_TO_EC2_IP가 없고 DATA_EC2_IP가 있으면 수정된 것
+            if ! grep -q "CHANGE_ME_TO_EC2_IP" "$DEPLOYMENT_FILE" && grep -q "$DATA_EC2_IP" "$DEPLOYMENT_FILE"; then
+                DEPLOYMENT_WAS_MODIFIED=true
+                log_info "✅ deployment.yaml이 수정되었습니다 (IP 치환 완료)"
+            fi
+        fi
+        
+        if [ "$DEPLOYMENT_WAS_MODIFIED" = true ]; then
+            log_warn "⚠️  deployment.yaml이 수정되었지만 kubectl apply가 'unchanged'로 표시했습니다."
+            log_warn "⚠️  변경사항을 적용하기 위해 강제로 Pod를 재시작합니다."
+        fi
+    fi
 fi
 
 # ===================================
-# IMAGE_TAG가 latest일 때 rollout restart (일반 앱 모듈)
+# Pod 재시작 (rollout restart)
 # ===================================
-if [ "$IMAGE_TAG" = "latest" ] && [ -n "$DEPLOYMENT_NAME" ]; then
-    log_info "🔄 latest 태그 사용 중이므로 Pod 재시작 (rollout restart)..."
-    $KUBECTL_CMD rollout restart deployment/"$DEPLOYMENT_NAME" -n baro-prod || true
+# 1. IMAGE_TAG가 latest일 때
+# 2. 또는 deployment.yaml이 수정되었는데 unchanged가 나왔을 때
+if [ -n "$DEPLOYMENT_NAME" ]; then
+    if [ "$IMAGE_TAG" = "latest" ]; then
+        log_info "🔄 latest 태그 사용 중이므로 Pod 재시작 (rollout restart)..."
+        $KUBECTL_CMD rollout restart deployment/"$DEPLOYMENT_NAME" -n baro-prod || true
+    elif [ "$DEPLOYMENT_WAS_MODIFIED" = true ]; then
+        log_info "🔄 deployment.yaml 변경사항 적용을 위해 Pod 재시작 (rollout restart)..."
+        $KUBECTL_CMD rollout restart deployment/"$DEPLOYMENT_NAME" -n baro-prod || true
+    fi
 fi
 
 # ===================================
