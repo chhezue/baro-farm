@@ -62,18 +62,31 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K8S_BASE_DIR=""
 
 # 여러 경로에서 k8s 디렉토리 찾기 (우선순위 순)
-if [ -d "/home/ubuntu/apps/k8s/cloud" ]; then
-    K8S_BASE_DIR="/home/ubuntu/apps/k8s"
-elif [ -d "$SCRIPT_DIR/../k8s/cloud" ]; then
+# GitHub Actions runner에서는 워크스페이스의 k8s 디렉토리를 우선 사용
+# SSH 원격 실행 시에는 EC2 경로를 사용
+if [ -d "$SCRIPT_DIR/../k8s/cloud" ]; then
+    # 스크립트 기준 상대 경로 (GitHub Actions runner에서 가장 가능성 높음)
     K8S_BASE_DIR="$SCRIPT_DIR/../k8s"
 elif [ -d "$SCRIPT_DIR/../../k8s/cloud" ]; then
+    # 스크립트 기준 상위 상위 경로
     K8S_BASE_DIR="$SCRIPT_DIR/../../k8s"
-elif [ -d "/home/ubuntu/apps/BE/k8s/cloud" ]; then
-    K8S_BASE_DIR="/home/ubuntu/apps/BE/k8s"
 elif [ -d "./k8s/cloud" ]; then
+    # 현재 디렉토리 기준
     K8S_BASE_DIR="./k8s"
+elif [ -d "/home/ubuntu/apps/k8s/cloud" ]; then
+    # EC2 배포 기준 디렉토리 (SSH 원격 실행용)
+    K8S_BASE_DIR="/home/ubuntu/apps/k8s"
+elif [ -d "/home/ubuntu/apps/BE/k8s/cloud" ]; then
+    # EC2 BE 디렉토리
+    K8S_BASE_DIR="/home/ubuntu/apps/BE/k8s"
 else
     log_error "k8s 디렉토리를 찾을 수 없습니다."
+    log_error "다음 경로를 확인했습니다:"
+    log_error "  - $SCRIPT_DIR/../k8s"
+    log_error "  - $SCRIPT_DIR/../../k8s"
+    log_error "  - ./k8s"
+    log_error "  - /home/ubuntu/apps/k8s"
+    log_error "  - /home/ubuntu/apps/BE/k8s"
     exit 1
 fi
 
@@ -182,10 +195,15 @@ fi
 KUSTOMIZATION_FILE="$DEPLOY_PATH/kustomization.yaml"
 if [ -f "$KUSTOMIZATION_FILE" ] && [ "$IMAGE_TAG" != "latest" ]; then
     log_step "🏷️  이미지 태그 업데이트: $IMAGE_TAG"
-    sed -i.bak "s|newTag: latest|newTag: ${IMAGE_TAG}|g" "$KUSTOMIZATION_FILE" 2>/dev/null || \
-    sed -i "s|newTag: latest|newTag: ${IMAGE_TAG}|g" "$KUSTOMIZATION_FILE" 2>/dev/null || true
-    rm -f "${KUSTOMIZATION_FILE}.bak" 2>/dev/null || true
-    log_info "✅ kustomization.yaml 이미지 태그 업데이트 완료"
+    # kustomization.yaml에서 이미지 태그 업데이트 (백업 파일 생성)
+    if sed -i.bak "s|newTag: latest|newTag: ${IMAGE_TAG}|g" "$KUSTOMIZATION_FILE" 2>/dev/null || \
+       sed -i "s|newTag: latest|newTag: ${IMAGE_TAG}|g" "$KUSTOMIZATION_FILE" 2>/dev/null; then
+        # 백업 파일은 배포 후 정리 (또는 보존)
+        # rm -f "${KUSTOMIZATION_FILE}.bak" 2>/dev/null || true
+        log_info "✅ kustomization.yaml 이미지 태그 업데이트 완료 (백업 파일: ${KUSTOMIZATION_FILE}.bak)"
+    else
+        log_warn "⚠️  kustomization.yaml 이미지 태그 업데이트 실패, 기존 설정 사용"
+    fi
 fi
 
 # ===================================
@@ -255,17 +273,26 @@ if [ -f "$DAEMONSET_FILE" ]; then
         fi
     fi
     
-    # 최종 검증
+    # 최종 검증: CHANGE_ME_TO_EC2_IP가 남아있는지 확인
     if grep -q "CHANGE_ME_TO_EC2_IP" "$TEMP_DAEMONSET"; then
         log_error "❌ 치환되지 않은 CHANGE_ME_TO_EC2_IP가 남아있습니다!"
+        log_error "다음 위치에서 발견:"
         grep -n "CHANGE_ME_TO_EC2_IP" "$TEMP_DAEMONSET" || true
+        log_error "배포를 중단합니다. 스크립트를 확인하세요."
         rm -f "$TEMP_DAEMONSET"
         exit 1
     fi
     
-    # 임시 daemonset.yaml을 원본 위치에 복사
+    # 임시 daemonset.yaml을 원본 위치에 복사 (kustomize가 읽을 수 있도록)
+    # 원본 파일이 존재하면 백업 생성 (기존 파일 보존)
+    if [ -f "$DAEMONSET_FILE" ]; then
+        BACKUP_FILE="${DAEMONSET_FILE}.bak.$(date +%Y%m%d_%H%M%S)"
+        cp "$DAEMONSET_FILE" "$BACKUP_FILE" 2>/dev/null || true
+        log_info "💾 원본 파일 백업: $BACKUP_FILE"
+    fi
     cp "$TEMP_DAEMONSET" "$DAEMONSET_FILE"
     rm -f "$TEMP_DAEMONSET"
+    log_info "✅ DaemonSet 파일 업데이트 완료 (원본 파일 백업됨)"
 else
     log_error "DaemonSet 파일을 찾을 수 없습니다: $DAEMONSET_FILE"
     exit 1
