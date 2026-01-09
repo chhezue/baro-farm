@@ -1,81 +1,116 @@
 package com.barofarm.buyer.inventory.application;
 
-import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INVALID_REQUEST;
-import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INVENTORY_NOT_FOUND;
-
 import com.barofarm.buyer.common.exception.CustomException;
-import com.barofarm.buyer.inventory.application.dto.request.InventoryDecreaseCommand;
-import com.barofarm.buyer.inventory.application.dto.request.InventoryIncreaseCommand;
-import com.barofarm.buyer.inventory.domain.Inventory;
-import com.barofarm.buyer.inventory.domain.InventoryRepository;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import com.barofarm.buyer.inventory.application.dto.request.*;
+import com.barofarm.buyer.inventory.domain.*;
+import java.util.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.*;
 
 @Service
 @RequiredArgsConstructor
 public class InventoryService {
 
     private final InventoryRepository inventoryRepository;
+    private final InventoryReservationRepository inventoryReservationRepository;
 
     @Transactional
-    public void decreaseStock(InventoryDecreaseCommand command) {
+    public void reserveInventory(InventoryReserveCommand command){
 
-        Set<UUID> productIds = command.items().stream()
-            .map(InventoryDecreaseCommand.Item::productId)
-            .collect(Collectors.toSet());
-
-        if (productIds.isEmpty()) {
-            throw new CustomException(INVALID_REQUEST);
-        }
-
-        List<Inventory> inventories = inventoryRepository.findByProductIdInForUpdate(productIds);
-
-        Map<UUID, Inventory> inventoryMap = inventories.stream()
-            .collect(Collectors.toMap(
-                Inventory::getProductId,
-                Function.identity()
-            ));
-
-        for (InventoryDecreaseCommand.Item item : command.items()) {
-            Inventory inventory = inventoryMap.get(item.productId());
-            if (inventory == null) {
-                throw new CustomException(INVENTORY_NOT_FOUND);
+        try{
+            // 멱등성 검증 로직 : 이미 커밋된 후 나중에 다시 호출된 경우
+            List<InventoryReservation> reservations = inventoryReservationRepository.findAllByOrderId(command.orderId());
+            boolean allReserved = !reservations.isEmpty() &&
+                reservations.stream()
+                    .allMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.RESERVED);
+            if (allReserved) {
+                return;
             }
-            inventory.decrease(item.quantity());
+
+            for (InventoryReserveCommand.Item item : command.items()) {
+                Inventory inventory = inventoryRepository.findById(item.inventoryId())
+                    .orElseThrow(() -> new CustomException(INVENTORY_NOT_FOUND));
+
+                inventory.markReserve(item.quantity());
+                inventory.addInventoryReservation(
+                    InventoryReservation.of(command.orderId(), item.quantity())
+                );
+            }
+        }
+        // 멱등성 검증 로직 : 동시에 두번 들어가서 유니크 키 충돌이 발생하는 경우(낙관적 락 충돌보다 먼저 일어나는 케이스 보정)
+        catch(DataIntegrityViolationException e){
+
+            List<InventoryReservation> existing = inventoryReservationRepository.findAllByOrderId(command.orderId());
+            boolean allReserved = !existing.isEmpty() &&
+                existing.stream()
+                    .allMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.RESERVED);
+            if (allReserved) {
+                return;
+            }
+            throw e;
         }
     }
 
-    @Transactional
-    public void increaseStock(InventoryIncreaseCommand command) {
-        Set<UUID> productIds = command.items().stream()
-                .map(InventoryIncreaseCommand.Item::productId)
-                .collect(Collectors.toSet());
+    // 카프카로 처리해야 함.
+//    @Transactional
+//    public void confirmInventory(InventoryConfirmCommand command) {
+//        List<InventoryReservation> reservations = inventoryReservationRepository.findAllByOrderId(command.orderId());
+//
+//        if(reservations.isEmpty()){
+//            throw new CustomException(INVENTORY_RESERVATION_NOT_FOUND);
+//        }
+//
+//        boolean allConfirmed = reservations.stream()
+//            .allMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.CONFIRMED);
+//        if (allConfirmed) {
+//            return;
+//        }
+//
+//        boolean anyCanceled = reservations.stream()
+//            .anyMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.CANCELED);
+//        if (anyCanceled) {
+//            throw new CustomException(ALREADY_CANCELED);
+//        }
+//
+//        for(InventoryReservation inventoryReservation : reservations){
+//            Inventory inventory = inventoryReservation.getInventory();
+//            Long requestedQuantity = inventoryReservation.getReservedQuantity();
+//
+//            inventory.confirm(requestedQuantity);
+//            inventoryReservation.confirm();
+//        }
+//    }
 
-        if (productIds.isEmpty()) {
-            throw new CustomException(INVALID_REQUEST);
+    @Transactional
+    public void cancelInventory(InventoryCancelCommand command) {
+
+        List<InventoryReservation> reservations = inventoryReservationRepository.findAllByOrderId(command.orderId());
+
+        if(reservations.isEmpty()){
+            throw new CustomException(INVENTORY_RESERVATION_NOT_FOUND);
         }
 
-        List<Inventory> inventories = inventoryRepository.findByProductIdInForUpdate(productIds);
+        boolean allCanceled = reservations.stream()
+            .allMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.CANCELED);
+        if (allCanceled) {
+            return;
+        }
 
-        Map<UUID, Inventory> inventoryMap = inventories.stream()
-                .collect(Collectors.toMap(
-                        Inventory::getProductId,
-                        Function.identity()
-                ));
+        boolean anyConfirmed = reservations.stream()
+            .anyMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.CONFIRMED);
+        if (anyConfirmed) {
+            throw new CustomException(ALREADY_CONFIRMED);
+        }
 
-        for (InventoryIncreaseCommand.Item item : command.items()) {
-            Inventory inventory = inventoryMap.get(item.productId());
-            if (inventory == null) {
-                throw new CustomException(INVENTORY_NOT_FOUND);
-            }
-            inventory.increase(item.quantity());
+        for (InventoryReservation inventoryReservation : reservations) {
+            Inventory inventory = inventoryReservation.getInventory();
+            Long requestedQuantity = inventoryReservation.getReservedQuantity();
+
+            inventory.markCancel(requestedQuantity);
+            inventoryReservation.markCancel();
         }
     }
 }
