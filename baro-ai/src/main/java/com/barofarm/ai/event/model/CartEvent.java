@@ -22,7 +22,7 @@ public class CartEvent {
     public enum CartEventType {
         CART_ITEM_ADDED,   // 특정 유저가 해당 상품에 강한 관심을 보이기 시작한 시점
         CART_ITEM_REMOVED, // 해당 상품에 대한 관심이 약해졌음을 나타내는 시점
-        CART_CLEARED       // 유저의 장바구니 상태가 리셋되는 시점 (이후 행동에 더 가중치)
+        CART_QUANTITY_UPDATED // 수량 변경
     }
 
     @Getter
@@ -57,15 +57,15 @@ public class CartEvent {
         // - 많이 담을수록 "이 재료를 여러 번 사용하는 요리를 선호"한다고 간주
         private Integer quantity;
 
-        // 가격대 선호를 개인화 관점에서 추적:
-        // - 이 유저가 장바구니에 담는 평균 단가/총액을 기반으로
-        //   비슷한 가격대 상품만 추천하도록 필터링
-        private Long unitPrice;
-
-        // 옵션 정보:
-        // - 같은 productId라도 옵션(패키지/맛/사이즈)에 따라 선호가 다를 수 있어
-        //   옵션 차원을 포함한 세밀한 개인화가 필요할 때 사용
-        private String optionInfoJson;
+//        // 가격대 선호를 개인화 관점에서 추적:
+//        // - 이 유저가 장바구니에 담는 평균 단가/총액을 기반으로
+//        //   비슷한 가격대 상품만 추천하도록 필터링
+//        private Long unitPrice;
+//
+//        // 옵션 정보:
+//        // - 같은 productId라도 옵션(패키지/맛/사이즈)에 따라 선호가 다를 수 있어
+//        //   옵션 차원을 포함한 세밀한 개인화가 필요할 때 사용
+//        private String optionInfoJson;
 
         // 해당 장바구니 액션이 언제 일어났는지:
         // - 개인화 모델에서 최근 행동에 더 높은 가중치를 두기 위한 time-decay 인자
