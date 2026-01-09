@@ -535,31 +535,29 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
         fi
         
         # Kafka Bootstrap Servers 처리
-        # Kafka는 Private EC2에 docker-compose로 실행되므로 localhost로 접근
-        # hostNetwork: true를 사용하는 Pod이므로 localhost:29092이 올바른 접근 방법
-        # 전역 치환 후에 처리하므로 DATA_EC2_IP:29092를 localhost:29092로 변경
+        # Kafka는 Public EC2에 docker-compose로 실행되므로 Public EC2 IP 사용
+        # DEPLOY_KAFKA=true일 때 Public EC2에 배포되므로 Data EC2 IP 사용
+        # 전역 치환으로 이미 DATA_EC2_IP:29092로 치환되었으므로 그대로 유지
         if grep -q "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT"; then
-            # DATA_EC2_IP:29092 패턴을 localhost:29092로 변경 (전역 치환 후 처리)
-            sed "s|$DATA_EC2_IP:29092|localhost:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-            log_info "✅ SPRING_KAFKA_BOOTSTRAP_SERVERS: localhost:29092 사용 (Private EC2에서 실행 중)"
-        fi
-        if grep -q "localhost:29092" "$TEMP_DEPLOYMENT"; then
-            log_info "ℹ️  Kafka URI는 localhost:29092으로 유지 (Private EC2에서 실행 중)"
+            # 이미 전역 치환으로 DATA_EC2_IP:29092로 설정되어 있음
+            if grep -q "$DATA_EC2_IP:29092" "$TEMP_DEPLOYMENT"; then
+                log_info "✅ SPRING_KAFKA_BOOTSTRAP_SERVERS: $DATA_EC2_IP:29092 사용 (Public EC2에서 실행 중)"
+            elif grep -q "localhost:29092" "$TEMP_DEPLOYMENT"; then
+                log_info "ℹ️  Kafka URI는 localhost:29092으로 유지 (Private EC2에서 실행 중)"
+            fi
         fi
         
         # Elasticsearch URI 처리
-        # Elasticsearch는 Private EC2에 docker-compose로 실행되므로 localhost로 접근
-        # hostNetwork: true를 사용하는 Pod이므로 localhost:9200이 올바른 접근 방법
-        # 전역 치환 후에 처리하므로 DATA_EC2_IP:9200를 localhost:9200로 변경
+        # Elasticsearch는 Public EC2에 docker-compose로 실행되므로 Public EC2 IP 사용
+        # DEPLOY_ELASTICSEARCH=true일 때 Public EC2에 배포되므로 Data EC2 IP 사용
+        # 전역 치환으로 이미 DATA_EC2_IP:9200로 치환되었으므로 그대로 유지
         if grep -q "SPRING_ELASTICSEARCH_URIS" "$TEMP_DEPLOYMENT"; then
-            # DATA_EC2_IP:9200 패턴을 localhost:9200로 변경 (전역 치환 후 처리)
-            sed "s|$DATA_EC2_IP:9200|localhost:9200|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-            log_info "✅ SPRING_ELASTICSEARCH_URIS: localhost:9200 사용 (Private EC2에서 실행 중)"
-        fi
-        if grep -q "localhost:9200" "$TEMP_DEPLOYMENT"; then
-            log_info "ℹ️  Elasticsearch URI는 localhost:9200으로 유지 (Private EC2에서 실행 중)"
+            # 이미 전역 치환으로 DATA_EC2_IP:9200로 설정되어 있음
+            if grep -q "$DATA_EC2_IP:9200" "$TEMP_DEPLOYMENT"; then
+                log_info "✅ SPRING_ELASTICSEARCH_URIS: $DATA_EC2_IP:9200 사용 (Public EC2에서 실행 중)"
+            elif grep -q "localhost:9200" "$TEMP_DEPLOYMENT"; then
+                log_info "ℹ️  Elasticsearch URI는 localhost:9200으로 유지 (Private EC2에서 실행 중)"
+            fi
         fi
     fi
     
