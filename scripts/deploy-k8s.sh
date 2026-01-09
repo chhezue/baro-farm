@@ -535,51 +535,73 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
         fi
         
         # Kafka Bootstrap Servers 처리
-        # Kafka는 Public EC2에 docker-compose로 실행되므로 Public EC2 IP 사용
-        # DEPLOY_KAFKA=true일 때 Public EC2에 배포되므로 Data EC2 IP 사용
+        # DEPLOY_KAFKA=true일 때: Public EC2에 배포되므로 DATA_EC2_IP 사용
+        # DEPLOY_KAFKA=false일 때: Private EC2에 배포되거나 미배포이므로 localhost 사용
         if grep -q "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT"; then
             log_info "🔍 Kafka Bootstrap Servers 치환 전 확인:"
             grep -A 1 "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT" || true
             
-            # 127.0.0.1:29092 패턴을 Data EC2 IP로 변경 (Kafka가 Public EC2에 있으므로)
-            sed "s|127\.0\.0\.1:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-            # localhost:29092 패턴도 Data EC2 IP로 변경
-            sed "s|localhost:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-            # http://localhost:29092 패턴도 처리
-            sed "s|http://localhost:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+            if [ "${DEPLOY_KAFKA:-false}" = "true" ]; then
+                log_info "📦 DEPLOY_KAFKA=true: Kafka는 Public EC2에 배포되므로 $DATA_EC2_IP:29092 사용"
+                # 127.0.0.1:29092 패턴을 Data EC2 IP로 변경
+                sed "s|127\.0\.0\.1:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # localhost:29092 패턴도 Data EC2 IP로 변경
+                sed "s|localhost:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # http://localhost:29092 패턴도 처리
+                sed "s|http://localhost:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # CHANGE_ME_TO_EC2_IP:29092는 이미 전역 치환으로 DATA_EC2_IP:29092로 변경됨
+                if grep -q "$DATA_EC2_IP:29092" "$TEMP_DEPLOYMENT"; then
+                    log_info "✅ SPRING_KAFKA_BOOTSTRAP_SERVERS: $DATA_EC2_IP:29092 사용 (Public EC2에서 실행 중)"
+                fi
+            else
+                log_info "📦 DEPLOY_KAFKA=false: Kafka는 Private EC2에 배포되거나 미배포이므로 localhost:29092 유지"
+                # CHANGE_ME_TO_EC2_IP:29092를 localhost:29092로 변경
+                sed "s|$DATA_EC2_IP:29092|localhost:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # localhost:29092가 이미 설정되어 있으면 유지
+                if grep -q "localhost:29092\|127\.0\.0\.1:29092" "$TEMP_DEPLOYMENT"; then
+                    log_info "✅ SPRING_KAFKA_BOOTSTRAP_SERVERS: localhost:29092 사용 (Private EC2에서 실행 중 또는 미배포)"
+                fi
+            fi
             
             log_info "🔍 Kafka Bootstrap Servers 치환 후 확인:"
             grep -A 1 "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT" || true
-            
-            # 이미 전역 치환으로 DATA_EC2_IP:29092로 설정되어 있거나, 위에서 치환됨
-            if grep -q "$DATA_EC2_IP:29092" "$TEMP_DEPLOYMENT"; then
-                log_info "✅ SPRING_KAFKA_BOOTSTRAP_SERVERS: $DATA_EC2_IP:29092 사용 (Public EC2에서 실행 중)"
-            else
-                log_warn "⚠️  SPRING_KAFKA_BOOTSTRAP_SERVERS에 $DATA_EC2_IP:29092가 설정되지 않았습니다!"
-                log_warn "현재 설정값:"
-                grep -A 1 "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT" || true
-            fi
         fi
         
         # Elasticsearch URI 처리
-        # Elasticsearch는 Public EC2에 docker-compose로 실행되므로 Public EC2 IP 사용
-        # DEPLOY_ELASTICSEARCH=true일 때 Public EC2에 배포되므로 Data EC2 IP 사용
+        # DEPLOY_ELASTICSEARCH=true일 때: Public EC2에 배포되므로 DATA_EC2_IP 사용
+        # DEPLOY_ELASTICSEARCH=false일 때: Private EC2에 배포되거나 미배포이므로 localhost 사용
         if grep -q "SPRING_ELASTICSEARCH_URIS" "$TEMP_DEPLOYMENT"; then
-            # 127.0.0.1:9200 패턴을 Data EC2 IP로 변경 (Elasticsearch가 Public EC2에 있으므로)
-            sed "s|127\.0\.0\.1:9200|$DATA_EC2_IP:9200|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-            # localhost:9200 패턴도 Data EC2 IP로 변경
-            sed "s|localhost:9200|$DATA_EC2_IP:9200|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-            # http://localhost:9200 패턴도 처리
-            sed "s|http://localhost:9200|http://$DATA_EC2_IP:9200|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-            # 이미 전역 치환으로 DATA_EC2_IP:9200로 설정되어 있거나, 위에서 치환됨
-            if grep -q "$DATA_EC2_IP:9200" "$TEMP_DEPLOYMENT"; then
-                log_info "✅ SPRING_ELASTICSEARCH_URIS: $DATA_EC2_IP:9200 사용 (Public EC2에서 실행 중)"
+            if [ "${DEPLOY_ELASTICSEARCH:-false}" = "true" ]; then
+                log_info "📦 DEPLOY_ELASTICSEARCH=true: Elasticsearch는 Public EC2에 배포되므로 $DATA_EC2_IP:9200 사용"
+                # 127.0.0.1:9200 패턴을 Data EC2 IP로 변경
+                sed "s|127\.0\.0\.1:9200|$DATA_EC2_IP:9200|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # localhost:9200 패턴도 Data EC2 IP로 변경
+                sed "s|localhost:9200|$DATA_EC2_IP:9200|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # http://localhost:9200 패턴도 처리
+                sed "s|http://localhost:9200|http://$DATA_EC2_IP:9200|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # CHANGE_ME_TO_EC2_IP:9200는 이미 전역 치환으로 DATA_EC2_IP:9200로 변경됨
+                if grep -q "$DATA_EC2_IP:9200" "$TEMP_DEPLOYMENT"; then
+                    log_info "✅ SPRING_ELASTICSEARCH_URIS: $DATA_EC2_IP:9200 사용 (Public EC2에서 실행 중)"
+                fi
+            else
+                log_info "📦 DEPLOY_ELASTICSEARCH=false: Elasticsearch는 Private EC2에 배포되거나 미배포이므로 localhost:9200 유지"
+                # CHANGE_ME_TO_EC2_IP:9200를 localhost:9200로 변경
+                sed "s|$DATA_EC2_IP:9200|localhost:9200|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # http://localhost:9200 패턴도 유지
+                sed "s|http://$DATA_EC2_IP:9200|http://localhost:9200|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+                # localhost:9200가 이미 설정되어 있으면 유지
+                if grep -q "localhost:9200\|127\.0\.0\.1:9200" "$TEMP_DEPLOYMENT"; then
+                    log_info "✅ SPRING_ELASTICSEARCH_URIS: localhost:9200 사용 (Private EC2에서 실행 중 또는 미배포)"
+                fi
             fi
         fi
     fi

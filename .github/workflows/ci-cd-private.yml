@@ -558,6 +558,8 @@ jobs:
           EC2_HOST: ${{ secrets.PRIVATE_EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
           DATA_EC2_IP: ${{ secrets.DATA_EC2_IP || '' }}  # Data EC2 Private IP (필수)
+          DEPLOY_KAFKA: ${{ vars.DEPLOY_KAFKA || 'false' }}  # Kafka 배포 여부
+          DEPLOY_ELASTICSEARCH: ${{ vars.DEPLOY_ELASTICSEARCH || 'false' }}  # Elasticsearch 배포 여부
         run: |
           echo "🚀 k8s 배포 시작 (SSH를 통한 원격 배포): ${MODULE_NAME} (이미지 태그: ${IMAGE_TAG})"
           
@@ -603,7 +605,7 @@ jobs:
           fi
           
           # SSH를 통해 배포 실행 (Private EC2에서 직접 kubectl 사용)
-          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "cd /home/ubuntu/apps/BE && if [ ! -d k8s ]; then echo '❌ k8s 디렉토리를 찾을 수 없습니다.' && exit 1; fi && if [ ! -f $DEPLOY_SCRIPT ]; then echo '❌ $DEPLOY_SCRIPT를 찾을 수 없습니다.' && exit 1; fi && export DATA_EC2_IP='${DATA_EC2_IP}' && GITHUB_TOKEN='${GITHUB_TOKEN}' bash $DEPLOY_SCRIPT ${MODULE_NAME} ${IMAGE_TAG}" || {
+          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "cd /home/ubuntu/apps/BE && if [ ! -d k8s ]; then echo '❌ k8s 디렉토리를 찾을 수 없습니다.' && exit 1; fi && if [ ! -f $DEPLOY_SCRIPT ]; then echo '❌ $DEPLOY_SCRIPT를 찾을 수 없습니다.' && exit 1; fi && export DATA_EC2_IP='${DATA_EC2_IP}' DEPLOY_KAFKA='${DEPLOY_KAFKA}' DEPLOY_ELASTICSEARCH='${DEPLOY_ELASTICSEARCH}' && GITHUB_TOKEN='${GITHUB_TOKEN}' bash $DEPLOY_SCRIPT ${MODULE_NAME} ${IMAGE_TAG}" || {
             echo "❌ 배포 스크립트 실행 실패"
             # 원격에서 Pod 상태 확인
             ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} 2>&1 || sudo k3s kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} 2>&1 || true"
