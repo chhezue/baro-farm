@@ -1,55 +1,369 @@
-# AI 기능 상세 설명
+# 🎯 기능 명세 및 API 설계
 
-## 🎯 1. **로그 기반 개인화 추천** (핵심 기능)
+> baro-ai 모듈이 제공하는 기능들의 상세 명세와 API 인터페이스
 
-**관여 패키지**: `event.consumer`, `log.*`, `embedding.*`, `recommend.service`, `presentation`
+## 📋 목차
 
-### 기능 개요
-사용자의 **장바구니, 검색, 주문 내역**을 분석하여 개인 취향을 학습하고 맞춤 상품을 추천합니다.
+- [개인화 추천 API](#-개인화-추천-api)
+- [레시피 추천 API](#-레시피-추천-api)
+- [상품 검색 API](#-상품-검색-api)
+- [체험 검색 API](#-체험-검색-api)
+- [통합 검색 API](#-통합-검색-api)
+- [챗봇 API](#-챗봇-api)
 
-### 데이터 소스
-- **장바구니(cart)**: 현재 담긴 상품
-- **검색 로그(search)**: 검색한 키워드와 상품
-- **주문 내역(order)**: 실제 구매한 상품
+---
 
+## 🛒 개인화 추천 API
 
-- **벡터 준비 단계**:
-  - ProductEvent/ExperienceEvent 기반으로 상품/체험 벡터를 선행 생성 (ProductEmbeddingService, ExperienceEmbeddingService)
-  - Log 기반으로 userId별 취향 벡터를 생성 (UserProfileEmbeddingService)
-  - 모든 벡터 생성은 내부적으로 `embedding.service.TextEmbeddingService`를 통해 동일 EmbeddingModel을 사용
+사용자의 행동 로그를 기반으로 개인화된 상품을 추천합니다.
 
-### 추천 순서
+### GET /api/v1/recommendations/personalized/{userId}
 
-```mermaid
-graph TD
-    A[사용자 행동 발생] --> B[Kafka 이벤트 발행]
-    B --> C[AI 서비스 수신]
-    C --> D[행동 로그 RDB 저장]
-    D --> E[사용자 취향 벡터 생성]
-    E --> F[상품 벡터와 유사도 계산]
-    F --> G[Top 15개 상품 선정]
-    G --> H[Redis에 결과 캐시]
-```
+사용자의 개인화 추천 상품 목록을 조회합니다.
 
-### API 흐름
-
-```java
-// 1. 페이지 로드 시 호출
-GET /api/v1/recommendations/personalized/{userId}
-
-// 2. Redis 캐시 확인
-if (redis.hasKey(userId)) {
-    return redis.get(userId); // 캐시된 추천 상품 ID 리스트
+#### 요청 파라미터
+```json
+{
+  "userId": "number (필수) - 사용자 ID"
 }
-
-// 3. 캐시 미스 시 실시간 계산
-List<Long> recommendedProductIds = recommendationService
-    .generatePersonalizedRecommendations(userId);
-
-// 4. 결과 캐시 후 반환
-redis.set(userId, recommendedProductIds, TTL_1HOUR);
-return recommendedProductIds;
 ```
+
+#### 응답 형식
+```json
+{
+  "success": true,
+  "data": [1001, 1002, 1003, 1004, 1005],
+  "message": "개인화 추천 상품 조회 성공"
+}
+```
+
+#### 응답 필드 설명
+- `data`: 추천 상품 ID 배열 (최대 15개)
+- 추천 순서는 유사도 점수 기반 내림차순
+
+#### 캐싱 전략
+- Redis TTL: 1시간
+- 키 형식: `recommend:user:{userId}`
+
+#### 에러 응답
+```json
+{
+  "success": false,
+  "error": {
+    "code": "USER_NOT_FOUND",
+    "message": "사용자를 찾을 수 없습니다"
+  }
+}
+```
+
+---
+
+## 👩‍🍳 레시피 추천 API
+
+장바구니 상품을 기반으로 레시피를 추천하고 부족 재료를 제안합니다.
+
+### POST /api/v1/recommendations/recipes/from-cart
+
+장바구니 상품을 분석하여 레시피를 추천합니다.
+
+#### 요청 본문
+```json
+{
+  "userId": 123
+}
+```
+
+#### 응답 형식
+```json
+{
+  "success": true,
+  "data": {
+    "recipeName": "된장찌개",
+    "ingredients": [
+      {"name": "애호박", "available": true},
+      {"name": "두부", "available": true},
+      {"name": "된장", "available": false}
+    ],
+    "instructions": "1. 재료를 썰어 물에 넣고 끓인다...",
+    "missingIngredients": [
+      {
+        "name": "된장",
+        "recommendedProducts": [
+          {
+            "productId": 2001,
+            "productName": "국산 된장 500g",
+            "price": 8500
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+#### 요청 방식별 엔드포인트
+
+**장바구니 기반**: `POST /api/v1/recommendations/recipes/from-cart`
+**직접 입력**: `POST /api/v1/recommendations/recipes/from-ingredients`
+
+```json
+{
+  "ingredients": ["애호박", "두부", "계란"],
+  "preferences": "매운 음식"
+}
+```
+
+---
+
+## 🔍 상품 검색 API
+
+의미 기반 상품 검색 및 자동완성을 제공합니다.
+
+### GET /api/v1/search/products
+
+상품을 키워드로 검색합니다.
+
+#### 쿼리 파라미터
+```text
+GET /api/v1/search/products?q=사과&category=과일&page=0&size=20
+```
+
+#### 요청 파라미터
+- `q`: 검색 키워드 (필수)
+- `category`: 카테고리 필터 (선택)
+- `minPrice`: 최소 가격 (선택)
+- `maxPrice`: 최대 가격 (선택)
+- `page`: 페이지 번호 (기본값: 0)
+- `size`: 페이지 크기 (기본값: 20)
+
+#### 응답 형식
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "productId": 1001,
+        "productName": "GAP 인증 사과 1kg",
+        "category": "과일",
+        "price": 12000,
+        "score": 0.95
+      }
+    ],
+    "pageable": {
+      "pageNumber": 0,
+      "pageSize": 20
+    },
+    "totalElements": 45
+  }
+}
+```
+
+### GET /api/v1/search/products/autocomplete
+
+상품명 자동완성 제안 목록을 조회합니다.
+
+#### 쿼리 파라미터
+```text
+GET /api/v1/search/products/autocomplete?q=사과&limit=10
+```
+
+#### 응답 형식
+```json
+{
+  "success": true,
+  "data": [
+    "사과",
+    "사과즙",
+    "사과차",
+    "사과잼"
+  ]
+}
+```
+
+---
+
+## 🎪 체험 검색 API
+
+체험 상품 검색 및 자동완성을 제공합니다.
+
+### GET /api/v1/search/experiences
+
+체험 상품을 검색합니다.
+
+#### 쿼리 파라미터
+```text
+GET /api/v1/search/experiences?q=농장체험&region=경기도&page=0&size=10
+```
+
+#### 요청 파라미터
+- `q`: 검색 키워드 (필수)
+- `region`: 지역 필터 (선택)
+- `minPrice`: 최소 가격 (선택)
+- `maxPrice`: 최대 가격 (선택)
+- `startDate`: 시작 날짜 (선택)
+- `endDate`: 종료 날짜 (선택)
+
+#### 응답 형식
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "experienceId": 3001,
+        "experienceName": "전통 농장 체험",
+        "region": "경기도 가평",
+        "pricePerPerson": 35000,
+        "capacity": 20,
+        "durationMinutes": 180
+      }
+    ],
+    "pageable": {
+      "pageNumber": 0,
+      "pageSize": 10
+    }
+  }
+}
+```
+
+### GET /api/v1/search/experiences/autocomplete
+
+체험명 자동완성 제안 목록을 조회합니다.
+
+---
+
+## 🔎 통합 검색 API
+
+상품과 체험을 동시에 검색합니다.
+
+### GET /api/v1/search/unified
+
+통합 검색 결과를 조회합니다.
+
+#### 쿼리 파라미터
+```text
+GET /api/v1/search/unified?q=사과&page=0&size=20
+```
+
+#### 응답 형식
+```json
+{
+  "success": true,
+  "data": {
+    "products": {
+      "content": [...],
+      "totalElements": 25
+    },
+    "experiences": {
+      "content": [...],
+      "totalElements": 5
+    }
+  }
+}
+```
+
+---
+
+## 💬 챗봇 API
+
+서비스 정책 관련 질문을 답변하는 AI 챗봇입니다.
+
+### POST /api/v1/chatbot/ask
+
+질문을 입력받아 정책 기반 답변을 제공합니다.
+
+#### 요청 본문
+```json
+{
+  "question": "환불은 언제까지 가능한가요?",
+  "sessionId": "session-123" // 선택적
+}
+```
+
+#### 응답 형식
+```json
+{
+  "success": true,
+  "data": {
+    "answer": "상품 수령 후 7일 이내에 환불 가능합니다...",
+    "confidence": 0.92,
+    "sources": [
+      {
+        "policy": "환불 정책",
+        "relevance": 0.95
+      }
+    ]
+  }
+}
+```
+
+#### 지원 질문 유형
+
+✅ **지원 가능**
+- 상품 주문/배송/환불 정책
+- 서비스 이용 방법
+- 농산물 품질 보장
+
+❌ **지원 불가**
+- 상품 추천 문의
+- 개인 계정 정보
+- 기술 지원
+
+---
+
+## 🔄 공통 응답 형식
+
+모든 API는 일관된 응답 형식을 따릅니다.
+
+### 성공 응답
+```json
+{
+  "success": true,
+  "data": { ... },
+  "message": "요청 처리 성공"
+}
+```
+
+### 에러 응답
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "입력 값이 올바르지 않습니다",
+    "details": { ... }
+  }
+}
+```
+
+### 공통 에러 코드
+- `VALIDATION_ERROR`: 입력 값 검증 실패
+- `USER_NOT_FOUND`: 사용자 정보 없음
+- `SERVICE_UNAVAILABLE`: 외부 서비스 장애
+- `RATE_LIMIT_EXCEEDED`: 요청 제한 초과
+
+---
+
+## 📊 API 성능 메트릭
+
+### 응답 시간 SLA
+- 개인화 추천: 200ms 이하 (캐시 히트 시)
+- 검색: 300ms 이하
+- 챗봇: 2초 이하
+
+### 캐시 전략
+- 개인화 추천: Redis TTL 1시간
+- 검색 결과: Redis TTL 10분
+- 자동완성: Redis TTL 1시간
+
+### Rate Limiting
+- IP당 분당 100회 요청
+- 사용자당 분당 50회 추천 요청
+
+---
+
+*이 문서는 API 인터페이스 명세를 중심으로 작성되었습니다. 구현 세부사항은 [구현 가이드](IMPLEMENTATION.md)를 참고해주세요.*
 
 ### 기술 구현
 - **벡터 생성**: 사용자 행동 패턴 → 임베딩 모델 → 취향 벡터
@@ -61,7 +375,7 @@ return recommendedProductIds;
 
 ## 👩‍🍳 2. **레시피 추천** (핵심 기능)
 
-**관여 패키지**: `log.application`, `embedding.service`, `recommend.service`, `search.application`, `presentation`
+**관여 계층**: `domain`, `application`, `infrastructure`
 
 ### 기능 개요
 사용자의 장바구니 상품을 분석하여 **가능한 레시피를 추천**하고, 부족한 재료를 찾아 상품으로 제안합니다.
@@ -119,7 +433,7 @@ public RecipeRecommendation suggestRecipe(List<CartItem> cartItems) {
 
 ## 💬 3. **서비스 챗봇** (보조 기능)
 
-**관여 패키지**: `embedding.service`, `presentation`
+**관여 계층**: `domain`, `application`, `infrastructure`
 
 ### 기능 개요
 서비스 정책과 관련된 질문을 **정확하게 답변**하는 AI 챗봇입니다.
@@ -185,7 +499,7 @@ public class PolicyChatbotService {
 
 ## 🔍 4. **의미 검색** (보조 기능)
 
-**관여 패키지**: `search.*`, `presentation`
+**관여 계층**: `domain`, `application`, `infrastructure`
 
 ### 기능 개요
 단순 키워드 검색이 아닌 **사용자의 의도를 이해**하여 정확한 검색 결과를 제공합니다.
