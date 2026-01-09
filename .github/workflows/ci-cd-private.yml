@@ -476,7 +476,7 @@ jobs:
         if: steps.module.outputs.name == 'kafka' || steps.module.outputs.name == 'elasticsearch'
         uses: webfactory/ssh-agent@v0.8.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
       - name: Deploy elasticsearch with docker-compose (SSH)
         if: |
@@ -485,7 +485,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
           EC2_HOST: ${{ secrets.PRIVATE_EC2_HOST }}
-          EC2_USER: ${{ secrets.PRIVATE_EC2_USER || 'ubuntu' }}
+          EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
         run: |
           echo "🚀 Elasticsearch docker-compose 배포 시작 (SSH를 통한 원격 배포)"
           
@@ -535,7 +535,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
           EC2_HOST: ${{ secrets.PRIVATE_EC2_HOST }}
-          EC2_USER: ${{ secrets.PRIVATE_EC2_USER || 'ubuntu' }}
+          EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
         run: |
           echo "🚀 Kafka docker-compose 배포 시작 (SSH를 통한 원격 배포)"
           

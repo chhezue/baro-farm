@@ -410,7 +410,7 @@ jobs:
         if: steps.module.outputs.name != ''
         uses: webfactory/ssh-agent@v0.8.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
       - name: Deploy data with docker-compose (SSH)
         if: steps.module.outputs.name == 'data'
@@ -418,8 +418,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
           DEPLOY_KAFKA: ${{ vars.DEPLOY_KAFKA || 'false' }}
           DEPLOY_ELASTICSEARCH: ${{ vars.DEPLOY_ELASTICSEARCH || 'false' }}
-          EC2_HOST: ${{ secrets.PUBLIC_EC2_HOST }}
-          EC2_USER: ${{ secrets.PUBLIC_EC2_USER || 'ubuntu' }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
         run: |
           echo "🚀 data 인프라 docker-compose 배포 시작 (SSH를 통한 원격 배포)"
           
@@ -445,8 +445,8 @@ jobs:
           if [ -f docker-compose.elasticsearch.yml ]; then
             ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "if [ -f /home/ubuntu/apps/BE/docker-compose.elasticsearch.yml ]; then cp /home/ubuntu/apps/BE/docker-compose.elasticsearch.yml /home/ubuntu/apps/BE/docker-compose.elasticsearch.yml.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true; fi"
             scp -o StrictHostKeyChecking=no docker-compose.elasticsearch.yml ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/ 2>/dev/null || {
-              echo "⚠️  docker-compose.elasticsearch.yml 복사 실패 (계속 진행)"
-            }
+                echo "⚠️  docker-compose.elasticsearch.yml 복사 실패 (계속 진행)"
+              }
           fi
           
           # deploy-module.sh 스크립트 복사 (scripts 디렉토리 보존, 기존 파일 백업)
@@ -467,8 +467,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
           IMAGE_TAG: ${{ needs.determine-service.outputs.image_tag }}
           MODULE_NAME: ${{ steps.module.outputs.name }}
-          EC2_HOST: ${{ secrets.PUBLIC_EC2_HOST }}
-          EC2_USER: ${{ secrets.PUBLIC_EC2_USER || 'ubuntu' }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
           DATA_EC2_IP: ${{ secrets.DATA_EC2_IP || '' }}  # Data EC2 Private IP (필수)
         run: |
           echo "🚀 k8s 배포 시작 (SSH를 통한 원격 배포): ${MODULE_NAME} (이미지 태그: ${IMAGE_TAG})"
@@ -533,18 +533,18 @@ jobs:
           echo "🔍 배포 검증 중..."
           sleep 5  # Pod 시작 대기
           
-          # Pod 상태 확인
-          echo "📊 Pod 상태:"
+            # Pod 상태 확인
+            echo "📊 Pod 상태:"
           ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get pods -n baro-prod 2>&1 || true"
-          
-          # Service 상태 확인
-          echo ""
-          echo "📊 Service 상태:"
+            
+            # Service 상태 확인
+            echo ""
+            echo "📊 Service 상태:"
           ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get svc -n baro-prod 2>&1 || true"
-          
-          # Node 상태 확인
-          echo ""
-          echo "📊 Node 상태:"
+            
+            # Node 상태 확인
+            echo ""
+            echo "📊 Node 상태:"
           ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get nodes 2>&1 || true"
 
   # ==================================================
