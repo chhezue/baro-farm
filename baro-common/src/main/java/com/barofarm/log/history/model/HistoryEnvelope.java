@@ -5,8 +5,8 @@ import java.util.UUID;
 
 public record HistoryEnvelope<T>(
     HistoryEventType event,
-    OffsetDateTime ts,
+    OffsetDateTime time,
     UUID userId,
-    T payload
+    T data
 ) {
 }

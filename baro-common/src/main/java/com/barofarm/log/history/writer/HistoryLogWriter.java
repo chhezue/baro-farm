@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import com.barofarm.config.HistoryLogProperties;
+import java.util.UUID;
 
 public class HistoryLogWriter {
 
@@ -20,26 +21,34 @@ public class HistoryLogWriter {
         LoggerFactory.getLogger(HistoryLogWriter.class);
 
     private final ObjectMapper objectMapper;
-    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final KafkaTemplate kafkaTemplate;
     private final String aiHistoryTopic;
 
     public HistoryLogWriter(
         ObjectMapper objectMapper,
-        KafkaTemplate<String, String> kafkaTemplate,
+        KafkaTemplate<?, ?> kafkaTemplate,
         HistoryLogProperties properties
     ) {
         this.objectMapper = objectMapper;
-        this.kafkaTemplate = kafkaTemplate;
+        this.kafkaTemplate = (KafkaTemplate) kafkaTemplate;
         this.aiHistoryTopic = properties.getAiTopic();
     }
 
     public void write(HistoryEventType type, HistoryEnvelope<?> envelope) {
+        writeInternal(type, envelope, envelope.userId());
+    }
+
+    public void write(HistoryEventType type, Object payload, UUID userId) {
+        writeInternal(type, payload, userId);
+    }
+
+    private void writeInternal(HistoryEventType type, Object payload, UUID userId) {
         try {
-            String json = objectMapper.writeValueAsString(envelope);
+            String json = objectMapper.writeValueAsString(payload);
 
             routeToFile(type, json);
 
-            sendToKafka(envelope, json);
+            sendToKafka(type, userId, json);
         } catch (Exception e) {
             /**
              * history / Kafka는 "부가 기능(side-effect)" 이다.
@@ -59,7 +68,7 @@ public class HistoryLogWriter {
      */
     private void routeToFile(HistoryEventType type, String json) {
         switch (type) {
-            case CART_ADD, CART_REMOVE, CART_QUANTITY_UPDATE -> CART_HISTORY_LOG.info(json);
+            case CART_ITEM_ADDED, CART_ITEM_REMOVED, CART_QUANTITY_UPDATED -> CART_HISTORY_LOG.info(json);
 
             case ORDER_CREATED, ORDER_CANCELLED -> ORDER_HISTORY_LOG.info(json);
 
@@ -77,16 +86,16 @@ public class HistoryLogWriter {
      * value:
      *  - file 로그와 동일한 JSON
      */
-    private void sendToKafka(HistoryEnvelope<?> envelope, String json) {
-        if (envelope.userId() == null) {
+    private void sendToKafka(HistoryEventType type, UUID userId, String json) {
+        if (userId == null) {
             // userId 없는 이벤트는 Kafka에 안 보내도 됨 (정책)
-            INTERNAL_LOG.warn("History event skipped (no userId): {}", envelope.event());
+            INTERNAL_LOG.warn("History event skipped (no userId): {}", type);
             return;
         }
 
         kafkaTemplate.send(
             aiHistoryTopic,
-            envelope.userId().toString(),
+            userId.toString(),
             json
         );
     }

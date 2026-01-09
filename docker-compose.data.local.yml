@@ -1,0 +1,21 @@
+services:
+  redis:
+    volumes:
+      - redis-data:/data
+      - ~/.baro/local-s3:/mnt/s3:rw
+
+  mysql:
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./scripts/init-db:/docker-entrypoint-initdb.d
+      - ~/.baro/local-s3:/mnt/s3:rw
+
+  kafka:
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+      - ~/.baro/local-s3:/mnt/s3:rw
+
+  elasticsearch:
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+      - ~/.baro/local-s3:/mnt/s3:rw

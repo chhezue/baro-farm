@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
@@ -14,6 +15,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 
 @AutoConfiguration
 @EnableAspectJAutoProxy
+@ConditionalOnProperty(prefix = "history.log", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(HistoryLogProperties.class)
 public class HistoryLogAutoConfiguration {
 
@@ -21,7 +23,7 @@ public class HistoryLogAutoConfiguration {
     @ConditionalOnBean(KafkaTemplate.class)
     public HistoryLogWriter historyLogWriter(
         ObjectMapper objectMapper,
-        KafkaTemplate<String, String> kafkaTemplate,
+        KafkaTemplate<?, ?> kafkaTemplate,
         HistoryLogProperties properties
     ) {
         return new HistoryLogWriter(objectMapper, kafkaTemplate, properties);

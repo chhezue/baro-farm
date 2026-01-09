@@ -1,13 +1,12 @@
 package com.barofarm.buyer.cart.history;
 
+import com.barofarm.ai.event.model.CartEvent;
 import com.barofarm.buyer.cart.domain.Cart;
 import com.barofarm.buyer.cart.domain.CartItem;
 import com.barofarm.buyer.cart.domain.CartRepository;
 import com.barofarm.buyer.product.domain.ProductRepository;
 import com.barofarm.log.history.mapper.HistoryPayloadMapper;
 import com.barofarm.log.history.model.HistoryEventType;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
@@ -28,7 +27,7 @@ public class CartRemoveHistoryPayloadMapper implements HistoryPayloadMapper {
 
     @Override
     public HistoryEventType supports() {
-        return HistoryEventType.CART_REMOVE;
+        return HistoryEventType.CART_ITEM_REMOVED;
     }
 
     @Override
@@ -37,56 +36,37 @@ public class CartRemoveHistoryPayloadMapper implements HistoryPayloadMapper {
     }
 
     @Override
-    public Map<String, Object> payload(Object[] args, Object returnValue) {
-        Map<String, Object> payload = new LinkedHashMap<>();
+    public Object payload(Object[] args, Object returnValue) {
+        final UUID buyerId = args != null && args.length >= 3 ? (UUID) args[0] : null;
+        final String sessionKey = args != null && args.length >= 3 ? (String) args[1] : null;
+        final UUID itemId = args != null && args.length >= 3 ? (UUID) args[2] : null;
 
-        UUID buyerId = null;
-        String sessionKey = null;
-        UUID itemId = null;
-        if (args != null && args.length >= 3) {
-            buyerId = (UUID) args[0];
-            sessionKey = (String) args[1];
-            itemId = (UUID) args[2];
-        }
+        final CartEvent.CartEventData.CartEventDataBuilder builder =
+            CartEvent.CartEventData.builder()
+                .cartItemId(itemId);
 
-        if (buyerId != null) {
-            payload.put("buyerId", buyerId);
-        }
-        if (sessionKey != null) {
-            payload.put("sessionKey", sessionKey);
-        }
-
-        if (itemId != null) {
-            payload.put("itemId", itemId);
-            resolveProductInfo(buyerId, sessionKey, itemId, payload);
-        }
-
-        return payload;
-    }
-
-    private void resolveProductInfo(
-        UUID buyerId,
-        String sessionKey,
-        UUID itemId,
-        Map<String, Object> payload
-    ) {
         Optional<Cart> cart = resolveCart(buyerId, sessionKey);
         if (cart.isEmpty()) {
-            return;
+            return builder.build();
         }
+
+        builder.cartId(cart.get().getId());
 
         Optional<CartItem> item = cart.get().getItems().stream()
             .filter(cartItem -> cartItem.getId().equals(itemId))
             .findFirst();
         if (item.isEmpty()) {
-            return;
+            return builder.build();
         }
 
         UUID productId = item.get().getProductId();
-        payload.put("productId", productId);
+        builder.productId(productId);
+        builder.quantity(item.get().getQuantity());
         productRepository.findById(productId)
             .map(p -> p.getProductName())
-            .ifPresent(name -> payload.put("productName", name));
+            .ifPresent(builder::productName);
+
+        return builder.build();
     }
 
     private Optional<Cart> resolveCart(UUID buyerId, String sessionKey) {

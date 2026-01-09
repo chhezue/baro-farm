@@ -1,5 +1,6 @@
 package com.barofarm.log.history.aspect;
 
+import com.barofarm.ai.event.model.CartEvent;
 import com.barofarm.config.HistoryLogProperties;
 import com.barofarm.log.history.annotation.TrackHistory;
 import com.barofarm.log.history.mapper.HistoryPayloadMapper;
@@ -63,7 +64,7 @@ public class HistoryAspect {
             return pjp.proceed();
         }
 
-        Map<String, Object> payload = null;
+        Object payload = null;
         if (mapper.mapBeforeProceed()) {
             payload = mapper.payload(args, null);
         }
@@ -81,11 +82,33 @@ public class HistoryAspect {
         }
 
         UUID userId = resolveUserIdFromHeader();
-        HistoryEnvelope<Map<String, Object>> envelope = new HistoryEnvelope<>(
-                type,
-                OffsetDateTime.now(),
-                userId,
-                payload
+        OffsetDateTime now = OffsetDateTime.now();
+        if (payload instanceof CartEvent.CartEventData cartData) {
+            CartEvent.CartEventType cartType = toCartEventType(type);
+            if (cartType != null) {
+                CartEvent.CartEventData enriched = CartEvent.CartEventData.builder()
+                    .userId(userId)
+                    .cartId(cartData.getCartId())
+                    .cartItemId(cartData.getCartItemId())
+                    .productId(cartData.getProductId())
+                    .productName(cartData.getProductName())
+                    .quantity(cartData.getQuantity())
+                    .occurredAt(now.toInstant())
+                    .build();
+                CartEvent cartEvent = CartEvent.builder()
+                    .type(cartType)
+                    .data(enriched)
+                    .build();
+                writer.write(type, cartEvent, userId);
+                return result;
+            }
+        }
+
+        HistoryEnvelope<Object> envelope = new HistoryEnvelope<>(
+            type,
+            now,
+            userId,
+            payload
         );
 
         writer.write(type, envelope);
@@ -106,6 +129,14 @@ public class HistoryAspect {
 
         try {
             return UUID.fromString(userId);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private CartEvent.CartEventType toCartEventType(HistoryEventType type) {
+        try {
+            return CartEvent.CartEventType.valueOf(type.name());
         } catch (IllegalArgumentException e) {
             return null;
         }

@@ -1,1 +1,2 @@
 com.barofarm.config.HistoryLogAutoConfiguration
+com.barofarm.config.S3AutoConfiguration
