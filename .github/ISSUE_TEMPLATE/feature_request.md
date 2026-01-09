@@ -25,9 +25,13 @@ assignees: ''
 - [ ] experience-service
 - [ ] search-service
 - [ ] review-service
+- [ ] recommend-ai-service
+- [ ] chatbot-ai-service
+- [ ] season-ai-service
 - [ ] gateway-service
 - [ ] config-server
 - [ ] eureka-server
+- [ ] rego-service
 
 ## ✅ 작업 내용
 <!-- 구현할 작업 목록을 작성해주세요 -->
