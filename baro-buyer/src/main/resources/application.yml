@@ -86,6 +86,12 @@ management:
       enabled: true
       show-details: always
 
+# History logging settings
+history:
+  log:
+    ai-topic: ai-history
+    user-id-header: X-User-Id
+
 # Swagger/OpenAPI 설정
 springdoc:
   api-docs:

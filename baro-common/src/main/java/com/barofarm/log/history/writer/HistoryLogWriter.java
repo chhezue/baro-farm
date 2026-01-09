@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import com.barofarm.config.HistoryLogProperties;
 
 public class HistoryLogWriter {
 
@@ -18,14 +19,18 @@ public class HistoryLogWriter {
     private static final Logger INTERNAL_LOG =
         LoggerFactory.getLogger(HistoryLogWriter.class);
 
-    private static final String AI_HISTORY_TOPIC = "ai-history";
-
     private final ObjectMapper objectMapper;
     private final KafkaTemplate<String, String> kafkaTemplate;
+    private final String aiHistoryTopic;
 
-    public HistoryLogWriter(ObjectMapper objectMapper, KafkaTemplate<String, String> kafkaTemplate) {
+    public HistoryLogWriter(
+        ObjectMapper objectMapper,
+        KafkaTemplate<String, String> kafkaTemplate,
+        HistoryLogProperties properties
+    ) {
         this.objectMapper = objectMapper;
         this.kafkaTemplate = kafkaTemplate;
+        this.aiHistoryTopic = properties.getAiTopic();
     }
 
     public void write(HistoryEventType type, HistoryEnvelope<?> envelope) {
@@ -54,7 +59,7 @@ public class HistoryLogWriter {
      */
     private void routeToFile(HistoryEventType type, String json) {
         switch (type) {
-            case CART_ADD, CART_REMOVE -> CART_HISTORY_LOG.info(json);
+            case CART_ADD, CART_REMOVE, CART_QUANTITY_UPDATE -> CART_HISTORY_LOG.info(json);
 
             case ORDER_CREATED, ORDER_CANCELLED -> ORDER_HISTORY_LOG.info(json);
 
@@ -80,7 +85,7 @@ public class HistoryLogWriter {
         }
 
         kafkaTemplate.send(
-            AI_HISTORY_TOPIC,
+            aiHistoryTopic,
             envelope.userId().toString(),
             json
         );
