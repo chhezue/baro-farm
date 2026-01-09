@@ -6,4 +6,8 @@ import java.util.UUID;
 public interface InventoryRepository {
 
     Optional<Inventory> findById(UUID inventoryId);
+
+    Inventory save(Inventory inventory);
+
+    void delete(Inventory inventory);
 }

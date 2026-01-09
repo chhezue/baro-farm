@@ -113,4 +113,28 @@ public class InventoryService {
             inventoryReservation.markCancel();
         }
     }
+
+    @Transactional
+    public UUID createInventory(InventoryCreateCommand command) {
+        Inventory inventory = Inventory.of(
+            command.productId(),
+            command.quantity(),
+            command.unit()
+        );
+        Inventory saved = inventoryRepository.save(inventory);
+        return saved.getId();
+    }
+
+    @Transactional
+    public void deleteInventory(UUID inventoryId) {
+        Inventory inventory = inventoryRepository.findById(inventoryId)
+            .orElseThrow(() -> new CustomException(INVENTORY_NOT_FOUND));
+
+        // 예약 수량이 남아 있으면 삭제 불가 (필요 없으면 이 if 블록 제거)
+        if (inventory.getReservedQuantity() > 0) {
+            throw new CustomException(INVENTORY_HAS_ACTIVE_RESERVATIONS);
+        }
+
+        inventoryRepository.delete(inventory);
+    }
 }

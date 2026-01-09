@@ -39,6 +39,18 @@ public class Inventory extends BaseEntity {
     @Version
     private Long version;
 
+    private Inventory(UUID id, UUID productId, Long quantity, Integer unit) {
+        this.id = id;
+        this.productId = productId;
+        this.quantity = quantity;
+        this.reservedQuantity = 0L;
+        this.unit = unit;
+    }
+
+    public static Inventory of(UUID productId, Long quantity, Integer unit) {
+        return new Inventory(UUID.randomUUID(), productId, quantity, unit);
+    }
+
     public void markReserve(Long requestedQuantity) {
         if (requestedQuantity == null || requestedQuantity <= 0) {
             throw new CustomException(INVALID_REQUEST);

@@ -17,4 +17,14 @@ public class InventoryRepositoryAdapter implements InventoryRepository {
     public Optional<Inventory> findById(UUID inventoryId) {
         return inventoryJpaRepository.findById(inventoryId);
     }
+
+    @Override
+    public Inventory save(Inventory inventory) {
+        return inventoryJpaRepository.save(inventory);
+    }
+
+    @Override
+    public void delete(Inventory inventory) {
+        inventoryJpaRepository.delete(inventory);
+    }
 }
