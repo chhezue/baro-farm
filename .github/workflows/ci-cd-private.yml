@@ -433,39 +433,26 @@ jobs:
           echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
           echo "🚀 Deploying module: $MODULE from branch: ${GITHUB_REF#refs/heads/}"
 
-      - name: Setup kubectl
+      - name: Setup SSH for deployment
         if: steps.module.outputs.name != 'kafka' && steps.module.outputs.name != 'elasticsearch'
-        uses: azure/setup-kubectl@v3
+        uses: webfactory/ssh-agent@v0.8.0
         with:
-          version: 'latest'
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
-      - name: Setup kubeconfig
-        if: steps.module.outputs.name != 'kafka' && steps.module.outputs.name != 'elasticsearch'
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
-          chmod 600 ~/.kube/config
-          
-          # kubeconfig 검증
-          if [ ! -s ~/.kube/config ]; then
-            echo "❌ kubeconfig가 비어있습니다. GitHub Secrets에 KUBE_CONFIG를 설정해주세요."
-            exit 1
-          fi
-          
-          echo "✅ kubeconfig 설정 완료"
-
-      - name: Verify kubectl connection
+      - name: Verify kubectl connection (SSH)
         if: steps.module.outputs.name != 'kafka' && steps.module.outputs.name != 'elasticsearch'
         id: k3s-check
+        env:
+          EC2_HOST: ${{ secrets.PRIVATE_EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
         run: |
-          export KUBECONFIG=~/.kube/config
-          
-          if kubectl get nodes &> /dev/null 2>&1; then
+          # SSH를 통해 Private EC2에서 kubectl 연결 확인
+          if ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get nodes &> /dev/null 2>&1 || sudo k3s kubectl get nodes &> /dev/null 2>&1"; then
             echo "k3s_available=true" >> $GITHUB_OUTPUT
             echo "kubectl_cmd=kubectl" >> $GITHUB_OUTPUT
             echo "✅ Kubernetes 클러스터에 연결되었습니다."
             echo "클러스터 노드 정보:"
-            kubectl get nodes 2>&1 || true
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get nodes 2>&1 || sudo k3s kubectl get nodes 2>&1" || true
           else
             echo "k3s_available=false" >> $GITHUB_OUTPUT
             echo "❌ Kubernetes 클러스터에 연결할 수 없습니다."
@@ -562,86 +549,97 @@ jobs:
           # SSH를 통해 배포 실행
           ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "cd /home/ubuntu/apps/BE || mkdir -p /home/ubuntu/apps/BE && cd /home/ubuntu/apps/BE && if [ ! -f docker-compose.kafka.yml ]; then echo '❌ docker-compose.kafka.yml 파일을 찾을 수 없습니다.' && exit 1; fi && if [ -f scripts/deploy-module.sh ]; then GITHUB_TOKEN='${GITHUB_TOKEN}' bash scripts/deploy-module.sh kafka; else echo '❌ scripts/deploy-module.sh를 찾을 수 없습니다.' && exit 1; fi"
 
-      - name: Deploy to k8s
+      - name: Deploy to k8s (SSH)
         if: steps.k3s-check.outputs.k3s_available == 'true' && steps.module.outputs.name != 'kafka' && steps.module.outputs.name != 'elasticsearch'
         env:
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
           IMAGE_TAG: ${{ needs.determine-service.outputs.image_tag }}
           MODULE_NAME: ${{ steps.module.outputs.name }}
-          KUBECONFIG: ~/.kube/config
+          EC2_HOST: ${{ secrets.PRIVATE_EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
           DATA_EC2_IP: ${{ secrets.DATA_EC2_IP || '' }}  # Data EC2 Private IP (필수)
         run: |
-          export KUBECONFIG=~/.kube/config
+          echo "🚀 k8s 배포 시작 (SSH를 통한 원격 배포): ${MODULE_NAME} (이미지 태그: ${IMAGE_TAG})"
           
-          echo "🚀 k8s 배포 시작: ${MODULE_NAME} (이미지 태그: ${IMAGE_TAG})"
+          # 필요한 파일들을 안전하게 복사 (기존 파일 보존)
+          echo "📦 필요한 파일 복사 중 (기존 파일 보존)..."
           
-          # k8s 디렉토리 확인
-          if [ ! -d k8s ]; then
-            echo "❌ k8s 디렉토리를 찾을 수 없습니다."
-            exit 1
+          # k8s 디렉토리 복사 (기존 파일 보존)
+          if [ -d k8s ]; then
+            # 기존 k8s 디렉토리의 추가 파일들 백업 (scripts, README.md, .env 등)
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ubuntu/apps/BE/k8s && if [ -d /home/ubuntu/apps/BE/k8s/scripts ] && [ \"\$(ls -A /home/ubuntu/apps/BE/k8s/scripts 2>/dev/null)\" ]; then mkdir -p /home/ubuntu/apps/BE/k8s.backup.scripts.\$(date +%Y%m%d_%H%M%S) && cp -r /home/ubuntu/apps/BE/k8s/scripts /home/ubuntu/apps/BE/k8s.backup.scripts.\$(date +%Y%m%d_%H%M%S)/ 2>/dev/null || true; fi"
+            # rsync를 사용하여 기존 파일 보존하며 복사 (같은 이름 파일은 업데이트, 다른 파일은 보존)
+            if command -v rsync &> /dev/null; then
+              rsync -av k8s/ ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/k8s/ 2>/dev/null || {
+                echo "⚠️  rsync 실패, scp로 재시도 (기존 파일은 백업됨)..."
+                scp -o StrictHostKeyChecking=no -r k8s/* ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/k8s/ 2>/dev/null || {
+                  echo "⚠️  k8s 디렉토리 복사 실패 (기존 파일 사용)"
+                }
+              }
+            else
+              scp -o StrictHostKeyChecking=no -r k8s/* ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/k8s/ 2>/dev/null || {
+                echo "⚠️  k8s 디렉토리 복사 실패 (기존 파일 사용)"
+              }
+            fi
+            # 백업한 scripts 디렉토리 복원
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "BACKUP_SCRIPTS=\$(ls -td /home/ubuntu/apps/BE/k8s.backup.scripts.* 2>/dev/null | head -1) && if [ -n \"\$BACKUP_SCRIPTS\" ] && [ -d \"\$BACKUP_SCRIPTS/scripts\" ] && [ ! -d /home/ubuntu/apps/BE/k8s/scripts ] || [ -z \"\$(ls -A /home/ubuntu/apps/BE/k8s/scripts 2>/dev/null)\" ]; then mkdir -p /home/ubuntu/apps/BE/k8s/scripts && cp -r \"\$BACKUP_SCRIPTS/scripts\"/* /home/ubuntu/apps/BE/k8s/scripts/ 2>/dev/null || true && echo '✅ scripts 디렉토리 복원 완료'; fi"
           fi
           
-          # 배포 스크립트 확인 및 실행 (로컬에서 실행)
+          # deploy-k8s.sh 스크립트 복사 (기존 파일 백업)
           DEPLOY_SCRIPT="scripts/deploy-k8s.sh"
           if [ "${MODULE_NAME}" = "settlement" ] && [ -f "scripts/deploy-daemonset.sh" ]; then
             DEPLOY_SCRIPT="scripts/deploy-daemonset.sh"
           fi
           
           if [ -f "$DEPLOY_SCRIPT" ]; then
-            chmod +x "$DEPLOY_SCRIPT"
-            bash "$DEPLOY_SCRIPT" ${MODULE_NAME} ${IMAGE_TAG} || {
-              echo "❌ 배포 스크립트 실행 실패"
-              
-              # Pod 상태 확인
-              echo ""
-              echo "📊 현재 Pod 상태:"
-              kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} 2>&1 || true
-              
-              # 최신 Pod 로그 출력
-              LATEST_POD=$(kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null || echo "")
-              if [ -n "$LATEST_POD" ]; then
-                echo ""
-                echo "📋 최신 Pod 로그 ($LATEST_POD):"
-                kubectl logs -n baro-prod "$LATEST_POD" --tail=50 2>&1 || true
-              fi
-              
-              exit 1
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ubuntu/apps/BE/scripts && if [ -f /home/ubuntu/apps/BE/$DEPLOY_SCRIPT ]; then cp /home/ubuntu/apps/BE/$DEPLOY_SCRIPT /home/ubuntu/apps/BE/$DEPLOY_SCRIPT.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true; fi"
+            scp -o StrictHostKeyChecking=no "$DEPLOY_SCRIPT" ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/"$DEPLOY_SCRIPT" || {
+              echo "⚠️  $DEPLOY_SCRIPT 복사 실패, 기존 파일 사용"
             }
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "chmod +x /home/ubuntu/apps/BE/$DEPLOY_SCRIPT"
           else
             echo "❌ 배포 스크립트를 찾을 수 없습니다: $DEPLOY_SCRIPT"
             exit 1
           fi
           
+          # SSH를 통해 배포 실행 (Private EC2에서 직접 kubectl 사용)
+          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "cd /home/ubuntu/apps/BE && if [ ! -d k8s ]; then echo '❌ k8s 디렉토리를 찾을 수 없습니다.' && exit 1; fi && if [ ! -f $DEPLOY_SCRIPT ]; then echo '❌ $DEPLOY_SCRIPT를 찾을 수 없습니다.' && exit 1; fi && export DATA_EC2_IP='${DATA_EC2_IP}' && GITHUB_TOKEN='${GITHUB_TOKEN}' bash $DEPLOY_SCRIPT ${MODULE_NAME} ${IMAGE_TAG}" || {
+            echo "❌ 배포 스크립트 실행 실패"
+            # 원격에서 Pod 상태 확인
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} 2>&1 || sudo k3s kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} 2>&1 || true"
+            exit 1
+          }
+          
           echo ""
           echo "✅ 배포 완료: ${MODULE_NAME}"
           
-          # 배포 후 검증
+          # 배포 후 검증 (원격에서 확인)
           echo ""
           echo "🔍 배포 검증 중..."
           sleep 5  # Pod 시작 대기
           
           # Pod 상태 확인
           echo "📊 Pod 상태:"
-          kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} 2>&1 || true
+          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} 2>&1 || sudo k3s kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} 2>&1 || true"
           
           # Pod가 Ready 상태인지 확인
-          if kubectl wait --for=condition=ready pod -l app=baro-${MODULE_NAME} -n baro-prod --timeout=120s 2>/dev/null; then
+          if ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl wait --for=condition=ready pod -l app=baro-${MODULE_NAME} -n baro-prod --timeout=120s 2>/dev/null || sudo k3s kubectl wait --for=condition=ready pod -l app=baro-${MODULE_NAME} -n baro-prod --timeout=120s 2>/dev/null"; then
             echo "✅ Pod가 Ready 상태입니다."
           else
             echo "⚠️  Pod가 Ready 상태가 되지 않았습니다."
             echo "📋 Pod 상세 정보:"
-            kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} -o wide 2>&1 || true
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} -o wide 2>&1 || sudo k3s kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} -o wide 2>&1 || true"
             
             # 최신 Pod 로그 출력
-            LATEST_POD=$(kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null || echo "")
+            LATEST_POD=$(ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null || sudo k3s kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null || echo \"\"")
             if [ -n "$LATEST_POD" ]; then
               echo ""
               echo "📋 최신 Pod 로그 ($LATEST_POD):"
-              kubectl logs -n baro-prod "$LATEST_POD" --tail=50 2>&1 || true
+              ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl logs -n baro-prod \"$LATEST_POD\" --tail=50 2>&1 || sudo k3s kubectl logs -n baro-prod \"$LATEST_POD\" --tail=50 2>&1 || true"
               
               echo ""
               echo "📊 Pod 이벤트:"
-              kubectl describe pod -n baro-prod "$LATEST_POD" | grep -A 20 "Events:" || true
+              ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl describe pod -n baro-prod \"$LATEST_POD\" 2>&1 | grep -A 20 'Events:' || sudo k3s kubectl describe pod -n baro-prod \"$LATEST_POD\" 2>&1 | grep -A 20 'Events:' || true"
             fi
           fi
           
