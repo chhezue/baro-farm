@@ -418,6 +418,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
           DEPLOY_KAFKA: ${{ vars.DEPLOY_KAFKA || 'false' }}
           DEPLOY_ELASTICSEARCH: ${{ vars.DEPLOY_ELASTICSEARCH || 'false' }}
+          DATA_EC2_IP: ${{ secrets.DATA_EC2_IP || '' }}  # Data EC2 Private IP (Kafka ADVERTISED_LISTENERS용)
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
         run: |
@@ -458,8 +459,8 @@ jobs:
             ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "chmod +x /home/ubuntu/apps/BE/scripts/deploy-module.sh"
           fi
           
-          # SSH를 통해 배포 실행 (DEPLOY_KAFKA와 DEPLOY_ELASTICSEARCH 환경변수 전달)
-          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "cd /home/ubuntu/apps/BE || mkdir -p /home/ubuntu/apps/BE && cd /home/ubuntu/apps/BE && if [ ! -f docker-compose.data.yml ]; then echo '❌ docker-compose.data.yml 파일을 찾을 수 없습니다.' && exit 1; fi && if ! docker network ls --format '{{.Name}}' | grep -q '^be_baro-network$'; then docker network create be_baro-network || echo '네트워크가 이미 존재합니다.'; fi && if [ -f scripts/deploy-module.sh ]; then DEPLOY_KAFKA='${DEPLOY_KAFKA}' DEPLOY_ELASTICSEARCH='${DEPLOY_ELASTICSEARCH}' GITHUB_TOKEN='${GITHUB_TOKEN}' bash scripts/deploy-module.sh data; else echo '❌ scripts/deploy-module.sh를 찾을 수 없습니다.' && exit 1; fi"
+          # SSH를 통해 배포 실행 (DEPLOY_KAFKA, DEPLOY_ELASTICSEARCH, DATA_EC2_IP 환경변수 전달)
+          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "cd /home/ubuntu/apps/BE || mkdir -p /home/ubuntu/apps/BE && cd /home/ubuntu/apps/BE && if [ ! -f docker-compose.data.yml ]; then echo '❌ docker-compose.data.yml 파일을 찾을 수 없습니다.' && exit 1; fi && if ! docker network ls --format '{{.Name}}' | grep -q '^be_baro-network$'; then docker network create be_baro-network || echo '네트워크가 이미 존재합니다.'; fi && if [ -f scripts/deploy-module.sh ]; then DEPLOY_KAFKA='${DEPLOY_KAFKA}' DEPLOY_ELASTICSEARCH='${DEPLOY_ELASTICSEARCH}' DATA_EC2_IP='${DATA_EC2_IP}' GITHUB_TOKEN='${GITHUB_TOKEN}' bash scripts/deploy-module.sh data; else echo '❌ scripts/deploy-module.sh를 찾을 수 없습니다.' && exit 1; fi"
 
       - name: Deploy to k8s (SSH)
         if: steps.module.outputs.name != 'data'
