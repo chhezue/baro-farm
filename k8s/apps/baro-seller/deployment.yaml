@@ -61,7 +61,15 @@ spec:
             - name: JAVA_OPTS
               value: "-Xms64m -Xmx128m"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=128m -XX:CompressedClassSpaceSize=64m -XX:MaxDirectMemorySize=32m -XX:NativeMemoryTracking=summary"
+              value: >
+                -Duser.timezone=Asia/Seoul
+                -Xms64m
+                -Xmx128m
+                -XX:MaxMetaspaceSize=128m
+                -XX:CompressedClassSpaceSize=64m
+                -XX:MaxDirectMemorySize=32m
+                -XX:ReservedCodeCacheSize=24m
+                -XX:NativeMemoryTracking=summary
             # MySQL 설정
             - name: MYSQL_DATABASE
               value: "baroseller"
@@ -102,9 +110,11 @@ spec:
                   key: AWS_S3_BUCKET_NAME
           # resources:
           #   requests:
-          #     memory: "128Mi"
+          #     cpu: "100m"
+          #     memory: "256Mi"
           #   limits:
-          #     memory: "310Mi"
+          #     cpu: "500m"
+          #     memory: "416Mi"  # 실제 RSS: 338MB
           livenessProbe:
             httpGet:
               path: /actuator/health

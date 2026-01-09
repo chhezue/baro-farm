@@ -55,7 +55,15 @@ spec:
             - name: JAVA_OPTS
               value: "-Xms64m -Xmx128m"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=128m -XX:CompressedClassSpaceSize=64m -XX:MaxDirectMemorySize=32m -XX:NativeMemoryTracking=summary"
+              value: >
+                -Duser.timezone=Asia/Seoul
+                -Xms64m
+                -Xmx128m
+                -XX:MaxMetaspaceSize=128m
+                -XX:CompressedClassSpaceSize=64m
+                -XX:MaxDirectMemorySize=32m
+                -XX:ReservedCodeCacheSize=24m
+                -XX:NativeMemoryTracking=summary
             # MySQL 설정
             - name: MYSQL_DATABASE
               value: "barosettlement"
@@ -77,9 +85,11 @@ spec:
               value: "jdbc:mysql://CHANGE_ME_TO_EC2_IP:3306/barosettlement?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true"
           # resources:
           #   requests:
-          #     memory: "128Mi"
+          #     cpu: "100m"
+          #     memory: "256Mi"
           #   limits:
-          #     memory: "300Mi"
+          #     cpu: "500m"
+          #     memory: "384Mi"  # 실제 RSS: 303MB
           livenessProbe:
             httpGet:
               path: /actuator/health

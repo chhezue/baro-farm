@@ -61,7 +61,15 @@ spec:
             - name: JAVA_OPTS
               value: "-Xms64m -Xmx128m"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=128m -XX:CompressedClassSpaceSize=64m -XX:MaxDirectMemorySize=32m -XX:NativeMemoryTracking=summary"
+              value: >
+                -Duser.timezone=Asia/Seoul
+                -Xms64m
+                -Xmx128m
+                -XX:MaxMetaspaceSize=128m
+                -XX:CompressedClassSpaceSize=64m
+                -XX:MaxDirectMemorySize=32m
+                -XX:ReservedCodeCacheSize=24m
+                -XX:NativeMemoryTracking=summary
             # MySQL 설정
             - name: MYSQL_DATABASE
               value: "barosupport"
@@ -123,9 +131,11 @@ spec:
                   key: SPRING_MAIL_PASSWORD
           # resources:
           #   requests:
-          #     memory: "128Mi"
+          #     cpu: "100m"
+          #     memory: "288Mi"
           #   limits:
-          #     memory: "360Mi"
+          #     cpu: "500m"
+          #     memory: "416Mi"  # 실제 RSS: 353MB
           livenessProbe:
             httpGet:
               path: /actuator/health
