@@ -1,10 +1,10 @@
 package com.barofarm.ai.log.application;
 
-import com.barofarm.ai.log.domain.CartEventDocument;
-import com.barofarm.ai.log.domain.OrderEventDocument;
-import com.barofarm.ai.log.domain.SearchDocument;
-import com.barofarm.ai.log.repository.CartEventLogRepository;
-import com.barofarm.ai.log.repository.OrderEventLogRepository;
+import com.barofarm.ai.log.domain.CartLogDocument;
+import com.barofarm.ai.log.domain.OrderLogDocument;
+import com.barofarm.ai.log.domain.SearchLogDocument;
+import com.barofarm.ai.log.repository.CartLogRepository;
+import com.barofarm.ai.log.repository.OrderLogRepository;
 import com.barofarm.ai.log.repository.SearchLogRepository;
 import java.time.Instant;
 import java.util.UUID;
@@ -21,8 +21,8 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class LogWriteService {
 
-    private final CartEventLogRepository cartEventLogRepository;
-    private final OrderEventLogRepository orderEventLogRepository;
+    private final CartLogRepository cartLogRepository;
+    private final OrderLogRepository orderLogRepository;
     private final SearchLogRepository searchLogRepository;
 
     /**
@@ -30,7 +30,7 @@ public class LogWriteService {
      */
     public void saveCartEventLog(UUID userId, UUID productId, String productName,
                                 String eventType, Integer quantity, Instant occurredAt) {
-        CartEventDocument document = CartEventDocument.builder()
+        CartLogDocument document = CartLogDocument.builder()
                 .userId(userId)
                 .productId(productId)
                 .productName(productName)
@@ -39,7 +39,7 @@ public class LogWriteService {
                 .occurredAt(occurredAt)
                 .build();
 
-        CartEventDocument saved = cartEventLogRepository.save(document);
+        CartLogDocument saved = cartLogRepository.save(document);
         log.info("✅ [LOG_WRITE] Saved cart event log - ID: {}, User: {}, Product: {}",
                 saved.getId(), userId, productName);
     }
@@ -49,7 +49,7 @@ public class LogWriteService {
      */
     public void saveOrderEventLog(UUID userId, UUID productId, String productName,
                                  String eventType, Integer quantity, Instant occurredAt) {
-        OrderEventDocument document = OrderEventDocument.builder()
+        OrderLogDocument document = OrderLogDocument.builder()
                 .userId(userId)
                 .productId(productId)
                 .productName(productName)
@@ -58,7 +58,7 @@ public class LogWriteService {
                 .occurredAt(occurredAt)
                 .build();
 
-        OrderEventDocument saved = orderEventLogRepository.save(document);
+        OrderLogDocument saved = orderLogRepository.save(document);
         log.info("✅ [LOG_WRITE] Saved order event log - ID: {}, User: {}, Product: {}",
                 saved.getId(), userId, productName);
     }
@@ -67,14 +67,14 @@ public class LogWriteService {
      * 검색 로그 저장
      */
     public void saveSearchLog(UUID userId, String searchQuery, String category, Instant searchedAt) {
-        SearchDocument document = SearchDocument.builder()
+        SearchLogDocument document = SearchLogDocument.builder()
                 .userId(userId)
                 .searchQuery(searchQuery)
                 .category(category)
                 .searchedAt(searchedAt)
                 .build();
 
-        SearchDocument saved = searchLogRepository.save(document);
+        SearchLogDocument saved = searchLogRepository.save(document);
         log.info("✅ [LOG_WRITE] Saved search log - ID: {}, User: {}, Query: '{}'",
                 saved.getId(), userId, searchQuery);
     }

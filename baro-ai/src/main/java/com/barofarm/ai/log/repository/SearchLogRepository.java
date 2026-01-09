@@ -1,7 +1,7 @@
 package com.barofarm.ai.log.repository;
 
-import com.barofarm.ai.log.domain.SearchLog;
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.barofarm.ai.log.domain.SearchLogDocument;
+import org.springframework.data.elasticsearch.repository.ElasticsearchRepository;
 
-public interface SearchLogRepository extends JpaRepository<SearchLog, Long> {
+public interface SearchLogRepository extends ElasticsearchRepository<SearchLogDocument, String> {
 }

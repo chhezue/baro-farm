@@ -1,7 +1,6 @@
 package com.barofarm.ai.embedding.service;
 
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -12,10 +11,13 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class TextEmbeddingService {
 
-    private final @Qualifier("openAiEmbeddingModel") EmbeddingModel embeddingModel;
+    private final EmbeddingModel embeddingModel;
+
+    public TextEmbeddingService(@Qualifier("openAiEmbeddingModel") EmbeddingModel embeddingModel) {
+        this.embeddingModel = embeddingModel;
+    }
 
     /**
      * 텍스트를 벡터로 변환
