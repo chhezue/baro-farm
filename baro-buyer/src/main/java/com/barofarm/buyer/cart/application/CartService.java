@@ -19,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class CartService {
 
   private final CartRepository cartRepository;
-  private final CartDomainService cartDomainService;
 
   // 장바구니 조회
   public CartInfo getCart(UUID buyerId, String sessionKey) {
@@ -50,8 +49,8 @@ public class CartService {
         command.optionInfoJson()
     );
 
-    // 새로운 아이템 저장 + 로그 기록
-    cartDomainService.addItemAndLog(cart, item, buyerId, sessionKey);
+    // 새로운 아이템 저장
+    cart.addItem(item);
 
     return CartInfo.from(cart);
   }
@@ -61,11 +60,13 @@ public class CartService {
   public CartInfo updateQuantity(UUID buyerId, String sessionKey, UUID itemId, int quantity) {
     Cart cart = findCart(buyerId, sessionKey);
 
-    // 수량 변경 + 로그 기록
-    boolean updated = cartDomainService.updateQuantityAndLog(cart, itemId, quantity, buyerId, sessionKey);
-    if (!updated) {
+    // 수량 변경
+    Optional<CartItem> itemOpt = cart.findItem(itemId);
+    if (itemOpt.isEmpty()) {
         throw new CustomException(CartErrorCode.CART_ITEM_NOT_FOUND);
     }
+    CartItem item = itemOpt.get();
+    cart.changeItemQuantity(item, quantity);
 
     return CartInfo.from(cart);
   }
@@ -75,11 +76,13 @@ public class CartService {
   public CartInfo updateOption(UUID buyerId, String sessionKey, UUID itemId, String optionInfoJson) {
     Cart cart = findCart(buyerId, sessionKey);
 
-    // 옵션 변경 + 로그 기록
-    boolean updated = cartDomainService.updateOptionAndLog(cart, itemId, optionInfoJson, buyerId, sessionKey);
-    if (!updated) {
+    // 옵션 변경
+    Optional<CartItem> itemOpt = cart.findItem(itemId);
+    if (itemOpt.isEmpty()) {
         throw new CustomException(CartErrorCode.CART_ITEM_NOT_FOUND);
     }
+    CartItem item = itemOpt.get();
+    cart.changeItemOption(item, optionInfoJson);
 
     return CartInfo.from(cart);
   }
@@ -88,14 +91,14 @@ public class CartService {
   @Transactional
   public void removeItem(UUID buyerId, String sessionKey, UUID itemId) {
     Cart cart = findCart(buyerId, sessionKey);
-    cartDomainService.removeItemAndLog(cart, itemId, buyerId, sessionKey); // 장바구니 항목 삭제 + 로그 기록
+    cart.removeItem(itemId); // 장바구니 항목 삭제
   }
 
   // 장바구니 전체 삭제
   @Transactional
   public void clearCart(UUID buyerId, String sessionKey) {
     Cart cart = findCart(buyerId, sessionKey);
-    cartDomainService.clearCartAndLog(cart, buyerId, sessionKey); // 장바구니 전체 항목 삭제 + 로그 기록
+    cart.clear(); // 장바구니 전체 항목 삭제
   }
 
   // 비로그인 사용자 로그인 시 장바구니 병합

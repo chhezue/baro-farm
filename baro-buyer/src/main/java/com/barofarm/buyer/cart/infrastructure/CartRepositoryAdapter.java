@@ -31,7 +31,9 @@ public class CartRepositoryAdapter implements CartRepository {
     }
 
     @Override
-    public void delete(Cart cart) { jpaRepository.delete(cart); }
+    public void delete(Cart cart) {
+        jpaRepository.delete(cart);
+    }
 
     @Override
     public List<Cart> findExpiredGuestCarts(LocalDateTime expiredAt) {
