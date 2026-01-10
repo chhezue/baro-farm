@@ -21,9 +21,9 @@ public class InventoryFacadeService {
         retry(() -> inventoryService.reserveInventory(command));
     }
 
-//    public void confirmInventory(InventoryConfirmCommand command) {
-//        retry(() -> inventoryService.confirmInventory(command));
-//    }
+    public void confirmInventory(InventoryConfirmCommand command) {
+        retry(() -> inventoryService.confirmInventory(command));
+    }
 
     public void cancelInventory(InventoryCancelCommand command) {
         retry(() -> inventoryService.cancelInventory(command));

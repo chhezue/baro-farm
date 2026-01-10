@@ -50,12 +50,12 @@ public class InventoryReservation {
         );
     }
 
-//    public void confirm() {
-//        if (this.inventoryReservationStatus == InventoryReservationStatus.CANCELED) {
-//            throw new CustomException(ALREADY_CANCELED);
-//        }
-//        this.inventoryReservationStatus = InventoryReservationStatus.CONFIRMED;
-//    }
+    public void confirm() {
+        if (this.inventoryReservationStatus == InventoryReservationStatus.CANCELED) {
+            throw new CustomException(ALREADY_CANCELED);
+        }
+        this.inventoryReservationStatus = InventoryReservationStatus.CONFIRMED;
+    }
 
     public void markCancel() {
         if (this.inventoryReservationStatus == InventoryReservationStatus.CONFIRMED) {

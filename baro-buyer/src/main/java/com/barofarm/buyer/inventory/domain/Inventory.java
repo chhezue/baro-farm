@@ -62,23 +62,22 @@ public class Inventory extends BaseEntity {
         this.reservedQuantity += requestedQuantity;
     }
 
-//    // 어직 confirm은 구현 안함
-//    public void confirm(Long requestedQuantity) {
-//        if (requestedQuantity == null || requestedQuantity <= 0) {
-//            throw new CustomException(INVALID_REQUEST);
-//        }
-//
-//        if(this.quantity < requestedQuantity){
-//            throw new CustomException(INSUFFICIENT_STOCK);
-//        }
-//
-//        if (this.reservedQuantity < requestedQuantity) {
-//            throw new CustomException(RESERVED_QUANTITY_NOT_ENOUGH);
-//        }
-//
-//        this.quantity -= requestedQuantity;
-//        this.reservedQuantity -= requestedQuantity;
-//    }
+    public void confirm(Long requestedQuantity) {
+        if (requestedQuantity == null || requestedQuantity <= 0) {
+            throw new CustomException(INVALID_REQUEST);
+        }
+
+        if(this.quantity < requestedQuantity){
+            throw new CustomException(INSUFFICIENT_STOCK);
+        }
+
+        if (this.reservedQuantity < requestedQuantity) {
+            throw new CustomException(RESERVED_QUANTITY_NOT_ENOUGH);
+        }
+
+        this.quantity -= requestedQuantity;
+        this.reservedQuantity -= requestedQuantity;
+    }
 
     public void markCancel(Long requestedQuantity) {
         if (requestedQuantity == null || requestedQuantity <= 0) {

@@ -54,35 +54,34 @@ public class InventoryService {
         }
     }
 
-    // 카프카로 처리해야 함.
-//    @Transactional
-//    public void confirmInventory(InventoryConfirmCommand command) {
-//        List<InventoryReservation> reservations = inventoryReservationRepository.findAllByOrderId(command.orderId());
-//
-//        if(reservations.isEmpty()){
-//            throw new CustomException(INVENTORY_RESERVATION_NOT_FOUND);
-//        }
-//
-//        boolean allConfirmed = reservations.stream()
-//            .allMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.CONFIRMED);
-//        if (allConfirmed) {
-//            return;
-//        }
-//
-//        boolean anyCanceled = reservations.stream()
-//            .anyMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.CANCELED);
-//        if (anyCanceled) {
-//            throw new CustomException(ALREADY_CANCELED);
-//        }
-//
-//        for(InventoryReservation inventoryReservation : reservations){
-//            Inventory inventory = inventoryReservation.getInventory();
-//            Long requestedQuantity = inventoryReservation.getReservedQuantity();
-//
-//            inventory.confirm(requestedQuantity);
-//            inventoryReservation.confirm();
-//        }
-//    }
+    @Transactional
+    public void confirmInventory(InventoryConfirmCommand command) {
+        List<InventoryReservation> reservations = inventoryReservationRepository.findAllByOrderId(command.orderId());
+
+        if(reservations.isEmpty()){
+            throw new CustomException(INVENTORY_RESERVATION_NOT_FOUND);
+        }
+
+        boolean allConfirmed = reservations.stream()
+            .allMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.CONFIRMED);
+        if (allConfirmed) {
+            return;
+        }
+
+        boolean anyCanceled = reservations.stream()
+            .anyMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.CANCELED);
+        if (anyCanceled) {
+            throw new CustomException(ALREADY_CANCELED);
+        }
+
+        for(InventoryReservation inventoryReservation : reservations){
+            Inventory inventory = inventoryReservation.getInventory();
+            Long requestedQuantity = inventoryReservation.getReservedQuantity();
+
+            inventory.confirm(requestedQuantity);
+            inventoryReservation.confirm();
+        }
+    }
 
     @Transactional
     public void cancelInventory(InventoryCancelCommand command) {

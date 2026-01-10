@@ -25,13 +25,6 @@ public class InventoryInternalController {
         return ResponseDto.ok(null);
     }
 
-//    // 카프카로 처리해야 함
-//    @PostMapping("/confirm")
-//    public ResponseDto<Void> confirmInventory(@Valid @RequestBody InventoryConfirmRequest request) {
-//        inventoryFacadeService.confirmInventory(request.toCommand());
-//        return ResponseDto.ok(null);
-//    }
-
     @PostMapping("/cancel")
     public ResponseDto<Void> cancelInventory(@Valid @RequestBody InventoryCancelRequest request) {
         inventoryFacadeService.cancelInventory(request.toCommand());
