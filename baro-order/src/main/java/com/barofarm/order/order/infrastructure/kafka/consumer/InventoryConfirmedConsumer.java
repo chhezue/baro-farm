@@ -2,11 +2,13 @@ package com.barofarm.order.order.infrastructure.kafka.consumer;
 
 import com.barofarm.order.common.exception.CustomException;
 import com.barofarm.order.order.domain.*;
+import com.barofarm.order.order.exception.OrderErrorCode;
 import com.barofarm.order.order.infrastructure.kafka.consumer.dto.InventoryConfirmedEvent;
 import com.barofarm.order.order.infrastructure.kafka.producer.OrderEventFailProducer;
 import com.barofarm.order.order.infrastructure.kafka.producer.OrderEventProducer;
 import com.barofarm.order.order.infrastructure.kafka.producer.dto.OrderConfirmedEvent;
 import com.barofarm.order.order.infrastructure.kafka.producer.dto.OrderConfirmedFailEvent;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -26,6 +28,7 @@ public class InventoryConfirmedConsumer {
     private final OrderEventProducer orderEventProducer;
     private final OrderEventFailProducer orderEventFailProducer;
     private final ObjectMapper objectMapper;
+    private final OrderOutboxEventRepository orderOutboxEventRepository;
 
     @KafkaListener(
         topics = "inventory-confirmed",
@@ -41,17 +44,29 @@ public class InventoryConfirmedConsumer {
         backoff = @Backoff(delay = 1000, multiplier = 2)
     )
     @Transactional
-    public void handle(InventoryConfirmedEvent event) {
+    public void handle(InventoryConfirmedEvent event) throws JsonProcessingException {
         UUID orderId = event.orderId();
+        System.out.println("inventory-confirmed!!!!!!!!!!!!!!!!!!!!!!");
+        Order order = orderRepository.findById(orderId)
+            .orElseThrow(() -> new CustomException(ORDER_NOT_FOUND));
+        order.markConfirmed(); // 주문 상태만 변경
 
-        try{
-            Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new CustomException(ORDER_NOT_FOUND));
-            order.markConfirmed();
+        try {
+            OrderConfirmedEvent dto = OrderConfirmedEvent.of(event, order);
+            String payload = objectMapper.writeValueAsString(dto);
 
-            orderEventProducer.send(OrderConfirmedEvent.from(event));
-        } catch (Exception e){
-            orderEventFailProducer.send(OrderConfirmedFailEvent.from(event));
+            OrderOutboxEvent outbox = OrderOutboxEvent.pending(
+                "ORDER",
+                orderId.toString(),
+                "order-confirmed",
+                orderId.toString(),
+                payload
+            );
+            orderOutboxEventRepository.save(outbox);
+            System.out.println("inventory-confirmedㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌ");
+        } catch (JsonProcessingException e) {
+            System.out.println("inventory-confirmedㅕㅕㅕㅕㅕㅕㅕㅕㅕㅕㅕㅕㅕㅕ");
+            throw new CustomException(OrderErrorCode.OUTBOX_SERIALIZATION_FAILED);
         }
     }
 }

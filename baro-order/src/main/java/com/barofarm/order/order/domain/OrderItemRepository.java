@@ -8,7 +8,7 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 
 public interface OrderItemRepository {
-    CustomPage<OrderItemSettlementResponse> findOrderItemsForSettlement(
-        LocalDateTime startDateTime, LocalDateTime endDateTime, Pageable pageable);
+//    CustomPage<OrderItemSettlementResponse> findOrderItemsForSettlement(
+//        LocalDateTime startDateTime, LocalDateTime endDateTime, Pageable pageable);
     Optional<OrderItem> findById(UUID id);
 }

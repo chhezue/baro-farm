@@ -1,7 +1,7 @@
 package com.barofarm.order.order.infrastructure.kafka.producer.dto;
 
+import com.barofarm.order.order.domain.Order;
 import com.barofarm.order.order.infrastructure.kafka.consumer.dto.InventoryConfirmedEvent;
-
 import java.util.UUID;
 
 public record OrderConfirmedFailEvent(
@@ -18,16 +18,16 @@ public record OrderConfirmedFailEvent(
         String deliveryMemo
     ) {}
 
-    public static OrderConfirmedFailEvent from(InventoryConfirmedEvent event){
+    public static OrderConfirmedFailEvent of(InventoryConfirmedEvent event, Order order){
 
         OrderAddress orderAddress = new OrderAddress(
-            event.address().receiverName(),
-            event.address().phone(),
-            event.address().email(),
-            event.address().zipCode(),
-            event.address().address(),
-            event.address().addressDetail(),
-            event.address().deliveryMemo()
+            order.getAddress().getReceiverName(),
+            order.getAddress().getPhone(),
+            order.getAddress().getEmail(),
+            order.getAddress().getZipCode(),
+            order.getAddress().getAddress(),
+            order.getAddress().getAddressDetail(),
+            order.getAddress().getDeliveryMemo()
         );
         return new OrderConfirmedFailEvent(event.orderId(), orderAddress);
     }
