@@ -28,17 +28,10 @@ public class PaymentController {
         return paymentService.confirmPayment(userId, confirmRequest.toCommand());
     }
 
-//    @PostMapping("/refund")
-//    public ResponseDto<TossPaymentRefundInfo> refundPayment(
-//        @RequestHeader("X-User-Id") UUID userId,
-//        @RequestBody TossPaymentRefundRequest refundRequest) {
-//        return paymentService.refundPayment(userId, refundRequest.toCommand());
-//    }
-
-//    @PostMapping("/confirm/deposit")
-//    public ResponseDto<TossPaymentConfirmInfo> confirmDeposit(
-//        @RequestHeader("X-User-Id") UUID userId,
-//        @RequestBody TossPaymentConfirmRequest request) {
-//        return paymentService.confirmDeposit(userId, request.toCommand());
-//    }
+    @PostMapping("/confirm/deposit")
+    public ResponseDto<TossPaymentConfirmInfo> confirmDeposit(
+        @RequestHeader("X-User-Id") UUID userId,
+        @RequestBody TossPaymentConfirmRequest request) {
+        return paymentService.confirmDeposit(userId, request.toCommand());
+    }
 }

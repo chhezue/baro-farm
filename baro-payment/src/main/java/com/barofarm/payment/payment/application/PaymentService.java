@@ -5,6 +5,7 @@ import com.barofarm.payment.common.response.ResponseDto;
 import com.barofarm.payment.payment.application.dto.request.TossPaymentConfirmCommand;
 import com.barofarm.payment.payment.application.dto.response.TossPaymentConfirmInfo;
 import com.barofarm.payment.payment.exception.PaymentErrorCode;
+import com.barofarm.payment.payment.infrastructure.kafka.producer.dto.DepositChargeConfirmedEvent;
 import com.barofarm.payment.payment.infrastructure.kafka.producer.dto.PaymentConfirmedEvent;
 import com.barofarm.payment.payment.infrastructure.rest.TossPaymentClient;
 import com.barofarm.payment.payment.infrastructure.rest.dto.TossPaymentResponse;
@@ -19,6 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
+
+import static com.barofarm.payment.payment.domain.Purpose.DEPOSIT_CHARGE;
 import static com.barofarm.payment.payment.domain.Purpose.ORDER_PAYMENT;
 
 @Service
@@ -61,32 +64,39 @@ public class PaymentService {
         return ResponseDto.ok(TossPaymentConfirmInfo.from(saved));
     }
 
-//    @Transactional
-//    public ResponseDto<TossPaymentRefundInfo> refundPayment(UUID userId, TossPaymentRefundCommand command) {
-//        TossPaymentResponse tossResponse = tossPaymentClient.refund(command);
-//
-//        UUID orderId = UUID.fromString(tossResponse.orderId());
-//        orderService.cancelOrder(userId, orderId);
-//
-//        Payment payment = paymentRepository.findByPaymentKey(command.paymentKey())
-//                .orElseThrow(() -> new CustomException(PAYMENT_NOT_FOUND));
-//        payment.refund();
-//        return ResponseDto.ok(TossPaymentRefundInfo.from(tossResponse));
-//    }
-//
-//    @Transactional
-//    public ResponseDto<TossPaymentConfirmInfo> confirmDeposit(UUID userId, TossPaymentConfirmCommand command) {
-//        TossPaymentResponse tossPayment = tossPaymentClient.confirm(command);
-//
-//        UUID chargeId = UUID.fromString(tossPayment.orderId());
-//
-//        //depositService.markDepositCharge(userId, chargeId);
-//
-//        Payment payment = Payment.of(tossPayment, DEPOSIT_CHARGE);
-//        Payment saved = paymentRepository.save(payment);
-//
-//        return ResponseDto.ok(TossPaymentConfirmInfo.from(saved));
-//    }
+
+    @Transactional
+    public ResponseDto<TossPaymentConfirmInfo> confirmDeposit(UUID userId, TossPaymentConfirmCommand command) {
+        TossPaymentResponse tossPayment = tossPaymentClient.confirm(command);
+
+        UUID chargeId = UUID.fromString(tossPayment.orderId());
+
+        Payment payment = Payment.of(tossPayment, DEPOSIT_CHARGE);
+        Payment saved = paymentRepository.save(payment);
+
+        DepositChargeConfirmedEvent event = new DepositChargeConfirmedEvent(
+            userId,
+            chargeId,
+            saved.getAmount()
+        );
+
+        try {
+            String payload = objectMapper.writeValueAsString(event);
+
+            PaymentOutboxEvent outbox = PaymentOutboxEvent.pending(
+                "PAYMENT",
+                saved.getId().toString(),
+                "deposit-charge-confirmed",
+                chargeId.toString(),
+                payload
+            );
+            paymentOutboxEventRepository.save(outbox);
+        } catch (JsonProcessingException e) {
+            throw new CustomException(PaymentErrorCode.OUTBOX_SERIALIZATION_FAILED);
+        }
+
+        return ResponseDto.ok(TossPaymentConfirmInfo.from(saved));
+    }
 //
 //    @Transactional
 //    public Payment createPayment(UUID orderId, Long amount){
