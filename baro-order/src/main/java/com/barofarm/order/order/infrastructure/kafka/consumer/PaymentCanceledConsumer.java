@@ -5,33 +5,40 @@ import com.barofarm.order.order.domain.Order;
 import com.barofarm.order.order.domain.OrderRepository;
 import com.barofarm.order.order.domain.OrderStatus;
 import com.barofarm.order.order.exception.OrderErrorCode;
-import com.barofarm.order.order.infrastructure.kafka.consumer.dto.InventoryCanceledEvent;
+import com.barofarm.order.order.infrastructure.kafka.consumer.dto.PaymentCanceledEvent;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.UUID;
-
 @Component
 @RequiredArgsConstructor
-public class InventoryCanceledConsumer {
+public class PaymentCanceledConsumer {
 
     private final OrderRepository orderRepository;
 
     @KafkaListener(
-        topics = "inventory-canceled",
-        groupId = "order-service.inventory-canceled",
+        topics = "payment-canceled",
+        groupId = "order-service.payment-canceled",
         properties = {
-            "spring.json.value.default.type=com.barofarm.order.order.infrastructure.kafka.consumer.dto.InventoryCanceledEvent"
+            "spring.json.value.default.type=com.barofarm.order.order.infrastructure.kafka.consumer.dto.PaymentCanceledEvent"
         }
     )
     @Transactional
-    public void handle(InventoryCanceledEvent event) {
+    public void handle(PaymentCanceledEvent event) {
         UUID orderId = event.orderId();
 
-        orderRepository.findById(orderId)
+        Order order = orderRepository.findById(orderId)
             .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
-        // 주문 최종 취소는 payment-canceled 이벤트에서 처리한다.
+
+        if (order.getStatus() == OrderStatus.CANCELED) {
+            return;
+        }
+
+        if (order.getStatus() == OrderStatus.CANCEL_PENDING) {
+            order.markCancel();
+        }
     }
 }
+
