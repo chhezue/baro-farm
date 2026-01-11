@@ -32,6 +32,8 @@ spring:
                 - Path=/auth-service/**
               filters:
                 - RewritePath=/auth-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Buyer Service
             - id: buyer-service
@@ -40,6 +42,8 @@ spring:
                 - Path=/buyer-service/**
               filters:
                 - RewritePath=/buyer-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Seller Service
             - id: seller-service
@@ -48,6 +52,8 @@ spring:
                 - Path=/seller-service/**
               filters:
                 - RewritePath=/seller-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Order Service
             - id: order-service
@@ -56,6 +62,8 @@ spring:
                 - Path=/order-service/**,/api/payments/**
               filters:
                 - RewritePath=/order-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Support Service
             - id: support-service
@@ -64,6 +72,8 @@ spring:
                 - Path=/support-service/**
               filters:
                 - RewritePath=/support-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Auth Service API 문서 프록시
             - id: auth-service-openapi
@@ -72,6 +82,8 @@ spring:
                 - Path=/openapi/auth/v3/api-docs, /openapi/auth/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/auth/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Buyer Service API 문서 프록시
             - id: buyer-service-openapi
@@ -80,6 +92,8 @@ spring:
                 - Path=/openapi/buyer/v3/api-docs, /openapi/buyer/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/buyer/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Seller Service API 문서 프록시
             - id: seller-service-openapi
@@ -88,6 +102,8 @@ spring:
                 - Path=/openapi/seller/v3/api-docs, /openapi/seller/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/seller/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Order Service API 문서 프록시
             - id: order-service-openapi
@@ -96,6 +112,8 @@ spring:
                 - Path=/openapi/order/v3/api-docs, /openapi/order/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/order/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Support Service API 문서 프록시
             - id: support-service-openapi
@@ -104,6 +122,8 @@ spring:
                 - Path=/openapi/support/v3/api-docs, /openapi/support/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/support/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
 eureka:
   client:
