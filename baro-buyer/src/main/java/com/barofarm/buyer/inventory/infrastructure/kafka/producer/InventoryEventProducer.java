@@ -1,6 +1,6 @@
 package com.barofarm.buyer.inventory.infrastructure.kafka.producer;
 
-import com.barofarm.buyer.inventory.infrastructure.kafka.producer.dto.InventoryConfirmEvent;
+import com.barofarm.buyer.inventory.infrastructure.kafka.producer.dto.InventoryConfirmedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -9,9 +9,9 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class InventoryEventProducer {
 
-    private final KafkaTemplate<String, InventoryConfirmEvent> kafkaTemplate;
+    private final KafkaTemplate<String, InventoryConfirmedEvent> kafkaTemplate;
 
-    public void send(InventoryConfirmEvent event){
+    public void send(InventoryConfirmedEvent event){
         System.out.println("inventory-confirmed !!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         kafkaTemplate.send(
             "inventory-confirmed",

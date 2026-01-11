@@ -42,7 +42,7 @@ public class InventoryService {
         }
         // 멱등성 검증 로직 : 동시에 두번 들어가서 유니크 키 충돌이 발생하는 경우(낙관적 락 충돌보다 먼저 일어나는 케이스 보정)
         catch(DataIntegrityViolationException e){
-
+            System.out.println("qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq");
             List<InventoryReservation> existing = inventoryReservationRepository.findAllByOrderId(command.orderId());
             boolean allReserved = !existing.isEmpty() &&
                 existing.stream()
