@@ -4,10 +4,7 @@ import com.barofarm.order.common.exception.CustomException;
 import com.barofarm.order.order.domain.*;
 import com.barofarm.order.order.exception.OrderErrorCode;
 import com.barofarm.order.order.infrastructure.kafka.consumer.dto.InventoryConfirmedEvent;
-import com.barofarm.order.order.infrastructure.kafka.producer.OrderEventFailProducer;
-import com.barofarm.order.order.infrastructure.kafka.producer.OrderEventProducer;
 import com.barofarm.order.order.infrastructure.kafka.producer.dto.OrderConfirmedEvent;
-import com.barofarm.order.order.infrastructure.kafka.producer.dto.OrderConfirmedFailEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -25,8 +22,6 @@ import static com.barofarm.order.order.exception.OrderErrorCode.ORDER_NOT_FOUND;
 public class InventoryConfirmedConsumer {
 
     private final OrderRepository orderRepository;
-    private final OrderEventProducer orderEventProducer;
-    private final OrderEventFailProducer orderEventFailProducer;
     private final ObjectMapper objectMapper;
     private final OrderOutboxEventRepository orderOutboxEventRepository;
 

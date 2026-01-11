@@ -79,6 +79,10 @@ public class Order extends BaseEntity {
         this.status = OrderStatus.INVENTORY_RESERVED;
     }
 
+    public void markCancelPending() {
+        this.status = OrderStatus.CANCEL_PENDING;
+    }
+
     public void markCancel() {
         this.status = OrderStatus.CANCELED;
         this.canceledAt = LocalDateTime.now();

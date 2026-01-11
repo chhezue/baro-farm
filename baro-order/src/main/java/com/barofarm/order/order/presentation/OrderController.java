@@ -58,12 +58,11 @@ public class OrderController {
         return orderService.findOrderList(userId, pageable);
     }
 
-    // 필요한가에 대한 의문
-//    @PutMapping("/{orderId}/cancel")
-//    public ResponseDto<OrderCancelInfo> cancelOrder(
-//        //@RequestHeader("X-User-Id") UUID userId,
-//        @PathVariable UUID orderId) {
-//        UUID userId = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
-//        return orderService.cancelOrder(userId, orderId);
-//    }
+    @PostMapping("/{orderId}/cancel")
+    public ResponseDto<OrderCancelInfo> cancelOrder(
+        //@RequestHeader("X-User-Id") UUID userId,
+        @PathVariable UUID orderId) {
+        UUID userId = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
+        return orderService.cancelOrder(userId, orderId);
+    }
 }

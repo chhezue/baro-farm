@@ -7,26 +7,32 @@ public enum OrderStatus {
     // 재고 예약 완료
     INVENTORY_RESERVED,
 
-    // 주문 확정(결제/재고 확정 완료)
+    // 결제/재고 확정 완료
     CONFIRMED,
 
-    // 주문 취소
+    // 주문 취소 진행 중
+    CANCEL_PENDING,
+
+    // 주문 취소 완료
     CANCELED,
 
-    // 주문 실패(재고/결제 실패)
+    // 주문 실패(결제/재고 등 도메인 실패)
     FAILED,
 
-    // 배송 대기 중
+    // 배송 준비 중
     PREPARING,
 
     // 배송 완료
     COMPLETED;
 
     public boolean isCancelable() {
-        return this == PENDING || this == CONFIRMED || this == CANCELED;
+        return this == PENDING
+            || this == INVENTORY_RESERVED
+            || this == CONFIRMED;
     }
 
     public boolean isCanceled() {
         return this == CANCELED;
     }
 }
+

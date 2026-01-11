@@ -97,12 +97,6 @@ public class InventoryService {
             return;
         }
 
-        boolean anyConfirmed = reservations.stream()
-            .anyMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.CONFIRMED);
-        if (anyConfirmed) {
-            throw new CustomException(ALREADY_CONFIRMED);
-        }
-
         for (InventoryReservation inventoryReservation : reservations) {
             Inventory inventory = inventoryReservation.getInventory();
             Long requestedQuantity = inventoryReservation.getReservedQuantity();

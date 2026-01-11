@@ -1,27 +1,23 @@
 package com.barofarm.order.order.application;
 
-import static com.barofarm.order.order.exception.OrderErrorCode.ORDER_ACCESS_DENIED;
-import static com.barofarm.order.order.exception.OrderErrorCode.ORDER_NOT_FOUND;
 import com.barofarm.order.common.exception.CustomException;
 import com.barofarm.order.common.response.CustomPage;
 import com.barofarm.order.common.response.ResponseDto;
 import com.barofarm.order.order.application.dto.request.OrderCreateCommand;
 import com.barofarm.order.order.application.dto.response.*;
-//import com.barofarm.order.order.application.dto.response.OrderDeliveryInfo;
-//import com.barofarm.order.order.application.dto.response.OrderDetailInfo;
-//import com.barofarm.order.order.client.DeliveryClient;
-
 import com.barofarm.order.order.domain.*;
+import com.barofarm.order.order.infrastructure.kafka.producer.dto.OrderCancelRequestedEvent;
 import com.barofarm.order.order.infrastructure.rest.InventoryClient;
 import com.barofarm.order.order.infrastructure.rest.dto.InventoryCancelRequest;
-
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import static com.barofarm.order.order.exception.OrderErrorCode.*;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +27,8 @@ public class OrderService {
     private final OrderItemRepository orderItemRepository;
     private final InventoryClient inventoryClient;
     private final CompensationRegistryRepository compensationRegistryRepository;
+    private final OrderOutboxEventRepository orderOutboxEventRepository;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public OrderCreateInfo createOrder(UUID userId, OrderCreateCommand command){
@@ -102,28 +100,41 @@ public class OrderService {
         return ResponseDto.ok(CustomPage.from(page));
     }
 
-//    @Transactional
-//    public ResponseDto<OrderCancelInfo> cancelOrder(UUID userId, UUID orderId) {
-//        Order order = orderRepository.findById(orderId)
-//                .orElseThrow(() -> new CustomException(ORDER_NOT_FOUND));
-//
-//        validateOwner(userId, order);
-//
-//        if (order.isCanceled()) {
-//            return ResponseDto.ok(OrderCancelInfo.from(order));
-//        }
-//
-//        if (!order.getStatus().isCancelable()) {
-//            throw new CustomException(ORDER_NOT_CANCELABLE_STATUS);
-//        }
-//        order.markCancel();
-//
-//        InventoryCancelRequest inventoryCancelRequest = new InventoryCancelRequest(
-//            order.getId()
-//        );
-//        inventoryClient.cancelInventory(inventoryCancelRequest);
-//        return ResponseDto.ok(OrderCancelInfo.from(order));
-//    }
+    @Transactional
+    public ResponseDto<OrderCancelInfo> cancelOrder(UUID userId, UUID orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new CustomException(ORDER_NOT_FOUND));
+
+        validateOwner(userId, order);
+
+        if (order.getStatus().isCanceled() || order.getStatus() == OrderStatus.CANCEL_PENDING) {
+            return ResponseDto.ok(OrderCancelInfo.from(order));
+        }
+
+        if (!order.getStatus().isCancelable()) {
+            throw new CustomException(ORDER_NOT_CANCELABLE_STATUS);
+        }
+        order.markCancelPending();
+
+        OrderCancelRequestedEvent event = new OrderCancelRequestedEvent(
+            order.getId(),
+            order.getTotalAmount()
+        );
+        try {
+            String payload = objectMapper.writeValueAsString(event);
+            OrderOutboxEvent outbox = OrderOutboxEvent.pending(
+                "ORDER",
+                order.getId().toString(),
+                "order-cancel-requested",
+                order.getId().toString(),
+                payload
+            );
+            orderOutboxEventRepository.save(outbox);
+        } catch (JsonProcessingException e) {
+            throw new CustomException(OUTBOX_SERIALIZATION_FAILED);
+        }
+        return ResponseDto.ok(OrderCancelInfo.from(order));
+    }
 //
 //    @Transactional(readOnly = true)
 //    public OrderDeliveryInfo getDeliveryInfo(UUID orderId) {
