@@ -1,0 +1,54 @@
+{
+    "rules_by_id":  {
+                        "auth:auth-public":  {
+                                                 "name":  "auth:auth-public",
+                                                 "path":  "^/api/v1/auth/(login|signup|refresh|logout)$",
+                                                 "methods":  [
+                                                                 "POST"
+                                                             ],
+                                                 "roles":  [
+                                                               "*"
+                                                           ]
+                                             },
+                        "auth:auth-grant-seller":  {
+                                                       "name":  "auth:auth-grant-seller",
+                                                       "path":  "^/api/v1/auth/[^/]+/grant-seller$",
+                                                       "methods":  [
+                                                                       "POST"
+                                                                   ],
+                                                       "roles":  [
+                                                                     "*"
+                                                                 ]
+                                                   },
+                        "auth:auth-password":  {
+                                                   "name":  "auth:auth-password",
+                                                   "path":  "^/api/v1/auth/password/.*$",
+                                                   "methods":  [
+                                                                   "POST"
+                                                               ],
+                                                   "roles":  [
+                                                                 "*"
+                                                             ]
+                                               },
+                        "auth:auth-verification":  {
+                                                       "name":  "auth:auth-verification",
+                                                       "path":  "^/api/v1/auth/verification/.*$",
+                                                       "methods":  [
+                                                                       "POST"
+                                                                   ],
+                                                       "roles":  [
+                                                                     "*"
+                                                                 ]
+                                                   }
+                    },
+    "index":  {
+                  "method":  {
+                                 "POST":  [
+                                              "auth:auth-public",
+                                              "auth:auth-grant-seller",
+                                              "auth:auth-password",
+                                              "auth:auth-verification"
+                                          ]
+                             }
+              }
+}

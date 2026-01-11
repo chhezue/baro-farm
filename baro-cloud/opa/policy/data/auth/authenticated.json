@@ -1,0 +1,23 @@
+{
+    "rules_by_id":  {
+                        "auth:auth-me":  {
+                                             "name":  "auth:auth-me",
+                                             "path":  "^/api/v1/auth/me$",
+                                             "methods":  [
+                                                             "GET"
+                                                         ],
+                                             "roles":  [
+                                                           "CUSTOMER",
+                                                           "SELLER",
+                                                           "ADMIN"
+                                                       ]
+                                         }
+                    },
+    "index":  {
+                  "method":  {
+                                 "GET":  [
+                                             "auth:auth-me"
+                                         ]
+                             }
+              }
+}
