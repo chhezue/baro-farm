@@ -8,6 +8,7 @@ import com.barofarm.buyer.inventory.domain.InventoryOutboxEventRepository;
 import com.barofarm.buyer.inventory.exception.InventoryErrorCode;
 import com.barofarm.buyer.inventory.infrastructure.kafka.consumer.dto.PaymentConfirmedEvent;
 import com.barofarm.buyer.inventory.infrastructure.kafka.producer.dto.InventoryConfirmedEvent;
+import com.barofarm.buyer.inventory.infrastructure.kafka.producer.dto.InventoryConfirmedFailEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -37,30 +39,39 @@ public class PaymentEventConsumer {
         attempts = "5",
         backoff = @Backoff(delay = 1000, multiplier = 2)
     )
+    @Transactional
     public void handle(PaymentConfirmedEvent event) {
         UUID orderId = event.orderId();
         System.out.println("payment-confirm!!!!!!!!!!!!!!!!!!!!!");
-        // 1) 재고 확정 (로컬 트랜잭션)
-        inventoryFacadeService.confirmInventory(InventoryConfirmCommand.of(orderId));
 
-        // 2) 인벤토리 확정 이벤트를 Outbox에 적재
-        InventoryConfirmedEvent dto = InventoryConfirmedEvent.from(event);
         try {
-            String payload = objectMapper.writeValueAsString(dto);
+            inventoryFacadeService.confirmForPaymentSaga(orderId);
 
-            InventoryOutboxEvent outbox = InventoryOutboxEvent.pending(
+            String payload = objectMapper.writeValueAsString(InventoryConfirmedEvent.from(event));
+
+            inventoryOutboxEventRepository.save(InventoryOutboxEvent.pending(
                 "INVENTORY",
                 orderId.toString(),
                 "inventory-confirmed",
                 orderId.toString(),
                 payload
-            );
-            inventoryOutboxEventRepository.save(outbox);
+            ));
             System.out.println("payment-confirmㅂㅂㅂㅂㅂㅂㅂㅂㅂㅂㅂㅂㅂㅂㅂㅂ");
-        } catch (JsonProcessingException e) {
-            System.out.println("payment-confirmㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌ");
+        } catch (CustomException customException) {
+            try{
+                String payload = objectMapper.writeValueAsString(InventoryConfirmedFailEvent.from(event));
+                inventoryOutboxEventRepository.save(InventoryOutboxEvent.pending(
+                    "INVENTORY",
+                    orderId.toString(),
+                    "inventory-confirmed-fail",
+                    orderId.toString(),
+                    payload
+                ));
+            } catch (JsonProcessingException jsonProcessingException) {
+                throw new CustomException(InventoryErrorCode.OUTBOX_SERIALIZATION_FAILED);
+            }
+        } catch (JsonProcessingException jsonProcessingException){
             throw new CustomException(InventoryErrorCode.OUTBOX_SERIALIZATION_FAILED);
         }
     }
 }
-

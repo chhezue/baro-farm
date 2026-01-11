@@ -7,6 +7,10 @@ import com.barofarm.buyer.inventory.application.dto.request.InventoryReserveComm
 import lombok.RequiredArgsConstructor;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
+
 import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.RESERVATION_RETRY_EXCEEDED;
 
 @Component
@@ -16,6 +20,16 @@ public class InventoryFacadeService {
     private static final int MAX_RETRY = 3;
 
     private final InventoryService inventoryService;
+
+    @Transactional
+    public void confirmForPaymentSaga(UUID orderId) {
+        try {
+            confirmInventory(InventoryConfirmCommand.of(orderId));
+        } catch (CustomException e) {
+            cancelInventory(InventoryCancelCommand.of(orderId)); // 예약 해제 보상
+            throw e;
+        }
+    }
 
     public void reserveInventory(InventoryReserveCommand command) {
         retry(() -> inventoryService.reserveInventory(command));

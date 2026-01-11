@@ -54,7 +54,6 @@ public class InventoryService {
         }
     }
 
-    @Transactional
     public void confirmInventory(InventoryConfirmCommand command) {
         List<InventoryReservation> reservations = inventoryReservationRepository.findAllByOrderId(command.orderId());
 
