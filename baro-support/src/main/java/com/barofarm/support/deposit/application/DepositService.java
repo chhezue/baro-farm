@@ -11,17 +11,18 @@ import com.barofarm.support.deposit.application.dto.response.DepositPaymentInfo;
 import com.barofarm.support.deposit.domain.Deposit;
 import com.barofarm.support.deposit.domain.DepositCharge;
 import com.barofarm.support.deposit.domain.DepositChargeRepository;
+import com.barofarm.support.deposit.domain.DepositOutboxEvent;
+import com.barofarm.support.deposit.domain.DepositOutboxEventRepository;
 import com.barofarm.support.deposit.domain.DepositRepository;
 import com.barofarm.support.deposit.exception.DepositErrorCode;
-import com.barofarm.support.deposit.infrastructure.kafka.OrderEventProducer;
-import com.barofarm.support.deposit.infrastructure.kafka.dto.OrderPaidEvent;
+import com.barofarm.support.deposit.infrastructure.kafka.dto.DepositPaymentRequestedEvent;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import static com.barofarm.support.deposit.exception.DepositErrorCode.DEPOSIT_ALREADY_EXISTS;
 
@@ -31,8 +32,9 @@ import static com.barofarm.support.deposit.exception.DepositErrorCode.DEPOSIT_AL
 public class DepositService {
 
     private final DepositRepository depositRepository;
-    private final OrderEventProducer orderEventProducer;
     private final DepositChargeRepository depositChargeRepository;
+    private final DepositOutboxEventRepository depositOutboxEventRepository;
+    private final ObjectMapper objectMapper;
 
 
     @Transactional
@@ -85,7 +87,6 @@ public class DepositService {
 
     @Transactional
     public ResponseDto<DepositPaymentInfo> payDeposit(UUID userId, DepositPaymentCommand command) {
-
         Deposit deposit = depositRepository.findByUserId(userId)
             .orElseThrow(() -> new CustomException(DepositErrorCode.DEPOSIT_NOT_FOUND));
 
@@ -94,23 +95,33 @@ public class DepositService {
         }
         deposit.decrease(command.amount());
 
-        Order order = orderService.completeOrder(userId, command.orderId());
-        paymentService.createPayment(command.orderId(), command.amount());
-
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                orderEventProducer.send(OrderPaidEvent.of(command.orderId(), order.getAddress()));
-            }
-        });
-
-        return ResponseDto.ok(
-            DepositPaymentInfo.of(
-                command.orderId(),
-                command.amount(),
-                deposit.getAmount()
-            )
+        DepositPaymentRequestedEvent event = new DepositPaymentRequestedEvent(
+            userId,
+            command.orderId(),
+            command.amount()
         );
+        try {
+            String payload = objectMapper.writeValueAsString(event);
+
+            DepositOutboxEvent outboxEvent = DepositOutboxEvent.pending(
+                "DEPOSIT",
+                deposit.getId().toString(),
+                "deposit-payment-requested",
+                command.orderId().toString(),
+                payload
+            );
+            depositOutboxEventRepository.save(outboxEvent);
+
+            return ResponseDto.ok(
+                DepositPaymentInfo.of(
+                    command.orderId(),
+                    command.amount(),
+                    deposit.getAmount()
+                )
+            );
+        } catch (JsonProcessingException e) {
+            throw new CustomException(DepositErrorCode.OUTBOX_SERIALIZATION_FAILED);
+        }
     }
 }
 
