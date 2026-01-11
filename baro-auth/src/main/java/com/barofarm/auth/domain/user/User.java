@@ -37,6 +37,10 @@ public class User extends BaseEntity{
     @Column(name = "user_type", nullable = false, length = 20)
     private UserType userType;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "user_state", nullable = false, length = 20)
+    private UserState userState;
+
     // 생성자 보호
     protected User() {
     }
@@ -47,6 +51,7 @@ public class User extends BaseEntity{
         this.phone = phone;
         this.marketingConsent = marketingConsent;
         this.userType = UserType.CUSTOMER;
+        this.userState = UserState.ACTIVE; // Account-level status used for gateway/OPA checks.
     }
 
     // 팩토리 패턴?
@@ -58,9 +63,21 @@ public class User extends BaseEntity{
         this.userType = UserType.SELLER;
     }
 
+    public void changeState(UserState userState) {
+        if (userState != null) {
+            this.userState = userState;
+        }
+    }
+
     public enum UserType {
         CUSTOMER,
         SELLER,
         ADMIN
+    }
+
+    public enum UserState {
+        ACTIVE,
+        SUSPENDED,
+        BLOCKED
     }
 }

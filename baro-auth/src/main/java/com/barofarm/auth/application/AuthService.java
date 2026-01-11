@@ -1,5 +1,7 @@
 package com.barofarm.auth.application;
 
+import com.barofarm.auth.application.event.HotlistEventMessage;
+import com.barofarm.auth.application.port.HotlistEventPublisher;
 import com.barofarm.auth.application.usecase.LoginCommand;
 import com.barofarm.auth.application.usecase.LoginResult;
 import com.barofarm.auth.application.usecase.PasswordChangeCommand;
@@ -19,8 +21,12 @@ import com.barofarm.auth.infrastructure.security.JwtTokenProvider;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -40,6 +46,7 @@ public class AuthService {
     private final EmailVerificationService emailVerificationService;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final HotlistEventPublisher hotlistEventPublisher;
     private final Clock clock;
 
     public SignUpResult signUp(SignUpCommand request) {
@@ -58,7 +65,8 @@ public class AuthService {
         credentialRepository.save(credential);
 
         String role = resolveRole(user.getUserType());
-        String accessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getEmail(), role);
+        Map<String, Object> entitlements = buildEntitlements(user);
+        String accessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getEmail(), role, entitlements);
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId(), user.getEmail(), role);
 
         refreshTokenRepository.deleteAllByUserId(user.getId());
@@ -84,8 +92,8 @@ public class AuthService {
         );
 
         String role = resolveRole(user.getUserType());
-
-        String accessToken = jwtTokenProvider.generateAccessToken(userId, email, role);
+        Map<String, Object> entitlements = buildEntitlements(user);
+        String accessToken = jwtTokenProvider.generateAccessToken(userId, email, role, entitlements);
         String refreshToken = jwtTokenProvider.generateRefreshToken(userId, email, role);
 
         refreshTokenRepository.deleteAllByUserId(userId);
@@ -114,8 +122,8 @@ public class AuthService {
             () -> new CustomException(AuthErrorCode.USER_NOT_FOUND)
         );
         String role = resolveRole(user.getUserType());
-
-        String newAccessToken = jwtTokenProvider.generateAccessToken(userId, email, role);
+        Map<String, Object> entitlements = buildEntitlements(user);
+        String newAccessToken = jwtTokenProvider.generateAccessToken(userId, email, role, entitlements);
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(userId, email, role);
         Duration refreshValidity = jwtTokenProvider.getRefreshTokenValidity();
         LocalDateTime newRefreshExpiry = LocalDateTime.now(clock).plus(refreshValidity);
@@ -184,6 +192,21 @@ public class AuthService {
 
     }
 
+    // Admin-controlled account state updates that drive gateway/OPA decisions.
+    public void updateUserState(UUID userId, User.UserState userState, String reason) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new CustomException(AuthErrorCode.USER_NOT_FOUND));
+
+        user.changeState(userState);
+        userRepository.save(user);
+
+        if (userState != User.UserState.ACTIVE) {
+            refreshTokenRepository.deleteAllByUserId(userId); // Force re-auth for blocked users.
+        }
+
+        publishUserStateEvent(user, userState, reason);
+    }
+
     private String generateSalt() {
         byte[] bytes = new byte[32]; // 32 bytes -> 64 hex chars
         RANDOM.nextBytes(bytes);
@@ -196,5 +219,29 @@ public class AuthService {
             case SELLER -> "SELLER";
             case ADMIN -> "ADMIN";
         };
+    }
+
+    private Map<String, Object> buildEntitlements(User user) {
+        Map<String, Object> entitlements = new HashMap<>();
+        // Default entitlements for gateway/OPA. Hotlist data overrides stale tokens.
+        // Flags are coarse-grained, endpoint-level blocks (review/reservation/order/publish).
+        entitlements.put("user_status", user.getUserState().name());
+        entitlements.put("seller_status", "UNKNOWN");
+        entitlements.put("flags", List.of());
+        entitlements.put("ver", 1);
+        return entitlements;
+    }
+
+    private void publishUserStateEvent(User user, User.UserState userState, String reason) {
+        HotlistEventMessage event = new HotlistEventMessage();
+        event.setEventId(UUID.randomUUID().toString());
+        event.setSubjectType("user");
+        event.setSubjectId(user.getId().toString());
+        event.setActive(userState != User.UserState.ACTIVE);
+        event.setStatus(userState.name());
+        event.setFlags(List.of());
+        event.setReason(reason);
+        event.setUpdatedAt(Instant.now().toString());
+        hotlistEventPublisher.publish(event);
     }
 }

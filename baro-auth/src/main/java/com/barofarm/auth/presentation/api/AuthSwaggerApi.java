@@ -4,6 +4,7 @@ import com.barofarm.auth.application.usecase.LoginResult;
 import com.barofarm.auth.application.usecase.SignUpResult;
 import com.barofarm.auth.application.usecase.TokenResult;
 import com.barofarm.auth.infrastructure.security.AuthUserPrincipal;
+import com.barofarm.auth.presentation.dto.admin.UpdateUserStateRequest;
 import com.barofarm.auth.presentation.dto.login.LoginRequest;
 import com.barofarm.auth.presentation.dto.password.PasswordChangeRequest;
 import com.barofarm.auth.presentation.dto.password.PasswordResetConfirmRequest;
@@ -73,4 +74,10 @@ public interface AuthSwaggerApi {
     @ApiResponses({@ApiResponse(responseCode = "200", description = "성공"),
             @ApiResponse(responseCode = "404", description = "사용자 없음")})
     ResponseEntity<Void> grantSeller(UUID userId);
+
+    @Operation(summary = "사용자 상태 변경", description = "관리자용 계정 상태 변경 (ACTIVE/SUSPENDED/BLOCKED)")
+    @ApiResponses({@ApiResponse(responseCode = "200", description = "성공"),
+            @ApiResponse(responseCode = "404", description = "사용자 없음")})
+    @SecurityRequirement(name = "bearerAuth")
+    ResponseEntity<Void> updateUserState(UUID userId, UpdateUserStateRequest request);
 }

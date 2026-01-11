@@ -6,6 +6,7 @@ import com.barofarm.auth.application.usecase.SignUpResult;
 import com.barofarm.auth.application.usecase.TokenResult;
 import com.barofarm.auth.infrastructure.security.AuthUserPrincipal;
 import com.barofarm.auth.presentation.api.AuthSwaggerApi;
+import com.barofarm.auth.presentation.dto.admin.UpdateUserStateRequest;
 import com.barofarm.auth.presentation.dto.login.LoginRequest;
 import com.barofarm.auth.presentation.dto.password.PasswordChangeRequest;
 import com.barofarm.auth.presentation.dto.password.PasswordResetConfirmRequest;
@@ -18,6 +19,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -95,6 +97,17 @@ public class AuthController implements AuthSwaggerApi {
     @PostMapping("/{userId}/grant-seller")
     public ResponseEntity<Void> grantSeller(@PathVariable UUID userId) {
         authService.grantSeller(userId);
+        return ResponseEntity.ok().build();
+    }
+
+    // ==== Admin-only account state updates
+    @PostMapping("/{userId}/state")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> updateUserState(
+        @PathVariable UUID userId,
+        @RequestBody UpdateUserStateRequest request
+    ) {
+        authService.updateUserState(userId, request.userState(), request.reason());
         return ResponseEntity.ok().build();
     }
 }

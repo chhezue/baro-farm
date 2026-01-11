@@ -1,5 +1,5 @@
 server:
-  port: ${SERVER_PORT:8081}  # 환경 변수로 오버라이드 가능 (Config Server 설정 덮어쓰기 방지)
+  port: ${SERVER_PORT:8081}
 
 api:
   v1: /api/v1
@@ -16,6 +16,13 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: ${MYSQL_USER:}
     password: ${MYSQL_PASSWORD:}
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
   jpa:
     hibernate:
       ddl-auto: update  # 일시적으로 update로 변경 (스키마 수정 후 validate로 변경)
@@ -96,4 +103,6 @@ jwt:
   refresh-token-validity-ms: 1209600000 # 14일
 
 
-
+opa:
+  kafka:
+    topic: ${OPA_HOTLIST_TOPIC:opa-hotlist-events}
