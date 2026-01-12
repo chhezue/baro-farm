@@ -1,6 +1,5 @@
 package com.barofarm.log.history.aspect;
 
-import com.barofarm.ai.event.model.CartEvent;
 import com.barofarm.config.HistoryLogProperties;
 import com.barofarm.log.history.annotation.TrackHistory;
 import com.barofarm.log.history.mapper.HistoryPayloadMapper;
@@ -64,6 +63,7 @@ public class HistoryAspect {
             return pjp.proceed();
         }
 
+        // 삭제되기 전이라면 미리 Mapping 해줘야 함
         Object payload = null;
         if (mapper.mapBeforeProceed()) {
             payload = mapper.payload(args, null);
@@ -73,36 +73,16 @@ public class HistoryAspect {
         try {
             result = pjp.proceed();
         } catch (Throwable t) {
-            // 정책: 실패한 요청은 history 발행하지 않음 (AOP가 실패했다고 해서 주문/장바구니 로직이 실패하는 것 X)
             throw t;
         }
 
+        // proceed 후 매핑
         if (!mapper.mapBeforeProceed()) {
             payload = mapper.payload(args, result);
         }
 
         UUID userId = resolveUserIdFromHeader();
         OffsetDateTime now = OffsetDateTime.now();
-        if (payload instanceof CartEvent.CartEventData cartData) {
-            CartEvent.CartEventType cartType = toCartEventType(type);
-            if (cartType != null) {
-                CartEvent.CartEventData enriched = CartEvent.CartEventData.builder()
-                    .userId(userId)
-                    .cartId(cartData.getCartId())
-                    .cartItemId(cartData.getCartItemId())
-                    .productId(cartData.getProductId())
-                    .productName(cartData.getProductName())
-                    .quantity(cartData.getQuantity())
-                    .occurredAt(now.toInstant())
-                    .build();
-                CartEvent cartEvent = CartEvent.builder()
-                    .type(cartType)
-                    .data(enriched)
-                    .build();
-                writer.write(type, cartEvent, userId);
-                return result;
-            }
-        }
 
         HistoryEnvelope<Object> envelope = new HistoryEnvelope<>(
             type,
@@ -115,6 +95,7 @@ public class HistoryAspect {
         return result;
     }
 
+    // UserId를 헤더에서 추출
     private UUID resolveUserIdFromHeader() {
         ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attrs == null) {
@@ -129,14 +110,6 @@ public class HistoryAspect {
 
         try {
             return UUID.fromString(userId);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    private CartEvent.CartEventType toCartEventType(HistoryEventType type) {
-        try {
-            return CartEvent.CartEventType.valueOf(type.name());
         } catch (IllegalArgumentException e) {
             return null;
         }

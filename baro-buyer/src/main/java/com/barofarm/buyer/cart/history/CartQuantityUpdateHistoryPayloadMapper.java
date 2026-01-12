@@ -1,6 +1,6 @@
 package com.barofarm.buyer.cart.history;
 
-import com.barofarm.ai.event.model.CartEvent;
+import com.barofarm.log.history.model.CartEventData;
 import com.barofarm.buyer.cart.domain.Cart;
 import com.barofarm.buyer.cart.domain.CartItem;
 import com.barofarm.buyer.cart.domain.CartRepository;
@@ -31,8 +31,8 @@ public class CartQuantityUpdateHistoryPayloadMapper implements HistoryPayloadMap
         final UUID itemId = args != null && args.length >= 4 ? (UUID) args[2] : null;
         final Integer quantity = args != null && args.length >= 4 ? (Integer) args[3] : null;
 
-        final CartEvent.CartEventData.CartEventDataBuilder builder =
-            CartEvent.CartEventData.builder()
+        final CartEventData.CartEventDataBuilder builder =
+            CartEventData.builder()
                 .cartItemId(itemId)
                 .quantity(quantity);
 

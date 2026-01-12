@@ -1,6 +1,6 @@
 package com.barofarm.buyer.cart.history;
 
-import com.barofarm.ai.event.model.CartEvent;
+import com.barofarm.log.history.model.CartEventData;
 import com.barofarm.buyer.cart.application.dto.AddItemCommand;
 import com.barofarm.buyer.cart.application.dto.CartInfo;
 import com.barofarm.buyer.cart.application.dto.CartItemInfo;
@@ -33,7 +33,7 @@ public class CartAddHistoryPayloadMapper implements HistoryPayloadMapper {
             }
         }
 
-        return CartEvent.CartEventData.builder()
+        return CartEventData.builder()
             .cartId(cartId)
             .cartItemId(cartItemId)
             .productId(command != null ? command.productId() : null)
