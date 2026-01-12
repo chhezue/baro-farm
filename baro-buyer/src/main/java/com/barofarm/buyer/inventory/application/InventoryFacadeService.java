@@ -26,7 +26,7 @@ public class InventoryFacadeService {
         try {
             confirmInventory(InventoryConfirmCommand.of(orderId));
         } catch (CustomException e) {
-            cancelInventory(InventoryCancelCommand.of(orderId)); // 예약 해제 보상
+            cancelInventory(InventoryCancelCommand.of(orderId));
             throw e;
         }
     }

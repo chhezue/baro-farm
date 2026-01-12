@@ -32,6 +32,7 @@ public class OrderOrchestrator {
             orderService.markInventoryReserved(orderCreateInfo.orderId());
             return ResponseDto.ok(orderCreateInfo);
         } catch (Exception e){
+            // 부분 성공 상태(주문만 생성되거나 재고만 예약) 방지
             orderService.compensateInventory(orderCreateInfo.orderId());
             throw e;
         }
