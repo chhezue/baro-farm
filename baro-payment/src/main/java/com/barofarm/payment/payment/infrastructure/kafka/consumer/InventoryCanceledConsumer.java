@@ -10,6 +10,7 @@ import com.barofarm.payment.payment.domain.PaymentStatus;
 import com.barofarm.payment.payment.exception.PaymentErrorCode;
 import com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.InventoryCanceledEvent;
 import com.barofarm.payment.payment.infrastructure.kafka.producer.dto.PaymentCanceledEvent;
+import com.barofarm.payment.payment.infrastructure.kafka.producer.dto.PaymentCancelFailedEvent;
 import com.barofarm.payment.payment.infrastructure.rest.DepositClient;
 import com.barofarm.payment.payment.infrastructure.rest.TossPaymentClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -61,20 +62,25 @@ public class InventoryCanceledConsumer {
             return;
         }
 
-        if ("DEPOSIT".equals(payment.getMethod())) {
-            depositClient.refundDeposit(
-                payment.getUserId(),
-                event.orderId(),
-                payment.getAmount()
-            );
-        } else {
-            TossPaymentRefundCommand command = new TossPaymentRefundCommand(
-                payment.getPaymentKey(),
-                "Order canceled: " + payment.getOrderId()
-            );
-            tossPaymentClient.refund(command);
+        try {
+            if ("DEPOSIT".equals(payment.getMethod())) {
+                depositClient.refundDeposit(
+                    payment.getUserId(),
+                    event.orderId(),
+                    payment.getAmount()
+                );
+            } else {
+                TossPaymentRefundCommand command = new TossPaymentRefundCommand(
+                    payment.getPaymentKey(),
+                    "Order canceled: " + payment.getOrderId()
+                );
+                tossPaymentClient.refund(command);
+            }
+            payment.refund();
+        } catch (RuntimeException e) {
+            createCancelFailureOutbox(event, payment, e);
+            throw e;
         }
-        payment.refund();
 
         PaymentCanceledEvent canceledEvent = new PaymentCanceledEvent(
             event.orderId(),
@@ -92,6 +98,29 @@ public class InventoryCanceledConsumer {
             );
             paymentOutboxEventRepository.save(outbox);
         } catch (JsonProcessingException e) {
+            throw new CustomException(PaymentErrorCode.OUTBOX_SERIALIZATION_FAILED);
+        }
+    }
+
+    private void createCancelFailureOutbox(InventoryCanceledEvent event, Payment payment, Exception cause) {
+        try {
+            PaymentCancelFailedEvent failedEvent = new PaymentCancelFailedEvent(
+                event.orderId(),
+                payment.getAmount(),
+                cause.getMessage()
+            );
+
+            String payload = objectMapper.writeValueAsString(failedEvent);
+
+            PaymentOutboxEvent outboxEvent = PaymentOutboxEvent.pending(
+                "PAYMENT",
+                payment.getId().toString(),
+                "payment-cancel-failed",
+                payment.getOrderId(),
+                payload
+            );
+            paymentOutboxEventRepository.save(outboxEvent);
+        } catch (JsonProcessingException ex) {
             throw new CustomException(PaymentErrorCode.OUTBOX_SERIALIZATION_FAILED);
         }
     }

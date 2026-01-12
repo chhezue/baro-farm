@@ -88,7 +88,7 @@ public class InventoryService {
         List<InventoryReservation> reservations = inventoryReservationRepository.findAllByOrderId(command.orderId());
 
         if(reservations.isEmpty()){
-            throw new CustomException(INVENTORY_RESERVATION_NOT_FOUND);
+            return;
         }
 
         boolean allCanceled = reservations.stream()
