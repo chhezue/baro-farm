@@ -1,7 +1,7 @@
 package com.barofarm.support.experience.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 import com.barofarm.support.experience.domain.Experience;
 import com.barofarm.support.experience.domain.ExperienceRepository;
 import com.barofarm.support.experience.domain.ExperienceStatus;
-import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Optional;
@@ -46,11 +45,11 @@ class ExperienceRepositoryTest {
         experienceId2 = UUID.randomUUID();
 
         experience1 = new Experience(experienceId1, farmId, "딸기 수확 체험", "신선한 딸기를 직접 수확해보세요",
-                BigInteger.valueOf(15000), 20, 120, LocalDateTime.of(2025, 3, 1, 9, 0), LocalDateTime.of(2025, 5, 31, 18, 0),
+                15000L, 20, 120, LocalDateTime.of(2025, 3, 1, 9, 0), LocalDateTime.of(2025, 5, 31, 18, 0),
                 ExperienceStatus.ON_SALE);
 
         experience2 = new Experience(experienceId2, farmId, "블루베리 수확 체험", "달콤한 블루베리를 수확해보세요",
-                BigInteger.valueOf(20000), 15, 90, LocalDateTime.of(2025, 6, 1, 9, 0), LocalDateTime.of(2025, 8, 31, 18, 0),
+                20000L, 15, 90, LocalDateTime.of(2025, 6, 1, 9, 0), LocalDateTime.of(2025, 8, 31, 18, 0),
                 ExperienceStatus.ON_SALE);
     }
 
@@ -78,7 +77,7 @@ class ExperienceRepositoryTest {
         UUID farmId2 = UUID.randomUUID();
         UUID experienceId3 = UUID.randomUUID();
         Experience experience3 = new Experience(experienceId3, farmId2, "감자 수확 체험", "감자 캐기 체험",
-                BigInteger.valueOf(10000), 30, 60, LocalDateTime.of(2025, 9, 1, 9, 0), LocalDateTime.of(2025, 11, 30, 18, 0),
+                10000L, 30, 60, LocalDateTime.of(2025, 9, 1, 9, 0), LocalDateTime.of(2025, 11, 30, 18, 0),
                 ExperienceStatus.ON_SALE);
 
         Pageable pageable = PageRequest.of(0, 10);

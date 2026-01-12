@@ -25,105 +25,131 @@ spring:
       server:
         webflux:
           routes:
-            # Auth Service
-            - id: auth-service
-              uri: lb://auth-service
-              predicates:
-                - Path=/auth-service/**
-              filters:
-                - RewritePath=/auth-service/(?<segment>.*), /${segment}
-                - Authentication
-                - OpaAuthorization
-
-            # Buyer Service
-            - id: buyer-service
-              uri: lb://buyer-service
-              predicates:
-                - Path=/buyer-service/**
-              filters:
-                - RewritePath=/buyer-service/(?<segment>.*), /${segment}
-                - Authentication
-                - OpaAuthorization
-
-            # Seller Service
-            - id: seller-service
-              uri: lb://seller-service
-              predicates:
-                - Path=/seller-service/**
-              filters:
-                - RewritePath=/seller-service/(?<segment>.*), /${segment}
-                - Authentication
-                - OpaAuthorization
-
-            # Order Service
-            - id: order-service
-              uri: lb://order-service
-              predicates:
-                - Path=/order-service/**,/api/payments/**
-              filters:
-                - RewritePath=/order-service/(?<segment>.*), /${segment}
-                - Authentication
-                - OpaAuthorization
-
-            # Support Service
-            - id: support-service
-              uri: lb://support-service
-              predicates:
-                - Path=/support-service/**
-              filters:
-                - RewritePath=/support-service/(?<segment>.*), /${segment}
-                - Authentication
-                - OpaAuthorization
-
-            # Auth Service API 문서 프록시
+            # ============================================
+            # OpenAPI 문서 프록시
+            # ============================================
             - id: auth-service-openapi
               uri: lb://auth-service
               predicates:
                 - Path=/openapi/auth/v3/api-docs, /openapi/auth/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/auth/(?<segment>.*), /${segment}
-                - Authentication
-                - OpaAuthorization
 
-            # Buyer Service API 문서 프록시
             - id: buyer-service-openapi
               uri: lb://buyer-service
               predicates:
                 - Path=/openapi/buyer/v3/api-docs, /openapi/buyer/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/buyer/(?<segment>.*), /${segment}
-                - Authentication
-                - OpaAuthorization
 
-            # Seller Service API 문서 프록시
             - id: seller-service-openapi
               uri: lb://seller-service
               predicates:
                 - Path=/openapi/seller/v3/api-docs, /openapi/seller/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/seller/(?<segment>.*), /${segment}
-                - Authentication
-                - OpaAuthorization
 
-            # Order Service API 문서 프록시
             - id: order-service-openapi
               uri: lb://order-service
               predicates:
                 - Path=/openapi/order/v3/api-docs, /openapi/order/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/order/(?<segment>.*), /${segment}
-                - Authentication
-                - OpaAuthorization
 
-            # Support Service API 문서 프록시
+            - id: payment-service-openapi
+              uri: lb://payment-service
+              predicates:
+                - Path=/openapi/payment/v3/api-docs, /openapi/payment/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/payment/(?<segment>.*), /${segment}
+
             - id: support-service-openapi
               uri: lb://support-service
               predicates:
                 - Path=/openapi/support/v3/api-docs, /openapi/support/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/support/(?<segment>.*), /${segment}
-                - Authentication
-                - OpaAuthorization
+
+            - id: settlement-service-openapi
+              uri: lb://settlement-service
+              predicates:
+                - Path=/openapi/settlement/v3/api-docs, /openapi/settlement/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/settlement/(?<segment>.*), /${segment}
+
+            - id: ai-service-openapi
+              uri: lb://ai-service
+              predicates:
+                - Path=/openapi/ai/v3/api-docs, /openapi/ai/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/ai/(?<segment>.*), /${segment}
+
+            # ============================================
+            # 일반 API 서비스 라우트
+            # ============================================
+            # Auth Service
+            - id: auth-service
+              uri: lb://auth-service
+              predicates:
+                - Path=/auth-service/**,/api/auth/**
+              filters:
+                - RewritePath=/auth-service/(?<segment>.*), /${segment}
+
+            # Buyer Service
+            - id: buyer-service
+              uri: lb://buyer-service
+              predicates:
+                - Path=/buyer-service/**,/api/buyers/**,/api/carts/**,/api/products/**
+              filters:
+                - RewritePath=/buyer-service/(?<segment>.*), /${segment}
+
+            # Seller Service
+            - id: seller-service
+              uri: lb://seller-service
+              predicates:
+                - Path=/seller-service/**,/api/sellers/**,/api/farms/**
+              filters:
+                - RewritePath=/seller-service/(?<segment>.*), /${segment}
+
+            # Order Service (주문만)
+            - id: order-service
+              uri: lb://order-service
+              predicates:
+                - Path=/order-service/**,/api/orders/**
+              filters:
+                - RewritePath=/order-service/(?<segment>.*), /${segment}
+
+            # Payment Service (결제, 예치금 분리)
+            - id: payment-service
+              uri: lb://payment-service
+              predicates:
+                - Path=/payment-service/**,/api/payments/**,/api/deposits/**
+              filters:
+                - RewritePath=/payment-service/(?<segment>.*), /${segment}
+
+            # Support Service
+            - id: support-service
+              uri: lb://support-service
+              predicates:
+                - Path=/support-service/**,/api/deliveries/**,/api/notifications/**,/api/experiences/**,/api/reviews/**
+              filters:
+                - RewritePath=/support-service/(?<segment>.*), /${segment}
+
+            # Settlement Service
+            - id: settlement-service
+              uri: lb://settlement-service
+              predicates:
+                - Path=/settlement-service/**,/api/settlements/**
+              filters:
+                - RewritePath=/settlement-service/(?<segment>.*), /${segment}
+
+            # AI Service
+            - id: ai-service
+              uri: lb://ai-service
+              predicates:
+                - Path=/ai-service/**,/api/ai/**,/api/search/**,/api/recommend/**,/api/chatbot/**,/api/season/**
+              filters:
+                - RewritePath=/ai-service/(?<segment>.*), /${segment}
 
 eureka:
   client:
@@ -161,8 +187,14 @@ springdoc:
         url: /openapi/seller/v3/api-docs
       - name: Order Service
         url: /openapi/order/v3/api-docs
+      - name: Payment Service
+        url: /openapi/payment/v3/api-docs
       - name: Support Service
         url: /openapi/support/v3/api-docs
+      - name: Settlement Service
+        url: /openapi/settlement/v3/api-docs
+      - name: AI Service
+        url: /openapi/ai/v3/api-docs
   api-docs:
     enabled: true
   enable-native-support: true
