@@ -34,6 +34,8 @@ spring:
                 - Path=/openapi/auth/v3/api-docs, /openapi/auth/v3/api-docs/**
               filters:
                 - RewritePath=/openapi/auth/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             - id: buyer-service-openapi
               uri: lb://buyer-service

@@ -42,34 +42,48 @@ candidate_ids(bucket) := ids {
 } else := []
 
 buckets := all_buckets {
-  service_present
+  # [1] Recursion issue: buckets -> service_present -> policy_buckets -> buckets
+  #     Fix by removing service_present and avoiding variable data lookups.
   service_buckets := policy_buckets
   common_buckets := common_policy_buckets
   all_buckets := array.concat(service_buckets, common_buckets)
 } else := []
 
-service_present {
-  input.route.service
-  data[input.route.service]
-}
-
-policy_buckets := buckets {
+policy_buckets := service_buckets {
+  # [2] Recursion issue: variable data lookups (data[service]) can resolve to
+  #     policy packages like data.gateway.authz.* and create cycles.
   service := input.route.service
-  buckets := [bucket |
-    name := object.keys(data[service])[_]
-    bucket := data[service][name]
+  svc_data := service_data(service)
+  svc_data != null
+  service_buckets := [bucket |
+    name := object.keys(svc_data)[_]
+    bucket := svc_data[name]
     bucket.rules_by_id
   ]
 } else := []
 
-common_policy_buckets := buckets {
+common_policy_buckets := common_buckets {
+  # [3] Recursion issue: keep common buckets independent from policy buckets.
   data.common
-  buckets := [bucket |
+  common_buckets := [bucket |
     name := object.keys(data.common)[_]
     bucket := data.common[name]
     bucket.rules_by_id
   ]
 } else := []
+
+service_data(service) := data.auth {
+  # [4] Use explicit data roots to avoid variable data lookups and recursion.
+  service == "auth"
+} else := data.buyer {
+  service == "buyer"
+} else := data.seller {
+  service == "seller"
+} else := data.order {
+  service == "order"
+} else := data.support {
+  service == "support"
+} else := null
 
 
 user_roles := roles {
