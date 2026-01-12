@@ -10,7 +10,6 @@ import com.barofarm.order.order.application.dto.response.OrderCreateInfo;
 import com.barofarm.order.order.application.dto.response.OrderDetailInfo;
 import com.barofarm.order.order.presentation.dto.OrderCreateRequest;
 import java.util.UUID;
-
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -31,16 +30,14 @@ public class OrderController {
     private final OrderService orderService;
     private final OrderOrchestrator orderOrchestrator;
 
-    // 완료
     @PostMapping
-    public ResponseDto<OrderCreateInfo> createOrder(
+    public ResponseDto<OrderCreateInfo> placeOrder(
         //@RequestHeader("X-User-Id") UUID userId,
         @Valid @RequestBody OrderCreateRequest request) {
         UUID userId = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
         return orderOrchestrator.placeOrder(userId, request.toCommand());
     }
 
-    // 완료
     @GetMapping("/{orderId}")
     public ResponseDto<OrderDetailInfo> findOrderDetail(
         //@RequestHeader("X-User-Id") UUID userId,
@@ -49,7 +46,6 @@ public class OrderController {
         return orderService.findOrderDetail(userId, orderId);
     }
 
-    // 완료
     @GetMapping
     public ResponseDto<CustomPage<OrderDetailInfo>> findOrderList(
         //@RequestHeader("X-User-Id") UUID userId,
