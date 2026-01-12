@@ -33,6 +33,24 @@
     </filter>
   </appender>
 
+  <!-- WARN(access) 파일 -->
+  <appender name="ACCESS_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>logs/access.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <fileNamePattern>logs/access.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+      <maxFileSize>100MB</maxFileSize>
+      <maxHistory>30</maxHistory>
+    </rollingPolicy>
+    <encoder>
+      <pattern>${LOG_PATTERN}</pattern>
+    </encoder>
+    <filter class="ch.qos.logback.classic.filter.LevelFilter">
+      <level>WARN</level>
+      <onMatch>ACCEPT</onMatch>
+      <onMismatch>DENY</onMismatch>
+    </filter>
+  </appender>
+
   <!-- CART history 파일 -->
   <appender name="CART_HISTORY_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
     <file>logs/cart-history.log</file>
@@ -72,6 +90,7 @@
   <root level="WARN">
     <appender-ref ref="ERROR_CONSOLE"/>
     <appender-ref ref="ERROR_FILE"/>
+    <appender-ref ref="ACCESS_FILE"/>
   </root>
 
 </configuration>
