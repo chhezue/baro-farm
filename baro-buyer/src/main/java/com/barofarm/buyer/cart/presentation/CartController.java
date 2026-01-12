@@ -68,7 +68,7 @@ public class CartController {
       @RequestHeader(value = "X-Session-Key", required = false) String sessionKey,
       @PathVariable UUID itemId,
       @RequestBody UpdateOptionRequest request) {
-    CartInfo cartInfo = cartService.updateOption(buyerId, sessionKey, itemId, request.optionInfoJson());
+    CartInfo cartInfo = cartService.updateOption(buyerId, sessionKey, itemId, request.inventoryId());
     return ResponseDto.ok(cartInfo);
   }
 

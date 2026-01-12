@@ -7,5 +7,5 @@ public record AddItemCommand(
     UUID productId,
     Integer quantity,
     Long unitPrice,
-    String optionInfoJson
+    UUID inventoryId
 ) {}

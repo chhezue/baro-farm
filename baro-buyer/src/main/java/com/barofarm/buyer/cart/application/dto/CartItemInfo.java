@@ -11,7 +11,7 @@ public record CartItemInfo(
     Integer quantity,
     Long unitPrice,
     Long lineTotalPrice,
-    String optionInfoJson
+    UUID inventoryId
 ) {
     /**
      * 실시간 상품명 사용 (ProductService로 조회)
@@ -27,7 +27,7 @@ public record CartItemInfo(
             item.getQuantity(),
             item.getUnitPrice(),
             item.calculatePrice(),      // CartItem 도메인 메서드 사용
-            item.getOptionInfoJson()
+            item.getInventoryId()
         );
     }
 }

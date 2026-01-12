@@ -58,7 +58,7 @@ public class CartService {
             command.productId(),
             command.quantity(),
             command.unitPrice(),
-            command.optionInfoJson()
+            command.inventoryId()
         );
 
         // 새로운 아이템 저장
@@ -85,7 +85,7 @@ public class CartService {
 
     // 장바구니 항목 옵션 변경
     @Transactional
-    public CartInfo updateOption(UUID buyerId, String sessionKey, UUID itemId, String optionInfoJson) {
+    public CartInfo updateOption(UUID buyerId, String sessionKey, UUID itemId, UUID inventoryId) {
         Cart cart = findCart(buyerId, sessionKey);
 
         // 옵션 변경
@@ -94,7 +94,7 @@ public class CartService {
             throw new CustomException(CartErrorCode.CART_ITEM_NOT_FOUND);
         }
         CartItem item = itemOpt.get();
-        cart.changeItemOption(item, optionInfoJson);
+        cart.changeItemOption(item, inventoryId);
 
         return createCartInfoWithProductNames(cart);
     }
@@ -133,7 +133,7 @@ public class CartService {
                 item.getProductId(),
                 item.getQuantity(),
                 item.getUnitPrice(),
-                item.getOptionInfoJson()
+                item.getInventoryId()
             );
             userCart.addItem(copied);
         }

@@ -86,8 +86,8 @@ public class Cart extends BaseEntity {
   }
 
   /** 이미 존재하는 CartItem의 옵션 변경 및 병합 처리 */
-  public void changeItemOption(CartItem item, String newOptionJson) {
-    item.changeOption(newOptionJson);
+  public void changeItemOption(CartItem item, UUID inventoryId) {
+    item.changeOption(inventoryId);
     mergeAfterOptionChange(item); // 옵션을 변경했는데 이미 같은 옵션의 다른 항목이 있다면 병합
     touch();
   }
