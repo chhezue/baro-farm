@@ -6,6 +6,7 @@ Baro Farm 프로젝트의 GitHub Actions 기반 CI/CD 파이프라인 구축 가
 
 - [CI/CD 개요](#cicd-개요)
 - [파이프라인 구조](#파이프라인-구조)
+- [인프라 구성](#인프라-구성)
 - [사전 준비사항](#사전-준비사항)
 - [GitHub Secrets 설정](#github-secrets-설정)
 - [AWS EC2 설정](#aws-ec2-설정)
@@ -21,14 +22,15 @@ Baro Farm 프로젝트의 GitHub Actions 기반 CI/CD 파이프라인 구축 가
 - **CI/CD**: GitHub Actions
 - **컨테이너**: Docker
 - **레지스트리**: GitHub Container Registry (GHCR)
-- **배포 환경**: AWS EC2
-- **오케스트레이션**: Docker Compose
+- **배포 환경**: AWS EC2 (k3s 클러스터)
+- **오케스트레이션**: Kubernetes (k3s) + Docker Compose
+- **배포 도구**: Kustomize
 
 ### 자동화 범위
 
 ```
 Code Push → CI (빌드/테스트) → Docker Image Build → 
-Docker Hub Push → EC2 Deploy → Health Check
+GHCR Push → k3s 클러스터 배포 → Health Check
 ```
 
 ---
@@ -63,7 +65,10 @@ Docker Hub Push → EC2 Deploy → Health Check
 - baro-buyer
 - baro-seller
 - baro-order
+- baro-payment
 - baro-support
+- baro-settlement
+- baro-ai
 - eureka
 - gateway
 - config
@@ -71,14 +76,69 @@ Docker Hub Push → EC2 Deploy → Health Check
 ### 3. CD (Continuous Deployment)
 
 **트리거:**
-- `main` 브랜치에 Push (프로덕션 배포)
+- `main-*` 브랜치에 Push (모듈별 프로덕션 배포)
 
 **작업:**
-1. ✅ EC2에 배포 스크립트 전송
-2. ✅ EC2에서 최신 이미지 Pull
-3. ✅ 기존 컨테이너 중지
-4. ✅ 새 컨테이너 시작
-5. ✅ Health Check
+1. ✅ Self-hosted Runner에서 실행
+2. ✅ Docker 이미지 빌드 및 GHCR Push
+3. ✅ k3s 클러스터에 배포 (kubectl apply -k)
+4. ✅ Kustomize를 통한 이미지 태그 업데이트
+5. ✅ Pod 상태 확인 및 Health Check
+
+---
+
+## 인프라 구성
+
+이 프로젝트는 **k3s 클러스터** 환경에서 운영됩니다.
+
+### 클러스터 구성
+
+- **k3s Master Node (t3.medium 4GB)**
+  - GitHub Actions Runner 설치
+  - MySQL, Redis, Elasticsearch (Docker Compose)
+  - Eureka, Config, Gateway (k3s Pod)
+  - Kubernetes API Server, etcd 등 k3s 제어 플레인
+
+- **k3s Worker Node (t3.medium 4GB)**
+  - GitHub Actions Runner 설치
+  - Kafka (Docker Compose)
+  - 비즈니스 서비스 모듈 (k3s Pod)
+    - baro-auth, baro-buyer, baro-seller, baro-order, baro-payment, baro-support, baro-settlement (DaemonSet), baro-ai
+
+### 배포 방식
+
+- **데이터 인프라**: Docker Compose로 직접 배포
+- **애플리케이션**: k3s를 통해 Kubernetes Pod로 배포
+- **CI/CD**: 각 서버에 설치된 GitHub Actions Runner가 자동 배포 수행
+
+### Kustomize를 활용한 배포
+
+이 프로젝트는 **Kustomize**를 사용하여 Kubernetes 매니페스트를 선언적으로 관리합니다.
+
+**주요 특징:**
+- 선언적 관리: `kustomization.yaml` 파일을 통해 리소스 관리
+- 이미지 태그 관리: `images` 섹션을 통해 이미지 태그 쉽게 변경
+- 네이티브 지원: kubectl에 내장되어 있어 별도 설치 불필요
+
+**디렉토리 구조:**
+```
+k8s/
+├── base/                    # 기본 리소스
+├── cloud/                   # Spring Cloud 인프라 모듈
+│   ├── eureka/
+│   ├── config/
+│   └── gateway/
+├── apps/                    # 비즈니스 애플리케이션 모듈
+│   ├── baro-auth/
+│   ├── baro-buyer/
+│   ├── baro-seller/
+│   ├── baro-order/
+│   ├── baro-payment/
+│   ├── baro-support/
+│   ├── baro-settlement/     # DaemonSet
+│   └── baro-ai/
+└── redis/                   # Redis 캐시
+```
 
 ---
 
@@ -95,6 +155,7 @@ ghcr.io/{github-username}/{service-name}:tag
 # 예시:
 ghcr.io/do-develop-space/baro-auth:latest
 ghcr.io/do-develop-space/baro-buyer:latest
+ghcr.io/do-develop-space/baro-settlement:latest
 ghcr.io/do-develop-space/eureka:latest
 ...
 ```
@@ -105,35 +166,67 @@ ghcr.io/do-develop-space/eureka:latest
 이미지를 push한 후 자동으로 GitHub API를 통해 패키지 visibility를 public으로 변경합니다.
 따라서 별도로 수동 설정할 필요가 없습니다.
 
-**수동 설정이 필요한 경우:**
-만약 자동 설정이 실패하거나 수동으로 변경하려면:
-
-1. GitHub → https://github.com/users/do-develop-space/packages
-2. 변경할 패키지 클릭 (예: `baro-support`)
-3. 우측 하단의 **"Package settings"** 클릭
-4. **"Change visibility"** 또는 **"Danger Zone"** 섹션에서 **"Change visibility"** 클릭
-5. **"Make public"** 선택
-6. 패키지 이름 입력하여 확인
-
 **참고:**
 - ✅ Public 패키지는 인증 없이 pull 가능
-- ⚠️ Private 패키지는 `GHCR_PAT` 또는 `GITHUB_TOKEN` 필요
 - ✅ 모든 서비스 패키지가 자동으로 public으로 설정됨
 
 ### 2. AWS EC2 인스턴스
 
 **최소 사양:**
-- Type: t3.medium (2 vCPU, 4GB RAM) 이상
+- **Master Node**: t3.medium (2 vCPU, 4GB RAM)
+- **Worker Node**: t3.medium (2 vCPU, 4GB RAM)
 - OS: Ubuntu 22.04 LTS
 - Storage: 30GB 이상
-- Security Group: 8080-8089, 8761, 8888 포트 오픈
+- Security Group: 8080-8092, 8761, 8888 포트 오픈
 
-### 3. EC2에 Docker 설치
+### 3. k3s 클러스터 설치
+
+**Master Node:**
+```bash
+# k3s 설치
+curl -sfL https://get.k3s.io | sh -
+
+# kubeconfig 확인
+sudo cat /etc/rancher/k3s/k3s.yaml
+
+# kubectl 설정
+mkdir -p ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown $USER:$USER ~/.kube/config
+```
+
+**Worker Node:**
+```bash
+# Master Node에서 토큰 확인
+sudo cat /var/lib/rancher/k3s/server/node-token
+
+# Worker Node에서 k3s 설치 (Master Node IP와 토큰 사용)
+curl -sfL https://get.k3s.io | K3S_URL=https://<MASTER_IP>:6443 K3S_TOKEN=<TOKEN> sh -
+```
+
+### 4. GitHub Actions Runner 설치
+
+각 서버(Master Node, Worker Node)에 self-hosted runner를 설치해야 합니다.
+
+**설치 위치:**
+- Master Node: `/home/ubuntu/actions-runner`
+- Worker Node: `/home/ubuntu/actions-runner`
+
+**설치 방법:**
+```bash
+# GitHub → Settings → Actions → Runners → New self-hosted runner
+# 지시에 따라 다운로드 및 설치
+
+cd ~/actions-runner
+./config.sh --url https://github.com/OWNER/REPO --token <TOKEN>
+./run.sh
+```
+
+**자세한 가이드:** [SELF_HOSTED_RUNNER_GUIDE.md](./SELF_HOSTED_RUNNER_GUIDE.md) 참조
+
+### 5. Docker 및 Docker Compose 설치
 
 ```bash
-# EC2에 SSH 접속
-ssh -i your-key.pem ubuntu@your-ec2-ip
-
 # Docker 설치
 sudo apt update
 sudo apt install -y docker.io docker-compose
@@ -157,33 +250,30 @@ GitHub 레포지토리 → Settings → Secrets and variables → Actions → Ne
 
 ### 필수 Secrets
 
-| Secret 이름 | 설명 | 예시 | 필요 여부 |
-|-------------|------|------|----------|
-| `GITHUB_TOKEN` | GitHub Actions 기본 제공 | 자동 생성 | **자동** ✅ |
-| `EC2_HOST` | EC2 인스턴스 Public IP | `3.35.123.456` | **필수** |
-| `EC2_USERNAME` | EC2 SSH 사용자명 | `ubuntu` | **필수** |
-| `EC2_SSH_KEY` | EC2 SSH Private Key | `-----BEGIN RSA PRIVATE KEY-----\n...` | **필수** |
+| Secret 이름 | 설명 | 필요 여부 |
+|-------------|------|----------|
+| `GITHUB_TOKEN` | GitHub Container Registry 인증 (GitHub에서 자동 제공) | ✅ 자동 |
+| `GHCR_PAT` | GHCR 이미지 Push/Pull용 Personal Access Token (필요 시) | ⚠️ 선택 |
+| `AWS_ACCESS_KEY` | AWS Access Key (S3, 기타 AWS 리소스 접근) | ✅ 필수 |
+| `AWS_SECRET_KEY` | AWS Secret Key (S3, 기타 AWS 리소스 접근) | ✅ 필수 |
+| `DATA_EC2_IP` | Data EC2 Private IP (MySQL/Redis/Kafka/ES 접속용) | ✅ 필수 |
+| `EC2_HOST` | EC2 Public IP (SSH 접속, 수동 디버깅용) | ⚠️ 선택 |
+| `EC2_USERNAME` | EC2 SSH 사용자명 (예: `ubuntu`) | ⚠️ 선택 |
+| `EC2_SSH_KEY` | EC2 SSH Private Key (.pem 파일 내용) | ⚠️ 선택 |
+| `TOSS_SECRET_KEY` | Toss Payments Secret Key (결제 모듈에서 사용) | ✅ 필수 |
 
-### 주요 특징
+**참고:** 
+- `GITHUB_TOKEN`은 GitHub Actions가 자동으로 제공하므로 별도 설정이 필요 없습니다.
+- Self-hosted Runner를 사용하므로 SSH 관련 Secret(EC2_HOST, EC2_USERNAME, EC2_SSH_KEY)은 **디버깅/수동 작업용 선택사항**입니다.
 
-**`GITHUB_TOKEN`은 자동 제공됩니다!**
-- GitHub Actions가 자동으로 생성 및 관리
-- Docker Hub 계정이나 Access Token 불필요
-- GitHub Container Registry 접근 권한 자동 부여
-- 별도 설정 없이 바로 사용 가능
+### GitHub Variables (환경 변수)
 
-### EC2 SSH Key 설정
+GitHub Repository → Settings → Secrets and variables → Actions → Repository variables
 
-```bash
-# EC2 생성 시 받은 .pem 파일 내용 복사
-cat your-key.pem
-
-# GitHub Secret EC2_SSH_KEY에 전체 내용 붙여넣기
------BEGIN RSA PRIVATE KEY-----
-MIIEpAIBAAKCAQEA...
-... (전체 내용)
------END RSA PRIVATE KEY-----
-```
+| Variable | 예시 값 | 설명 |
+|----------|---------|------|
+| `DEPLOY_KAFKA` | `true` / `false` | k3s 환경에서 Kafka를 배포할지 여부 (Docker Compose 기반 Kafka 사용 제어) |
+| `DEPLOY_ELASTICSEARCH` | `true` / `false` | k3s 환경에서 Elasticsearch를 배포할지 여부 (Docker Compose 기반 ES 사용 제어) |
 
 ---
 
@@ -198,71 +288,65 @@ MIIEpAIBAAKCAQEA...
 | SSH | TCP | 22 | My IP | SSH 접속 |
 | Custom TCP | TCP | 8080 | 0.0.0.0/0 | Gateway |
 | Custom TCP | TCP | 8761 | 0.0.0.0/0 | Eureka Dashboard |
-| Custom TCP | TCP | 8081-8089 | 0.0.0.0/0 | 비즈니스 서비스 |
+| Custom TCP | TCP | 8888 | 0.0.0.0/0 | Config Server |
+| Custom TCP | TCP | 8081 | 0.0.0.0/0 | baro-auth |
+| Custom TCP | TCP | 8082 | 0.0.0.0/0 | baro-buyer |
+| Custom TCP | TCP | 8085 | 0.0.0.0/0 | baro-seller |
+| Custom TCP | TCP | 8087 | 0.0.0.0/0 | baro-order |
+| Custom TCP | TCP | 8088 | 0.0.0.0/0 | baro-payment |
+| Custom TCP | TCP | 8089 | 0.0.0.0/0 | baro-support |
+| Custom TCP | TCP | 8090 | 0.0.0.0/0 | baro-settlement |
+| Custom TCP | TCP | 8092 | 0.0.0.0/0 | baro-ai |
 
 ### 2. EC2 초기 설정
 
+**Master Node:**
 ```bash
 # EC2 접속
-ssh -i your-key.pem ubuntu@your-ec2-ip
+ssh -i your-key.pem ubuntu@master-ec2-ip
 
 # 시스템 업데이트
 sudo apt update && sudo apt upgrade -y
 
 # Docker 설치
 sudo apt install -y docker.io docker-compose
-
-# Docker 서비스 시작
 sudo systemctl start docker
 sudo systemctl enable docker
-
-# 사용자 권한 설정
 sudo usermod -aG docker ubuntu
 newgrp docker
 
-# 작업 디렉토리 생성
-mkdir -p ~/apps/BE
-cd ~/apps/BE
+# k3s 설치
+curl -sfL https://get.k3s.io | sh -
 
-# Docker 네트워크 생성 (필수, 이미 있으면 무시됨)
-# docker network create baro-network 2>/dev/null || echo "baro-network already exists"
+# kubectl 설정
+mkdir -p ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown $USER:$USER ~/.kube/config
 
-# 네트워크 확인
-# docker network ls | grep baro-network
-
-# 환경 변수 파일 생성 (선택사항)
-cat > .env << EOF
-DOCKER_REGISTRY=ghcr.io/do-develop-space
-IMAGE_TAG=latest
-REDIS_PASSWORD=your-redis-password
-GITHUB_TOKEN=your-github-pat  # Personal Access Token (ghcr.io 로그인용)
-EOF
+# GitHub Actions Runner 설치
+cd ~
+mkdir actions-runner && cd actions-runner
+# GitHub에서 제공하는 다운로드 URL 및 토큰 사용
 ```
 
-### 4. GitHub Personal Access Token 생성 (EC2용)
-
-EC2에서 Private 이미지를 Pull하려면 PAT가 필요합니다:
-
+**Worker Node:**
 ```bash
-# GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
-1. Generate new token (classic)
-2. Note: EC2 Deployment
-3. Expiration: 90 days (또는 원하는 기간)
-4. Select scopes: 
-   - ✅ read:packages (패키지 읽기)
-   - ✅ write:packages (패키지 쓰기, 필요시)
-5. Generate token
-6. 토큰 복사 (다시 볼 수 없음!)
+# EC2 접속
+ssh -i your-key.pem ubuntu@worker-ec2-ip
 
-# EC2에 환경 변수로 저장
-echo "export GITHUB_TOKEN=ghp_xxxxxxxxxxxx" >> ~/.bashrc
-source ~/.bashrc
-```
+# 시스템 업데이트 및 Docker 설치 (동일)
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y docker.io docker-compose
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker ubuntu
+newgrp docker
 
-### 3. 배포 스크립트 실행 권한 부여
+# k3s Worker 설치 (Master Node 토큰 필요)
+sudo cat /var/lib/rancher/k3s/server/node-token  # Master Node에서 실행
+curl -sfL https://get.k3s.io | K3S_URL=https://<MASTER_IP>:6443 K3S_TOKEN=<TOKEN> sh -
 
-```bash
-chmod +x ~/deploy.sh
+# GitHub Actions Runner 설치 (동일)
 ```
 
 ---
@@ -274,57 +358,80 @@ chmod +x ~/deploy.sh
 ```bash
 # 1. 코드 변경 후 커밋
 git add .
-git commit -m "[Deploy] 주문 기능 추가"
+git commit -m "[Feat] #123 - 새로운 기능 추가"
 
-# 2. main 브랜치에 Push
-git push origin main
+# 2. dev-{모듈} 브랜치에 Push
+git push origin dev-auth
 
-# 3. GitHub Actions 자동 실행
-- CI: 빌드 및 테스트
-- Docker Build: 이미지 빌드 및 Push
-- Deploy: EC2에 자동 배포
+# 3. main-{모듈} 브랜치에 PR 생성 및 머지
 
-# 4. 배포 확인
-GitHub Actions 탭에서 워크플로우 진행 상황 확인
+# 4. GitHub Actions Runner 자동 실행 (각 서버에서 실행)
+- 코드 품질 검사 (Spotless, Checkstyle)
+- 빌드 및 테스트
+- Docker 이미지 빌드
+- GHCR (GitHub Container Registry)에 이미지 푸시
+- k3s 클러스터에 배포 (kubectl apply -k)
+
+# 5. 배포 확인
+# http://your-ec2-ip:8761 (Eureka Dashboard)
+# http://your-ec2-ip:8080 (API Gateway)
 ```
 
-### 수동 배포 (EC2에서 직접)
+### 수동 배포 (k3s 클러스터에서 직접)
 
 ```bash
-# EC2 접속
-ssh -i your-key.pem ubuntu@your-ec2-ip
+# Master Node 또는 Worker Node 접속
+ssh -i your-key.pem ubuntu@ec2-ip
 
-# 최신 이미지 Pull
-cd ~/apps/BE
-docker-compose -f docker-compose.{모듈명}.yml pull
+# 최신 이미지 Pull (필요시)
+docker pull ghcr.io/do-develop-space/baro-auth:latest
 
-# 서비스 재시작
-docker-compose -f docker-compose.{모듈명}.yml down
-docker-compose -f docker-compose.{모듈명}.yml up -d
+# k8s 배포 (Kustomize 사용)
+cd /path/to/repo
+kubectl apply -k k8s/apps/baro-auth/
 
-# 컨테이너 상태 확인
-docker-compose -f docker-compose.{모듈명}.yml ps
+# 배포 상태 확인
+kubectl get pods -n baro-prod -l app=baro-auth
 
-# 로그 확인
-docker-compose -f docker-compose.{모듈명}.yml logs -f
+# Pod 로그 확인
+kubectl logs -n baro-prod -l app=baro-auth --tail=100 -f
+
+# 이미지 태그 업데이트 (kustomization.yaml 수정 후)
+kubectl apply -k k8s/apps/baro-auth/
+```
+
+### 배포 스크립트 사용
+
+```bash
+# 자동 배포 스크립트 사용
+./scripts/deploy-k8s.sh baro-auth
+
+# 스크립트 기능:
+# - EC2 Private IP 자동 감지
+# - Deployment 파일에 EC2 IP 자동 설정
+# - 이미지 태그 자동 업데이트
+# - k8s 리소스 적용 및 상태 확인
 ```
 
 ---
 
 ## 배포 확인
 
-### 1. 컨테이너 상태 확인
+### 1. Pod 상태 확인
 
 ```bash
-# EC2에서 실행
-docker ps
+# k3s 클러스터에서 실행
+kubectl get pods -n baro-prod
 
-# 모든 컨테이너가 "Up" 상태여야 함
-CONTAINER ID   IMAGE                        STATUS
-abc123...      barofarm/eureka:latest       Up 5 minutes
-def456...      barofarm/gateway:latest      Up 4 minutes
-ghi789...      barofarm/baro-auth:latest    Up 3 minutes
+# 모든 Pod가 "Running" 상태여야 함
+NAME                          READY   STATUS    RESTARTS   AGE
+baro-auth-xxx                 1/1     Running   0          5m
+baro-buyer-xxx                1/1     Running   0          4m
+baro-settlement-xxx           1/1     Running   0          3m
 ...
+
+# 특정 서비스 Pod 확인
+kubectl get pods -n baro-prod -l app=baro-auth
 ```
 
 ### 2. Health Check
@@ -341,21 +448,39 @@ curl http://your-ec2-ip:8081/actuator/health  # Auth
 curl http://your-ec2-ip:8082/actuator/health  # Buyer
 curl http://your-ec2-ip:8085/actuator/health  # Seller
 curl http://your-ec2-ip:8087/actuator/health  # Order
+curl http://your-ec2-ip:8088/actuator/health  # Payment
 curl http://your-ec2-ip:8089/actuator/health  # Support
+curl http://your-ec2-ip:8090/actuator/health  # Settlement
+curl http://your-ec2-ip:8092/actuator/health  # AI
 ```
 
 ### 3. 로그 확인
 
 ```bash
-# 전체 서비스 로그
-docker-compose -f docker-compose.prod.yml logs -f
+# 특정 Pod 로그 확인
+kubectl logs -n baro-prod -l app=baro-auth --tail=100 -f
 
-# 특정 서비스 로그
-docker-compose -f docker-compose.prod.yml logs -f gateway
-docker-compose -f docker-compose.prod.yml logs -f baro-auth
+# 모든 Pod 로그 확인
+kubectl logs -n baro-prod --all-containers=true --tail=100
 
-# 최근 100줄만 보기
-docker-compose -f docker-compose.prod.yml logs --tail=100
+# 특정 Pod 이름으로 로그 확인
+kubectl logs -n baro-prod baro-auth-xxx -f
+```
+
+### 4. 배포 상태 상세 확인
+
+```bash
+# Deployment 상태 확인
+kubectl get deployments -n baro-prod
+
+# Service 상태 확인
+kubectl get services -n baro-prod
+
+# DaemonSet 상태 확인 (baro-settlement)
+kubectl get daemonsets -n baro-prod
+
+# 이벤트 확인
+kubectl get events -n baro-prod --sort-by='.lastTimestamp'
 ```
 
 ---
@@ -406,42 +531,88 @@ ls -la docker/*/Dockerfile
 # EC2 인스턴스가 실행 중인지 확인
 ```
 
-### 4. 컨테이너 시작 실패
+### 4. Pod 시작 실패
 
-**문제:** 컨테이너가 계속 재시작
+**문제:** Pod가 계속 재시작하거나 CrashLoopBackOff 상태
 
 ```bash
-# 로그 확인
-docker logs baro-gateway
+# Pod 로그 확인
+kubectl logs -n baro-prod -l app=baro-auth --tail=100
+
+# Pod 상태 상세 확인
+kubectl describe pod -n baro-prod -l app=baro-auth
 
 # 일반적인 원인:
 # - Eureka 서버 연결 실패
-# - Redis/Kafka 연결 실패
+# - MySQL/Redis/Kafka 연결 실패
 # - 환경 변수 누락
+# - 메모리 부족
 
-# 순서대로 시작
-docker-compose -f docker-compose.prod.yml up -d redis kafka
-sleep 30
-docker-compose -f docker-compose.prod.yml up -d eureka
-sleep 30
-docker-compose -f docker-compose.prod.yml up -d gateway config
-sleep 30
-docker-compose -f docker-compose.prod.yml up -d baro-auth baro-buyer baro-seller baro-order baro-support
+# 순서대로 배포
+kubectl apply -k k8s/cloud/eureka/
+kubectl wait --for=condition=ready pod -l app=eureka -n baro-prod --timeout=300s
+
+kubectl apply -k k8s/cloud/config/
+kubectl wait --for=condition=ready pod -l app=config -n baro-prod --timeout=300s
+
+kubectl apply -k k8s/cloud/gateway/
+
+kubectl apply -k k8s/apps/baro-auth/
+kubectl apply -k k8s/apps/baro-buyer/
+kubectl apply -k k8s/apps/baro-seller/
+kubectl apply -k k8s/apps/baro-order/
+kubectl apply -k k8s/apps/baro-payment/
+kubectl apply -k k8s/apps/baro-support/
+kubectl apply -k k8s/apps/baro-settlement/
+kubectl apply -k k8s/apps/baro-ai/
 ```
 
 ### 5. 메모리 부족
 
-**문제:** EC2 메모리 부족으로 컨테이너 종료
+**문제:** EC2 메모리 부족으로 Pod 종료
 
 ```bash
 # 메모리 사용량 확인
 free -h
-docker stats
+kubectl top nodes
+kubectl top pods -n baro-prod
 
 # 해결방법:
 # 1. EC2 인스턴스 타입 업그레이드 (t3.medium → t3.large)
-# 2. 일부 서비스만 실행
-# 3. JVM 메모리 설정 조정 (Dockerfile에서)
+# 2. 일부 서비스만 배포
+# 3. JVM 메모리 설정 조정 (deployment.yaml에서 JAVA_OPTS)
+# 4. Pod 리소스 제한 조정
+```
+
+### 6. 이미지 Pull 실패
+
+**문제:** GHCR에서 이미지를 가져올 수 없음
+
+```bash
+# 이미지 Pull 테스트
+docker pull ghcr.io/do-develop-space/baro-auth:latest
+
+# 인증 필요 시
+echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
+
+# k3s에서 이미지 Pull 설정
+# /etc/rancher/k3s/registries.yaml 파일 생성
+```
+
+### 7. DaemonSet 배포 문제 (baro-settlement)
+
+**문제:** DaemonSet이 모든 노드에 배포되지 않음
+
+```bash
+# DaemonSet 상태 확인
+kubectl get daemonsets -n baro-prod
+
+# 특정 노드에 스케줄링되지 않는 경우
+kubectl describe daemonset baro-settlement -n baro-prod
+
+# Node Affinity 및 Taint 확인
+kubectl get nodes --show-labels
+kubectl describe node <node-name>
 ```
 
 ---
@@ -450,29 +621,56 @@ docker stats
 
 ### 롤링 업데이트
 
+k3s는 기본적으로 롤링 업데이트를 지원합니다:
+
 ```yaml
-# docker-compose.prod.yml에 추가
-services:
-  baro-auth:
-    deploy:
-      replicas: 2
-      update_config:
-        parallelism: 1
-        delay: 10s
+# deployment.yaml
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
 ```
 
-### Blue-Green 배포
+### 이미지 태그 업데이트 및 롤백
 
 ```bash
-# Blue (현재 운영)
-docker-compose -f docker-compose.blue.yml up -d
+# kustomization.yaml에서 이미지 태그 변경
+cd k8s/apps/baro-auth
+# images 섹션의 newTag를 변경
 
-# Green (새 버전)
-docker-compose -f docker-compose.green.yml up -d
+# 배포
+kubectl apply -k .
 
-# 전환 (로드 밸런서 설정 변경)
-# Green이 정상이면 Blue 종료
-docker-compose -f docker-compose.blue.yml down
+# 이전 버전으로 롤백
+# kustomization.yaml에서 이전 태그로 변경 후
+kubectl apply -k .
+```
+
+### 버전 관리
+
+자동 생성되는 이미지 태그:
+```
+ghcr.io/do-develop-space/baro-auth:
+├── latest                         # 최신 버전
+├── main-auth                      # 브랜치명
+├── main-auth-abc123d              # 브랜치-커밋SHA
+└── main-auth-20241205-143022      # 브랜치-타임스탬프
+```
+
+### 리소스 모니터링
+
+```bash
+# 노드 리소스 확인
+kubectl top nodes
+
+# Pod 리소스 확인
+kubectl top pods -n baro-prod
+
+# 특정 Pod 상세 정보
+kubectl describe pod <pod-name> -n baro-prod
 ```
 
 ---
@@ -480,6 +678,11 @@ docker-compose -f docker-compose.blue.yml down
 ## 참고 자료
 
 - [GitHub Actions 공식 문서](https://docs.github.com/actions)
+- [k3s 공식 문서](https://k3s.io/)
+- [Kubernetes 공식 문서](https://kubernetes.io/docs/)
+- [Kustomize 공식 문서](https://kustomize.io/)
 - [Docker 공식 문서](https://docs.docker.com/)
 - [AWS EC2 사용자 가이드](https://docs.aws.amazon.com/ec2/)
+- [Self-hosted Runner 가이드](./SELF_HOSTED_RUNNER_GUIDE.md)
+- [k8s 배포 가이드](./K8S_DEPLOYMENT_GUIDE.md)
 

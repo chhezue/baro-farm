@@ -1,6 +1,6 @@
 package com.barofarm.buyer.product.infrastructure.kafka;
 
-import com.barofarm.buyer.event.ProductEvent;
+import com.barofarm.buyer.product.event.ProductEvent;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -26,9 +26,13 @@ public class KafkaProducerConfig {
     @Bean
     public ProducerFactory<String, ProductEvent> productEventProducerFactory() {
         Map<String, Object> config = new HashMap<>();
+
         config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        config.put(ProducerConfig.RETRIES_CONFIG, 3); // 최대 3번 재시도
+        config.put(ProducerConfig.ACKS_CONFIG, "all");
+        config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true); // 중복 방지
 
         return new DefaultKafkaProducerFactory<>(config);
     }

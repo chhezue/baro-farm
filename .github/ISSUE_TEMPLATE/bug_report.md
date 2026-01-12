@@ -37,9 +37,13 @@ assignees: ''
 - [ ] experience-service
 - [ ] search-service
 - [ ] review-service
+- [ ] recommend-ai-service
+- [ ] chatbot-ai-service
+- [ ] season-ai-service
 - [ ] gateway-service
 - [ ] config-server
 - [ ] eureka-server
+- [ ] rego-service
 
 ## 📎 스크린샷 / 로그
 <!-- 관련 스크린샷이나 에러 로그가 있다면 첨부해주세요 -->

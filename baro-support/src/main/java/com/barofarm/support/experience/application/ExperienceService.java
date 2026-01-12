@@ -4,13 +4,14 @@ import com.barofarm.exception.CustomException;
 import com.barofarm.support.common.client.FarmClient;
 import com.barofarm.support.experience.application.dto.ExperienceServiceRequest;
 import com.barofarm.support.experience.application.dto.ExperienceServiceResponse;
+import com.barofarm.support.experience.application.event.ExperienceTransactionEvent;
 import com.barofarm.support.experience.domain.Experience;
 import com.barofarm.support.experience.domain.ExperienceRepository;
 import com.barofarm.support.experience.exception.ExperienceErrorCode;
 import feign.FeignException;
-import java.math.BigInteger;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class ExperienceService {
 
     private final ExperienceRepository experienceRepository;
     private final FarmClient farmClient;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     /**
      * 체험 프로그램 ID로 조회 (null 체크 및 존재 여부 검증 포함)
@@ -65,7 +67,7 @@ public class ExperienceService {
             throw new CustomException(ExperienceErrorCode.INVALID_DATE_RANGE);
         }
 
-        if (experience.getPricePerPerson().compareTo(BigInteger.ZERO) < 0) {
+        if (experience.getPricePerPerson() < 0) {
             throw new CustomException(ExperienceErrorCode.INVALID_PRICE);
         }
 
@@ -91,10 +93,11 @@ public class ExperienceService {
         try {
             return farmClient.getFarmIdByUserId(userId);
         } catch (FeignException e) {
-            if (e.status() == 404) {
-                return null;
-            }
-            throw e;
+//            if (e.status() == 404) {
+//                return null;
+//            }
+//            throw e;
+            return null;
         }
     }
 
@@ -117,6 +120,11 @@ public class ExperienceService {
         }
         validateExperience(experience);
         Experience savedExperience = experienceRepository.save(experience);
+
+        // 트랜잭션 이벤트 발행
+        ExperienceTransactionEvent event = new ExperienceTransactionEvent(savedExperience,
+            ExperienceTransactionEvent.ExperienceOperation.CREATED);
+        applicationEventPublisher.publishEvent(event);
 
         return ExperienceServiceResponse.from(savedExperience);
     }
@@ -212,6 +220,11 @@ public class ExperienceService {
 
         validateExperience(existingExperience);
 
+        // 트랜잭션 이벤트 발행
+        ExperienceTransactionEvent event = new ExperienceTransactionEvent(existingExperience,
+            ExperienceTransactionEvent.ExperienceOperation.UPDATED);
+        applicationEventPublisher.publishEvent(event);
+
         // JPA 더티 체킹, @Transactional 종료 시 자동으로 변경사항이 DB에 반영됨
         // 멘토님 추천
         return ExperienceServiceResponse.from(existingExperience);
@@ -236,6 +249,11 @@ public class ExperienceService {
         }
 
         experienceRepository.deleteById(experienceId);
+
+        // 트랜잭션 이벤트 발행
+        ExperienceTransactionEvent event = new ExperienceTransactionEvent(experience,
+            ExperienceTransactionEvent.ExperienceOperation.DELETED);
+        applicationEventPublisher.publishEvent(event);
     }
 
 }

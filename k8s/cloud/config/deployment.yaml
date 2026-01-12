@@ -50,7 +50,9 @@ spec:
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: "http://localhost:8761/eureka/"  # hostNetwork: true 사용 시 localhost
             - name: JAVA_OPTS
-              value: "-Xms256m -Xmx384m -Djava.net.preferIPv4Stack=true"
+              value: "-Xms64m -Xmx128m -Djava.net.preferIPv4Stack=true"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=128m -XX:CompressedClassSpaceSize=64m -XX:MaxDirectMemorySize=32m -XX:NativeMemoryTracking=summary"
             # Git 저장소 설정 (선택사항, 기본값 사용 시 생략 가능)
             - name: CONFIG_GIT_URI
               value: "https://github.com/prgrms-be-adv-devcourse/beadv2_2_dogs_BE"
