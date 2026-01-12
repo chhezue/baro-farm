@@ -179,9 +179,9 @@ public class UserProfileEmbeddingService {
      */
     private int calculateCartEventWeight(String eventType) {
         return switch (eventType) {
-            case "ADD" -> 2;      // 상품 추가: 관심 표현
-            case "UPDATE" -> 1;   // 수량 변경: 관심 유지
-            case "REMOVE" -> 0;   // 상품 제거: 관심 감소 (가중치 제거)
+            case "CART_ITEM_ADDED" -> 2;      // 상품 추가: 관심 표현
+            case "CART_QUANTITY_UPDATED" -> 1;   // 수량 변경: 관심 유지
+            case "CART_ITEM_REMOVED" -> 0;   // 상품 제거: 관심 감소 (가중치 제거)
             default -> 1;
         };
     }
@@ -191,7 +191,7 @@ public class UserProfileEmbeddingService {
      */
     private int calculateOrderEventWeight(String eventType) {
         return switch (eventType) {
-            case "ORDER_CREATED" -> 3;   // 주문 완료: 가장 높은 관심
+            case "ORDER_CONFIRMED" -> 3;   // 주문 완료: 가장 높은 관심
             case "ORDER_CANCELLED" -> 0; // 주문 취소: 관심 제거
             default -> 1;
         };

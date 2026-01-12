@@ -7,6 +7,6 @@ public enum HistoryEventType {
     CART_QUANTITY_UPDATED, // 수량 변경
 
     // Order Events
-    ORDER_CREATED, // TODO: 주문이 확정된 시점으로 변경
-    ORDER_CANCELLED, // TODO: 주문이 취소되거나 환불된 시점으로 변경
+    ORDER_CONFIRMED, // 주문 완료
+    ORDER_CANCELLED, // 주문 취소
 }

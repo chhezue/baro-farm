@@ -32,19 +32,20 @@ public class OrderEventConsumer {
 
         try {
             switch (event.event()) {
-                case ORDER_CREATED -> {
-                    log.info("📝 [ORDER_CONSUMER] Processing ORDER_CREATED - User: {}, Order: {}",
+                case ORDER_CONFIRMED -> {
+                    log.info("📝 [ORDER_CONSUMER] Processing ORDER_CONFIRMED - User: {}, Order: {}",
                             event.userId(), data.orderId());
 
                     // 주문 생성 시 각 상품별로 로그 저장
                     if (data.orderItems() != null) {
                         for (OrderLogEvent.OrderEventData.OrderItemData item : data.orderItems()) {
                             logWriteService.saveOrderEventLog(event.userId(), item.productId(),
-                                    item.productName(), "ORDER_CREATED", item.quantity(), convertToInstant(event.ts()));
+                                    item.productName(), "ORDER_CONFIRMED",
+                                item.quantity(), convertToInstant(event.ts()));
                         }
                     }
 
-                    log.info("✅ [ORDER_CONSUMER] Successfully saved order created event - User: {}, Items: {}",
+                    log.info("✅ [ORDER_CONSUMER] Successfully saved order confirmed event - User: {}, Items: {}",
                             event.userId(), data.orderItems() != null ? data.orderItems().size() : 0);
                 }
                 case ORDER_CANCELLED -> {
