@@ -137,6 +137,7 @@ public class ProductService {
         return updatedProduct;
     }
 
+    @Transactional
     public void deleteProduct(UUID id, UUID memberId, UserType userType) {
         // user의 역할이 isSeller가 아니라면 에러 호출
         validateSeller(userType);
