@@ -1,7 +1,5 @@
 package com.barofarm.buyer.product.application;
 
-import com.barofarm.buyer.common.exception.CustomException;
-import com.barofarm.buyer.common.response.CustomPage;
 import com.barofarm.buyer.product.application.dto.ProductCreateCommand;
 import com.barofarm.buyer.product.application.dto.ProductDetailInfo;
 import com.barofarm.buyer.product.application.dto.ProductUpdateCommand;
@@ -10,6 +8,8 @@ import com.barofarm.buyer.product.domain.Product;
 import com.barofarm.buyer.product.domain.ProductRepository;
 import com.barofarm.buyer.product.domain.ProductStatus;
 import com.barofarm.buyer.product.exception.ProductErrorCode;
+import com.barofarm.dto.CustomPage;
+import com.barofarm.exception.CustomException;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

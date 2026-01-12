@@ -1,4 +1,4 @@
-package com.barofarm.seller.common.entity;
+package com.barofarm.common.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
@@ -21,4 +21,8 @@ public abstract class BaseEntity {
     @LastModifiedDate
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    protected void updateTimestamp() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }

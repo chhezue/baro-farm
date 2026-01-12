@@ -3,8 +3,8 @@ package com.barofarm.buyer.inventory.domain;
 import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INSUFFICIENT_STOCK;
 import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INVALID_REQUEST;
 
-import com.barofarm.buyer.common.entity.BaseEntity;
-import com.barofarm.buyer.common.exception.CustomException;
+import com.barofarm.common.entity.BaseEntity;
+import com.barofarm.exception.CustomException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

@@ -1,6 +1,6 @@
 package com.barofarm.support.settlement.batch.reader;
 
-import com.barofarm.support.common.response.CustomPage;
+import com.barofarm.dto.CustomPage;
 import com.barofarm.support.settlement.client.OrderItemSettlementResponse;
 import com.barofarm.support.settlement.client.OrderSettlementClient;
 import java.time.LocalDate;

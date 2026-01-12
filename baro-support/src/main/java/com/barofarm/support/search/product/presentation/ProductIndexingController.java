@@ -1,6 +1,6 @@
 package com.barofarm.support.search.product.presentation;
 
-import com.barofarm.support.common.response.ResponseDto;
+import com.barofarm.dto.ResponseDto;
 import com.barofarm.support.search.product.application.ProductSearchService;
 import com.barofarm.support.search.product.application.dto.ProductIndexRequest;
 import com.barofarm.support.search.product.domain.ProductDocument;

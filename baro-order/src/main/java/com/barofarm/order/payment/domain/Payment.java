@@ -1,6 +1,6 @@
 package com.barofarm.order.payment.domain;
 
-import com.barofarm.order.common.entity.BaseEntity;
+import com.barofarm.common.entity.BaseEntity;
 import com.barofarm.order.payment.client.dto.TossPaymentResponse;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

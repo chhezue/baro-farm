@@ -1,6 +1,6 @@
 package com.barofarm.support.search.farm.presentation;
 
-import com.barofarm.support.common.response.ResponseDto;
+import com.barofarm.dto.ResponseDto;
 import com.barofarm.support.search.farm.application.FarmSearchService;
 import com.barofarm.support.search.farm.application.dto.FarmIndexRequest;
 import com.barofarm.support.search.farm.domain.FarmDocument;

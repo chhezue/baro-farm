@@ -1,6 +1,6 @@
 package com.barofarm.support.search.unified.application.dto;
 
-import com.barofarm.support.common.response.CustomPage;
+import com.barofarm.dto.CustomPage;
 import com.barofarm.support.search.experience.application.dto.ExperienceSearchItem;
 import com.barofarm.support.search.farm.application.dto.FarmSearchItem;
 import com.barofarm.support.search.product.application.dto.ProductSearchItem;

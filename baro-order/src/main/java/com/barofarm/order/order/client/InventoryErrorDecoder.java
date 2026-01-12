@@ -1,6 +1,6 @@
 package com.barofarm.order.order.client;
 
-import com.barofarm.order.common.exception.CustomException;
+import com.barofarm.exception.CustomException;
 import com.barofarm.order.order.exception.OrderErrorCode;
 import feign.Response;
 import feign.codec.ErrorDecoder;

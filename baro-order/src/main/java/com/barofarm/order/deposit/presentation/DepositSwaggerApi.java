@@ -1,6 +1,6 @@
 package com.barofarm.order.deposit.presentation;
 
-import com.barofarm.order.common.response.ResponseDto;
+import com.barofarm.dto.ResponseDto;
 import com.barofarm.order.deposit.application.dto.response.DepositChargeCreateInfo;
 import com.barofarm.order.deposit.application.dto.response.DepositCreateInfo;
 import com.barofarm.order.deposit.application.dto.response.DepositInfo;

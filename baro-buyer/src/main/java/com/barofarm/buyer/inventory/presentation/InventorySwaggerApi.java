@@ -1,7 +1,7 @@
 package com.barofarm.buyer.inventory.presentation;
 
-import com.barofarm.buyer.common.response.ResponseDto;
 import com.barofarm.buyer.inventory.presentation.dto.InventoryDecreaseRequest;
+import com.barofarm.dto.ResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

@@ -89,7 +89,10 @@ management:
 # History logging settings
 history:
   log:
+    enabled: true
     ai-topic: ai-history
+    cart-topic: cart-events
+    order-topic: order-events
     user-id-header: X-User-Id
 
 # Swagger/OpenAPI 설정

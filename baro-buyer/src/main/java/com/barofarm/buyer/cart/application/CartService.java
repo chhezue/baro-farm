@@ -6,7 +6,7 @@ import com.barofarm.buyer.cart.domain.Cart;
 import com.barofarm.buyer.cart.domain.CartItem;
 import com.barofarm.buyer.cart.domain.CartRepository;
 import com.barofarm.buyer.cart.exception.CartErrorCode;
-import com.barofarm.buyer.common.exception.CustomException;
+import com.barofarm.exception.CustomException;
 import com.barofarm.log.history.annotation.TrackHistory;
 import com.barofarm.log.history.model.HistoryEventType;
 import java.util.Optional;

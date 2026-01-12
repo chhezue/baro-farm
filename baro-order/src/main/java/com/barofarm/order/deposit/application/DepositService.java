@@ -2,8 +2,8 @@ package com.barofarm.order.deposit.application;
 
 import static com.barofarm.order.deposit.exception.DepositErrorCode.DEPOSIT_ALREADY_EXISTS;
 
-import com.barofarm.order.common.exception.CustomException;
-import com.barofarm.order.common.response.ResponseDto;
+import com.barofarm.dto.ResponseDto;
+import com.barofarm.exception.CustomException;
 import com.barofarm.order.deposit.application.dto.request.DepositChargeCreateCommand;
 import com.barofarm.order.deposit.application.dto.request.DepositPaymentCommand;
 import com.barofarm.order.deposit.application.dto.request.DepositRefundCommand;

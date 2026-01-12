@@ -10,5 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class HistoryLogProperties {
     private boolean enabled = true;
     private String aiTopic = "ai-history";
+    private String cartTopic = "cart-events";
+    private String orderTopic = "order-events";
     private String userIdHeader = "X-User-Id";
 }

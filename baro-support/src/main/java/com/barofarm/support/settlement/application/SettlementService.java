@@ -1,6 +1,6 @@
 package com.barofarm.support.settlement.application;
 
-import com.barofarm.support.common.exception.CustomException;
+import com.barofarm.exception.CustomException;
 import com.barofarm.support.settlement.application.dto.SettlementResponse;
 import com.barofarm.support.settlement.domain.SettlementStatement;
 import com.barofarm.support.settlement.domain.SettlementStatementRepository;

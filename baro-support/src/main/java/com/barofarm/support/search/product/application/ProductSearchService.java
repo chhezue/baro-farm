@@ -3,7 +3,7 @@ package com.barofarm.support.search.product.application;
 import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
-import com.barofarm.support.common.response.CustomPage;
+import com.barofarm.dto.CustomPage;
 import com.barofarm.support.search.product.application.dto.ProductIndexRequest;
 import com.barofarm.support.search.product.application.dto.ProductSearchItem;
 import com.barofarm.support.search.product.domain.ProductDocument;

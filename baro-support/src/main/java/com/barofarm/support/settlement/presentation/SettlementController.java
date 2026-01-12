@@ -1,6 +1,6 @@
 package com.barofarm.support.settlement.presentation;
 
-import com.barofarm.support.common.response.ResponseDto;
+import com.barofarm.dto.ResponseDto;
 import com.barofarm.support.settlement.application.SettlementService;
 import com.barofarm.support.settlement.application.dto.SettlementResponse;
 import java.util.UUID;

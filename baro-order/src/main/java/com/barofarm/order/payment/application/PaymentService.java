@@ -4,8 +4,8 @@ import static com.barofarm.order.payment.domain.Purpose.DEPOSIT_CHARGE;
 import static com.barofarm.order.payment.domain.Purpose.ORDER_PAYMENT;
 import static com.barofarm.order.payment.exception.PaymentErrorCode.PAYMENT_NOT_FOUND;
 
-import com.barofarm.order.common.exception.CustomException;
-import com.barofarm.order.common.response.ResponseDto;
+import com.barofarm.dto.ResponseDto;
+import com.barofarm.exception.CustomException;
 import com.barofarm.order.deposit.application.DepositService;
 import com.barofarm.order.order.application.OrderService;
 import com.barofarm.order.order.application.dto.request.DeliveryInternalCreateRequest;

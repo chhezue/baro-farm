@@ -23,6 +23,8 @@ public class HistoryLogWriter {
     private final ObjectMapper objectMapper;
     private final KafkaTemplate kafkaTemplate;
     private final String aiHistoryTopic;
+    private final String cartHistoryTopic;
+    private final String orderHistoryTopic;
 
     public HistoryLogWriter(
         ObjectMapper objectMapper,
@@ -32,6 +34,8 @@ public class HistoryLogWriter {
         this.objectMapper = objectMapper;
         this.kafkaTemplate = (KafkaTemplate) kafkaTemplate;
         this.aiHistoryTopic = properties.getAiTopic();
+        this.cartHistoryTopic = properties.getCartTopic();
+        this.orderHistoryTopic = properties.getOrderTopic();
     }
 
     public void write(HistoryEventType type, HistoryEnvelope<?> envelope) {
@@ -65,10 +69,20 @@ public class HistoryLogWriter {
             return;
         }
 
-        kafkaTemplate.send(
-            aiHistoryTopic,
-            userId.toString(),
-            json
-        );
+        String topic = resolveTopic(type);
+        if (topic == null || topic.isBlank()) {
+            INTERNAL_LOG.warn("History event skipped (topic missing): {}", type);
+            return;
+        }
+
+        kafkaTemplate.send(topic, userId.toString(), json);
+    }
+
+    private String resolveTopic(HistoryEventType type) {
+        return switch (type.getDomain()) {
+            case CART -> cartHistoryTopic;
+            case ORDER -> orderHistoryTopic;
+            default -> aiHistoryTopic;
+        };
     }
 }

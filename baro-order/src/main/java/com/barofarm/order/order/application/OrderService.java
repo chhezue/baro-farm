@@ -8,9 +8,11 @@ import static com.barofarm.order.order.exception.OrderErrorCode.ORDER_ITEM_NOT_F
 import static com.barofarm.order.order.exception.OrderErrorCode.ORDER_NOT_FOUND;
 import static com.barofarm.order.payment.exception.PaymentErrorCode.ORDER_NOT_CANCELABLE_STATUS;
 
-import com.barofarm.order.common.exception.CustomException;
-import com.barofarm.order.common.response.CustomPage;
-import com.barofarm.order.common.response.ResponseDto;
+import com.barofarm.dto.CustomPage;
+import com.barofarm.dto.ResponseDto;
+import com.barofarm.exception.CustomException;
+import com.barofarm.log.history.annotation.TrackHistory;
+import com.barofarm.log.history.model.HistoryEventType;
 import com.barofarm.order.order.application.dto.request.OrderCreateCommand;
 import com.barofarm.order.order.application.dto.response.OrderCancelInfo;
 import com.barofarm.order.order.application.dto.response.OrderCreateInfo;
@@ -92,6 +94,7 @@ public class OrderService {
     }
 
     @Transactional
+    @TrackHistory(HistoryEventType.ORDER_CANCELLED)
     public ResponseDto<OrderCancelInfo> cancelOrder(UUID userId, UUID orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new CustomException(ORDER_NOT_FOUND));
@@ -134,6 +137,7 @@ public class OrderService {
     }
 
     @Transactional
+    @TrackHistory(HistoryEventType.ORDER_CONFIRMED)
     public void markOrderPaid(UUID userId, UUID orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new CustomException(ORDER_NOT_FOUND));

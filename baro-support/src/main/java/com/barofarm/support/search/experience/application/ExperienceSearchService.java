@@ -2,7 +2,7 @@ package com.barofarm.support.search.experience.application;
 
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
-import com.barofarm.support.common.response.CustomPage;
+import com.barofarm.dto.CustomPage;
 import com.barofarm.support.search.experience.application.dto.ExperienceIndexRequest;
 import com.barofarm.support.search.experience.application.dto.ExperienceSearchItem;
 import com.barofarm.support.search.experience.domain.ExperienceDocument;

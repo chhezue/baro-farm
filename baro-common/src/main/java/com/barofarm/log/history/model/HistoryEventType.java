@@ -4,7 +4,7 @@ public enum HistoryEventType {
     CART_ITEM_ADDED(EventDomain.CART),
     CART_ITEM_REMOVED(EventDomain.CART),
     CART_QUANTITY_UPDATED(EventDomain.CART),
-    ORDER_CREATED(EventDomain.ORDER),
+    ORDER_CONFIRMED(EventDomain.ORDER),
     ORDER_CANCELLED(EventDomain.ORDER);
 
     private final EventDomain domain;

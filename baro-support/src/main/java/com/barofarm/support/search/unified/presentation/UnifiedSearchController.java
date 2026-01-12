@@ -1,6 +1,6 @@
 package com.barofarm.support.search.unified.presentation;
 
-import com.barofarm.support.common.response.ResponseDto;
+import com.barofarm.dto.ResponseDto;
 import com.barofarm.support.search.unified.application.UnifiedSearchService;
 import com.barofarm.support.search.unified.application.dto.UnifiedAutoCompleteResponse;
 import com.barofarm.support.search.unified.application.dto.UnifiedSearchResponse;

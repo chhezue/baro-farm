@@ -1,4 +1,4 @@
-package com.barofarm.order.common.config;
+package com.barofarm.common.config;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;

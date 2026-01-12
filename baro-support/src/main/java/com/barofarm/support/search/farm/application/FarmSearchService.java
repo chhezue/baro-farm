@@ -2,7 +2,7 @@ package com.barofarm.support.search.farm.application;
 
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
-import com.barofarm.support.common.response.CustomPage;
+import com.barofarm.dto.CustomPage;
 import com.barofarm.support.search.farm.application.dto.FarmIndexRequest;
 import com.barofarm.support.search.farm.application.dto.FarmSearchItem;
 import com.barofarm.support.search.farm.domain.FarmDocument;

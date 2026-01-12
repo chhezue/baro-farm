@@ -1,6 +1,6 @@
 package com.barofarm.support.search.unified.application;
 
-import com.barofarm.support.common.response.CustomPage;
+import com.barofarm.dto.CustomPage;
 import com.barofarm.support.search.experience.application.ExperienceAutocompleteService;
 import com.barofarm.support.search.experience.application.ExperienceSearchService;
 import com.barofarm.support.search.experience.application.dto.ExperienceAutoItem;

@@ -18,6 +18,7 @@ import javax.imageio.stream.ImageOutputStream;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class S3ImageUploader {
@@ -48,6 +49,18 @@ public class S3ImageUploader {
 
         String url = buildPublicUrl(key);
         return new UploadedImage(key, url, webp.bytes().length, WEBP_CONTENT_TYPE, webp.width(), webp.height());
+    }
+
+    public void deleteObject(String key) {
+        if (key == null || key.isBlank()) {
+            throw new IllegalArgumentException("S3 object key is required.");
+        }
+
+        DeleteObjectRequest request = DeleteObjectRequest.builder()
+            .bucket(properties.getS3().getBucket())
+            .key(key)
+            .build();
+        s3Client.deleteObject(request);
     }
 
     private void validateImage(MultipartFile file) {

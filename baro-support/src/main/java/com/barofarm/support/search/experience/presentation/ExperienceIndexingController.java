@@ -1,6 +1,6 @@
 package com.barofarm.support.search.experience.presentation;
 
-import com.barofarm.support.common.response.ResponseDto;
+import com.barofarm.dto.ResponseDto;
 import com.barofarm.support.search.experience.application.ExperienceSearchService;
 import com.barofarm.support.search.experience.application.dto.ExperienceIndexRequest;
 import com.barofarm.support.search.experience.domain.ExperienceDocument;

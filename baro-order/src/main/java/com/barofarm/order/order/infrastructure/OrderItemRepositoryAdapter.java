@@ -1,6 +1,6 @@
 package com.barofarm.order.order.infrastructure;
 
-import com.barofarm.order.common.response.CustomPage;
+import com.barofarm.dto.CustomPage;
 import com.barofarm.order.order.application.dto.response.OrderItemSettlementResponse;
 import com.barofarm.order.order.domain.OrderItem;
 import com.barofarm.order.order.domain.OrderItemRepository;
