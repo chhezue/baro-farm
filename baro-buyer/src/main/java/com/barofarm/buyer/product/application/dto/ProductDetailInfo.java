@@ -21,7 +21,7 @@ public record ProductDetailInfo(
     LocalDateTime updatedAt,
     List<String> imageUrls) {
 
-  public static ProductDetailInfo from(Product product) {
+  public static ProductDetailInfo from(Product product, int stock) {
       return new ProductDetailInfo(
           product.getId(),
           product.getSellerId(),
@@ -29,7 +29,7 @@ public record ProductDetailInfo(
           product.getDescription(),
           product.getProductCategory(),
           product.getPrice(),
-          product.getStockQuantity(),
+          stock,
           product.getProductStatus(),
           product.getCreatedAt(),
           product.getUpdatedAt(),

@@ -3,6 +3,8 @@ package com.barofarm.buyer.product.presentation.dto;
 import com.barofarm.buyer.product.application.dto.ProductCreateCommand;
 import com.barofarm.buyer.product.domain.ProductCategory;
 import com.barofarm.buyer.product.domain.ProductStatus;
+import com.barofarm.buyer.product.domain.UserType;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -18,19 +20,21 @@ public record ProductCreateRequest(
     @NotNull(message = "카테고리는 필수입니다.")
     ProductCategory productCategory,
 
-    @NotNull(message = "재고는 필수입니다.")
-    @Min(value = 0, message = "재고는 0 이상이어야 합니다.")
+    @NotNull(message = "가격은 필수입니다.")
+    @Min(value = 0, message = "가격은 0 이상이어야 합니다.")
+    @Max(value = 1_000_000_000L, message = "가격는 10억까지만 입력할 수 있습니다.")
     Long price,
 
-    @NotNull(message = "가격은 필수입니다.")
+    @NotNull(message = "재고는 필수입니다.")
     @Min(value = 0, message = "재고는 0 이상이어야 합니다.")
-        Integer stockQuantity,
+    @Max(value = 100_000_000L, message = "재고는 1억까지만 입력할 수 있습니다.")
+    Integer stockQuantity,
 
     @NotNull(message = "상품 상태는 필수입니다.")
     ProductStatus productStatus,
 
     List<String> imageUrls) {
-  public ProductCreateCommand toCommand(UUID memberId, String role) {
+  public ProductCreateCommand toCommand(UUID memberId, UserType role) {
     return new ProductCreateCommand(
         memberId,
         role,
