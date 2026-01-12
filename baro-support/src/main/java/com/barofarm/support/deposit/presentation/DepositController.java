@@ -44,12 +44,5 @@ public class DepositController {
         @RequestBody DepositPaymentRequest request) {
         return depositService.payDeposit(userId, request.toCommand());
     }
-//
-////    @PostMapping("/refund")
-////    public ResponseDto<DepositRefundInfo> refundDeposit(
-////        @RequestHeader("X-User-Id") UUID userId,
-////        @Valid @RequestBody DepositRefundRequest request) {
-////        return depositService.refundDeposit(userId, request.toCommand());
-////    }
-//
+
 }

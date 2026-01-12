@@ -42,7 +42,7 @@ public class DepositPaymentRequestedConsumer {
     @Transactional
     public void handle(DepositPaymentRequestedEvent event) {
         try {
-            Payment payment = Payment.of(event.orderId(), event.amount());
+            Payment payment = Payment.of(event.userId(), event.orderId(), event.amount());
             Payment saved = paymentRepository.save(payment);
 
             PaymentConfirmedEvent confirmedEvent = new PaymentConfirmedEvent(
@@ -110,4 +110,3 @@ public class DepositPaymentRequestedConsumer {
         }
     }
 }
-

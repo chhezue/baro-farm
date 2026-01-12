@@ -18,7 +18,7 @@ import static com.barofarm.payment.payment.exception.PaymentErrorCode.PAYMENT_NO
 
 @Component
 @RequiredArgsConstructor
-public class InventoryFailEventConsumer {
+public class InventoryConfirmedFailEventConsumer {
 
     private final PaymentRepository paymentRepository;
     private final TossPaymentClient tossPaymentClient;

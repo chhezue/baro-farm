@@ -2,7 +2,6 @@ package com.barofarm.buyer.inventory.infrastructure.kafka.consumer;
 
 import com.barofarm.buyer.common.exception.CustomException;
 import com.barofarm.buyer.inventory.application.InventoryFacadeService;
-import com.barofarm.buyer.inventory.application.dto.request.InventoryConfirmCommand;
 import com.barofarm.buyer.inventory.domain.InventoryOutboxEvent;
 import com.barofarm.buyer.inventory.domain.InventoryOutboxEventRepository;
 import com.barofarm.buyer.inventory.exception.InventoryErrorCode;
@@ -22,7 +21,7 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
-public class PaymentEventConsumer {
+public class PaymentConfirmedConsumer {
 
     private final InventoryFacadeService inventoryFacadeService;
     private final ObjectMapper objectMapper;

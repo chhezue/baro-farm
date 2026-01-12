@@ -19,6 +19,9 @@ public class Payment extends BaseEntity {
     @Id
     private UUID id;
 
+    @Column(name = "user_id", columnDefinition = "BINARY(16)")
+    private UUID userId;
+
     @Column(name = "payment_key", nullable = false, unique = true, length = 200)
     private String paymentKey;
 
@@ -48,7 +51,8 @@ public class Payment extends BaseEntity {
     @Column(name = "fail_reason")
     private String failReason;
 
-    private Payment(String paymentKey,
+    private Payment(UUID userId,
+                    String paymentKey,
                     String orderId,
                     Long amount,
                     String method,
@@ -57,6 +61,7 @@ public class Payment extends BaseEntity {
                     LocalDateTime approvedAt
     ) {
         this.id = UUID.randomUUID();
+        this.userId = userId;
         this.paymentKey = paymentKey;
         this.orderId = orderId;
         this.amount = amount;
@@ -69,8 +74,9 @@ public class Payment extends BaseEntity {
     }
 
 
-    public static Payment of(TossPaymentResponse response, Purpose purpose) {
+    public static Payment of(UUID userId, TossPaymentResponse response, Purpose purpose) {
         return new Payment(
+            userId,
             response.paymentKey(),
             response.orderId(),
             response.totalAmount(),
@@ -85,9 +91,10 @@ public class Payment extends BaseEntity {
         );
     }
 
-    public static Payment of(UUID orderId, Long amount) {
+    public static Payment of(UUID userId, UUID orderId, Long amount) {
         LocalDateTime now = LocalDateTime.now();
         return new Payment(
+            userId,
             "DEPOSIT:" + orderId,
             orderId.toString(),
             amount,

@@ -10,6 +10,7 @@ import com.barofarm.payment.payment.domain.PaymentStatus;
 import com.barofarm.payment.payment.exception.PaymentErrorCode;
 import com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.InventoryCanceledEvent;
 import com.barofarm.payment.payment.infrastructure.kafka.producer.dto.PaymentCanceledEvent;
+import com.barofarm.payment.payment.infrastructure.rest.DepositClient;
 import com.barofarm.payment.payment.infrastructure.rest.TossPaymentClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +32,7 @@ public class InventoryCanceledConsumer {
     private final TossPaymentClient tossPaymentClient;
     private final PaymentOutboxEventRepository paymentOutboxEventRepository;
     private final ObjectMapper objectMapper;
+    private final DepositClient depositClient;
 
     @KafkaListener(
         topics = "inventory-canceled",
@@ -59,11 +61,19 @@ public class InventoryCanceledConsumer {
             return;
         }
 
-        TossPaymentRefundCommand command = new TossPaymentRefundCommand(
-            payment.getPaymentKey(),
-            "Order canceled: " + payment.getOrderId()
-        );
-        tossPaymentClient.refund(command);
+        if ("DEPOSIT".equals(payment.getMethod())) {
+            depositClient.refundDeposit(
+                payment.getUserId(),
+                event.orderId(),
+                payment.getAmount()
+            );
+        } else {
+            TossPaymentRefundCommand command = new TossPaymentRefundCommand(
+                payment.getPaymentKey(),
+                "Order canceled: " + payment.getOrderId()
+            );
+            tossPaymentClient.refund(command);
+        }
         payment.refund();
 
         PaymentCanceledEvent canceledEvent = new PaymentCanceledEvent(

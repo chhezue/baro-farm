@@ -38,7 +38,7 @@ public class PaymentService {
     public ResponseDto<TossPaymentConfirmInfo> confirmPayment(UUID userId, TossPaymentConfirmCommand command) {
         TossPaymentResponse tossPayment = tossPaymentClient.confirm(command);
 
-        Payment payment = Payment.of(tossPayment, ORDER_PAYMENT);
+        Payment payment = Payment.of(userId, tossPayment, ORDER_PAYMENT);
         Payment saved = paymentRepository.save(payment);
 
         PaymentConfirmedEvent event = new PaymentConfirmedEvent(
@@ -71,7 +71,7 @@ public class PaymentService {
 
         UUID chargeId = UUID.fromString(tossPayment.orderId());
 
-        Payment payment = Payment.of(tossPayment, DEPOSIT_CHARGE);
+        Payment payment = Payment.of(userId, tossPayment, DEPOSIT_CHARGE);
         Payment saved = paymentRepository.save(payment);
 
         DepositChargeConfirmedEvent event = new DepositChargeConfirmedEvent(

@@ -4,10 +4,12 @@ import com.barofarm.support.common.exception.CustomException;
 import com.barofarm.support.common.response.ResponseDto;
 import com.barofarm.support.deposit.application.dto.request.DepositChargeCreateCommand;
 import com.barofarm.support.deposit.application.dto.request.DepositPaymentCommand;
+import com.barofarm.support.deposit.application.dto.request.DepositRefundCommand;
 import com.barofarm.support.deposit.application.dto.response.DepositChargeCreateInfo;
 import com.barofarm.support.deposit.application.dto.response.DepositCreateInfo;
 import com.barofarm.support.deposit.application.dto.response.DepositInfo;
 import com.barofarm.support.deposit.application.dto.response.DepositPaymentInfo;
+import com.barofarm.support.deposit.application.dto.response.DepositRefundInfo;
 import com.barofarm.support.deposit.domain.Deposit;
 import com.barofarm.support.deposit.domain.DepositCharge;
 import com.barofarm.support.deposit.domain.DepositChargeRepository;
@@ -35,7 +37,6 @@ public class DepositService {
     private final DepositChargeRepository depositChargeRepository;
     private final DepositOutboxEventRepository depositOutboxEventRepository;
     private final ObjectMapper objectMapper;
-
 
     @Transactional
     public ResponseDto<DepositCreateInfo> createDeposit(UUID userId) {
@@ -84,7 +85,6 @@ public class DepositService {
         return ResponseDto.ok(DepositInfo.from(deposit));
     }
 
-
     @Transactional
     public ResponseDto<DepositPaymentInfo> payDeposit(UUID userId, DepositPaymentCommand command) {
         Deposit deposit = depositRepository.findByUserId(userId)
@@ -123,35 +123,18 @@ public class DepositService {
             throw new CustomException(DepositErrorCode.OUTBOX_SERIALIZATION_FAILED);
         }
     }
+
+    @Transactional
+    public ResponseDto<DepositRefundInfo> refundDeposit(UUID userId, DepositRefundCommand command) {
+
+        Deposit deposit = depositRepository.findByUserId(userId)
+            .orElseThrow(() -> new CustomException(DepositErrorCode.DEPOSIT_NOT_FOUND));
+
+        deposit.increase(command.amount());
+
+        return ResponseDto.ok(
+            DepositRefundInfo.of(command.orderId(), command.amount(), deposit.getAmount())
+        );
+    }
 }
 
-//    @Transactional
-//    public ResponseDto<DepositRefundInfo> refundDeposit(UUID userId, DepositRefundCommand command) {
-//
-//        Deposit deposit = depositRepository.findByUserId(userId)
-//            .orElseThrow(() -> new CustomException(DepositErrorCode.DEPOSIT_NOT_FOUND));
-//
-//        String paymentKey = "DEPOSIT:" + command.orderId();
-//        Payment payment = paymentRepository.findByPaymentKey(paymentKey)
-//            .orElseThrow(() -> new CustomException(DepositErrorCode.DEPOSIT_PAYMENT_NOT_FOUND));
-//
-//        // 멱등: 이미 환불 처리된 경우 그대로 응답(또는 return)
-//        if (payment.getStatus() == PaymentStatus.REFUNDED) {
-//            return ResponseDto.ok(
-//                DepositRefundInfo.of(command.orderId(), 0L, deposit.getAmount())
-//            );
-//        }
-//
-//        // 예치금 복구
-//        deposit.increase(command.amount());
-//
-//        orderService.cancelOrder(userId, command.orderId());
-//
-//        // 결제 상태 환불 처리
-//        payment.refund();
-//
-//        return ResponseDto.ok(
-//            DepositRefundInfo.of(command.orderId(), command.amount(), deposit.getAmount())
-//        );
-//    }
-//}
