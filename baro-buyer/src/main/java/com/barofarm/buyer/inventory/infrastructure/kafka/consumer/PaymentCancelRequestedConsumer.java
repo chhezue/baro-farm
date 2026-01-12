@@ -6,7 +6,7 @@ import com.barofarm.buyer.inventory.application.dto.request.InventoryCancelComma
 import com.barofarm.buyer.inventory.domain.InventoryOutboxEvent;
 import com.barofarm.buyer.inventory.domain.InventoryOutboxEventRepository;
 import com.barofarm.buyer.inventory.exception.InventoryErrorCode;
-import com.barofarm.buyer.inventory.infrastructure.kafka.consumer.dto.OrderCancelRequestedEvent;
+import com.barofarm.buyer.inventory.infrastructure.kafka.consumer.dto.PaymentCanceledEvent;
 import com.barofarm.buyer.inventory.infrastructure.kafka.producer.dto.InventoryCanceledEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,21 +17,21 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @RequiredArgsConstructor
-public class OrderCancelRequestedConsumer {
+public class PaymentCancelRequestedConsumer {
 
     private final InventoryFacadeService inventoryFacadeService;
     private final InventoryOutboxEventRepository inventoryOutboxEventRepository;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(
-        topics = "order-cancel-requested",
-        groupId = "inventory-service.order-cancel-requested",
+        topics = "payment-canceled",
+        groupId = "inventory-service.payment-canceled",
         properties = {
-            "spring.json.value.default.type=com.barofarm.buyer.inventory.infrastructure.kafka.consumer.dto.OrderCancelRequestedEvent"
+            "spring.json.value.default.type=com.barofarm.buyer.inventory.infrastructure.kafka.consumer.dto.PaymentCanceledEvent"
         }
     )
     @Transactional
-    public void handle(OrderCancelRequestedEvent event) {
+    public void handle(PaymentCanceledEvent event) {
         inventoryFacadeService.cancelInventory(InventoryCancelCommand.of(event.orderId()));
 
         InventoryCanceledEvent canceledEvent = new InventoryCanceledEvent(event.orderId());
@@ -51,4 +51,3 @@ public class OrderCancelRequestedConsumer {
         }
     }
 }
-

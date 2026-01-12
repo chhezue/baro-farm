@@ -2,15 +2,10 @@ package com.barofarm.order.order.infrastructure.kafka.consumer;
 
 import com.barofarm.order.common.exception.CustomException;
 import com.barofarm.order.order.domain.Order;
-import com.barofarm.order.order.domain.OrderOutboxEvent;
-import com.barofarm.order.order.domain.OrderOutboxEventRepository;
 import com.barofarm.order.order.domain.OrderRepository;
 import com.barofarm.order.order.domain.OrderStatus;
 import com.barofarm.order.order.exception.OrderErrorCode;
 import com.barofarm.order.order.infrastructure.kafka.consumer.dto.PaymentCanceledEvent;
-import com.barofarm.order.order.infrastructure.kafka.producer.dto.OrderCanceledEvent;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -24,8 +19,6 @@ import static com.barofarm.order.order.exception.OrderErrorCode.OUTBOX_SERIALIZA
 public class PaymentCanceledConsumer {
 
     private final OrderRepository orderRepository;
-    private final OrderOutboxEventRepository orderOutboxEventRepository;
-    private final ObjectMapper objectMapper;
 
     @KafkaListener(
         topics = "payment-canceled",
@@ -45,24 +38,7 @@ public class PaymentCanceledConsumer {
             return;
         }
 
-        if (order.getStatus() == OrderStatus.CANCEL_PENDING) {
-            order.markCancel();
-
-            try {
-                OrderCanceledEvent dto = OrderCanceledEvent.of(event);
-                String payload = objectMapper.writeValueAsString(dto);
-
-                OrderOutboxEvent outbox = OrderOutboxEvent.pending(
-                    "ORDER",
-                    orderId.toString(),
-                    "order-canceled",
-                    orderId.toString(),
-                    payload
-                );
-                orderOutboxEventRepository.save(outbox);
-            } catch (JsonProcessingException e) {
-                throw new CustomException(OUTBOX_SERIALIZATION_FAILED);
-            }
-        }
+        // 결제 환불 완료 이벤트는 이제 주문 최종 취소 전에 재고 복원 단계에서만 사용된다.
+        // 주문 최종 취소는 inventory-canceled 이벤트에서 처리한다.
     }
 }

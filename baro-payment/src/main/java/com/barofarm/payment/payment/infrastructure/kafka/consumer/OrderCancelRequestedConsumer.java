@@ -8,7 +8,7 @@ import com.barofarm.payment.payment.domain.PaymentOutboxEventRepository;
 import com.barofarm.payment.payment.domain.PaymentRepository;
 import com.barofarm.payment.payment.domain.PaymentStatus;
 import com.barofarm.payment.payment.exception.PaymentErrorCode;
-import com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.InventoryCanceledEvent;
+import com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.OrderCancelRequestedEvent;
 import com.barofarm.payment.payment.infrastructure.kafka.producer.dto.PaymentCanceledEvent;
 import com.barofarm.payment.payment.infrastructure.kafka.producer.dto.PaymentCancelFailedEvent;
 import com.barofarm.payment.payment.infrastructure.rest.DepositClient;
@@ -27,7 +27,7 @@ import static com.barofarm.payment.payment.exception.PaymentErrorCode.PAYMENT_NO
 
 @Component
 @RequiredArgsConstructor
-public class InventoryCanceledConsumer {
+public class OrderCancelRequestedConsumer {
 
     private final PaymentRepository paymentRepository;
     private final TossPaymentClient tossPaymentClient;
@@ -36,10 +36,10 @@ public class InventoryCanceledConsumer {
     private final DepositClient depositClient;
 
     @KafkaListener(
-        topics = "inventory-canceled",
-        groupId = "payment-service.inventory-canceled",
+        topics = "order-cancel-requested",
+        groupId = "payment-service.order-cancel-requested",
         properties = {
-            "spring.json.value.default.type=com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.InventoryCanceledEvent"
+            "spring.json.value.default.type=com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.OrderCancelRequestedEvent"
         }
     )
     @RetryableTopic(
@@ -47,7 +47,7 @@ public class InventoryCanceledConsumer {
         backoff = @Backoff(delay = 1000, multiplier = 2)
     )
     @Transactional
-    public void handle(InventoryCanceledEvent event) {
+    public void handle(OrderCancelRequestedEvent event) {
         Optional<Payment> optionalPayment = paymentRepository.findByOrderId(event.orderId());
         if (optionalPayment.isEmpty()) {
             throw new CustomException(PAYMENT_NOT_FOUND);
@@ -102,7 +102,7 @@ public class InventoryCanceledConsumer {
         }
     }
 
-    private void createCancelFailureOutbox(InventoryCanceledEvent event, Payment payment, Exception cause) {
+    private void createCancelFailureOutbox(OrderCancelRequestedEvent event, Payment payment, Exception cause) {
         try {
             PaymentCancelFailedEvent failedEvent = new PaymentCancelFailedEvent(
                 event.orderId(),
