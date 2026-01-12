@@ -7,7 +7,7 @@ import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
 import com.barofarm.ai.common.response.CustomPage;
-import com.barofarm.ai.embedding.service.TextEmbeddingService;
+import com.barofarm.ai.embedding.service.ProductEmbeddingService;
 import com.barofarm.ai.log.application.LogWriteService;
 import com.barofarm.ai.search.application.dto.product.ProductAutoCompleteResponse;
 import com.barofarm.ai.search.application.dto.product.ProductIndexRequest;
@@ -35,7 +35,7 @@ public class ProductSearchService {
     private final ProductSearchRepository repository;
     private final ProductAutocompleteRepository autocompleteRepository;
     private final LogWriteService logWriteService;
-    private final TextEmbeddingService textEmbeddingService;
+    private final ProductEmbeddingService productEmbeddingService;
 
     // 상품 문서를 ES에 저장 (인덱싱), updatedAt은 현재 시각으로 자동 설정
     // Kafka Consumer에서 호출됨
@@ -45,7 +45,7 @@ public class ProductSearchService {
         // 임베딩이 실패하더라도 인덱싱은 계속되어야 함.
         try {
             // 상품 이름을 기반으로 임베딩 생성
-            vector = textEmbeddingService.embedProduct(request.productName());
+            vector = productEmbeddingService.embedProduct(request.productName());
         } catch (Exception e) {
             log.error("❌ Product embedding failed. productId=" + request.productId() + ", error=" + e.getMessage(), e);
         }

@@ -5,6 +5,7 @@
 ## 📋 목차
 
 - [개인화 추천 API](#-개인화-추천-api)
+- [임베딩 서비스](#-임베딩-서비스)
 - [레시피 추천 API](#-레시피-추천-api)
 - [상품 검색 API](#-상품-검색-api)
 - [체험 검색 API](#-체험-검색-api)
@@ -24,7 +25,7 @@
 #### 요청 파라미터
 ```json
 {
-  "userId": "number (필수) - 사용자 ID"
+  "userId": "UUID (필수) - 사용자 ID"
 }
 ```
 
@@ -41,6 +42,23 @@
 - `data`: 추천 상품 ID 배열 (최대 15개)
 - 추천 순서는 유사도 점수 기반 내림차순
 
+#### 임베딩 생성 로직
+1. **로그 수집**: 최근 30일간의 로그를 각 타입별로 최대 5개씩 (총 최대 15개)
+   - 검색 로그 (SearchLogDocument)
+   - 장바구니 로그 (CartLogDocument)
+   - 주문 로그 (OrderLogDocument)
+
+2. **품질 검증**: 최소 3개 이상의 로그 필요
+
+3. **가중치 적용 텍스트 생성**:
+   - 검색어: 시간 가중치 적용
+   - 장바구니 상품: 이벤트 타입(ADD=2, UPDATE=1, REMOVE=0) × 수량 × 시간 가중치
+   - 주문 상품: 이벤트 타입(ORDER_CREATED=3, ORDER_CANCELLED=0) × 수량 × 시간 가중치
+
+4. **임베딩 벡터 생성**: OpenAI `text-embedding-3-small` 모델 사용 (1536차원)
+
+5. **Elasticsearch 저장**: `user_profile_embeddings` 인덱스에 저장
+
 #### 캐싱 전략
 - Redis TTL: 1시간
 - 키 형식: `recommend:user:{userId}`
@@ -55,6 +73,81 @@
   }
 }
 ```
+
+#### 임베딩 생성 실패 시
+- 로그 개수가 3개 미만인 경우: 임베딩 생성 건너뜀
+- OpenAI API 오류: 로그 기록 후 실패 처리
+
+---
+
+## 🤖 임베딩 서비스
+
+### 사용자 프로필 임베딩 생성
+
+사용자의 행동 로그를 기반으로 가중치를 적용하여 임베딩 벡터를 생성합니다.
+
+#### 처리 흐름
+
+1. **로그 수집** (각 타입별 최대 5개씩)
+   ```java
+   List<SearchLogDocument> searchLogs;  // 최대 5개
+   List<CartLogDocument> cartLogs;      // 최대 5개
+   List<OrderLogDocument> orderLogs;    // 최대 5개
+   ```
+
+2. **품질 검증**
+   - 총 로그 개수가 3개 미만이면 임베딩 생성 건너뜀
+
+3. **가중치 적용 텍스트 생성**
+   - 검색어: 시간 가중치만 적용
+   - 장바구니: 이벤트 타입 × 수량 × 시간 가중치
+   - 주문: 이벤트 타입 × 수량 × 시간 가중치
+
+4. **임베딩 벡터 생성**
+   - OpenAI Embedding API 호출
+   - 1536차원 벡터 생성
+
+5. **Elasticsearch 저장**
+   - 인덱스: `user_profile_embeddings`
+   - 문서 ID: `userId`
+
+#### 가중치 계산 규칙
+
+| 로그 타입 | 이벤트 타입 | 가중치 | 수량 | 시간 가중치 |
+|----------|------------|--------|------|------------|
+| 검색 | - | 1.0 | - | 0.3 ~ 3.0 |
+| 장바구니 | ADD | 2 | 실제 수량 | 0.3 ~ 3.0 |
+| 장바구니 | UPDATE | 1 | 실제 수량 | 0.3 ~ 3.0 |
+| 장바구니 | REMOVE | 0 | - | - (제외) |
+| 주문 | ORDER_CREATED | 3 | 실제 수량 | 0.3 ~ 3.0 |
+| 주문 | ORDER_CANCELLED | 0 | - | - (제외) |
+
+#### 시간 가중치 계산
+
+```java
+// 지수 감쇠 함수
+timeWeight = max(0.3, 3.0 * exp(-hoursAgo / 168.0))
+
+// 예시:
+// 1시간 전: ~2.8배
+// 7일 전: ~1.5배
+// 30일 전: ~0.3배
+```
+
+#### 상품 임베딩 생성
+
+상품명을 기반으로 임베딩 벡터를 생성합니다.
+
+```java
+ProductEmbeddingService.embedProduct(productName)
+  → OpenAI Embedding API 호출
+  → 1536차원 float[] 벡터 반환
+  → ProductDocument에 저장
+```
+
+#### 관련 문서
+
+- [임베딩 예시](EMBEDDING_EXAMPLE.md) - 실제 데이터 흐름 예시
 
 ---
 
@@ -497,60 +590,4 @@ public class PolicyChatbotService {
 
 ---
 
-## 🔍 4. **의미 검색** (보조 기능)
 
-**관여 계층**: `domain`, `application`, `infrastructure`
-
-### 기능 개요
-단순 키워드 검색이 아닌 **사용자의 의도를 이해**하여 정확한 검색 결과를 제공합니다.
-
-### 검색 파이프라인
-
-```mermaid
-graph TD
-    A[사용자 쿼리] --> B[LLM 의도 해석]
-    B --> C[다중 검색 전략]
-    C --> D[점수 합산]
-    D --> E[랭킹 및 정렬]
-    E --> F[결과 반환]
-```
-
-### 검색 전략
-
-```java
-public SearchResult hybridSearch(String query) {
-    // 1. LLM으로 의도 파악
-    String intent = llmIntentAnalyzer.analyzeIntent(query);
-
-    // 2. 다중 검색 실행
-    CompletableFuture<List<Product>> exactResults = elasticsearchService.exactMatch(query);
-    CompletableFuture<List<Product>> fuzzyResults = elasticsearchService.fuzzyMatch(query);
-    CompletableFuture<List<Product>> vectorResults = vectorStore.similaritySearch(query);
-
-    // 3. 점수 가중치 적용
-    List<ScoredProduct> allResults = Stream.of(exactResults, fuzzyResults, vectorResults)
-        .map(CompletableFuture::join)
-        .flatMap(List::stream)
-        .map(product -> scoreProduct(product, intent))
-        .sorted(Comparator.comparing(ScoredProduct::getScore).reversed())
-        .limit(50)
-        .collect(Collectors.toList());
-
-    return new SearchResult(allResults);
-}
-```
-
-### 점수 가중치
-
-| 검색 유형 | 가중치 | 설명 |
-|----------|--------|------|
-| **정확 일치** | 3.0 | 쿼리와 완전히 일치하는 상품 |
-| **부분 일치** | 2.0 | 쿼리를 포함하는 상품 |
-| **벡터 유사도** | 1.0-2.0 | 의미적으로 유사한 상품 |
-| **오탈자 허용** | 0.5 | Fuzzy 매칭된 상품 |
-
-### 기술 구현
-- **의도 해석**: LLM으로 검색 의도 파악
-- **하이브리드 검색**: 키워드 + 벡터 검색 결합
-- **점수 정규화**: 각 검색 결과의 점수 표준화
-- **랭킹 최적화**: 다중 요소 기반 최종 순위 결정

@@ -83,11 +83,14 @@ spring:
 # AI 설정
 ai:
   openai:
-    api-key: ${OPENAI_API_KEY}
+    api-key: ${SPRING_AI_OPENAI_API_KEY:}
     chat:
-      model: gpt-4
+      options:
+        model: ${SPRING_AI_OPENAI_MODEL:gpt-4o-mini}
+        temperature: 0.7
     embedding:
-      model: text-embedding-ada-002
+      options:
+        model: ${SPRING_AI_OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
 ```
 
 ### 로컬 개발 실행
@@ -137,9 +140,85 @@ public class CartEventConsumer {
 }
 ```
 
+### 사용자 프로필 임베딩 생성
+
+> **[Application Layer]** 사용자 행동 로그를 기반으로 가중치를 적용하여 임베딩 벡터를 생성하는 서비스입니다.
+
+```java
+// embedding/service/UserProfileEmbeddingService.java
+
+@Service
+public class UserProfileEmbeddingService {
+
+    private static final int MIN_TOTAL_LOGS_FOR_EMBEDDING = 3;
+    private final EmbeddingModel embeddingModel;
+    private final CartLogRepository cartLogRepository;
+    private final OrderLogRepository orderLogRepository;
+    private final SearchLogRepository searchLogRepository;
+    private final UserProfileEmbeddingRepository userProfileEmbeddingRepository;
+
+    public void updateUserProfileEmbedding(UUID userId) {
+        // 1. 최근 30일간의 로그를 각 타입별로 최대 5개씩 가져옴
+        Instant thirtyDaysAgo = Instant.now().minus(30, ChronoUnit.DAYS);
+        Pageable top5 = PageRequest.of(0, 5);
+
+        List<SearchLogDocument> searchLogs = searchLogRepository
+            .findAllByUserIdAndSearchedAtAfterOrderBySearchedAtDesc(userId, thirtyDaysAgo, top5);
+        List<CartLogDocument> cartLogs = cartLogRepository
+            .findAllByUserIdAndOccurredAtAfterOrderByOccurredAtDesc(userId, thirtyDaysAgo, top5);
+        List<OrderLogDocument> orderLogs = orderLogRepository
+            .findAllByUserIdAndOccurredAtAfterOrderByOccurredAtDesc(userId, thirtyDaysAgo, top5);
+
+        // 2. 품질 검증 (최소 3개 이상 필요)
+        int totalLogCount = searchLogs.size() + cartLogs.size() + orderLogs.size();
+        if (totalLogCount < MIN_TOTAL_LOGS_FOR_EMBEDDING) {
+            return; // 임베딩 건너뜀
+        }
+
+        // 3. 가중치 적용 텍스트 생성
+        String representativeText = buildRepresentativeText(searchLogs, cartLogs, orderLogs);
+
+        // 4. 임베딩 벡터 생성
+        List<Double> vector = embedText(representativeText);
+
+        // 5. Elasticsearch에 저장
+        UserProfileEmbeddingDocument document = UserProfileEmbeddingDocument.builder()
+            .userId(userId)
+            .userProfileVector(vector)
+            .lastUpdatedAt(Instant.now())
+            .build();
+        userProfileEmbeddingRepository.save(document);
+    }
+
+    private String buildRepresentativeText(...) {
+        // 수량 × 이벤트 타입 × 시간 가중치를 적용하여 텍스트 생성
+        // 예: "청송사과" × (이벤트:2 × 수량:3 × 시간:2.8) = 17번 반복
+    }
+}
+```
+
+### 상품 임베딩 생성
+
+> **[Application Layer]** 상품명을 기반으로 임베딩 벡터를 생성하는 서비스입니다.
+
+```java
+// embedding/service/ProductEmbeddingService.java
+
+@Service
+public class ProductEmbeddingService {
+
+    private final EmbeddingModel embeddingModel;
+
+    public float[] embedProduct(String productName) {
+        var embeddings = embeddingModel.embed(List.of(productName));
+        return embeddings.get(0); // 1536차원 float 배열
+    }
+}
+```
+
 ### 벡터 기반 추천 로직
 
-> **[Application Layer]** 도메인 로직과 인프라를 조율하여 '개인화 추천'이라는 유스케이스를 완성하는 애플리케이션 계층입니다.
+> **[Application Layer]** 사용자 프로필 벡터와 상품 벡터의 유사도를 계산하여 추천합니다.
 
 ```java
 // application/recommendation/PersonalizedRecommendService.java
@@ -148,40 +227,30 @@ public class CartEventConsumer {
 @RequiredArgsConstructor
 public class PersonalizedRecommendService {
 
-    // Domain 계층의 Repository 인터페이스 또는 다른 Application Service에 의존
-    private final LogReadService logReadService;
     private final UserProfileEmbeddingService embeddingService;
-    // Infrastructure 계층의 구현체는 직접 의존하지 않음 (DI를 통해 주입)
+    private final ProductSearchRepository productSearchRepository;
     private final RedisTemplate<String, List<Long>> redisTemplate;
 
-    public List<Long> recommendForUser(Long userId) {
+    public List<Long> recommendForUser(UUID userId) {
         String cacheKey = "recommend:user:" + userId;
 
-        // 1. 인프라(캐시) 조회
+        // 1. 캐시 조회
         List<Long> cached = redisTemplate.opsForList().range(cacheKey, 0, -1);
         if (!cached.isEmpty()) return cached;
 
-        // 2. 도메인 로직/데이터를 활용하여 추천 계산
-        List<Long> recommendations = calculateRecommendations(userId);
+        // 2. 사용자 프로필 벡터 조회
+        UserProfileEmbeddingDocument profile = 
+            embeddingService.getUserProfileVector(userId);
+        List<Double> userVector = profile.getUserProfileVector();
 
-        // 3. 인프라(캐시)에 결과 저장
+        // 3. 상품 벡터와 유사도 계산
+        List<Long> recommendations = findSimilarProducts(userVector, 15);
+
+        // 4. 캐시 저장
         redisTemplate.opsForList().rightPushAll(cacheKey, recommendations);
         redisTemplate.expire(cacheKey, 1, TimeUnit.HOURS);
 
         return recommendations;
-    }
-
-    private List<Long> calculateRecommendations(Long userId) {
-        // 1. 사용자 행동 로그 조회 (Domain/Infra)
-        List<UserEventLog> logs = logReadService.getRecentLogs(userId, 30);
-
-        // 2. 취향 벡터 생성/조회 (Domain/Application)
-        float[] userVector = embeddingService.getUserProfileVector(userId);
-
-        // 3. 상품 벡터 유사도 계산 및 랭킹 (Domain)
-        return findSimilarProducts(userVector, logs).stream()
-            .limit(15)
-            .collect(Collectors.toList());
     }
 }
 ```
@@ -190,45 +259,57 @@ public class PersonalizedRecommendService {
 
 > **[Infrastructure Layer]** Elasticsearch라는 특정 기술에 종속적인 데이터 모델입니다. 데이터 영속성을 담당하는 인프라 계층에 위치합니다.
 
+#### 사용자 프로필 임베딩 문서
+
 ```java
-// infrastructure/persistence/elasticsearch/document/CartEventDocument.java
+// embedding/model/UserProfileEmbeddingDocument.java
+
+@Document(indexName = "user_profile_embeddings")
+@Getter
+@Builder
+public class UserProfileEmbeddingDocument {
+
+    @Id
+    private UUID userId; // 사용자 ID를 문서 ID로 사용
+
+    @Field(type = FieldType.Dense_Vector, dims = 1536)
+    private List<Double> userProfileVector; // 1536차원 벡터
+
+    @Field(type = FieldType.Date)
+    private Instant lastUpdatedAt;
+}
+```
+
+#### 로그 도큐먼트
+
+```java
+// log/domain/CartLogDocument.java
 
 @Document(indexName = "cart_event_logs")
 @Getter
 @NoArgsConstructor
-public class CartEventDocument {
+public class CartLogDocument {
 
     @Id
     private String id;
 
     @Field(type = FieldType.Keyword)
-    private Long userId;
+    private UUID userId;
 
     @Field(type = FieldType.Keyword)
-    private Long productId;
+    private UUID productId;
 
     @Field(type = FieldType.Text, analyzer = "nori")
-    private String productName;
+    private String productName; // 임베딩 텍스트 데이터
 
     @Field(type = FieldType.Keyword)
-    private String eventType;
+    private String eventType; // ADD, REMOVE, UPDATE
 
     @Field(type = FieldType.Integer)
-    private Integer quantity;
+    private Integer quantity; // 관심 강도
 
     @Field(type = FieldType.Date)
-    private Instant occurredAt;
-
-    @Builder
-    public CartEventDocument(Long userId, Long productId, String productName,
-                            String eventType, Integer quantity, Instant occurredAt) {
-        this.userId = userId;
-        this.productId = productId;
-        this.productName = productName;
-        this.eventType = eventType;
-        this.quantity = quantity;
-        this.occurredAt = occurredAt;
-    }
+    private Instant occurredAt; // 시간 가중치 계산용
 }
 ```
 
