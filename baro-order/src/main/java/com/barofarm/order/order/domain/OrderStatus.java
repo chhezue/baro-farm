@@ -5,7 +5,7 @@ public enum OrderStatus {
     PENDING,
 
     // 재고 예약 완료
-    INVENTORY_RESERVED,
+    AWAITING_PAYMENT,
 
     // 결제/재고 확정 완료
     CONFIRMED,
@@ -27,7 +27,7 @@ public enum OrderStatus {
 
     public boolean isCancelable() {
         return this == PENDING
-            || this == INVENTORY_RESERVED
+            || this == AWAITING_PAYMENT
             || this == CONFIRMED;
     }
 
@@ -35,4 +35,3 @@ public enum OrderStatus {
         return this == CANCELED;
     }
 }
-

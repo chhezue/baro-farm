@@ -75,8 +75,8 @@ public class Order extends BaseEntity {
         this.status = OrderStatus.CONFIRMED;
     }
 
-    public void markInventoryReserved() {
-        this.status = OrderStatus.INVENTORY_RESERVED;
+    public void markAwaitingPayment() {
+        this.status = OrderStatus.AWAITING_PAYMENT;
     }
 
     public void markCancelPending() {

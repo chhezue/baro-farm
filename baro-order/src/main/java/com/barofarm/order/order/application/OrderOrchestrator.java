@@ -29,7 +29,7 @@ public class OrderOrchestrator {
             );
             inventoryClient.reserveInventory(reserveRequest);
 
-            orderService.markInventoryReserved(orderCreateInfo.orderId());
+            orderService.markAwaitingPayment(orderCreateInfo.orderId());
             return ResponseDto.ok(orderCreateInfo);
         } catch (Exception e){
             // 부분 성공 상태(주문만 생성되거나 재고만 예약) 방지

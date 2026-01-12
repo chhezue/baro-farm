@@ -66,11 +66,11 @@ public class OrderService {
     }
 
     @Transactional
-    public void markInventoryReserved(UUID orderId) {
+    public void markAwaitingPayment(UUID orderId) {
         Order order = orderRepository.findById(orderId)
             .orElseThrow(() -> new CustomException(ORDER_NOT_FOUND));
 
-        order.markInventoryReserved();
+        order.markAwaitingPayment();
         System.out.println("mir"+order.getStatus());
     }
 
