@@ -9,7 +9,8 @@ import org.springframework.data.elasticsearch.repository.config.EnableElasticsea
 @Configuration
 @EnableElasticsearchRepositories(basePackages = {
     "com.barofarm.ai.log.repository",
-    "com.barofarm.ai.search.infrastructure.elasticsearch"
+    "com.barofarm.ai.search.infrastructure.elasticsearch",
+    "com.barofarm.ai.embedding.repository"
 })
 public class ElasticsearchConfig extends ElasticsearchConfiguration {
 

@@ -23,6 +23,9 @@ ext {
 dependencyManagement {
     imports {
         mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+    // Spring AI BOM은 swagger 버전을 오버라이드하지 않도록 별도로 관리
+    imports {
         mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
     }
 }
@@ -64,6 +67,20 @@ dependencies {
 
     // Database
     runtimeOnly 'com.mysql:mysql-connector-j'
+}
+
+// Spring AI BOM이 다른 swagger 버전을 가져올 수 있으므로 버전 강제 지정
+// Springdoc 2.8.5는 swagger-core-jakarta 2.2.28을 사용하므로 모든 swagger 관련 버전을 일치시킴
+configurations.all {
+    resolutionStrategy {
+        // Jakarta 버전 (Springdoc 2.8.5가 사용)
+        force 'io.swagger.core.v3:swagger-annotations-jakarta:2.2.28'
+        force 'io.swagger.core.v3:swagger-core-jakarta:2.2.28'
+        force 'io.swagger.core.v3:swagger-models-jakarta:2.2.28'
+        // 일반 버전 (하위 호환성)
+        force 'io.swagger.core.v3:swagger-annotations:2.2.28'
+        force 'io.swagger.core.v3:swagger-core:2.2.28'
+    }
 }
 
 tasks.named('test') {
