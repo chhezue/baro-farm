@@ -32,11 +32,12 @@ public class KafkaProducerConfig {
         
         // ACKS 설정: 브로커로부터 받을 확인(acknowledgment) 수준
         // 옵션:
-        //   - "0": 브로커 응답을 기다리지 않음 (가장 빠르지만 메시지 손실 위험 높음)
-        //   - "1": Leader 파티션만 확인하면 OK (빠르고 안전, 대부분의 경우 권장)
-        //   - "all" 또는 "-1": 모든 ISR(In-Sync Replicas)이 받을 때까지 대기 (가장 안전하지만 느림)
-        // Reservation 이벤트는 알림 등에 사용되므로 "all" 사용 (메시지 손실 최소화)
-        config.put(ProducerConfig.ACKS_CONFIG, "all");
+        // "0": 브로커 응답을 기다리지 않음 (가장 빠르지만 메시지 손실 위험 높음)
+        // "1": Leader 파티션만 확인하면 OK (빠르고 안전, 대부분의 경우 권장)
+        // "all" 또는 "-1": 모든 ISR(In-Sync Replicas)이 받을 때까지 대기 (가장 안전하지만 느림)
+        // Reservation 이벤트는 알림 등에 사용되므로 "all" (메시지 손실 최소화)
+        // 대부분의 경우 "1" 사용 (빠르고 안전)
+        config.put(ProducerConfig.ACKS_CONFIG, "1");
         
         config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true); // 중복 방지
 

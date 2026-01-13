@@ -27,11 +27,11 @@ public class FarmEventPublisher {
         log.info(
             "📨 [EVENT_PUBLISHER] Building FARM_CREATED - Farm ID: {}, Seller ID: {}",
             farm.getId(), farm.getSeller().getId());
-        
+
         FarmEvent event = buildEvent(FarmEventType.FARM_CREATED, farm);
         log.info("📨 [EVENT_PUBLISHER] Event built successfully - Type: {}, Farm ID: {}",
             event.getType(), event.getData().getFarmId());
-        
+
         producer.send(event);
     }
 
@@ -44,7 +44,7 @@ public class FarmEventPublisher {
         log.info(
             "📨 [EVENT_PUBLISHER] Building FARM_UPDATED - Farm ID: {}, Seller ID: {}",
             farm.getId(), farm.getSeller().getId());
-        
+
         FarmEvent event = buildEvent(FarmEventType.FARM_UPDATED, farm);
         producer.send(event);
     }
@@ -58,7 +58,7 @@ public class FarmEventPublisher {
         log.info(
             "📨 [EVENT_PUBLISHER] Building FARM_DELETED - Farm ID: {}, Seller ID: {}",
             farm.getId(), farm.getSeller().getId());
-        
+
         FarmEvent event = buildEvent(FarmEventType.FARM_DELETED, farm);
         producer.send(event);
     }
@@ -70,8 +70,8 @@ public class FarmEventPublisher {
             .farmName(farm.getName())
             .farmAddress(farm.getAddress())
             .status(farm.getStatus().name())
-            .updatedAt(farm.getUpdatedAt() != null 
-                ? farm.getUpdatedAt().atZone(ZoneId.systemDefault()).toInstant() 
+            .updatedAt(farm.getUpdatedAt() != null
+                ? farm.getUpdatedAt().atZone(ZoneId.systemDefault()).toInstant()
                 : Instant.now())
             .build();
 
@@ -81,4 +81,3 @@ public class FarmEventPublisher {
             .build();
     }
 }
-

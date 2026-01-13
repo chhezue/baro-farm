@@ -17,21 +17,25 @@ public class FarmEventProducer {
 
     public void send(FarmEvent event) {
         FarmEvent.FarmEventData data = event.getData();
-        log.info(
-            "📤 [PRODUCER] Sending farm event to topic '{}' - Type: {}, Farm ID: {}, Seller ID: {}",
-            TOPIC, event.getType(), data.getFarmId(), data.getSellerId());
+        // 파티션 키로 farmId를 사용하여 동일 farm의 이벤트 순서 보장
+        String partitionKey = data.getFarmId().toString();
 
-        kafkaTemplate.send(TOPIC, event).whenComplete((result, ex) -> {
+        log.info(
+            "📤 [PRODUCER] Sending farm event to topic '{}' - Type: {}, Farm ID: {}, Seller ID: {}, Partition Key: {}",
+            TOPIC, event.getType(), data.getFarmId(), data.getSellerId(), partitionKey);
+
+        kafkaTemplate.send(TOPIC, partitionKey, event).whenComplete((result, ex) -> {
             if (ex == null) {
                 log.info(
                     "✅ [PRODUCER] Successfully sent farm event to topic '{}' - Type: {}, Farm ID: {}, "
-                        + "Partition: {}, Offset: {}",
+                        + "Partition: {}, Offset: {}, Partition Key: {}",
                     TOPIC, event.getType(), data.getFarmId(),
-                    result.getRecordMetadata().partition(), result.getRecordMetadata().offset());
+                    result.getRecordMetadata().partition(), result.getRecordMetadata().offset(), partitionKey);
             } else {
                 log.error(
-                    "❌ [PRODUCER] Failed to send farm event to topic '{}' - Type: {}, Farm ID: {}, Error: {}",
-                    TOPIC, event.getType(), data.getFarmId(), ex.getMessage(), ex);
+                    "❌ [PRODUCER] Failed to send farm event to topic '{}' - Type: {}, Farm ID: {}, "
+                        + "Partition Key: {}, Error: {}",
+                    TOPIC, event.getType(), data.getFarmId(), partitionKey, ex.getMessage(), ex);
             }
         });
     }
