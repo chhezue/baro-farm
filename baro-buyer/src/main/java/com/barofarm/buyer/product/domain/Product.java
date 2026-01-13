@@ -8,7 +8,10 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
@@ -38,9 +41,9 @@ public class Product extends BaseEntity {
   @Column(columnDefinition = "TEXT")
   private String description;
 
-  @Enumerated(EnumType.STRING)
-  @Column(name = "category", nullable = false, length = 30)
-  private ProductCategory productCategory;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "category_id", nullable = false)
+  private Category category;
 
   @Column(nullable = false)
   private Long price;
@@ -61,16 +64,16 @@ public class Product extends BaseEntity {
       UUID sellerId,
       String productName,
       String description,
-      ProductCategory productCategory,
+      Category category,
       Long price,
       ProductStatus productStatus) {
 
-    validateConstructorParams(sellerId, productName, productCategory, price);
+    validateConstructorParams(sellerId, productName, category, price);
     this.id = UUID.randomUUID();
     this.sellerId = sellerId;
     this.productName = productName;
     this.description = description;
-    this.productCategory = productCategory;
+    this.category = category;
     this.price = price;
     this.productStatus = productStatus;
   }
@@ -79,7 +82,7 @@ public class Product extends BaseEntity {
       UUID sellerId,
       String productName,
       String description,
-      ProductCategory productCategory,
+      Category category,
       Long price,
       ProductStatus productStatus) {
 
@@ -87,7 +90,7 @@ public class Product extends BaseEntity {
           sellerId,
           productName,
           description,
-          productCategory,
+          category,
           price,
           productStatus
       );
@@ -96,15 +99,15 @@ public class Product extends BaseEntity {
   public void update(
       String productName,
       String description,
-      ProductCategory productCategory,
+      Category category,
       Long price,
       ProductStatus productStatus) {
 
-    validateUpdateParams(productName, productCategory, price, productStatus);
+    validateUpdateParams(productName, category, price, productStatus);
 
     this.productName = productName;
     this.description = description;
-    this.productCategory = productCategory;
+    this.category = category;
     this.price = price;
     this.productStatus = productStatus;
   }
@@ -133,7 +136,7 @@ public class Product extends BaseEntity {
   }
 
   private void validateConstructorParams(
-      UUID sellerId, String productName, ProductCategory category, Long price) {
+      UUID sellerId, String productName, Category category, Long price) {
     if (sellerId == null) {
       throw new CustomException(ProductErrorCode.SELLER_NULL);
     }
@@ -142,7 +145,7 @@ public class Product extends BaseEntity {
 
   private void validateUpdateParams(
       String productName,
-      ProductCategory category,
+      Category category,
       Long price,
       ProductStatus status) {
     validateCommonFields(productName, category, price);
@@ -152,7 +155,7 @@ public class Product extends BaseEntity {
   }
 
   private void validateCommonFields(
-      String productName, ProductCategory category, Long price) {
+      String productName, Category category, Long price) {
       if (productName == null) {
         throw new CustomException(ProductErrorCode.PRODUCT_NAME_NULL);
         }
