@@ -45,9 +45,6 @@ public class Product extends BaseEntity {
   @Column(nullable = false)
   private Long price;
 
-  @Column(name = "stock_quantity", nullable = false)
-  private Integer stockQuantity;
-
   @Enumerated(EnumType.STRING)
   @Column(name = "product_status", nullable = false)
   private ProductStatus productStatus;
@@ -66,17 +63,15 @@ public class Product extends BaseEntity {
       String description,
       ProductCategory productCategory,
       Long price,
-      Integer stockQuantity,
       ProductStatus productStatus) {
 
-    validateConstructorParams(sellerId, productName, productCategory, price, stockQuantity);
+    validateConstructorParams(sellerId, productName, productCategory, price);
     this.id = UUID.randomUUID();
     this.sellerId = sellerId;
     this.productName = productName;
     this.description = description;
     this.productCategory = productCategory;
     this.price = price;
-    this.stockQuantity = stockQuantity;
     this.productStatus = productStatus;
   }
 
@@ -86,7 +81,6 @@ public class Product extends BaseEntity {
       String description,
       ProductCategory productCategory,
       Long price,
-      Integer stockQuantity,
       ProductStatus productStatus) {
 
       return new Product(
@@ -95,7 +89,6 @@ public class Product extends BaseEntity {
           description,
           productCategory,
           price,
-          stockQuantity,
           productStatus
       );
   }
@@ -105,16 +98,14 @@ public class Product extends BaseEntity {
       String description,
       ProductCategory productCategory,
       Long price,
-      Integer stockQuantity,
       ProductStatus productStatus) {
 
-    validateUpdateParams(productName, productCategory, price, stockQuantity, productStatus);
+    validateUpdateParams(productName, productCategory, price, productStatus);
 
     this.productName = productName;
     this.description = description;
     this.productCategory = productCategory;
     this.price = price;
-    this.stockQuantity = stockQuantity;
     this.productStatus = productStatus;
   }
 
@@ -142,30 +133,29 @@ public class Product extends BaseEntity {
   }
 
   private void validateConstructorParams(
-      UUID sellerId, String productName, ProductCategory category, Long price, Integer stock) {
+      UUID sellerId, String productName, ProductCategory category, Long price) {
     if (sellerId == null) {
       throw new CustomException(ProductErrorCode.SELLER_NULL);
     }
-    validateCommonFields(productName, category, price, stock);
+    validateCommonFields(productName, category, price);
   }
 
   private void validateUpdateParams(
       String productName,
       ProductCategory category,
       Long price,
-      Integer stock,
       ProductStatus status) {
-    validateCommonFields(productName, category, price, stock);
+    validateCommonFields(productName, category, price);
     if (status == null) {
       throw new CustomException(ProductErrorCode.STATUS_NULL);
     }
   }
 
   private void validateCommonFields(
-      String productName, ProductCategory category, Long price, Integer stock) {
-    if (productName == null) {
-      throw new CustomException(ProductErrorCode.PRODUCT_NAME_NULL);
-    }
+      String productName, ProductCategory category, Long price) {
+      if (productName == null) {
+        throw new CustomException(ProductErrorCode.PRODUCT_NAME_NULL);
+        }
     if (productName.isBlank()) {
       throw new CustomException(ProductErrorCode.PRODUCT_NAME_EMPTY);
     }
@@ -180,12 +170,6 @@ public class Product extends BaseEntity {
     }
     if (price < 0) {
       throw new CustomException(ProductErrorCode.INVALID_PRICE);
-    }
-    if (stock == null) {
-      throw new CustomException(ProductErrorCode.STOCK_NULL);
-    }
-    if (stock < 0) {
-      throw new CustomException(ProductErrorCode.INVALID_STOCK);
     }
   }
 }

@@ -14,4 +14,3 @@ public interface SettlementStatementJpaRepository extends JpaRepository<Settleme
         LocalDate periodEnd
     );
 }
-

@@ -1,8 +1,8 @@
 package com.barofarm.settlement.presentation;
 
-import com.barofarm.settlement.common.response.ResponseDto;
 import com.barofarm.settlement.application.SettlementService;
 import com.barofarm.settlement.application.dto.SettlementResponse;
+import com.barofarm.settlement.common.response.ResponseDto;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,4 +24,3 @@ public class SettlementController {
         return ResponseDto.ok(settlementService.getSettlement(sellerId));
     }
 }
-

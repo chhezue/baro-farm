@@ -19,10 +19,12 @@ services:
       CLUSTER_ID: ${KAFKA_CLUSTER_ID:-}
       
       # Listeners 설정
-      # hostNetwork: true를 사용하는 Kubernetes Pod에서 접근하므로 127.0.0.1로 advertised
+      # KAFKA_ADVERTISED_LISTENERS: 클라이언트가 Kafka에 연결할 때 사용하는 주소
+      # - Public EC2에 배포 시: Public EC2의 IP 사용 (다른 EC2에서 접근 가능)
+      # - Private EC2에 배포 시: 127.0.0.1 사용 (같은 EC2 내에서만 접근)
       # 컨테이너 내부에서 0.0.0.0으로 리스닝하여 호스트에서 접근 가능하도록 설정
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${DATA_EC2_IP:-127.0.0.1}:29092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT

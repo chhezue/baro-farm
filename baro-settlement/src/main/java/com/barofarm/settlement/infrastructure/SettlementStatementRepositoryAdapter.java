@@ -24,4 +24,3 @@ public class SettlementStatementRepositoryAdapter implements SettlementStatement
             periodEnd);
     }
 }
-

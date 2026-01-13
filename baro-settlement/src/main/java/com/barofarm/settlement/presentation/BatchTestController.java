@@ -30,4 +30,3 @@ public class BatchTestController {
         return "OK";
     }
 }
-

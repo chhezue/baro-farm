@@ -29,13 +29,13 @@ services:
     volumes:
       - redis-data:/data
       - /mnt/s3:/mnt/s3:rw
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123} --maxmemory 256mb --maxmemory-policy allkeys-lru
-    # deploy:
-    #   resources:
-    #     limits:
-    #       memory: 384M
-    #     reservations:
-    #       memory: 128M
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123} --maxmemory 128mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+        reservations:
+          memory: 64M
     restart: unless-stopped
     networks:
       - baro-network
@@ -53,13 +53,13 @@ services:
     container_name: baro-mysql
     ports:
       - "3306:3306"
-    # deploy:
-    #   resources:
-    #     limits:
-    #       memory: 512M
-    #     reservations:
-    #       memory: 256M
-    command: --innodb-buffer-pool-size=256M --max-connections=100 --lower-case-table-names=1
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+        reservations:
+          memory: 160M
+    command: --innodb-buffer-pool-size=96M --max-connections=70 --performance-schema=OFF --lower-case-table-names=1
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
       - MYSQL_DATABASE=${MYSQL_DATABASE:-barofarm}

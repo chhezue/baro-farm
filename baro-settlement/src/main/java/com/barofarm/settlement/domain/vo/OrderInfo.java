@@ -14,4 +14,3 @@ public record OrderInfo(
     LocalDateTime orderDate,
     LocalDateTime canceledAt
 ) {}
-

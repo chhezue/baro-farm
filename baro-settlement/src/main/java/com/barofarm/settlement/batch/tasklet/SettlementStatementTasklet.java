@@ -49,4 +49,3 @@ public class SettlementStatementTasklet implements Tasklet {
         return RepeatStatus.FINISHED;
     }
 }
-

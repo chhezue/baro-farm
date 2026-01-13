@@ -16,4 +16,3 @@ public class SettlementItemWriterConfig {
         return writer;
     }
 }
-

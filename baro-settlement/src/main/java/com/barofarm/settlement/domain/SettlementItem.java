@@ -86,4 +86,3 @@ public class SettlementItem {
         return new SettlementItem(UUID.randomUUID(), orderInfo, calcInfo);
     }
 }
-

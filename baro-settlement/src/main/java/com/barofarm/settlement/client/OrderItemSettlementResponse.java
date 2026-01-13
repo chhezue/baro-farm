@@ -13,4 +13,3 @@ public record OrderItemSettlementResponse(
     LocalDateTime orderDate,
     LocalDateTime canceledAt
 ) {}
-
