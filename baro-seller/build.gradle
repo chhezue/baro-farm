@@ -53,6 +53,9 @@ dependencies {
     // AWS S3
     implementation "software.amazon.awssdk:s3"
 
+    // Kafka 연결
+    implementation 'org.springframework.kafka:spring-kafka'
+
     runtimeOnly 'com.mysql:mysql-connector-j'
 }
 
