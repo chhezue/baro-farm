@@ -20,7 +20,7 @@ public class OrderOutboxPublisher {
     private final OrderOutboxEventJpaRepository outboxRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
-    @Scheduled(fixedDelay = 20000L)
+    //@Scheduled(fixedDelay = 20000L)
     @Transactional
     public void publishOrderEvents() {
         List<OrderOutboxEvent> events =

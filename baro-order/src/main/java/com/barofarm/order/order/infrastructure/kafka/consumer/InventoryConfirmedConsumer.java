@@ -41,7 +41,6 @@ public class InventoryConfirmedConsumer {
     @Transactional
     public void handle(InventoryConfirmedEvent event) throws JsonProcessingException {
         UUID orderId = event.orderId();
-        System.out.println("inventory-confirmed!!!!!!!!!!!!!!!!!!!!!!");
         Order order = orderRepository.findById(orderId)
             .orElseThrow(() -> new CustomException(ORDER_NOT_FOUND));
         order.markConfirmed(); // 주문 상태만 변경
@@ -58,9 +57,7 @@ public class InventoryConfirmedConsumer {
                 payload
             );
             orderOutboxEventRepository.save(outbox);
-            System.out.println("inventory-confirmedㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌㅌ");
         } catch (JsonProcessingException e) {
-            System.out.println("inventory-confirmedㅕㅕㅕㅕㅕㅕㅕㅕㅕㅕㅕㅕㅕㅕ");
             throw new CustomException(OrderErrorCode.OUTBOX_SERIALIZATION_FAILED);
         }
     }

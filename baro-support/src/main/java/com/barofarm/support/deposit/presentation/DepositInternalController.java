@@ -21,7 +21,6 @@ public class DepositInternalController {
 
     private final DepositService depositService;
 
-    // 완료
     @PostMapping("/create")
     public ResponseDto<DepositCreateInfo> createDeposit(@RequestHeader("X-User-Id") UUID userId) {
         return depositService.createDeposit(userId);

@@ -24,7 +24,6 @@ public class DepositController {
 
     private final DepositService depositService;
 
-    // 완료
     @PostMapping("/charges")
     public ResponseDto<DepositChargeCreateInfo> createCharge(
         @RequestHeader("X-User-Id") UUID userId,
@@ -32,7 +31,6 @@ public class DepositController {
         return depositService.createCharge(userId, request.toCommand());
     }
 
-    // 완료
     @GetMapping
     public ResponseDto<DepositInfo> findDeposit(@RequestHeader("X-User-Id") UUID userId) {
         return depositService.findDeposit(userId);
@@ -44,5 +42,4 @@ public class DepositController {
         @RequestBody DepositPaymentRequest request) {
         return depositService.payDeposit(userId, request.toCommand());
     }
-
 }

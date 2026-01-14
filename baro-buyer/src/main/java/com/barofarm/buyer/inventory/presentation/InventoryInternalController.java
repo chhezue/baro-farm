@@ -3,17 +3,16 @@ package com.barofarm.buyer.inventory.presentation;
 import com.barofarm.buyer.common.response.ResponseDto;
 import com.barofarm.buyer.inventory.application.InventoryFacadeService;
 import com.barofarm.buyer.inventory.application.InventoryService;
-import com.barofarm.buyer.inventory.application.dto.request.InventoryCreateCommand;
 import com.barofarm.buyer.inventory.presentation.dto.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/internal/inventories")
 @RequiredArgsConstructor
+@Slf4j
 public class InventoryInternalController {
 
     private final InventoryFacadeService inventoryFacadeService;
@@ -21,6 +20,7 @@ public class InventoryInternalController {
 
     @PostMapping("/reserve")
     public ResponseDto<Void> reserveInventory(@Valid @RequestBody InventoryReserveRequest request) {
+        log.info("createOrder called: {}", request);
         inventoryFacadeService.reserveInventory(request.toCommand());
         return ResponseDto.ok(null);
     }

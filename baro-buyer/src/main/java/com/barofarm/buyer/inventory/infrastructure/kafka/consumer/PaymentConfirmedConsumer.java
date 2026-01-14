@@ -16,7 +16,6 @@ import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.UUID;
 
 @Component
@@ -41,8 +40,6 @@ public class PaymentConfirmedConsumer {
     @Transactional
     public void handle(PaymentConfirmedEvent event) {
         UUID orderId = event.orderId();
-        System.out.println("payment-confirm!!!!!!!!!!!!!!!!!!!!!");
-
         try {
             inventoryFacadeService.confirmForPaymentSaga(orderId);
 
@@ -55,7 +52,6 @@ public class PaymentConfirmedConsumer {
                 orderId.toString(),
                 payload
             ));
-            System.out.println("payment-confirmㅂㅂㅂㅂㅂㅂㅂㅂㅂㅂㅂㅂㅂㅂㅂㅂ");
         } catch (CustomException customException) {
             try{
                 String payload = objectMapper.writeValueAsString(InventoryConfirmedFailEvent.from(event));
