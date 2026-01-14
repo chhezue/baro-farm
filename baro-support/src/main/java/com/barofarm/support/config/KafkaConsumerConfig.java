@@ -1,7 +1,6 @@
 package com.barofarm.support.config;
 
-import java.util.HashMap;
-import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -19,8 +18,11 @@ import org.springframework.kafka.listener.CommonErrorHandler;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.ExponentialBackOff;
+import java.util.HashMap;
+import java.util.Map;
 
 /** Kafka Consumer 설정 */
+@Slf4j
 @Configuration
 public class KafkaConsumerConfig {
 
@@ -41,7 +43,7 @@ public class KafkaConsumerConfig {
         config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
             org.springframework.kafka.support.serializer.JsonSerializer.class);
-        config.put(ProducerConfig.ACKS_CONFIG, "1"); // 메시지 손실 방지
+        config.put(ProducerConfig.ACKS_CONFIG, "1");
         config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true); // 중복 방지
         
         ProducerFactory<String, Object> producerFactory = new DefaultKafkaProducerFactory<>(config);
@@ -116,6 +118,9 @@ public class KafkaConsumerConfig {
         // 파티션당 1개 스레드로 처리하여 순서 보장
         // Producer에서 파티션 키를 사용하므로 동일 farm의 이벤트는 같은 파티션에 들어감
         factory.setConcurrency(1);
+        // 배치 단위로 offset 커밋 (성능 최적화)
+        factory.getContainerProperties().setAckMode(
+            org.springframework.kafka.listener.ContainerProperties.AckMode.BATCH);
         return factory;
     }
 }
