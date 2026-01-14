@@ -2,8 +2,10 @@ package com.barofarm.ai.season.application;
 
 import com.barofarm.ai.season.application.dto.SeasonalityDetectionResponse;
 import com.barofarm.ai.season.application.dto.SeasonalityInfo;
+import com.barofarm.ai.season.application.dto.SeasonalityUpdateRequest;
 // import com.barofarm.ai.season.domain.SeasonalityDetectionLog;
 import com.barofarm.ai.season.domain.SeasonalityType;
+import com.barofarm.ai.season.infrastructure.client.ProductUpdateFeignClient;
 import com.barofarm.ai.season.infrastructure.knowledge.SeasonalityKnowledgeStoreService;
 // import com.barofarm.ai.season.infrastructure.repository.SeasonalityDetectionLogRepository;
 import java.time.LocalDateTime;
@@ -34,6 +36,7 @@ public class SeasonalityDetectionService {
     private final ObjectMapper objectMapper;
     private final Optional<SeasonalityKnowledgeSearchService> knowledgeSearchService;
     private final Optional<SeasonalityKnowledgeStoreService> knowledgeStoreService;
+    private final ProductUpdateFeignClient productUpdateClient;
     private final boolean useCompactFormat;
     
     // JSON 추출을 위한 정규식 패턴
@@ -48,12 +51,14 @@ public class SeasonalityDetectionService {
             ObjectMapper objectMapper,
             Optional<SeasonalityKnowledgeSearchService> knowledgeSearchService,
             Optional<SeasonalityKnowledgeStoreService> knowledgeStoreService,
+            ProductUpdateFeignClient productUpdateClient,
             @Value("${seasonality.rag.compact-format:true}") boolean useCompactFormat) {
         this.chatModel = chatModel;
         // this.logRepository = logRepository;
         this.objectMapper = objectMapper;
         this.knowledgeSearchService = knowledgeSearchService;
         this.knowledgeStoreService = knowledgeStoreService;
+        this.productUpdateClient = productUpdateClient;
         this.useCompactFormat = useCompactFormat;
     }
 
@@ -111,9 +116,13 @@ public class SeasonalityDetectionService {
                     );
                     
                     // buyer-service에 제철 정보 업데이트 요청
-                    // TODO: buyer-service 구현 후 주석 해제
-                    // productUpdateClient.updateSeasonality(productId, seasonalityInfo);
-                    log.debug("제철 정보 생성 완료 (buyer-service 업데이트는 아직 미구현): {}", seasonalityInfo);
+                    SeasonalityUpdateRequest updateRequest = new SeasonalityUpdateRequest(
+                        seasonalityInfo.type(),
+                        seasonalityInfo.value()
+                    );
+                    productUpdateClient.updateSeasonality(productId, updateRequest);
+                    log.debug("제철 정보 업데이트 완료: type={}, value={}", 
+                        updateRequest.seasonalityType(), updateRequest.seasonalityValue());
                     
                     // 로그 저장 (LLM 응답 없음으로 처리)
                     // saveLog(productId, productName, category, null, seasonalityInfo, SeasonalityDetectionLog.DetectionStatus.SUCCESS);
@@ -173,9 +182,14 @@ public class SeasonalityDetectionService {
                     response.detectedProductName(), category);
             }
 
-            // TODO: buyer-service에 제철 정보 업데이트 요청 (buyer-service 구현 후 주석 해제)
-            // productUpdateClient.updateSeasonality(productId, seasonalityInfo);
-            log.debug("제철 정보 생성 완료 (buyer-service 업데이트는 아직 미구현): {}", seasonalityInfo);
+            // buyer-service에 제철 정보 업데이트 요청
+            SeasonalityUpdateRequest updateRequest = new SeasonalityUpdateRequest(
+                seasonalityInfo.type(),
+                seasonalityInfo.value()
+            );
+            productUpdateClient.updateSeasonality(productId, updateRequest);
+            log.debug("제철 정보 업데이트 완료: type={}, value={}", 
+                updateRequest.seasonalityType(), updateRequest.seasonalityValue());
 
             // 7. 로그 저장
             // saveLog(productId, productName, category, response, seasonalityInfo, SeasonalityDetectionLog.DetectionStatus.SUCCESS);
