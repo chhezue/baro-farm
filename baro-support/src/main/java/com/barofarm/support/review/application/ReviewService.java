@@ -5,6 +5,8 @@ import com.barofarm.support.common.response.CustomPage;
 import com.barofarm.support.review.application.dto.request.ReviewCreateCommand;
 import com.barofarm.support.review.application.dto.request.ReviewUpdateCommand;
 import com.barofarm.support.review.application.dto.response.ReviewDetailInfo;
+import com.barofarm.support.review.application.event.ReviewTransactionEvent;
+import com.barofarm.support.review.application.event.ReviewTransactionEvent.ReviewOperation;
 import com.barofarm.support.review.client.order.OrderClient;
 import com.barofarm.support.review.client.order.dto.OrderItemResponse;
 import com.barofarm.support.review.client.order.dto.OrderStatus;
@@ -15,9 +17,11 @@ import com.barofarm.support.review.domain.Review;
 import com.barofarm.support.review.domain.ReviewRepository;
 import com.barofarm.support.review.domain.ReviewStatus;
 import com.barofarm.support.review.exception.ReviewErrorCode;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -30,7 +34,9 @@ public class ReviewService {
     private final OrderClient orderClient;
     private final ProductClient productClient;
     private final ReviewRepository reviewRepository;
+    private final ApplicationEventPublisher publisher;
 
+    @Transactional
     public ReviewDetailInfo createReview(ReviewCreateCommand command) {
         // 1. 주문 정보 조회
         OrderItemResponse item = getOrderItem(command.orderItemId());
@@ -62,10 +68,18 @@ public class ReviewService {
 
         // 8. 저장
         Review saved = savedReview(review);
+
+        // 9. 생성 시 내부 이벤트 발생
+        publisher.publishEvent(new ReviewTransactionEvent(ReviewOperation.CREATED,
+            saved.getId(),
+            saved.getProductId(),
+            saved.getRating(),
+            saved.getContent(),
+            LocalDateTime.now()));
+
         return ReviewDetailInfo.from(saved);
     }
 
-    @Transactional
     public Review savedReview(Review review) {
         return reviewRepository.save(review);
     }
@@ -125,12 +139,20 @@ public class ReviewService {
             command.content()
         );
 
+        publisher.publishEvent(new ReviewTransactionEvent(ReviewOperation.UPDATED,
+            review.getId(),
+            review.getProductId(),
+            review.getRating(),
+            review.getContent(),
+            LocalDateTime.now()));
+
         return ReviewDetailInfo.from(review);
     }
 
     @Transactional
     public void deleteReview(UUID userId, UUID reviewId) {
         Review review = findReview(reviewId);
+        UUID productId = review.getProductId();
 
         // 1. 로그인한 사용자가 리뷰 작성자가 맞는지 검증
         validateReviewOwner(review, userId);
@@ -139,6 +161,13 @@ public class ReviewService {
         validateReviewDeletable(review);
 
         review.delete();
+
+        publisher.publishEvent(new ReviewTransactionEvent(ReviewOperation.DELETED,
+            reviewId,
+            productId,
+            review.getRating(),
+            review.getContent(),
+            LocalDateTime.now()));
     }
 
     private OrderItemResponse getOrderItem(UUID orderItemId) {

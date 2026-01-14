@@ -1,6 +1,6 @@
 package com.barofarm.support.review.event;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.Builder;
 import lombok.Getter;
@@ -16,6 +16,12 @@ public class ReviewEvent {
     private ReviewEventType type;
     private ReviewEventData data;
 
+    public enum ReviewEventType {
+        REVIEW_CREATED,
+        REVIEW_UPDATED,
+        REVIEW_DELETED
+    }
+
     @Getter
     @Builder
     public static class ReviewEventData {
@@ -23,6 +29,6 @@ public class ReviewEvent {
         private UUID productId;
         private Integer rating;
         private String content;
-        private Instant occurredAt;
+        private LocalDateTime occurredAt;
     }
 }
