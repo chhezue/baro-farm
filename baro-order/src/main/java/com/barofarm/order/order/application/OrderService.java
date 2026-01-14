@@ -71,7 +71,6 @@ public class OrderService {
             .orElseThrow(() -> new CustomException(ORDER_NOT_FOUND));
 
         order.markAwaitingPayment();
-        System.out.println("mir"+order.getStatus());
     }
 
     @Transactional
@@ -80,7 +79,6 @@ public class OrderService {
             .orElseThrow(() -> new CustomException(ORDER_NOT_FOUND));
 
         order.markFailed();
-        System.out.println("mf"+order.getStatus());
     }
 
     @Transactional(readOnly = true)
@@ -135,18 +133,6 @@ public class OrderService {
         }
         return ResponseDto.ok(OrderCancelInfo.from(order));
     }
-//
-//    @Transactional(readOnly = true)
-//    public OrderDeliveryInfo getDeliveryInfo(UUID orderId) {
-//        Order order = orderRepository.findById(orderId)
-//                .orElseThrow(() -> new CustomException(ORDER_NOT_FOUND));
-//
-//        if (order.getStatus() != PAID) {
-//            throw new CustomException(INVALID_ORDER_STATUS_FOR_DELIVERY);
-//        }
-//        return OrderDeliveryInfo.from(order);
-//    }
-//
 
 //    @Transactional(readOnly = true)
 //    public CustomPage<OrderItemSettlementResponse> findOrderItemsForSettlement(
