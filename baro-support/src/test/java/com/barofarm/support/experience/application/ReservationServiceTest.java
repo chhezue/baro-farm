@@ -1,3 +1,5 @@
+
+
 package com.barofarm.support.experience.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,7 +26,6 @@ import com.barofarm.support.experience.domain.ReservationRepository;
 import com.barofarm.support.experience.domain.ReservationStatus;
 import com.barofarm.support.experience.exception.ReservationErrorCode;
 import com.barofarm.support.experience.infrastructure.cache.FarmCacheService;
-import java.math.BigInteger;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Optional;
@@ -78,18 +79,18 @@ class ReservationServiceTest {
         reservationId = UUID.randomUUID();
         farmId = UUID.randomUUID();
 
-        validRequest = new ReservationServiceRequest(experienceId, buyerId, LocalDate.of(2025, 3, 15), "10:00-12:00", 2,
-                BigInteger.valueOf(30000), null);
+        validRequest = new ReservationServiceRequest(experienceId, buyerId, LocalDate.of(2025, 3, 15),
+            "10:00-12:00", 2, 30000L, null);
 
         validReservation = new Reservation(reservationId, experienceId, buyerId, LocalDate.of(2025, 3, 15),
-                "10:00-12:00", 2, BigInteger.valueOf(30000), ReservationStatus.REQUESTED);
+                "10:00-12:00", 2, 30000L, ReservationStatus.REQUESTED);
 
         // Experience는 protected 생성자이므로 Reflection을 사용하거나 Mock을 사용
         // 예약 날짜(2025-03-15)가 체험 가능 기간 내에 있도록 설정
         java.time.LocalDateTime availableStart = java.time.LocalDateTime.of(2025, 3, 1, 9, 0);
         java.time.LocalDateTime availableEnd = java.time.LocalDateTime.of(2025, 3, 31, 18, 0);
         experience = new Experience(experienceId, farmId, "Test Experience", "Description",
-                BigInteger.valueOf(15000), 20, 120, availableStart, availableEnd,
+                15000L, 20, 120, availableStart, availableEnd,
                 com.barofarm.support.experience.domain.ExperienceStatus.ON_SALE);
     }
 
@@ -118,7 +119,7 @@ class ReservationServiceTest {
     }
 
     @Test
-    @DisplayName("ID로 예약을 조회할 수 있다")
+    @DisplayName("ID로 예약을 조회할 수 있다 (구매자)")
     void getReservationById() {
         // given
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(validReservation));
@@ -159,7 +160,7 @@ class ReservationServiceTest {
         UUID sellerId = UUID.randomUUID();
         UUID reservationId2 = UUID.randomUUID();
         Reservation reservation2 = new Reservation(reservationId2, experienceId, buyerId, LocalDate.of(2025, 3, 16),
-                "14:00-16:00", 3, BigInteger.valueOf(45000), ReservationStatus.CONFIRMED);
+                "14:00-16:00", 3, 45000L, ReservationStatus.CONFIRMED);
 
         Pageable pageable = PageRequest.of(0, 10);
         Page<Reservation> reservationPage = new PageImpl<>(
@@ -187,7 +188,7 @@ class ReservationServiceTest {
         // given
         UUID otherExperienceId = UUID.randomUUID();
         Reservation reservation2 = new Reservation(UUID.randomUUID(), otherExperienceId, buyerId,
-                LocalDate.of(2025, 3, 16), "14:00-16:00", 1, BigInteger.valueOf(15000), ReservationStatus.REQUESTED);
+                LocalDate.of(2025, 3, 16), "14:00-16:00", 1, 15000L, ReservationStatus.REQUESTED);
 
         Pageable pageable = PageRequest.of(0, 10);
         Page<Reservation> reservationPage = new PageImpl<>(
@@ -283,7 +284,7 @@ class ReservationServiceTest {
     void createReservation_ExperienceNotAvailable() {
         // given
         Experience closedExperience = new Experience(experienceId, UUID.randomUUID(), "Test Experience", "Description",
-                BigInteger.valueOf(15000), 20, 120, java.time.LocalDateTime.now(), java.time.LocalDateTime.now().plusDays(30),
+                15000L, 20, 120, java.time.LocalDateTime.now(), java.time.LocalDateTime.now().plusDays(30),
                 ExperienceStatus.CLOSED);
         when(experienceRepository.findById(experienceId)).thenReturn(Optional.of(closedExperience));
 
@@ -303,7 +304,7 @@ class ReservationServiceTest {
         // given
         java.time.LocalDate invalidDate = LocalDate.of(2025, 6, 1); // 체험 가능 기간 밖
         ReservationServiceRequest invalidDateRequest = new ReservationServiceRequest(experienceId, buyerId, invalidDate,
-                "10:00-12:00", 2, BigInteger.valueOf(30000), null);
+                "10:00-12:00", 2, 30000L, null);
         when(experienceRepository.findById(experienceId)).thenReturn(Optional.of(experience));
 
         // when & then
@@ -359,7 +360,7 @@ class ReservationServiceTest {
         // given
         UUID sellerId = UUID.randomUUID();
         Reservation canceledReservation = new Reservation(reservationId, experienceId, buyerId, LocalDate.of(2025, 3, 15),
-                "10:00-12:00", 2, BigInteger.valueOf(30000), ReservationStatus.CANCELED);
+                "10:00-12:00", 2, 30000L, ReservationStatus.CANCELED);
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(canceledReservation));
         // 상태 검증이 먼저 수행되므로 experienceRepository와 farmClient stubbing 불필요
 
@@ -378,7 +379,7 @@ class ReservationServiceTest {
         // given
         // CANCELED는 구매자만 가능하므로 buyerId 사용
         Reservation completedReservation = new Reservation(reservationId, experienceId, buyerId, LocalDate.of(2025, 3, 15),
-                "10:00-12:00", 2, BigInteger.valueOf(30000), ReservationStatus.COMPLETED);
+                "10:00-12:00", 2, 30000L, ReservationStatus.COMPLETED);
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(completedReservation));
 
         // when & then
@@ -396,7 +397,7 @@ class ReservationServiceTest {
     void deleteReservation_CannotDeleteConfirmedOrCompleted() {
         // given
         Reservation confirmedReservation = new Reservation(reservationId, experienceId, buyerId, LocalDate.of(2025, 3, 15),
-                "10:00-12:00", 2, BigInteger.valueOf(30000), ReservationStatus.CONFIRMED);
+                "10:00-12:00", 2, 30000L, ReservationStatus.CONFIRMED);
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(confirmedReservation));
 
         // when & then
@@ -428,7 +429,7 @@ class ReservationServiceTest {
     void deleteReservation_CanDeleteCanceled() {
         // given
         Reservation canceledReservation = new Reservation(reservationId, experienceId, buyerId, LocalDate.of(2025, 3, 15),
-                "10:00-12:00", 2, BigInteger.valueOf(30000), ReservationStatus.CANCELED);
+                "10:00-12:00", 2, 30000L, ReservationStatus.CANCELED);
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(canceledReservation));
         doNothing().when(reservationRepository).deleteById(reservationId);
 

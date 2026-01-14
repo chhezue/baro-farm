@@ -16,7 +16,6 @@ import com.barofarm.support.experience.application.dto.ReservationServiceRespons
 import com.barofarm.support.experience.domain.ReservationStatus;
 import com.barofarm.support.experience.presentation.dto.ReservationRequest;
 import com.barofarm.support.experience.presentation.dto.ReservationResponse;
-import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -57,10 +56,10 @@ class ReservationControllerTest {
         userId = buyerId; // 기본적으로 buyerId와 동일하게 설정
 
         request = new ReservationRequest(experienceId, buyerId, LocalDate.of(2025, 3, 15), "10:00-12:00", 2,
-                BigInteger.valueOf(30000));
+                30000L);
 
         serviceResponse = new ReservationServiceResponse(reservationId, experienceId, buyerId,
-                LocalDate.of(2025, 3, 15), "10:00-12:00", 2, BigInteger.valueOf(30000), ReservationStatus.REQUESTED,
+                LocalDate.of(2025, 3, 15), "10:00-12:00", 2, 30000L, ReservationStatus.REQUESTED,
                 LocalDateTime.now(), LocalDateTime.now());
     }
 
@@ -101,7 +100,7 @@ class ReservationControllerTest {
         UUID sellerId = UUID.randomUUID();
         UUID reservationId2 = UUID.randomUUID();
         ReservationServiceResponse serviceResponse2 = new ReservationServiceResponse(reservationId2, experienceId,
-                buyerId, LocalDate.of(2025, 3, 16), "14:00-16:00", 3, BigInteger.valueOf(45000),
+                buyerId, LocalDate.of(2025, 3, 16), "14:00-16:00", 3, 45000L,
                 ReservationStatus.CONFIRMED, LocalDateTime.now(), LocalDateTime.now());
 
         Pageable pageable = PageRequest.of(0, 10);
@@ -128,7 +127,7 @@ class ReservationControllerTest {
         // given
         UUID otherExperienceId = UUID.randomUUID();
         ReservationServiceResponse serviceResponse2 = new ReservationServiceResponse(UUID.randomUUID(),
-                otherExperienceId, buyerId, LocalDate.of(2025, 3, 16), "14:00-16:00", 1, BigInteger.valueOf(15000),
+                otherExperienceId, buyerId, LocalDate.of(2025, 3, 16), "14:00-16:00", 1, 15000L,
                 ReservationStatus.REQUESTED, LocalDateTime.now(), LocalDateTime.now());
 
         Pageable pageable = PageRequest.of(0, 10);
@@ -172,7 +171,7 @@ class ReservationControllerTest {
         // given
         UUID sellerId = UUID.randomUUID();
         ReservationServiceResponse updatedServiceResponse = new ReservationServiceResponse(reservationId, experienceId,
-                buyerId, LocalDate.of(2025, 3, 15), "10:00-12:00", 2, BigInteger.valueOf(30000),
+                buyerId, LocalDate.of(2025, 3, 15), "10:00-12:00", 2, 30000L,
                 ReservationStatus.CONFIRMED, LocalDateTime.now(), LocalDateTime.now());
 
         when(reservationService.updateReservationStatus(eq(sellerId), eq(reservationId), eq(ReservationStatus.CONFIRMED)))

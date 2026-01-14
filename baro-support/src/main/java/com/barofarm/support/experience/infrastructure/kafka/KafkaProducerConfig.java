@@ -28,7 +28,7 @@ public class KafkaProducerConfig {
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
         
         // Producer 재시도 설정
-        config.put(ProducerConfig.RETRIES_CONFIG, 3); // 최대 3번 재시도
+        config.put(ProducerConfig.RETRIES_CONFIG, 2); // 최대 2번 재시도
         
         // ACKS 설정: 브로커로부터 받을 확인(acknowledgment) 수준
         // 옵션:

@@ -2,7 +2,11 @@ name: CI/CD Pipeline - Public EC2 (K8s Control-Plane Deployment)
 
 # ==================================================
 # Public EC2용 CI/CD Pipeline
-# - 배포 대상: data (MySQL, Redis, Kafka, Elasticsearch 등), cloud (eureka, gateway, config)
+# - 배포 대상: data (MySQL, Redis), cloud (eureka, gateway, config)
+#   - data 배포 시 환경변수로 Kafka/Elasticsearch 추가 선택 가능:
+#     * DEPLOY_KAFKA=true: Kafka 추가 배포 (docker-compose.kafka.yml)
+#     * DEPLOY_ELASTICSEARCH=true: Elasticsearch 추가 배포 (docker-compose.elasticsearch.yml)
+#     * 기본값: Redis + MySQL만 배포
 # - 배포 방식: Kubernetes (k8s) - Control-Plane이 Public EC2에 있음
 # - Runner: public-ec2-runner (self-hosted)
 # ==================================================
@@ -378,11 +382,9 @@ jobs:
   # ==================================================
   deploy:
     name: Deploy to Public EC2 (K8s Control-Plane)
-    # Public EC2의 self-hosted runner에서 실행
-    # Public EC2는 k8s control-plane (master) 역할
-    # Runner 라벨을 사용하여 Public EC2만 선택
-    # 여러 runner가 있을 때 라벨로 명확히 구분
-    runs-on: [self-hosted, public]
+    # GitHub-hosted runner에서 실행
+    # kubeconfig를 통해 Kubernetes 클러스터에 원격 접근
+    runs-on: ubuntu-latest
     needs: [build-and-test, determine-service, docker-build]
     timeout-minutes: 30  # 배포 타임아웃 설정
     if: |
@@ -402,444 +404,164 @@ jobs:
           MODULE="${{ needs.determine-service.outputs.module }}"
           echo "name=$MODULE" >> $GITHUB_OUTPUT
           echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
-          echo "🚀 [Public EC2 - Control-Plane] Deploying module: $MODULE from branch: ${GITHUB_REF#refs/heads/}"
+          echo "🚀 Deploying module: $MODULE from branch: ${GITHUB_REF#refs/heads/}"
+
+      - name: Setup SSH for deployment
+        if: steps.module.outputs.name != ''
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Deploy data with docker-compose (SSH)
+        if: steps.module.outputs.name == 'data'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+          DEPLOY_KAFKA: ${{ vars.DEPLOY_KAFKA || 'false' }}
+          DEPLOY_ELASTICSEARCH: ${{ vars.DEPLOY_ELASTICSEARCH || 'false' }}
+          DATA_EC2_IP: ${{ secrets.DATA_EC2_IP || '' }}  # Data EC2 Private IP (Kafka ADVERTISED_LISTENERS용)
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
+        run: |
+          echo "🚀 data 인프라 docker-compose 배포 시작 (SSH를 통한 원격 배포)"
           
-          # data 모듈인 경우 추가 파일 복사
-          if [ "${MODULE}" = "data" ]; then
-            echo "ℹ️  [Public EC2 - Control-Plane] data 모듈 배포 준비 중..."
-          fi
+          # 필요한 파일들을 안전하게 복사 (기존 파일 보존)
+          echo "📦 필요한 파일 복사 중 (기존 파일 보존)..."
           
-          # cloud 모듈인 경우 추가 확인
-          if [ "${MODULE}" = "cloud" ] || [ "${MODULE}" = "eureka" ] || [ "${MODULE}" = "gateway" ] || [ "${MODULE}" = "config" ]; then
-            echo "ℹ️  [Public EC2 - Control-Plane] cloud 모듈 배포 준비 중..."
-          fi
-
-      - name: Prepare deployment directory
-        run: |
-          mkdir -p /home/ubuntu/apps/BE
-          cd /home/ubuntu/apps/BE
-
-      - name: Copy deployment files
-        run: |
-          MODULE="${{ steps.module.outputs.name }}"
-          mkdir -p /home/ubuntu/apps/BE
-          cd /home/ubuntu/apps/BE
-
-          echo "📦 [Public EC2 - Control-Plane] 배포 파일 복사 중..."
-
-          # k8s 디렉토리 복사
-          if [ -d "$GITHUB_WORKSPACE/k8s" ]; then
-            echo "📦 [Public EC2 - Control-Plane] k8s 디렉토리 복사 중..."
-            echo "   - 소스: $GITHUB_WORKSPACE/k8s"
-            echo "   - 대상: /home/ubuntu/apps/k8s"
-            mkdir -p /home/ubuntu/apps
-            
-            # 서버에 직접 만든 scripts 폴더 등 백업
-            if [ -d "/home/ubuntu/apps/k8s/scripts" ]; then
-              echo "💾 기존 scripts 폴더 백업 중..."
-              cp -r /home/ubuntu/apps/k8s/scripts /tmp/k8s-scripts-backup-$$ 2>/dev/null || true
-            fi
-            
-            # rsync로 파일만 업데이트 (--delete 옵션 없이, 기존 추가 파일 보존)
-            if command -v rsync &> /dev/null; then
-              rsync -av "$GITHUB_WORKSPACE/k8s/" /home/ubuntu/apps/k8s/ || {
-                echo "⚠️  rsync 실패, cp 사용으로 대체..."
-                mkdir -p /home/ubuntu/apps/k8s
-                cp -r "$GITHUB_WORKSPACE/k8s"/* /home/ubuntu/apps/k8s/ 2>/dev/null || {
-                  echo "❌ k8s 디렉토리 복사 실패"
-                  echo "디버그 정보:"
-                  echo "  - 소스 디렉토리 존재: $([ -d "$GITHUB_WORKSPACE/k8s" ] && echo 'yes' || echo 'no')"
-                  echo "  - 소스 디렉토리 내용:"
-                  ls -la "$GITHUB_WORKSPACE/k8s" 2>&1 | head -10 || true
-                  exit 1
-                }
-              }
-            else
-              # rsync가 없으면 cp 사용하되, 기존 디렉토리는 삭제하지 않음
-              echo "⚠️  rsync가 없습니다. cp 사용..."
-              mkdir -p /home/ubuntu/apps/k8s
-              cp -r "$GITHUB_WORKSPACE/k8s"/* /home/ubuntu/apps/k8s/ 2>/dev/null || {
-                echo "❌ k8s 디렉토리 복사 실패"
-                exit 1
-              }
-            fi
-            
-            # 백업한 scripts 폴더 복원
-            if [ -d "/tmp/k8s-scripts-backup-$$" ]; then
-              echo "🔄 기존 scripts 폴더 복원 중..."
-              mkdir -p /home/ubuntu/apps/k8s/scripts
-              cp -r /tmp/k8s-scripts-backup-$$/* /home/ubuntu/apps/k8s/scripts/ 2>/dev/null || true
-              rm -rf /tmp/k8s-scripts-backup-$$
-            fi
-            
-            echo "✅ k8s 디렉토리 복사 완료: /home/ubuntu/apps/k8s (기존 추가 파일 보존)"
-          else
-            echo "⚠️  [Public EC2 - Control-Plane] k8s 디렉토리를 찾을 수 없습니다: $GITHUB_WORKSPACE/k8s"
-            echo "디버그 정보:"
-            echo "  - GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
-            echo "  - 현재 디렉토리: $(pwd)"
-            echo "  - 디렉토리 내용:"
-            ls -la "$GITHUB_WORKSPACE" 2>&1 | head -20 || true
-          fi
-
-          # 배포 스크립트 복사 (k8s 배포용)
-          if [ -f "$GITHUB_WORKSPACE/scripts/deploy-k8s.sh" ]; then
-            # /home/ubuntu/apps/BE/scripts/에 복사
-            mkdir -p /home/ubuntu/apps/BE/scripts
-            cp $GITHUB_WORKSPACE/scripts/deploy-k8s.sh ./scripts/ 2>/dev/null || {
-              echo "⚠️  BE/scripts 복사 실패, 재시도..."
-              mkdir -p ./scripts
-              cp $GITHUB_WORKSPACE/scripts/deploy-k8s.sh ./scripts/ || {
-                echo "❌ deploy-k8s.sh 복사 실패"
-                exit 1
-              }
+          # docker-compose.data.yml 복사 (기존 파일 백업)
+          if [ -f docker-compose.data.yml ]; then
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "if [ -f /home/ubuntu/apps/BE/docker-compose.data.yml ]; then cp /home/ubuntu/apps/BE/docker-compose.data.yml /home/ubuntu/apps/BE/docker-compose.data.yml.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true; fi"
+            scp -o StrictHostKeyChecking=no docker-compose.data.yml ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/ || {
+              echo "⚠️  docker-compose.data.yml 복사 실패, 기존 파일 사용"
             }
-            chmod +x ./scripts/deploy-k8s.sh
-            
-            # /home/ubuntu/apps/k8s/scripts/에도 복사
-            mkdir -p /home/ubuntu/apps/k8s/scripts
-            cp $GITHUB_WORKSPACE/scripts/deploy-k8s.sh /home/ubuntu/apps/k8s/scripts/ || {
-              echo "⚠️  k8s/scripts 복사 실패"
-            }
-            chmod +x /home/ubuntu/apps/k8s/scripts/deploy-k8s.sh
-            
-            echo "✅ deploy-k8s.sh 스크립트 복사 완료 (BE/scripts 및 k8s/scripts)"
-          else
-            echo "⚠️  [Public EC2 - Control-Plane] deploy-k8s.sh 스크립트를 찾을 수 없습니다: $GITHUB_WORKSPACE/scripts/deploy-k8s.sh"
-            echo "디버그 정보:"
-            echo "  - scripts 디렉토리 존재: $([ -d "$GITHUB_WORKSPACE/scripts" ] && echo 'yes' || echo 'no')"
-            if [ -d "$GITHUB_WORKSPACE/scripts" ]; then
-              echo "  - scripts 디렉토리 내용:"
-              ls -la "$GITHUB_WORKSPACE/scripts" 2>&1 | head -10 || true
-            fi
-          fi
-
-          # data/docker 인프라 배포용 deploy-module.sh 복사
-          if [ -f "$GITHUB_WORKSPACE/scripts/deploy-module.sh" ]; then
-            mkdir -p /home/ubuntu/apps/BE/scripts
-            cp "$GITHUB_WORKSPACE/scripts/deploy-module.sh" ./scripts/ 2>/dev/null || {
-              echo "⚠️  BE/scripts deploy-module.sh 복사 실패, 재시도..."
-              mkdir -p ./scripts
-              cp "$GITHUB_WORKSPACE/scripts/deploy-module.sh" ./scripts/ || {
-                echo "❌ deploy-module.sh 복사 실패"
-                exit 1
-              }
-            }
-            chmod +x ./scripts/deploy-module.sh
-            echo "✅ deploy-module.sh 스크립트 복사 완료 (BE/scripts)"
-          else
-            echo "⚠️  [Public EC2 - Control-Plane] deploy-module.sh 스크립트를 찾을 수 없습니다: $GITHUB_WORKSPACE/scripts/deploy-module.sh"
-            echo "디버그 정보:"
-            echo "  - scripts 디렉토리 존재: $([ -d "$GITHUB_WORKSPACE/scripts" ] && echo 'yes' || echo 'no')"
-            if [ -d "$GITHUB_WORKSPACE/scripts" ]; then
-              echo "  - scripts 디렉토리 내용:"
-              ls -la "$GITHUB_WORKSPACE/scripts" 2>&1 | head -10 || true
-            fi
-          fi
-
-          # data 모듈인 경우 docker-compose 파일 복사
-          if [ "$MODULE" = "data" ]; then
-            echo "📦 [Public EC2 - Control-Plane] data 모듈용 docker-compose 파일 복사 중..."
-            if [ -f "$GITHUB_WORKSPACE/docker-compose.data.yml" ]; then
-              cp "$GITHUB_WORKSPACE/docker-compose.data.yml" . || {
-                echo "❌ docker-compose.data.yml 복사 실패"
-                exit 1
-              }
-              echo "✅ docker-compose.data.yml 복사 완료"
-            else
-              echo "❌ docker-compose.data.yml 파일을 찾을 수 없습니다: $GITHUB_WORKSPACE/docker-compose.data.yml"
-              exit 1
-            fi
-
-            # Elasticsearch 빌드 컨텍스트 복사 (옵션)
-            if [ -d "$GITHUB_WORKSPACE/docker/baro-es" ]; then
-              echo "📦 [Public EC2 - Control-Plane] Elasticsearch 빌드 컨텍스트 복사 중..."
-              mkdir -p ./docker/baro-es
-              cp -r "$GITHUB_WORKSPACE/docker/baro-es"/* ./docker/baro-es/ 2>/dev/null || {
-                echo "⚠️  Elasticsearch 빌드 컨텍스트 복사 실패 (계속 진행)"
-              }
-            fi
-          fi
-
-          # Elasticsearch 빌드 컨텍스트 복사 (커스텀 이미지 빌드용)
-          if [ -d "$GITHUB_WORKSPACE/docker/baro-es" ]; then
-            mkdir -p ./docker/baro-es
-            cp -r $GITHUB_WORKSPACE/docker/baro-es/* ./docker/baro-es/ 2>/dev/null || {
-              echo "⚠️  Elasticsearch 빌드 컨텍스트 복사 실패 (계속 진행)"
-            }
-            echo "✅ Elasticsearch 빌드 컨텍스트 복사 완료"
-          else
-            echo "ℹ️  [Public EC2 - Control-Plane] Elasticsearch 빌드 컨텍스트가 없습니다 (공식 이미지 사용): $GITHUB_WORKSPACE/docker/baro-es"
-          fi
-
-      - name: Setup kubeconfig
-        run: |
-          # k3s kubeconfig를 홈 디렉토리로 복사하고 권한 설정
-          if [ -f /etc/rancher/k3s/k3s.yaml ]; then
-            echo "📋 [Public EC2 - Control-Plane] k3s kubeconfig 파일 설정 중..."
-            mkdir -p ~/.kube
-            sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-            sudo chown $USER:$USER ~/.kube/config
-            chmod 600 ~/.kube/config
-            
-            # Public EC2의 실제 IP로 변경 (worker node 연결용)
-            # localhost를 Public EC2의 Private IP로 변경
-            PUBLIC_EC2_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4 2>/dev/null || hostname -I | awk '{print $1}')
-            if [ -n "$PUBLIC_EC2_IP" ]; then
-              echo "🔧 [Public EC2 - Control-Plane] kubeconfig의 server 주소를 Public EC2 IP로 변경: $PUBLIC_EC2_IP"
-              sed -i "s|127.0.0.1|$PUBLIC_EC2_IP|g" ~/.kube/config || true
-              echo "✅ kubeconfig 설정 완료 (server: https://$PUBLIC_EC2_IP:6443)"
-            else
-              echo "⚠️  Public EC2 IP를 가져올 수 없습니다. localhost 사용"
-              echo "✅ kubeconfig 설정 완료 (server: https://127.0.0.1:6443)"
-            fi
-          else
-            echo "⚠️  /etc/rancher/k3s/k3s.yaml 파일을 찾을 수 없습니다."
-            echo "디버그 정보:"
-            echo "  - k3s 설치 확인:"
-            sudo systemctl status k3s 2>&1 | head -10 || true
-            exit 1
-          fi
-
-      - name: Check k3s availability
-        id: k3s-check
-        run: |
-          # kubeconfig 환경 변수 설정
-          if [ -f ~/.kube/config ]; then
-            export KUBECONFIG=~/.kube/config
           fi
           
-          # kubectl 명령어 확인
-          KUBECTL_CMD=""
-          if command -v kubectl &> /dev/null; then
-            # 일반 kubectl 사용 (kubeconfig가 설정되어 있으면 자동으로 사용)
-            KUBECTL_CMD="kubectl"
-            echo "✅ [Public EC2 - Control-Plane] kubectl 명령어 발견: kubectl"
-          elif command -v k3s &> /dev/null; then
-            # k3s가 설치되어 있으면 k3s kubectl 사용
-            # kubeconfig가 설정되어 있으면 일반 kubectl처럼 사용 가능
-            if [ -f ~/.kube/config ]; then
-              # k3s는 kubectl을 /usr/local/bin/kubectl에 심볼릭 링크로 설치
-              if [ -L /usr/local/bin/kubectl ] || [ -f /usr/local/bin/kubectl ]; then
-                KUBECTL_CMD="/usr/local/bin/kubectl"
-                echo "✅ [Public EC2 - Control-Plane] kubectl 명령어 발견: /usr/local/bin/kubectl"
-              else
-                # 직접 경로로 사용 불가능하면 sudo k3s kubectl 사용
-                KUBECTL_CMD="sudo k3s kubectl"
-                echo "✅ [Public EC2 - Control-Plane] k3s kubectl 명령어 사용: sudo k3s kubectl"
-              fi
-            else
-              # kubeconfig가 없으면 sudo k3s kubectl 사용
-              KUBECTL_CMD="sudo k3s kubectl"
-              echo "✅ [Public EC2 - Control-Plane] k3s kubectl 명령어 사용 (kubeconfig 없음): sudo k3s kubectl"
-            fi
-          else
-            echo "k3s_available=false" >> $GITHUB_OUTPUT
-            echo "❌ [Public EC2 - Control-Plane] kubectl 또는 k3s가 설치되어 있지 않습니다."
-            echo "디버그 정보:"
-            echo "  - kubectl 경로: $(which kubectl 2>&1 || echo 'not found')"
-            echo "  - k3s 경로: $(which k3s 2>&1 || echo 'not found')"
-            echo "  - /usr/local/bin/kubectl: $([ -f /usr/local/bin/kubectl ] && echo 'exists' || echo 'not found')"
-            exit 1
+          # 선택적 docker-compose 파일 복사 (기존 파일 백업)
+          if [ -f docker-compose.kafka.yml ]; then
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "if [ -f /home/ubuntu/apps/BE/docker-compose.kafka.yml ]; then cp /home/ubuntu/apps/BE/docker-compose.kafka.yml /home/ubuntu/apps/BE/docker-compose.kafka.yml.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true; fi"
+            scp -o StrictHostKeyChecking=no docker-compose.kafka.yml ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/ 2>/dev/null || {
+              echo "⚠️  docker-compose.kafka.yml 복사 실패 (계속 진행)"
+            }
           fi
           
-          # 클러스터 연결 확인
-          if $KUBECTL_CMD get nodes &> /dev/null 2>&1; then
-            echo "k3s_available=true" >> $GITHUB_OUTPUT
-            echo "kubectl_cmd=$KUBECTL_CMD" >> $GITHUB_OUTPUT
-            echo "✅ [Public EC2 - Control-Plane] k3s가 사용 가능합니다. k8s 배포를 진행합니다."
-            echo "클러스터 노드 정보:"
-            $KUBECTL_CMD get nodes 2>&1 || true
-            echo ""
-            echo "클러스터 정보:"
-            $KUBECTL_CMD cluster-info 2>&1 || true
-          else
-            echo "k3s_available=false" >> $GITHUB_OUTPUT
-            echo "❌ [Public EC2 - Control-Plane] kubectl은 있지만 클러스터에 연결할 수 없습니다."
-            echo "디버그 정보:"
-            $KUBECTL_CMD get nodes 2>&1 || true
-            if [ -f ~/.kube/config ]; then
-              echo "kubeconfig 위치: $KUBECONFIG"
-              echo "kubeconfig 권한:"
-              ls -la ~/.kube/ 2>&1 || true
-              echo "kubeconfig 내용 (일부):"
-              head -5 ~/.kube/config 2>&1 || true
-            else
-              echo "⚠️  kubeconfig 파일이 없습니다: ~/.kube/config"
-            fi
-            exit 1
+          if [ -f docker-compose.elasticsearch.yml ]; then
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "if [ -f /home/ubuntu/apps/BE/docker-compose.elasticsearch.yml ]; then cp /home/ubuntu/apps/BE/docker-compose.elasticsearch.yml /home/ubuntu/apps/BE/docker-compose.elasticsearch.yml.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true; fi"
+            scp -o StrictHostKeyChecking=no docker-compose.elasticsearch.yml ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/ 2>/dev/null || {
+                echo "⚠️  docker-compose.elasticsearch.yml 복사 실패 (계속 진행)"
+              }
           fi
+          
+          # deploy-module.sh 스크립트 복사 (scripts 디렉토리 보존, 기존 파일 백업)
+          if [ -f scripts/deploy-module.sh ]; then
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ubuntu/apps/BE/scripts && if [ -f /home/ubuntu/apps/BE/scripts/deploy-module.sh ]; then cp /home/ubuntu/apps/BE/scripts/deploy-module.sh /home/ubuntu/apps/BE/scripts/deploy-module.sh.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true; fi"
+            scp -o StrictHostKeyChecking=no scripts/deploy-module.sh ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/scripts/ || {
+              echo "⚠️  deploy-module.sh 복사 실패, 기존 파일 사용"
+            }
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "chmod +x /home/ubuntu/apps/BE/scripts/deploy-module.sh"
+          fi
+          
+          # SSH를 통해 배포 실행 (DEPLOY_KAFKA, DEPLOY_ELASTICSEARCH, DATA_EC2_IP 환경변수 전달)
+          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "cd /home/ubuntu/apps/BE || mkdir -p /home/ubuntu/apps/BE && cd /home/ubuntu/apps/BE && if [ ! -f docker-compose.data.yml ]; then echo '❌ docker-compose.data.yml 파일을 찾을 수 없습니다.' && exit 1; fi && if ! docker network ls --format '{{.Name}}' | grep -q '^be_baro-network$'; then docker network create be_baro-network || echo '네트워크가 이미 존재합니다.'; fi && if [ -f scripts/deploy-module.sh ]; then DEPLOY_KAFKA='${DEPLOY_KAFKA}' DEPLOY_ELASTICSEARCH='${DEPLOY_ELASTICSEARCH}' DATA_EC2_IP='${DATA_EC2_IP}' GITHUB_TOKEN='${GITHUB_TOKEN}' bash scripts/deploy-module.sh data; else echo '❌ scripts/deploy-module.sh를 찾을 수 없습니다.' && exit 1; fi"
 
-      - name: Deploy to k8s
-        if: steps.k3s-check.outputs.k3s_available == 'true' && steps.module.outputs.name != 'data'
+      - name: Deploy to k8s (SSH)
+        if: steps.module.outputs.name != 'data'
         env:
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
           IMAGE_TAG: ${{ needs.determine-service.outputs.image_tag }}
           MODULE_NAME: ${{ steps.module.outputs.name }}
-          KUBECONFIG: ~/.kube/config
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
+          DATA_EC2_IP: ${{ secrets.DATA_EC2_IP || '' }}  # Data EC2 Private IP (필수)
         run: |
-          export KUBECONFIG=~/.kube/config
+          echo "🚀 k8s 배포 시작 (SSH를 통한 원격 배포): ${MODULE_NAME} (이미지 태그: ${IMAGE_TAG})"
           
-          # k8s 디렉토리 최신 버전으로 업데이트 (기존 파일 보존)
-          if [ -d "$GITHUB_WORKSPACE/k8s" ]; then
-            echo "📦 [Public EC2 - Control-Plane] k8s 디렉토리 최신 버전으로 업데이트 중..."
-            mkdir -p /home/ubuntu/apps
-            
-            if [ -d "/home/ubuntu/apps/k8s/scripts" ]; then
-              cp -r /home/ubuntu/apps/k8s/scripts /tmp/k8s-scripts-backup-$$ 2>/dev/null || true
-            fi
-            
+          # 필요한 파일들을 안전하게 복사 (기존 파일 보존)
+          echo "📦 필요한 파일 복사 중 (기존 파일 보존)..."
+          
+          # k8s 디렉토리 복사 (기존 파일 보존)
+          if [ -d k8s ]; then
+            # 기존 k8s 디렉토리의 추가 파일들 백업 (scripts, README.md, .env 등)
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ubuntu/apps/k8s && if [ -d /home/ubuntu/apps/k8s/scripts ] && [ \"\$(ls -A /home/ubuntu/apps/k8s/scripts 2>/dev/null)\" ]; then mkdir -p /home/ubuntu/apps/k8s.backup.scripts.\$(date +%Y%m%d_%H%M%S) && cp -r /home/ubuntu/apps/k8s/scripts /home/ubuntu/apps/k8s.backup.scripts.\$(date +%Y%m%d_%H%M%S)/ 2>/dev/null || true; fi"
+            # k8s 디렉토리 복사 (최신 파일로 강제 덮어쓰기)
+            echo "📦 k8s 디렉토리 복사 중 (최신 파일로 강제 덮어쓰기)..."
+            # apps/, cloud/, redis/ 등 주요 디렉토리의 YAML 파일들을 먼저 삭제
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "
+              cd /home/ubuntu/apps/k8s 2>/dev/null || true
+              find apps cloud redis -type f \\( -name 'deployment.yaml' -o -name 'service.yaml' -o -name 'kustomization.yaml' -o -name 'daemonset.yaml' \\) -delete 2>/dev/null || true
+              echo '🗑️  기존 YAML 파일 삭제 완료'
+            "
+            # rsync로 복사 (--times 옵션으로 타임스탬프도 업데이트, --no-perms로 권한 문제 방지)
             if command -v rsync &> /dev/null; then
-              rsync -av "$GITHUB_WORKSPACE/k8s/" /home/ubuntu/apps/k8s/ || {
-                mkdir -p /home/ubuntu/apps/k8s
-                cp -r "$GITHUB_WORKSPACE/k8s"/* /home/ubuntu/apps/k8s/ 2>/dev/null || true
+              rsync -av --times --no-perms k8s/ ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/k8s/ || {
+                echo "⚠️  rsync 실패, scp로 재시도..."
+                # scp로 강제 복사
+                ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ubuntu/apps/k8s"
+                scp -o StrictHostKeyChecking=no -r k8s/* ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/k8s/ || {
+                  echo "❌ k8s 디렉토리 복사 실패"
+                  exit 1
+                }
               }
             else
-              mkdir -p /home/ubuntu/apps/k8s
-              cp -r "$GITHUB_WORKSPACE/k8s"/* /home/ubuntu/apps/k8s/ 2>/dev/null || true
+              # scp 사용
+              ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ubuntu/apps/k8s"
+              scp -o StrictHostKeyChecking=no -r k8s/* ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/k8s/ || {
+                echo "❌ k8s 디렉토리 복사 실패"
+                exit 1
+              }
             fi
-            
-            if [ -d "/tmp/k8s-scripts-backup-$$" ]; then
-              mkdir -p /home/ubuntu/apps/k8s/scripts
-              cp -r /tmp/k8s-scripts-backup-$$/* /home/ubuntu/apps/k8s/scripts/ 2>/dev/null || true
-              rm -rf /tmp/k8s-scripts-backup-$$
-            fi
+            # 복사 후 파일 날짜 확인
+            echo "📅 복사된 파일 날짜 확인:"
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "ls -lh /home/ubuntu/apps/k8s/cloud/*/*.yaml 2>/dev/null | head -5 || echo '파일을 찾을 수 없습니다'"
+            echo "✅ k8s 디렉토리 복사 완료 (최신 파일로 업데이트됨)"
+            # 백업한 scripts 디렉토리 복원 (복사된 k8s에 scripts가 없거나 덮어씌워진 경우)
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "BACKUP_SCRIPTS=\$(ls -td /home/ubuntu/apps/k8s.backup.scripts.* 2>/dev/null | head -1) && if [ -n \"\$BACKUP_SCRIPTS\" ] && [ -d \"\$BACKUP_SCRIPTS/scripts\" ] && [ ! -d /home/ubuntu/apps/k8s/scripts ] || [ -z \"\$(ls -A /home/ubuntu/apps/k8s/scripts 2>/dev/null)\" ]; then mkdir -p /home/ubuntu/apps/k8s/scripts && cp -r \"\$BACKUP_SCRIPTS/scripts\"/* /home/ubuntu/apps/k8s/scripts/ 2>/dev/null || true && echo '✅ scripts 디렉토리 복원 완료'; fi"
           fi
           
-          if [ -f "$GITHUB_WORKSPACE/scripts/deploy-k8s.sh" ]; then
-            mkdir -p /home/ubuntu/apps/BE/scripts
-            cp $GITHUB_WORKSPACE/scripts/deploy-k8s.sh /home/ubuntu/apps/BE/scripts/
-            chmod +x /home/ubuntu/apps/BE/scripts/deploy-k8s.sh
-            
-            mkdir -p /home/ubuntu/apps/k8s/scripts
-            cp $GITHUB_WORKSPACE/scripts/deploy-k8s.sh /home/ubuntu/apps/k8s/scripts/
-            chmod +x /home/ubuntu/apps/k8s/scripts/deploy-k8s.sh
+          # deploy-k8s.sh 스크립트 복사 (기존 파일 백업)
+          DEPLOY_SCRIPT="scripts/deploy-k8s.sh"
+          if [ "${MODULE_NAME}" = "settlement" ] && [ -f "scripts/deploy-daemonset.sh" ]; then
+            DEPLOY_SCRIPT="scripts/deploy-daemonset.sh"
           fi
           
-          echo ""
-          echo "🚀 [Public EC2 - Control-Plane] k8s 배포 시작: ${MODULE_NAME} (이미지 태그: ${IMAGE_TAG})"
-          echo "   - 작업 디렉토리: /home/ubuntu/apps/BE"
-          echo "   - k8s 디렉토리: /home/ubuntu/apps/k8s"
-          echo "   - 역할: Control-Plane (Master)"
-          echo ""
-          cd /home/ubuntu/apps/BE
-          
-          # 배포 스크립트 실행
-          if [ -f "./scripts/deploy-k8s.sh" ]; then
-            bash ./scripts/deploy-k8s.sh ${MODULE_NAME} ${IMAGE_TAG} || {
-              echo "❌ [Public EC2 - Control-Plane] 배포 스크립트 실행 실패"
-              echo "디버그 정보:"
-              echo "  - 스크립트 경로: ./scripts/deploy-k8s.sh"
-              echo "  - 모듈명: ${MODULE_NAME}"
-              echo "  - 이미지 태그: ${IMAGE_TAG}"
-              echo "  - 현재 디렉토리: $(pwd)"
-              
-              # Pod 상태 확인
-              KUBECTL_CMD="${{ steps.k3s-check.outputs.kubectl_cmd }}"
-              if [ -n "$KUBECTL_CMD" ]; then
-                echo ""
-                echo "📊 현재 Pod 상태:"
-                $KUBECTL_CMD get pods -n baro-prod 2>&1 || true
-              fi
-              
-              exit 1
+          if [ -f "$DEPLOY_SCRIPT" ]; then
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ubuntu/apps/BE/scripts && if [ -f /home/ubuntu/apps/BE/$DEPLOY_SCRIPT ]; then cp /home/ubuntu/apps/BE/$DEPLOY_SCRIPT /home/ubuntu/apps/BE/$DEPLOY_SCRIPT.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true; fi"
+            scp -o StrictHostKeyChecking=no "$DEPLOY_SCRIPT" ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/"$DEPLOY_SCRIPT" || {
+              echo "⚠️  $DEPLOY_SCRIPT 복사 실패, 기존 파일 사용"
             }
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "chmod +x /home/ubuntu/apps/BE/$DEPLOY_SCRIPT"
           else
-            echo "❌ [Public EC2 - Control-Plane] 배포 스크립트를 찾을 수 없습니다: ./scripts/deploy-k8s.sh"
+            echo "❌ 배포 스크립트를 찾을 수 없습니다: $DEPLOY_SCRIPT"
             exit 1
           fi
           
-          echo ""
-          echo "✅ [Public EC2 - Control-Plane] 배포 완료: ${MODULE_NAME}"
+          # SSH를 통해 배포 실행 (Public EC2에서 직접 kubectl 사용)
+          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "cd /home/ubuntu/apps/BE && if [ ! -d k8s ]; then echo '❌ k8s 디렉토리를 찾을 수 없습니다.' && exit 1; fi && if [ ! -f $DEPLOY_SCRIPT ]; then echo '❌ $DEPLOY_SCRIPT를 찾을 수 없습니다.' && exit 1; fi && export DATA_EC2_IP='${DATA_EC2_IP}' && GITHUB_TOKEN='${GITHUB_TOKEN}' bash $DEPLOY_SCRIPT ${MODULE_NAME} ${IMAGE_TAG}" || {
+            echo "❌ 배포 스크립트 실행 실패"
+            # 원격에서 Pod 상태 확인
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} 2>&1 || true"
+            exit 1
+          }
           
-          # 배포 후 검증
           echo ""
-          echo "🔍 [Public EC2 - Control-Plane] 배포 검증 중..."
+          echo "✅ 배포 완료: ${MODULE_NAME}"
+          
+          # 배포 후 검증 (원격에서 확인)
+          echo ""
+          echo "🔍 배포 검증 중..."
           sleep 5  # Pod 시작 대기
           
-          KUBECTL_CMD="${{ steps.k3s-check.outputs.kubectl_cmd }}"
-          
-          if [ -n "$KUBECTL_CMD" ]; then
             # Pod 상태 확인
             echo "📊 Pod 상태:"
-            $KUBECTL_CMD get pods -n baro-prod 2>&1 || true
+          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get pods -n baro-prod 2>&1 || true"
             
             # Service 상태 확인
             echo ""
             echo "📊 Service 상태:"
-            $KUBECTL_CMD get svc -n baro-prod 2>&1 || true
+          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get svc -n baro-prod 2>&1 || true"
             
             # Node 상태 확인
             echo ""
             echo "📊 Node 상태:"
-            $KUBECTL_CMD get nodes 2>&1 || true
-          fi
-
-      - name: Deploy data with docker-compose
-        if: steps.module.outputs.name == 'data'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
-        run: |
-          cd /home/ubuntu/apps/BE
-          echo ""
-          echo "🚀 [Public EC2 - Control-Plane] data 인프라 docker-compose 배포 시작"
-          echo "   - 작업 디렉토리: /home/ubuntu/apps/BE"
-          echo ""
-
-          # docker-compose.data.yml 존재 여부 확인 (deploy-module.sh도 이 파일을 사용)
-          if [ ! -f "./docker-compose.data.yml" ]; then
-            echo "❌ docker-compose.data.yml 파일을 찾을 수 없습니다. (현재 디렉토리: $(pwd))"
-            echo "디렉토리 내용:"
-            ls -la . 2>&1 | head -30 || true
-            exit 1
-          fi
-
-          # be_baro-network 네트워크 사전 생성 (docker-compose.data.yml이 external로 선언)
-          echo "🌐 Docker 네트워크 확인 및 생성 중..."
-          if ! docker network ls --format '{{.Name}}' | grep -q "^be_baro-network$"; then
-            echo "📦 be_baro-network 네트워크 생성 중..."
-            NETWORK_OUTPUT=$(docker network create be_baro-network 2>&1)
-            NETWORK_EXIT_CODE=$?
-            if [ $NETWORK_EXIT_CODE -eq 0 ]; then
-              echo "✅ be_baro-network 네트워크 생성 완료"
-            elif echo "$NETWORK_OUTPUT" | grep -q "already exists"; then
-              echo "✅ be_baro-network 네트워크가 이미 존재합니다."
-            else
-              echo "❌ be_baro-network 네트워크 생성 실패: $NETWORK_OUTPUT"
-              exit 1
-            fi
-          else
-            echo "✅ be_baro-network 네트워크가 이미 존재합니다."
-          fi
-
-          # 검증된 deploy-module.sh로 data 인프라 배포
-          if [ -f "./scripts/deploy-module.sh" ]; then
-            echo "📝 scripts/deploy-module.sh data 실행 중..."
-            echo "   - 스크립트 경로: $(pwd)/scripts/deploy-module.sh"
-            echo "   - 스크립트 권한: $(ls -la ./scripts/deploy-module.sh 2>&1 || echo 'not found')"
-            GITHUB_TOKEN=${GITHUB_TOKEN} bash ./scripts/deploy-module.sh data || {
-              echo "❌ deploy-module.sh data 실행 실패"
-              echo "디버그 정보:"
-              echo "  - 현재 디렉토리: $(pwd)"
-              echo "  - 스크립트 존재: $([ -f ./scripts/deploy-module.sh ] && echo 'yes' || echo 'no')"
-              echo "  - 네트워크 상태:"
-              docker network ls | grep -E "be_baro-network|NETWORK" || true
-              exit 1
-            }
-          else
-            echo "❌ ./scripts/deploy-module.sh 스크립트를 찾을 수 없습니다."
-            echo "디렉토리 내용:"
-            ls -la ./scripts 2>&1 || echo "scripts 디렉토리가 없습니다."
-            echo "전체 디렉토리 내용:"
-            ls -la . 2>&1 | head -30 || true
-            exit 1
-          fi
-
-          echo ""
-          echo "✅ [Public EC2 - Control-Plane] data 인프라 배포 완료"
-          echo ""
-          echo "📊 컨테이너 상태:"
-          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "baro-|NAMES" || docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get nodes 2>&1 || true"
 
   # ==================================================
   # Cleanup: 오래된 이미지 정리

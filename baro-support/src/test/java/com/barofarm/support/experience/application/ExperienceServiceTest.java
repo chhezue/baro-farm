@@ -15,7 +15,6 @@ import com.barofarm.support.experience.domain.Experience;
 import com.barofarm.support.experience.domain.ExperienceRepository;
 import com.barofarm.support.experience.domain.ExperienceStatus;
 import com.barofarm.support.experience.infrastructure.cache.FarmCacheService;
-import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Optional;
@@ -58,11 +57,11 @@ class ExperienceServiceTest {
         userId = UUID.randomUUID();
 
         validRequest = new ExperienceServiceRequest(farmId, "딸기 수확 체험", "신선한 딸기를 직접 수확해보세요",
-                BigInteger.valueOf(15000), 20, 120, LocalDateTime.of(2025, 3, 1, 9, 0), LocalDateTime.of(2025, 5, 31, 18, 0),
+                15000L, 20, 120, LocalDateTime.of(2025, 3, 1, 9, 0), LocalDateTime.of(2025, 5, 31, 18, 0),
                 ExperienceStatus.ON_SALE);
 
         validExperience = new Experience(experienceId, farmId, "딸기 수확 체험", "신선한 딸기를 직접 수확해보세요",
-                BigInteger.valueOf(15000), 20, 120, LocalDateTime.of(2025, 3, 1, 9, 0), LocalDateTime.of(2025, 5, 31, 18, 0),
+                15000L, 20, 120, LocalDateTime.of(2025, 3, 1, 9, 0), LocalDateTime.of(2025, 5, 31, 18, 0),
                 ExperienceStatus.ON_SALE);
     }
 
@@ -104,7 +103,7 @@ class ExperienceServiceTest {
         // given
         UUID experienceId2 = UUID.randomUUID();
         Experience experience2 = new Experience(experienceId2, farmId, "블루베리 수확 체험", "달콤한 블루베리",
-                BigInteger.valueOf(20000), 15, 90, LocalDateTime.of(2025, 6, 1, 9, 0), LocalDateTime.of(2025, 8, 31, 18, 0),
+                20000L, 15, 90, LocalDateTime.of(2025, 6, 1, 9, 0), LocalDateTime.of(2025, 8, 31, 18, 0),
                 ExperienceStatus.ON_SALE);
 
         Pageable pageable = PageRequest.of(0, 10);
@@ -127,7 +126,7 @@ class ExperienceServiceTest {
     void updateExperience() {
         // given
         ExperienceServiceRequest updateRequest = new ExperienceServiceRequest(farmId, "수정된 제목", "수정된 설명",
-                BigInteger.valueOf(25000), 30, 150, LocalDateTime.of(2025, 4, 1, 9, 0), LocalDateTime.of(2025, 6, 30, 18, 0),
+                25000L, 30, 150, LocalDateTime.of(2025, 4, 1, 9, 0), LocalDateTime.of(2025, 6, 30, 18, 0),
                 ExperienceStatus.CLOSED);
 
         when(experienceRepository.findById(experienceId)).thenReturn(Optional.of(validExperience));
@@ -167,7 +166,7 @@ class ExperienceServiceTest {
     void createExperienceInvalidDateRange() {
         // given
         ExperienceServiceRequest invalidRequest = new ExperienceServiceRequest(farmId, "딸기 수확 체험", "신선한 딸기를 직접 수확해보세요",
-                BigInteger.valueOf(15000), 20, 120, LocalDateTime.of(2025, 5, 31, 18, 0), LocalDateTime.of(2025, 3, 1, 9, 0),
+                15000L, 20, 120, LocalDateTime.of(2025, 5, 31, 18, 0), LocalDateTime.of(2025, 3, 1, 9, 0),
                 ExperienceStatus.ON_SALE);
         when(farmCacheService.hasFarmAccess(userId, farmId)).thenReturn(true);
 
@@ -192,7 +191,7 @@ class ExperienceServiceTest {
         UUID customFarmId = farmId; // 선택적으로 전달되는 farmId
         UUID experienceId2 = UUID.randomUUID();
         Experience experience2 = new Experience(experienceId2, farmId, "블루베리 수확 체험", "달콤한 블루베리",
-                BigInteger.valueOf(20000), 15, 90, LocalDateTime.of(2025, 6, 1, 9, 0), LocalDateTime.of(2025, 8, 31, 18, 0),
+                20000L, 15, 90, LocalDateTime.of(2025, 6, 1, 9, 0), LocalDateTime.of(2025, 8, 31, 18, 0),
                 ExperienceStatus.ON_SALE);
 
         Pageable pageable = PageRequest.of(0, 10);

@@ -23,6 +23,16 @@ spec:
         component: cloud
     spec:
       hostNetwork: true
+      nodeSelector:
+        kubernetes.io/hostname: ip-10-0-5-208  # 마스터 노드에 고정 배치
+      tolerations:
+        # Master node taint 허용 (master node 메모리 보호를 위한 taint가 설정된 경우)
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          # NoSchedule: 새로운 Pod는 스케줄링하지 않음 (이미 실행 중인 Pod는 유지)
+          # PreferNoSchedule: 가능하면 스케줄링하지 않음 (부득이하면 허용)
+          # NoExecute: 새로운 Pod는 스케줄링하지 않음 + 이미 실행 중인 Pod도 제거 가능
+          effect: NoSchedule
       containers:
         - name: gateway
           image: ghcr.io/do-develop-space/gateway:latest
@@ -34,21 +44,31 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
+            - name: SPRING_APPLICATION_NAME
+              value: "gateway-service"  # Config Server 설정 오버라이드 방지 (언더스코어 2개: Spring Boot 표준 형식)
             - name: SERVER_PORT
               value: "8080"  # Config Server 설정 덮어쓰기 방지
+            - name: SERVER_ADDRESS
+              value: "0.0.0.0"  # hostNetwork: true 사용 시 모든 네트워크 인터페이스에 바인딩
             - name: SPRING_CONFIG_IMPORT
               value: "optional:configserver:http://localhost:8888"  # hostNetwork: true 사용 시 localhost
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: "http://localhost:8761/eureka/"  # hostNetwork: true 사용 시 localhost
+            - name: EUREKA_CLIENT_REGISTER_WITH_EUREKA
+              value: "true"
+            - name: EUREKA_CLIENT_FETCH_REGISTRY
+              value: "true"
             - name: JAVA_OPTS
-              value: "-Xms256m -Xmx384m"
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "200m"
-            limits:
-              memory: "384Mi"
-              cpu: "1000m"
+              value: "-Xms64m -Xmx128m -Djava.net.preferIPv4Stack=true"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=128m -XX:CompressedClassSpaceSize=64m -XX:MaxDirectMemorySize=64m -XX:NativeMemoryTracking=summary"
+          # resources:
+          #   requests:
+          #     memory: "256Mi"
+          #     cpu: "200m"
+          #   limits:
+          #     memory: "384Mi"
+          #     cpu: "1000m"
           livenessProbe:
             httpGet:
               path: /actuator/health

@@ -29,7 +29,10 @@ spring:
             - 'baro-buyer/src/main/resources'
             - 'baro-seller/src/main/resources'
             - 'baro-order/src/main/resources'
+            - 'baro-payment/src/main/resources'
             - 'baro-support/src/main/resources'
+            - 'baro-settlement/src/main/resources'
+            - 'baro-ai/src/main/resources'
             - 'baro-cloud/gateway/src/main/resources'
             - 'baro-cloud/eureka/src/main/resources'
 

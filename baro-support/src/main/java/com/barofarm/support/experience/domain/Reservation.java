@@ -14,7 +14,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
-import java.math.BigInteger;
 import java.time.LocalDate;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -65,7 +64,7 @@ public class Reservation extends BaseEntity {
     private Integer headCount;
 
     @Column(name = "total_price", nullable = false)
-    private BigInteger totalPrice;
+    private Long totalPrice;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -82,7 +81,7 @@ public class Reservation extends BaseEntity {
         LocalDate reservedDate,
         String reservedTimeSlot,
         Integer headCount,
-        BigInteger totalPrice,
+        Long totalPrice,
         ReservationStatus status
     ) {
         this.reservationId = reservationId;
@@ -107,7 +106,7 @@ public class Reservation extends BaseEntity {
             LocalDate reservedDate,
             String reservedTimeSlot,
             Integer headCount,
-            BigInteger totalPrice
+            Long totalPrice
     ) {
         if (reservedDate != null) {
             this.reservedDate = reservedDate;
