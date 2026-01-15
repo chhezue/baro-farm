@@ -1,4 +1,4 @@
-package com.barofarm.ai.recommend.model;
+package com.barofarm.ai.recommend.application.dto.response;
 
 import java.util.UUID;
 

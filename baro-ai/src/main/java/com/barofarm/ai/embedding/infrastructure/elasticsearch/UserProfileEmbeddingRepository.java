@@ -1,6 +1,6 @@
-package com.barofarm.ai.embedding.repository;
+package com.barofarm.ai.embedding.infrastructure.elasticsearch;
 
-import com.barofarm.ai.embedding.model.UserProfileEmbeddingDocument;
+import com.barofarm.ai.embedding.domain.UserProfileEmbeddingDocument;
 import java.util.UUID;
 import org.springframework.data.elasticsearch.repository.ElasticsearchRepository;
 

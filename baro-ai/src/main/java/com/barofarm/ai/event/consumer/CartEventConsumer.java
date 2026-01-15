@@ -1,6 +1,6 @@
 package com.barofarm.ai.event.consumer;
 
-import com.barofarm.ai.embedding.service.UserProfileEmbeddingService;
+import com.barofarm.ai.embedding.application.UserProfileEmbeddingService;
 import com.barofarm.ai.event.model.CartLogEvent;
 import com.barofarm.ai.log.application.LogWriteService;
 import java.time.Instant;

@@ -57,10 +57,15 @@ graph LR
   - 수량 × 이벤트 타입 × 시간 가중치 적용
   - 대표 텍스트 생성 후 OpenAI 임베딩
   - 1536차원 벡터로 사용자 취향 표현
-- **출력**: Top-K 개인화 상품 리스트
+- **출력**: Top-K 개인화 상품 리스트 (상품 ID, 이름, 카테고리, 가격 포함)
 - **품질 보장**: 최소 3개 이상 로그 필요
+- **API**: 
+  - `GET /api/v1/recommendations/personalized/{userId}` - 일반 추천
+  - `GET /api/v1/recommendations/personalized/{userId}/with-score` - 검증용 (유사도 점수 포함)
 
-### 2. **레시피 추천** ⭐⭐⭐
+### 2. **레시피 추천** ⚠️ 미구현
+
+> 현재 미구현 상태입니다. `RecipeRecommendService`는 빈 클래스입니다.
 
 **장바구니 상품 → LLM 분석 → 레시피 + 부족 재료 추천**
 
@@ -69,13 +74,23 @@ graph LR
 - **출력**: 레시피 정보 + 구매 추천 상품
 
 
-### 4. **서비스 챗봇** ⭐
+### 3. **서비스 챗봇** ⚠️ 미구현
+
+> 현재 미구현 상태입니다. `ChatbotController`는 빈 클래스입니다.
 
 **정책 문서 기반 RAG**로 정확한 답변 제공
 
 - **RAG 구현**: 정책 문서 벡터화 + 유사도 검색
 - **안전성**: 정책 외 질문 거부
 - **실시간성**: 최신 정책 반영
+
+### 4. **데이터 생성 도구** 🛠️
+
+개발 및 테스트 편의를 위한 데이터 생성 API
+
+- **상품 데이터 증폭**: SQL 파일 기반 LLM 자동 증폭
+- **더미 로그 생성**: 테스트용 사용자 행동 로그 생성
+- **프로필 임베딩 생성**: 테스트용 사용자 프로필 임베딩 생성
 
 ---
 
@@ -176,24 +191,79 @@ src/main/java/com/barofarm/ai/
 2.  **명확한 책임**: `domain`은 비즈니스 규칙, `application`은 유스케이스 흐름, `infrastructure`는 기술 구현을 책임집니다.
 3.  **단방향 의존성**: `infrastructure`는 `application`을, `application`은 `domain`을 의존할 수 있지만, 그 반대는 절대 불가합니다.
 
-### 현재 구조 → 목표 구조 매핑
+### 현재 구조 (As-Is)
 
-다음과 같이 기존 패키지를 새로운 구조로 마이그레이션할 수 있습니다.
+현재 baro-ai 모듈은 다음과 같은 구조를 가지고 있습니다:
+
+```text
+src/main/java/com/barofarm/ai/
+├── presentation/              # REST 컨트롤러
+│   ├── RecommendationController.java
+│   ├── ChatbotController.java
+│   └── ...
+├── search/
+│   ├── presentation/         # 검색 관련 컨트롤러
+│   ├── application/          # 검색 서비스 로직
+│   ├── domain/               # 검색 도메인 모델
+│   └── infrastructure/       # Elasticsearch 리포지토리
+├── recommend/
+│   ├── application/           # 추천 서비스
+│   │   └── dto/              # 추천 응답 DTO
+│   ├── presentation/          # 추천 컨트롤러
+│   └── exception/            # 추천 에러 코드
+├── embedding/
+│   ├── application/           # 임베딩 서비스
+│   ├── domain/               # 임베딩 도메인 모델
+│   ├── infrastructure/        # Elasticsearch 리포지토리
+│   │   └── elasticsearch/
+│   └── exception/            # 임베딩 에러 코드
+├── log/
+│   ├── domain/               # 로그 도메인 모델
+│   ├── infrastructure/       # Elasticsearch 리포지토리
+│   │   └── elasticsearch/
+│   ├── application/          # 로그 서비스
+│   └── exception/            # 로그 에러 코드
+├── event/
+│   ├── consumer/              # Kafka 이벤트 컨슈머
+│   └── model/                # 이벤트 모델
+├── datagen/                  # 데이터 생성 도구
+├── config/                   # Spring 설정
+└── common/                   # 공통 유틸리티
+```
+
+### 목표 구조 (To-Be)
+
+향후 DDD 계층형 아키텍처로 리팩토링할 계획입니다:
 
 | 현재 구조 (As-Is) | 목표 구조 (To-Be) | 설명 |
 | :--- | :--- | :--- |
-| `presentation` | `infrastructure.web` | REST 컨트롤러 |
-| `search/presentation` | `infrastructure.web` | REST 컨트롤러 |
-| `recommend`, `chatbot` | `application`, `domain` | 서비스 로직과 도메인 모델로 분리 |
-| `search/application` | `application.search` | 유스케이스 서비스 |
-| `search/domain` | `domain.model.search` | 도메인 모델 |
-| `log/domain` | `domain.model.log` | 도메인 모델 |
-| `log/repository` | `infrastructure.persistence` | 리포지토리 구현체 |
-| `search/infrastructure` | `infrastructure.persistence` | 리포지토리 구현체 |
-| `event` | `infrastructure.messaging`| Kafka 관련 로직 |
-| `embedding` | `infrastructure.external` | 외부 AI API 연동 |
-| `config` | `infrastructure.config` | Spring, 모듈 설정 |
-| `common` | `common` | 공통 유틸리티 |
+| `recommend/presentation` | `recommend/presentation` | REST 컨트롤러 (유지) |
+| `recommend/application` | `recommend/application` | 서비스 로직 (완료) |
+| `recommend/application/dto` | `recommend/application/dto` | DTO (완료) |
+| `recommend/exception` | `recommend/exception` | 에러 코드 (완료) |
+| `search/presentation` | `search/presentation` | REST 컨트롤러 (유지) |
+| `search/application` | `search/application` | 유스케이스 서비스 (유지) |
+| `search/domain` | `search/domain` | 도메인 모델 (유지) |
+| `search/infrastructure` | `search/infrastructure` | 리포지토리 구현체 (유지) |
+| `log/domain` | `log/domain` | 도메인 모델 (유지) |
+| `log/infrastructure/elasticsearch` | `log/infrastructure/elasticsearch` | 리포지토리 구현체 (완료) |
+| `log/application` | `log/application` | 로그 서비스 (유지) |
+| `log/exception` | `log/exception` | 에러 코드 (완료) |
+| `event` | `event` | Kafka 관련 로직 (공통 유지) |
+| `embedding/application` | `embedding/application` | 임베딩 서비스 (완료) |
+| `embedding/domain` | `embedding/domain` | 도메인 모델 (유지) |
+| `embedding/infrastructure/elasticsearch` | `embedding/infrastructure/elasticsearch` | 리포지토리 구현체 (완료) |
+| `embedding/exception` | `embedding/exception` | 에러 코드 (완료) |
+| `datagen/application` | `datagen/application` | 데이터 생성 서비스 (유지) |
+| `datagen/application/dto` | `datagen/application/dto` | DTO (완료) |
+| `datagen/exception` | `datagen/exception` | 에러 코드 (완료) |
+| `chat/application` | `chat/application` | 챗봇 서비스 (완료) |
+| `chat/presentation` | `chat/presentation` | 챗봇 컨트롤러 (유지) |
+| `chat/exception` | `chat/exception` | 에러 코드 (완료) |
+| `config` | `config` | Spring, 모듈 설정 (유지) |
+| `common` | `common` | 공통 유틸리티 (유지) |
+
+> **참고**: DDD 계층형 아키텍처 기반 리팩토링이 완료되었습니다. 각 도메인은 `application`, `domain`, `infrastructure`, `presentation`, `exception` 계층으로 구성되어 있습니다.
 
 
 

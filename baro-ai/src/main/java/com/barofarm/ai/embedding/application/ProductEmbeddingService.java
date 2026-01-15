@@ -1,4 +1,4 @@
-package com.barofarm.ai.embedding.service;
+package com.barofarm.ai.embedding.application;
 
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;

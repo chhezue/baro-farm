@@ -1,13 +1,13 @@
-package com.barofarm.ai.embedding.service;
+package com.barofarm.ai.embedding.application;
 
-import com.barofarm.ai.embedding.model.UserProfileEmbeddingDocument;
-import com.barofarm.ai.embedding.repository.UserProfileEmbeddingRepository;
+import com.barofarm.ai.embedding.domain.UserProfileEmbeddingDocument;
+import com.barofarm.ai.embedding.infrastructure.elasticsearch.UserProfileEmbeddingRepository;
 import com.barofarm.ai.log.domain.CartLogDocument;
 import com.barofarm.ai.log.domain.OrderLogDocument;
 import com.barofarm.ai.log.domain.SearchLogDocument;
-import com.barofarm.ai.log.repository.CartLogRepository;
-import com.barofarm.ai.log.repository.OrderLogRepository;
-import com.barofarm.ai.log.repository.SearchLogRepository;
+import com.barofarm.ai.log.infrastructure.elasticsearch.CartLogRepository;
+import com.barofarm.ai.log.infrastructure.elasticsearch.OrderLogRepository;
+import com.barofarm.ai.log.infrastructure.elasticsearch.SearchLogRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -81,6 +81,17 @@ public class UserProfileEmbeddingService {
                  userId, searchLogs.size(), cartLogs.size(), orderLogs.size());
 
         // 3. 로그에서 텍스트를 추출하고 가중치를 적용하여 '대표 텍스트'를 생성합니다.
+        // TODO: [메도이드 알고리즘 적용 조건 체크]
+        // 로그 개수가 충분할 때(총 30개 이상) 메도이드 알고리즘을 사용하여
+        // 대표 로그를 선택한 후 buildRepresentativeText 호출
+        // if (totalLogCount >= 30) {
+        //     List<SearchLogDocument> medoidSearchLogs = selectMedoidLogs(searchLogs);
+        //     List<CartLogDocument> medoidCartLogs = selectMedoidLogs(cartLogs);
+        //     List<OrderLogDocument> medoidOrderLogs = selectMedoidLogs(orderLogs);
+        //     representativeText = buildRepresentativeText(medoidSearchLogs, medoidCartLogs, medoidOrderLogs);
+        // } else {
+        //     representativeText = buildRepresentativeText(searchLogs, cartLogs, orderLogs);
+        // }
         String representativeText = buildRepresentativeText(searchLogs, cartLogs, orderLogs);
 
         if (!StringUtils.hasText(representativeText)) {
@@ -114,6 +125,27 @@ public class UserProfileEmbeddingService {
         List<CartLogDocument> cartLogs,
         List<OrderLogDocument> orderLogs
     ) {
+        // TODO: [메도이드 알고리즘 적용]
+        // 현재는 가중치 기반으로 모든 로그를 반복하여 텍스트를 생성하지만,
+        // 로그 개수가 많을 때(각 타입별 10개 이상, 총 30개 이상) 메도이드 알고리즘을 적용하여
+        // 실제 로그 중에서 가장 대표적인 로그를 선택하는 방식으로 개선 가능
+        //
+        // 적용 방법:
+        // 1. 각 로그 타입별로 로그를 임베딩 벡터로 변환
+        // 2. 각 타입별 로그들 간의 코사인 거리 계산
+        // 3. 다른 모든 로그까지의 거리 합이 최소인 로그(메도이드) 선택
+        // 4. 선택된 메도이드 로그들만 사용하여 대표 텍스트 생성
+        //
+        // 효과적인 데이터 개수:
+        // - 최소: 각 타입별 5개 이상 (총 15개 이상)에서 효과 시작
+        // - 권장: 각 타입별 10개 이상 (총 30개 이상)에서 효과적
+        // - 이상치에 강건하며, 실제 데이터 포인트를 선택하므로 해석이 쉬움
+        //
+        // 예상 효과:
+        // - 노이즈가 많은 로그 중에서 가장 대표적인 로그만 선택하여 임베딩 품질 향상
+        // - 계산 비용 절감 (모든 로그를 반복하지 않고 메도이드만 사용)
+        // - 사용자 프로필의 핵심 관심사만 반영하여 더 정확한 추천 가능
+
         // 1. 검색어 텍스트 (시간 가중치 적용)
         Stream<String> searchKeywords = searchLogs.stream()
             .filter(log -> StringUtils.hasText(log.getSearchQuery()))

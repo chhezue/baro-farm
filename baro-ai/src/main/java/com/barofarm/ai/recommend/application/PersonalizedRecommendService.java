@@ -12,6 +12,12 @@ import com.barofarm.ai.log.infrastructure.elasticsearch.SearchLogRepository;
 import com.barofarm.ai.recommend.application.dto.response.PersonalRecommendResponse;
 import com.barofarm.ai.recommend.application.dto.response.PersonalRecommendWithScoreResponse;
 import com.barofarm.ai.search.domain.ProductDocument;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -21,13 +27,6 @@ import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.stereotype.Service;
-
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service

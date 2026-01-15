@@ -1,4 +1,4 @@
-package com.barofarm.ai.log.repository;
+package com.barofarm.ai.log.infrastructure.elasticsearch;
 
 import com.barofarm.ai.log.domain.CartLogDocument;
 import java.time.Instant;

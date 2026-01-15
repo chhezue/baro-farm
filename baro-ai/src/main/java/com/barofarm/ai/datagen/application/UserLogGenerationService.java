@@ -9,6 +9,13 @@ import com.barofarm.ai.log.infrastructure.elasticsearch.SearchLogRepository;
 import com.barofarm.ai.search.application.UnifiedSearchService;
 import com.barofarm.ai.search.domain.ProductDocument;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ProductSearchRepository;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -16,10 +23,6 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.*;
 
 /**
  * 테스트 및 개발을 위한 사용자 행동 로그 생성 서비스

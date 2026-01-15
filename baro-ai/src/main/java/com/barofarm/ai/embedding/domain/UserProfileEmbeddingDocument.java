@@ -1,4 +1,4 @@
-package com.barofarm.ai.embedding.model;
+package com.barofarm.ai.embedding.domain;
 
 import java.time.Instant;
 import java.util.List;

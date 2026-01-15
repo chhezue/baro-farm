@@ -124,7 +124,7 @@ src/main/java/com/barofarm/ai/
 주기적인 데이터 처리 및 유지보수
 
 #### 배치 작업
-- [ ] `embedding/scheduler/EmbeddingBatchJob` - 임베딩 데이터 갱신
+- [ ] `embedding/application/scheduler/EmbeddingBatchJob` - 임베딩 데이터 갱신
 - [ ] 사용자 선호도 주기적 재계산
 - [ ] 추천 모델 재학습 파이프라인
 
