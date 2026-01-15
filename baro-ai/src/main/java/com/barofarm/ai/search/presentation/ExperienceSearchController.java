@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -30,7 +31,9 @@ public class ExperienceSearchController {
     // 프론트는 Query Parameter로 보내고, 백엔드는 @ModelAttribute로 묶어서 받음.
     public CustomPage<ExperienceSearchResponse> searchExperiences(
         @Parameter(description = "검색 조건 DTO") @ModelAttribute ExperienceSearchRequest request,
-        @Parameter(description = "페이지 정보") Pageable pageable) {
+        @Parameter(description = "페이지 번호") @RequestParam(defaultValue = "0") int page,
+        @Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
         return service.searchOnlyExperiences(request, pageable);
     }
 

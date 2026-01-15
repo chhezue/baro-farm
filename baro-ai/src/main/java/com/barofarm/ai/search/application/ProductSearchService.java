@@ -1,13 +1,12 @@
 package com.barofarm.ai.search.application;
 
-import static org.hibernate.query.sqm.tree.SqmNode.log;
-
 import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
 import com.barofarm.ai.common.response.CustomPage;
-import com.barofarm.ai.embedding.service.ProductEmbeddingService;
+import com.barofarm.ai.embedding.application.ProductEmbeddingService;
+import com.barofarm.ai.embedding.application.UserProfileEmbeddingService;
 import com.barofarm.ai.log.application.LogWriteService;
 import com.barofarm.ai.search.application.dto.product.ProductAutoCompleteResponse;
 import com.barofarm.ai.search.application.dto.product.ProductIndexRequest;
@@ -21,13 +20,16 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProductSearchService {
@@ -36,6 +38,7 @@ public class ProductSearchService {
     private final ProductAutocompleteRepository autocompleteRepository;
     private final LogWriteService logWriteService;
     private final ProductEmbeddingService productEmbeddingService;
+    private final UserProfileEmbeddingService userProfileEmbeddingService;
 
     // 상품 문서를 ES에 저장 (인덱싱), updatedAt은 현재 시각으로 자동 설정
     // Kafka Consumer에서 호출됨
@@ -128,6 +131,8 @@ public class ProductSearchService {
                     null,
                     Instant.now()
                 );
+                // 프로필 벡터 비동기 업데이트
+                updateUserProfileAsync(userId);
             } catch (Exception e) {
                 log.warn("❌ Failed to save search log for user: " + userId + ", error: " + e.getMessage(), e);
             }
@@ -207,6 +212,8 @@ public class ProductSearchService {
                     category,
                     Instant.now()
                 );
+                // 프로필 벡터 비동기 업데이트
+                updateUserProfileAsync(userId);
             } catch (Exception e) {
                 log.warn("❌ Failed to save search log for user: " + userId +
                     ", keyword: " + request.keyword() + ", error: " + e.getMessage(), e);
@@ -244,7 +251,7 @@ public class ProductSearchService {
     private void applyFuzzyMatch(BoolQuery.Builder b, String keyword) {
         b.should(m ->
             m.match(mm ->
-                mm.field("productName")
+                mm.field("productName.raw")
                   .query(keyword)
                   .fuzziness("AUTO") // ES가 자동으로 편집 거리 계산
                   .prefixLength(1)   // 앞 글자 1개는 정확히 일치해야 함
@@ -316,5 +323,22 @@ public class ProductSearchService {
         return autocompleteRepository.findByPrefix(query, size).stream()
             .map(document -> new ProductAutoCompleteResponse(document.getProductId(), document.getProductName()))
             .toList();
+    }
+
+    /**
+     * 사용자 프로필 벡터를 비동기로 업데이트합니다.
+     * 검색 로그 저장 후 호출되며, 검색 성능에 영향을 주지 않도록 별도 스레드에서 실행됩니다.
+     */
+    @Async("profileUpdateExecutor")
+    public void updateUserProfileAsync(UUID userId) {
+        try {
+            log.debug("🔄 [SEARCH_SERVICE] Updating user profile embedding for user: {}", userId);
+            userProfileEmbeddingService.updateUserProfileEmbedding(userId);
+            log.debug("✅ [SEARCH_SERVICE] Successfully updated user profile embedding for user: {}", userId);
+        } catch (Exception e) {
+            log.warn("⚠️ [SEARCH_SERVICE] Failed to update user profile embedding for user: {}, error: {}",
+                    userId, e.getMessage());
+            // 프로필 업데이트 실패는 검색 결과에 영향을 주지 않음
+        }
     }
 }

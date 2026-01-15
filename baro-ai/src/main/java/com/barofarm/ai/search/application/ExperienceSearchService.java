@@ -181,11 +181,11 @@ public class ExperienceSearchService {
         );
     }
 
-    // 오탈자 허용 검색
+    // 오탈자 허용 검색 (raw 필드 사용: keyword 타입이므로 fuzzy search에 적합)
     private void applyFuzzyMatch(BoolQuery.Builder b, String keyword) {
         b.should(m ->
             m.match(mm ->
-                mm.field("experienceName")
+                mm.field("experienceName.raw")  // raw 필드 사용 (keyword 타입)
                   .query(keyword)
                   .fuzziness("AUTO") // ES가 자동으로 편집 거리 계산
                   .prefixLength(1)   // 앞 글자 1개는 정확히 일치해야 함
@@ -252,7 +252,7 @@ public class ExperienceSearchService {
 
         b.filter(f ->
             f.range(r -> r.number(n -> {
-                var range = n.field("duration");
+                var range = n.field("durationMinutes");
                 if (min != null) {
                     range = range.gte(min.doubleValue());
                 }

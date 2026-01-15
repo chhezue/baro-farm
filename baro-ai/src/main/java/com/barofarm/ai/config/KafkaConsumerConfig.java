@@ -41,10 +41,11 @@ public class KafkaConsumerConfig {
         config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
 
+        // MSA 환경: 메시지에 포함된 타입 정보를 무시하고 직접 지정한 타입으로 역직렬화
         JsonDeserializer<ProductEvent> deserializer = new JsonDeserializer<>(ProductEvent.class);
-        deserializer.setRemoveTypeHeaders(false);
+        deserializer.setRemoveTypeHeaders(true);  // 타입 헤더 제거 (다른 모듈의 클래스 정보 무시)
+        deserializer.setUseTypeHeaders(false);     // 타입 헤더 사용 안 함
         deserializer.addTrustedPackages("*");
-        deserializer.setUseTypeMapperForKey(false);
 
         return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
     }
@@ -66,10 +67,11 @@ public class KafkaConsumerConfig {
         config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
 
+        // MSA 환경: 메시지에 포함된 타입 정보를 무시하고 직접 지정한 타입으로 역직렬화
         JsonDeserializer<ExperienceEvent> deserializer = new JsonDeserializer<>(ExperienceEvent.class);
-        deserializer.setRemoveTypeHeaders(false);
+        deserializer.setRemoveTypeHeaders(true);  // 타입 헤더 제거
+        deserializer.setUseTypeHeaders(false);     // 타입 헤더 사용 안 함
         deserializer.addTrustedPackages("*");
-        deserializer.setUseTypeMapperForKey(false);
 
         return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
     }
@@ -91,10 +93,11 @@ public class KafkaConsumerConfig {
         config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId + "-cart"); // 별도 그룹으로 분리
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); // 개인화 데이터는 처음부터 수집
 
+        // MSA 환경: 메시지에 포함된 타입 정보를 무시하고 직접 지정한 타입으로 역직렬화
         JsonDeserializer<CartLogEvent> deserializer = new JsonDeserializer<>(CartLogEvent.class);
-        deserializer.setRemoveTypeHeaders(false);
+        deserializer.setRemoveTypeHeaders(true);  // 타입 헤더 제거
+        deserializer.setUseTypeHeaders(false);     // 타입 헤더 사용 안 함
         deserializer.addTrustedPackages("*");
-        deserializer.setUseTypeMapperForKey(false);
 
         return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
     }
@@ -114,10 +117,11 @@ public class KafkaConsumerConfig {
         config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId + "-order"); // 별도 그룹으로 분리
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); // 개인화 데이터는 처음부터 수집
 
+        // MSA 환경: 메시지에 포함된 타입 정보를 무시하고 직접 지정한 타입으로 역직렬화
         JsonDeserializer<OrderLogEvent> deserializer = new JsonDeserializer<>(OrderLogEvent.class);
-        deserializer.setRemoveTypeHeaders(false);
+        deserializer.setRemoveTypeHeaders(true);  // 타입 헤더 제거
+        deserializer.setUseTypeHeaders(false);     // 타입 헤더 사용 안 함
         deserializer.addTrustedPackages("*");
-        deserializer.setUseTypeMapperForKey(false);
 
         return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
     }

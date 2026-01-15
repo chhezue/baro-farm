@@ -145,7 +145,7 @@ public class CartEventConsumer {
 > **[Application Layer]** 사용자 행동 로그를 기반으로 가중치를 적용하여 임베딩 벡터를 생성하는 서비스입니다.
 
 ```java
-// embedding/service/UserProfileEmbeddingService.java
+// embedding/application/UserProfileEmbeddingService.java
 
 @Service
 public class UserProfileEmbeddingService {
@@ -202,7 +202,7 @@ public class UserProfileEmbeddingService {
 > **[Application Layer]** 상품명을 기반으로 임베딩 벡터를 생성하는 서비스입니다.
 
 ```java
-// embedding/service/ProductEmbeddingService.java
+// embedding/application/ProductEmbeddingService.java
 
 @Service
 public class ProductEmbeddingService {
@@ -221,7 +221,7 @@ public class ProductEmbeddingService {
 > **[Application Layer]** 사용자 프로필 벡터와 상품 벡터의 유사도를 계산하여 추천합니다.
 
 ```java
-// application/recommendation/PersonalizedRecommendService.java
+// recommend/application/PersonalizedRecommendService.java
 
 @Service
 @RequiredArgsConstructor
@@ -262,7 +262,7 @@ public class PersonalizedRecommendService {
 #### 사용자 프로필 임베딩 문서
 
 ```java
-// embedding/model/UserProfileEmbeddingDocument.java
+// embedding/domain/UserProfileEmbeddingDocument.java
 
 @Document(indexName = "user_profile_embeddings")
 @Getter

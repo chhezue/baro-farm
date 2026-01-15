@@ -1,11 +1,13 @@
 package com.barofarm.ai.event.consumer;
 
+import com.barofarm.ai.embedding.application.UserProfileEmbeddingService;
 import com.barofarm.ai.event.model.OrderLogEvent;
 import com.barofarm.ai.log.application.LogWriteService;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 /**
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Component;
 public class OrderEventConsumer {
 
     private final LogWriteService logWriteService;
+    private final UserProfileEmbeddingService userProfileEmbeddingService;
 
     @KafkaListener(
         topics = "order-events",
@@ -47,6 +50,8 @@ public class OrderEventConsumer {
 
                     log.info("✅ [ORDER_CONSUMER] Successfully saved order confirmed event - User: {}, Items: {}",
                             event.userId(), data.orderItems() != null ? data.orderItems().size() : 0);
+                    // 프로필 벡터 비동기 업데이트
+                    updateUserProfileAsync(event.userId());
                 }
                 case ORDER_CANCELLED -> {
                     log.info("❌ [ORDER_CONSUMER] Processing ORDER_CANCELLED - User: {}, Order: {}",
@@ -68,6 +73,8 @@ public class OrderEventConsumer {
 
                     log.info("✅ [ORDER_CONSUMER] Successfully saved order cancelled event - User: {}, Items: {}",
                             event.userId(), data.orderItems() != null ? data.orderItems().size() : 0);
+                    // 프로필 벡터 비동기 업데이트
+                    updateUserProfileAsync(event.userId());
                 }
                 default -> {
                     log.warn("⚠️ [ORDER_CONSUMER] Unknown order event type received - Type: {}, User: {}, Order: {}",
@@ -84,5 +91,22 @@ public class OrderEventConsumer {
 
     private Instant convertToInstant(java.time.OffsetDateTime offsetDateTime) {
         return offsetDateTime.toInstant();
+    }
+
+    /**
+     * 사용자 프로필 벡터를 비동기로 업데이트합니다.
+     * 이벤트 처리 속도에 영향을 주지 않도록 별도 스레드에서 실행됩니다.
+     */
+    @Async("profileUpdateExecutor")
+    public void updateUserProfileAsync(java.util.UUID userId) {
+        try {
+            log.debug("🔄 [ORDER_CONSUMER] Updating user profile embedding for user: {}", userId);
+            userProfileEmbeddingService.updateUserProfileEmbedding(userId);
+            log.debug("✅ [ORDER_CONSUMER] Successfully updated user profile embedding for user: {}", userId);
+        } catch (Exception e) {
+            log.warn("⚠️ [ORDER_CONSUMER] Failed to update user profile embedding for user: {}, error: {}",
+                    userId, e.getMessage());
+            // 프로필 업데이트 실패는 이벤트 처리에 영향을 주지 않음
+        }
     }
 }

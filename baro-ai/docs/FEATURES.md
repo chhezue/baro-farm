@@ -33,14 +33,64 @@
 ```json
 {
   "success": true,
-  "data": [1001, 1002, 1003, 1004, 1005],
-  "message": "개인화 추천 상품 조회 성공"
+  "data": [
+    {
+      "productId": "550e8400-e29b-41d4-a716-446655440001",
+      "productName": "청송사과 프리미엄 1kg",
+      "productCategory": "과일",
+      "price": 15000
+    },
+    {
+      "productId": "550e8400-e29b-41d4-a716-446655440002",
+      "productName": "바나나 1송이",
+      "productCategory": "과일",
+      "price": 5000
+    }
+  ]
 }
 ```
 
 #### 응답 필드 설명
-- `data`: 추천 상품 ID 배열 (최대 15개)
+- `data`: 추천 상품 목록 (기본값: 5개, 최대 15개)
+  - `productId`: 상품 ID (UUID)
+  - `productName`: 상품명
+  - `productCategory`: 상품 카테고리
+  - `price`: 가격
 - 추천 순서는 유사도 점수 기반 내림차순
+- 이미 주문하거나 장바구니에 담은 상품은 제외됨
+
+### GET /api/v1/recommendations/personalized/{userId}/with-score
+
+개인화 추천 상품을 조회합니다 (검증용 - 유사도 점수 포함).
+
+#### 요청 파라미터
+- `userId`: 사용자 ID (UUID, 필수)
+- `topK`: 추천할 상품 개수 (기본값: 15)
+
+#### 응답 형식
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "productId": "550e8400-e29b-41d4-a716-446655440001",
+      "productName": "청송사과 프리미엄 1kg",
+      "productCategory": "과일",
+      "price": 15000,
+      "similarityScore": 1.85,
+      "matchReason": "사용자가 최근 '청송사과'를 검색하고 장바구니에 추가했습니다."
+    }
+  ]
+}
+```
+
+#### 응답 필드 설명
+- `similarityScore`: 유사도 점수 (0.0 ~ 2.0)
+  - 1.9 ~ 2.0: 매우 높은 유사도
+  - 1.7 ~ 1.9: 높은 유사도
+  - 1.5 ~ 1.7: 중간 유사도
+  - 1.0 ~ 1.5: 낮은 유사도
+- `matchReason`: 매칭 이유 설명
 
 #### 임베딩 생성 로직
 1. **로그 수집**: 최근 30일간의 로그를 각 타입별로 최대 5개씩 (총 최대 15개)
@@ -153,20 +203,24 @@ ProductEmbeddingService.embedProduct(productName)
 
 ## 👩‍🍳 레시피 추천 API
 
-장바구니 상품을 기반으로 레시피를 추천하고 부족 재료를 제안합니다.
+> ⚠️ **현재 미구현 상태**: 레시피 추천 기능은 아직 구현되지 않았습니다. `RecipeRecommendService`는 현재 빈 클래스입니다.
 
-### POST /api/v1/recommendations/recipes/from-cart
+장바구니 상품을 기반으로 레시피를 추천하고 부족 재료를 제안하는 기능입니다.
+
+### 예정된 API
+
+#### POST /api/v1/recommendations/recipes/from-cart
 
 장바구니 상품을 분석하여 레시피를 추천합니다.
 
 #### 요청 본문
 ```json
 {
-  "userId": 123
+  "userId": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
-#### 응답 형식
+#### 예상 응답 형식
 ```json
 {
   "success": true,
@@ -183,7 +237,7 @@ ProductEmbeddingService.embedProduct(productName)
         "name": "된장",
         "recommendedProducts": [
           {
-            "productId": 2001,
+            "productId": "550e8400-e29b-41d4-a716-446655440001",
             "productName": "국산 된장 500g",
             "price": 8500
           }
@@ -194,7 +248,7 @@ ProductEmbeddingService.embedProduct(productName)
 }
 ```
 
-#### 요청 방식별 엔드포인트
+#### 예정된 요청 방식별 엔드포인트
 
 **장바구니 기반**: `POST /api/v1/recommendations/recipes/from-cart`
 **직접 입력**: `POST /api/v1/recommendations/recipes/from-ingredients`
@@ -212,13 +266,13 @@ ProductEmbeddingService.embedProduct(productName)
 
 의미 기반 상품 검색 및 자동완성을 제공합니다.
 
-### GET /api/v1/search/products
+### GET /api/v1/search/product
 
 상품을 키워드로 검색합니다.
 
 #### 쿼리 파라미터
 ```text
-GET /api/v1/search/products?q=사과&category=과일&page=0&size=20
+GET /api/v1/search/product?q=사과&category=과일&page=0&size=20
 ```
 
 #### 요청 파라미터
@@ -229,6 +283,9 @@ GET /api/v1/search/products?q=사과&category=과일&page=0&size=20
 - `page`: 페이지 번호 (기본값: 0)
 - `size`: 페이지 크기 (기본값: 20)
 
+#### 요청 헤더
+- `X-User-Id` (선택): 사용자 ID. 존재하는 경우에만 검색 행동 로그를 남깁니다.
+
 #### 응답 형식
 ```json
 {
@@ -236,11 +293,10 @@ GET /api/v1/search/products?q=사과&category=과일&page=0&size=20
   "data": {
     "content": [
       {
-        "productId": 1001,
+        "productId": "550e8400-e29b-41d4-a716-446655440001",
         "productName": "GAP 인증 사과 1kg",
         "category": "과일",
-        "price": 12000,
-        "score": 0.95
+        "price": 12000
       }
     ],
     "pageable": {
@@ -252,13 +308,13 @@ GET /api/v1/search/products?q=사과&category=과일&page=0&size=20
 }
 ```
 
-### GET /api/v1/search/products/autocomplete
+### GET /api/v1/search/product/autocomplete
 
 상품명 자동완성 제안 목록을 조회합니다.
 
 #### 쿼리 파라미터
 ```text
-GET /api/v1/search/products/autocomplete?q=사과&limit=10
+GET /api/v1/search/product/autocomplete?q=사과&size=5
 ```
 
 #### 응답 형식
@@ -266,10 +322,14 @@ GET /api/v1/search/products/autocomplete?q=사과&limit=10
 {
   "success": true,
   "data": [
-    "사과",
-    "사과즙",
-    "사과차",
-    "사과잼"
+    {
+      "productId": "550e8400-e29b-41d4-a716-446655440001",
+      "productName": "사과"
+    },
+    {
+      "productId": "550e8400-e29b-41d4-a716-446655440002",
+      "productName": "사과즙"
+    }
   ]
 }
 ```
@@ -280,13 +340,13 @@ GET /api/v1/search/products/autocomplete?q=사과&limit=10
 
 체험 상품 검색 및 자동완성을 제공합니다.
 
-### GET /api/v1/search/experiences
+### GET /api/v1/search/experience
 
 체험 상품을 검색합니다.
 
 #### 쿼리 파라미터
 ```text
-GET /api/v1/search/experiences?q=농장체험&region=경기도&page=0&size=10
+GET /api/v1/search/experience?q=농장체험&region=경기도&page=0&size=10
 ```
 
 #### 요청 파라미터
@@ -304,7 +364,7 @@ GET /api/v1/search/experiences?q=농장체험&region=경기도&page=0&size=10
   "data": {
     "content": [
       {
-        "experienceId": 3001,
+        "experienceId": "550e8400-e29b-41d4-a716-446655440003",
         "experienceName": "전통 농장 체험",
         "region": "경기도 가평",
         "pricePerPerson": 35000,
@@ -315,14 +375,33 @@ GET /api/v1/search/experiences?q=농장체험&region=경기도&page=0&size=10
     "pageable": {
       "pageNumber": 0,
       "pageSize": 10
-    }
+    },
+    "totalElements": 5
   }
 }
 ```
 
-### GET /api/v1/search/experiences/autocomplete
+### GET /api/v1/search/experience/autocomplete
 
 체험명 자동완성 제안 목록을 조회합니다.
+
+#### 쿼리 파라미터
+```text
+GET /api/v1/search/experience/autocomplete?q=농&size=5
+```
+
+#### 응답 형식
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "experienceId": 3001,
+      "experienceName": "전통 농장 체험"
+    }
+  ]
+}
+```
 
 ---
 
@@ -330,14 +409,17 @@ GET /api/v1/search/experiences?q=농장체험&region=경기도&page=0&size=10
 
 상품과 체험을 동시에 검색합니다.
 
-### GET /api/v1/search/unified
+### GET /api/v1/search
 
 통합 검색 결과를 조회합니다.
 
 #### 쿼리 파라미터
 ```text
-GET /api/v1/search/unified?q=사과&page=0&size=20
+GET /api/v1/search?q=사과&page=0&size=10
 ```
+
+#### 요청 헤더
+- `X-User-Id` (선택): 사용자 ID. 존재하는 경우에만 검색 행동 로그를 남깁니다.
 
 #### 응답 형식
 ```json
@@ -345,13 +427,66 @@ GET /api/v1/search/unified?q=사과&page=0&size=20
   "success": true,
   "data": {
     "products": {
-      "content": [...],
-      "totalElements": 25
+      "content": [
+        {
+          "productId": 1001,
+          "productName": "GAP 인증 사과 1kg",
+          "category": "과일",
+          "price": 12000
+        }
+      ],
+      "totalElements": 25,
+      "pageNumber": 0,
+      "pageSize": 10
     },
     "experiences": {
-      "content": [...],
-      "totalElements": 5
+      "content": [
+        {
+          "experienceId": 3001,
+          "experienceName": "전통 농장 체험",
+          "region": "경기도 가평",
+          "pricePerPerson": 35000
+        }
+      ],
+      "totalElements": 5,
+      "pageNumber": 0,
+      "pageSize": 10
     }
+  }
+}
+```
+
+### GET /api/v1/search/autocomplete
+
+통합 자동완성 결과를 조회합니다.
+
+#### 쿼리 파라미터
+```text
+GET /api/v1/search/autocomplete?q=토마&pSize=5&eSize=5
+```
+
+#### 요청 파라미터
+- `q`: 검색 키워드 (필수)
+- `pSize`: 상품 자동완성 개수 (기본값: 5)
+- `eSize`: 체험 자동완성 개수 (기본값: 5)
+
+#### 응답 형식
+```json
+{
+  "success": true,
+  "data": {
+    "products": [
+      {
+        "productId": 1001,
+        "productName": "토마토"
+      }
+    ],
+    "experiences": [
+      {
+        "experienceId": 3001,
+        "experienceName": "토마토 수확 체험"
+      }
+    ]
   }
 }
 ```
@@ -360,13 +495,17 @@ GET /api/v1/search/unified?q=사과&page=0&size=20
 
 ## 💬 챗봇 API
 
-서비스 정책 관련 질문을 답변하는 AI 챗봇입니다.
+> ⚠️ **현재 미구현 상태**: 챗봇 기능은 아직 구현되지 않았습니다. `ChatbotController`는 현재 빈 클래스입니다.
 
-### POST /api/v1/chatbot/ask
+서비스 정책 관련 질문을 답변하는 AI 챗봇 기능입니다.
+
+### 예정된 API
+
+#### POST /api/v1/chatbot/ask
 
 질문을 입력받아 정책 기반 답변을 제공합니다.
 
-#### 요청 본문
+#### 예상 요청 본문
 ```json
 {
   "question": "환불은 언제까지 가능한가요?",
@@ -374,7 +513,7 @@ GET /api/v1/search/unified?q=사과&page=0&size=20
 }
 ```
 
-#### 응답 형식
+#### 예상 응답 형식
 ```json
 {
   "success": true,
@@ -391,7 +530,7 @@ GET /api/v1/search/unified?q=사과&page=0&size=20
 }
 ```
 
-#### 지원 질문 유형
+#### 예정된 지원 질문 유형
 
 ✅ **지원 가능**
 - 상품 주문/배송/환불 정책
@@ -402,6 +541,63 @@ GET /api/v1/search/unified?q=사과&page=0&size=20
 - 상품 추천 문의
 - 개인 계정 정보
 - 기술 지원
+
+---
+
+## 🛠️ 데이터 생성 API
+
+개발 및 테스트 편의를 위한 데이터 생성 도구입니다.
+
+### POST /api/v1/datagen/auto-amplify-products
+
+SQL 파일을 기반으로 LLM을 사용하여 상품 데이터를 자동 증폭하고 SQL 파일로 저장합니다.
+
+#### 요청 파라미터
+- `sqlFilePath`: SQL 파일 경로 (기본값: `scripts/generate-dummy/product_dummy_origin.sql`)
+
+#### 응답 형식
+```json
+{
+  "success": true,
+  "data": {
+    "originalCount": 10,
+    "amplifiedCount": 500,
+    "outputFilePath": "scripts/generate-dummy/amplified_product_data.csv"
+  }
+}
+```
+
+### POST /api/v1/datagen/dummy-logs
+
+하드코딩된 테스트 사용자에 대한 더미 행동 로그(검색/장바구니/주문)를 생성합니다.
+
+#### 설명
+- Kafka 이벤트가 아직 머지되지 않아 실제 이벤트를 받을 수 없을 때 사용
+- 각 타입별로 최대 5개씩 생성
+- `UserProfileEmbeddingService`가 사용하는 형식에 맞춰 생성
+- 검색 로그는 LLM으로 생성된 키워드 사용
+- 장바구니/주문 로그는 Elasticsearch에서 랜덤으로 가져온 상품 사용
+- 로그는 계속 쌓이며, `UserProfileEmbeddingService`는 최신순으로 각 타입별 최대 5개씩만 사용
+
+#### 응답 형식
+```text
+더미 로그 생성 완료 - 하드코딩된 테스트 사용자에 대한 로그가 생성되었습니다.
+⚠️ 중요: 추천 결과를 업데이트하려면 다음 API를 호출하세요:
+POST /api/v1/datagen/user-profile-embedding
+```
+
+### POST /api/v1/datagen/user-profile-embedding
+
+하드코딩된 테스트 사용자의 행동 로그를 기반으로 프로필 임베딩 벡터를 생성합니다.
+
+#### 설명
+- 최근 30일간의 로그(검색/장바구니/주문 각 최대 5개씩)를 사용하여 1536차원 벡터를 생성
+- 테스트 사용자 ID: `550e8400-e29b-41d4-a716-446655440000`
+
+#### 응답 형식
+```text
+사용자 프로필 임베딩 생성 완료 - User: 550e8400-e29b-41d4-a716-446655440000
+```
 
 ---
 
