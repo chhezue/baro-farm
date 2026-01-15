@@ -251,7 +251,7 @@ public class ProductSearchService {
     private void applyFuzzyMatch(BoolQuery.Builder b, String keyword) {
         b.should(m ->
             m.match(mm ->
-                mm.field("productName")
+                mm.field("productName.raw")
                   .query(keyword)
                   .fuzziness("AUTO") // ES가 자동으로 편집 거리 계산
                   .prefixLength(1)   // 앞 글자 1개는 정확히 일치해야 함

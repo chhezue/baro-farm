@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -34,7 +35,9 @@ public class ProductSearchController {
         // UUID는 선택 사항: 존재하는 경우에만 사용자 행동 로그를 남긴다.
         @RequestHeader(value = "X-User-Id", required = false) UUID userId,
         @Parameter(description = "검색 조건 DTO") @ModelAttribute ProductSearchRequest request,
-        @Parameter(description = "페이지 정보") Pageable pageable) {
+        @Parameter(description = "페이지 번호") @RequestParam(defaultValue = "0") int page,
+        @Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
         return service.searchOnlyProducts(userId, request, pageable);
     }
 
