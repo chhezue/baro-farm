@@ -1,6 +1,5 @@
-package com.barofarm.ai.search.infrastructure.event;
+package com.barofarm.support.event;
 
-import java.math.BigInteger;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -36,7 +35,7 @@ public class ReservationEvent {
         private LocalDate reservedDate;
         private String reservedTimeSlot;
         private Integer headCount;
-        private BigInteger totalPrice;
+        private Long totalPrice;
         private String status;
         private Instant createdAt;
     }
