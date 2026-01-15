@@ -1,18 +1,15 @@
 package com.barofarm.buyer.inventory.domain;
 
-import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INSUFFICIENT_STOCK;
-import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INVALID_REQUEST;
-
 import com.barofarm.buyer.common.entity.BaseEntity;
 import com.barofarm.buyer.common.exception.CustomException;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.*;
 
 @Entity
 @Getter
@@ -24,23 +21,78 @@ public class Inventory extends BaseEntity {
     @Column(name = "id", columnDefinition = "BINARY(16)")
     private UUID id;
 
-    @Column(nullable = false, unique = true, columnDefinition = "BINARY(16)")
+    @Column(nullable = false, columnDefinition = "BINARY(16)")
     private UUID productId;
 
     @Column(nullable = false)
-    private int quantity;
+    private Long quantity;
 
-    public void decrease(int amount) {
-        if (amount <= 0) {
-            throw new CustomException(INVALID_REQUEST);
-        }
-        if (this.quantity < amount) {
-            throw new CustomException(INSUFFICIENT_STOCK);
-        }
-        this.quantity -= amount;
+    @Column(nullable = false)
+    private Long reservedQuantity;
+
+    @Column(name = "unit", nullable = false, length = 20)
+    private Integer unit;
+
+    @OneToMany(mappedBy = "inventory", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<InventoryReservation> inventoryReservations = new ArrayList<>();
+
+    @Version
+    private Long version;
+
+    private Inventory(UUID id, UUID productId, Long quantity, Integer unit) {
+        this.id = id;
+        this.productId = productId;
+        this.quantity = quantity;
+        this.reservedQuantity = 0L;
+        this.unit = unit;
     }
 
-    public void increase(int quantity) {
-        this.quantity += quantity;
+    public static Inventory of(UUID productId, Long quantity, Integer unit) {
+        return new Inventory(UUID.randomUUID(), productId, quantity, unit);
+    }
+
+    public void markReserve(Long requestedQuantity) {
+        if (requestedQuantity == null || requestedQuantity <= 0) {
+            throw new CustomException(INVALID_REQUEST);
+        }
+        long reservableQuantity = this.quantity - this.reservedQuantity;
+        if (reservableQuantity < requestedQuantity) {
+            throw new CustomException(INSUFFICIENT_STOCK);
+        }
+        this.reservedQuantity += requestedQuantity;
+    }
+
+    public void confirm(Long requestedQuantity) {
+        if (requestedQuantity == null || requestedQuantity <= 0) {
+            throw new CustomException(INVALID_REQUEST);
+        }
+
+        if(this.quantity < requestedQuantity){
+            throw new CustomException(INSUFFICIENT_STOCK);
+        }
+
+        if (this.reservedQuantity < requestedQuantity) {
+            throw new CustomException(RESERVED_QUANTITY_NOT_ENOUGH);
+        }
+
+        this.quantity -= requestedQuantity;
+        this.reservedQuantity -= requestedQuantity;
+    }
+
+    public void markCancel(Long requestedQuantity) {
+        if (requestedQuantity == null || requestedQuantity <= 0) {
+            throw new CustomException(INVALID_REQUEST);
+        }
+
+        if (this.reservedQuantity < requestedQuantity) {
+            throw new CustomException(RESERVED_QUANTITY_NOT_ENOUGH);
+        }
+
+        this.reservedQuantity -= requestedQuantity;
+    }
+
+    public void addInventoryReservation(InventoryReservation inventoryReservation){
+        this.inventoryReservations.add(inventoryReservation);
+        inventoryReservation.assignInventory(this);
     }
 }

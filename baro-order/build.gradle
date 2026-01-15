@@ -47,6 +47,10 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
     implementation 'org.springframework.cloud:spring-cloud-starter-config' // Config Server 클라이언트
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    implementation 'org.springframework.retry:spring-retry'
+
+    // kafka 연결
+    implementation 'org.springframework.kafka:spring-kafka'
 
     // Database
     runtimeOnly 'com.mysql:mysql-connector-j'
