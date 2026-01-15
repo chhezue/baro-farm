@@ -34,13 +34,13 @@ spec:
                 secretKeyRef:
                   name: baro-secrets
                   key: REDIS_PASSWORD
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "500m"
+          # resources:
+          #   requests:
+          #     memory: "256Mi"
+          #     cpu: "100m"
+          #   limits:
+          #     memory: "512Mi"
+          #     cpu: "500m"
           livenessProbe:
             exec:
               command:

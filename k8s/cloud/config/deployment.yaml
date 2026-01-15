@@ -8,6 +8,11 @@ metadata:
     component: cloud
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 0
   selector:
     matchLabels:
       app: config
@@ -17,6 +22,17 @@ spec:
         app: config
         component: cloud
     spec:
+      hostNetwork: true
+      nodeSelector:
+        kubernetes.io/hostname: ip-10-0-5-208  # 마스터 노드에 고정 배치
+      tolerations:
+        # Master node taint 허용 (master node 메모리 보호를 위한 taint가 설정된 경우)
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          # NoSchedule: 새로운 Pod는 스케줄링하지 않음 (이미 실행 중인 Pod는 유지)
+          # PreferNoSchedule: 가능하면 스케줄링하지 않음 (부득이하면 허용)
+          # NoExecute: 새로운 Pod는 스케줄링하지 않음 + 이미 실행 중인 Pod도 제거 가능
+          effect: NoSchedule
       containers:
         - name: config
           image: ghcr.io/do-develop-space/config:latest
@@ -26,24 +42,29 @@ spec:
               name: http
               protocol: TCP
           env:
-            # SPRING_PROFILES_ACTIVE는 설정하지 않음 (기본값 application.yml 사용)
+            - name: SPRING_PROFILES_ACTIVE
+              value: "git"  # Git 모드 사용 (application.yml에 git 설정이 있으므로 필요)
             # 로컬 개발 시에만 SPRING_PROFILES_ACTIVE=local로 설정하여 application-local.yml 사용
+            - name: SERVER_ADDRESS
+              value: "0.0.0.0"  # hostNetwork: true 사용 시 모든 네트워크 인터페이스에 바인딩
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-              value: "http://eureka:8761/eureka/"  # Kubernetes Service DNS 사용
+              value: "http://localhost:8761/eureka/"  # hostNetwork: true 사용 시 localhost
             - name: JAVA_OPTS
-              value: "-Xms128m -Xmx256m"
+              value: "-Xms64m -Xmx128m -Djava.net.preferIPv4Stack=true"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=128m -XX:CompressedClassSpaceSize=64m -XX:MaxDirectMemorySize=32m -XX:NativeMemoryTracking=summary"
             # Git 저장소 설정 (선택사항, 기본값 사용 시 생략 가능)
             - name: CONFIG_GIT_URI
               value: "https://github.com/prgrms-be-adv-devcourse/beadv2_2_dogs_BE"
             - name: CONFIG_GIT_BRANCH
               value: "main"
-          resources:
-            requests:
-              memory: "128Mi"
-              cpu: "100m"
-            limits:
-              memory: "256Mi"
-              cpu: "500m"
+          # resources:
+          #   requests:
+          #     memory: "128Mi"
+          #     cpu: "100m"
+          #   limits:
+          #     memory: "256Mi"
+          #     cpu: "500m"
           livenessProbe:
             httpGet:
               path: /actuator/health
@@ -64,8 +85,8 @@ spec:
             httpGet:
               path: /actuator/health
               port: 8888
-            initialDelaySeconds: 10
+            initialDelaySeconds: 60  # Eureka 연결 대기 시간 확보
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 12
+            failureThreshold: 20  # 최대 60 + (20 * 10) = 260초 대기
 

@@ -1,5 +1,5 @@
 server:
-  port: 8089
+  port: ${SERVER_PORT:8089}  # 환경 변수로 오버라이드 가능 (Config Server 설정 덮어쓰기 방지)
 
 api:
   v1: /api/v1
@@ -7,6 +7,8 @@ api:
 spring:
   application:
     name: support-service
+  config:
+    import: ${SPRING_CONFIG_IMPORT:optional:configserver:http://config:8888}
   main:
     allow-bean-definition-overriding: true
   datasource:
@@ -23,14 +25,7 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
         use_sql_comments: true
-  batch:
-    job:
-      enabled: false
-  task:
-    scheduling:
-      cron:
-        settlement: "0 0 0 1 * *"
-
+        
   mail:
     host: smtp.naver.com
     port: 465
@@ -43,17 +38,25 @@ spring:
       
   elasticsearch:
     uris: ${SPRING_ELASTICSEARCH_URIS:http://elasticsearch:9200}
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      # password: ${SPRING_REDIS_PASSWORD:}  # 필요시
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
     consumer:
       group-id: support-service
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "*"
-        spring.json.type.mapping: productEvent:com.barofarm.support.event.ProductEvent
+        spring.json.type.mapping: productEvent:com.barofarm.support.search.infrastructure.event.ProductEvent
         spring.json.use.type.headers: false
-        spring.json.value.default.type: com.barofarm.support.event.ProductEvent
+        spring.json.value.default.type: com.barofarm.support.search.infrastructure.event.ProductEvent
         # 재연결 설정
         reconnect.backoff.ms: 50          # 재연결 시 초기 백오프 시간 (50ms)
         reconnect.backoff.max.ms: 1000    # 재연결 시 최대 백오프 시간 (1초)
@@ -79,6 +82,9 @@ spring:
 
 eureka:
   client:
+    # Eureka 서버에 등록 (Config Server의 eureka-server 설정과 충돌 방지)
+    register-with-eureka: true
+    fetch-registry: true
     service-url:
       # Docker 환경에서는 서비스 이름(eureka) 사용, 로컬에서는 localhost 사용
       # 환경 변수 EUREKA_CLIENT_SERVICEURL_DEFAULTZONE으로 오버라이드 가능

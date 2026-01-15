@@ -4,7 +4,6 @@ import com.barofarm.support.experience.application.dto.ExperienceServiceRequest;
 import com.barofarm.support.experience.domain.ExperienceStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
-import java.math.BigInteger;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -25,7 +24,7 @@ public class ExperienceUpdateRequest {
 
     @Schema(description = "1인당 가격 (원)", example = "30000", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     @Min(value = 0, message = "가격은 0원 이상이어야 합니다")
-    private BigInteger pricePerPerson;
+    private Long pricePerPerson;
 
     @Schema(description = "수용 인원", example = "20", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
     @Min(value = 1, message = "수용 인원은 1명 이상이어야 합니다")
