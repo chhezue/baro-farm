@@ -18,4 +18,3 @@ public record CustomPage<T>(
     boolean hasPrevious
 ) {
 }
-

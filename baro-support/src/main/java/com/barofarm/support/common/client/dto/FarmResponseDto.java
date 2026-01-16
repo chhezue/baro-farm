@@ -10,4 +10,3 @@ public record FarmResponseDto<T>(
     String message
 ) {
 }
-

@@ -7,9 +7,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * DLQ(Dead Letter Queue) 토픽을 구독하여 실패한 메시지를 모니터링하는 Consumer
- * 
+ *
  * 목적: DLQ로 전송된 메시지를 로그로 확인하여 문제를 추적
- * 
+ *
  * DLQ 토픽 명명 규칙:
  * - Consumer DLQ: 원본 토픽명 + ".DLQ" (예: "farm-events" → "farm-events.DLQ")
  * - Producer DLQ: 원본 토픽명 + ".producer.DLQ" (예: "farm-events" → "farm-events.producer.DLQ")
@@ -28,7 +28,7 @@ public class DlqEventConsumer {
             "💀 [DLQ_MONITOR] Failed message received from Consumer DLQ - "
                 + "Topic: {}, Partition: {}, Offset: {}, Key: {}, Value: {}",
             record.topic(), record.partition(), record.offset(), record.key(), record.value());
-        
+
         // TODO: 필요시 여기에 알림 발송, 메트릭 수집 등의 로직 추가 예정
     }
 
@@ -42,7 +42,7 @@ public class DlqEventConsumer {
             "💀 [PRODUCER_DLQ_MONITOR] Failed message received from Producer DLQ - "
                 + "Topic: {}, Partition: {}, Offset: {}, Key: {}, Value: {}",
             record.topic(), record.partition(), record.offset(), record.key(), record.value());
-        
+
         // TODO: 필요시 여기에 알림 발송, 메트릭 수집 등의 로직 추가 예정
     }
 

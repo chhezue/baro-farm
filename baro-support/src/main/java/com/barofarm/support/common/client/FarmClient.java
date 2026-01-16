@@ -13,10 +13,10 @@ import org.springframework.web.bind.annotation.RequestHeader;
 
 /**
  * Seller Service의 Farm API를 호출하는 Feign 클라이언트
- * 
+ *
  * Eureka 사용 시: name = "seller-service" (Eureka에 등록된 서비스 이름)
  * Kubernetes 직접 접근 시: name = "baro-seller", url = "http://baro-seller:8085"
- * 
+ *
  * 현재는 Eureka를 사용하므로 "seller-service" 사용
  */
 @FeignClient(name = "seller-service", path = "${api.v1}/farms")

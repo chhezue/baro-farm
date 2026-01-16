@@ -27,11 +27,11 @@ public class ReservationEventPublisher {
         log.info(
             "📨 [EVENT_PUBLISHER] Building RESERVATION_CREATED - Reservation ID: {}, Experience ID: {}, Buyer ID: {}",
             reservation.getReservationId(), reservation.getExperienceId(), reservation.getBuyerId());
-        
+
         ReservationEvent event = buildEvent(ReservationEventType.RESERVATION_CREATED, reservation);
         log.info("📨 [EVENT_PUBLISHER] Event built successfully - Type: {}, Reservation ID: {}",
             event.getType(), event.getData().getReservationId());
-        
+
         producer.send(event);
     }
 
@@ -52,7 +52,7 @@ public class ReservationEventPublisher {
             log.info(
                 "📨 [EVENT_PUBLISHER] Building {} - Reservation ID: {}",
                 eventType, reservation.getReservationId());
-            
+
             ReservationEvent event = buildEvent(eventType, reservation);
             producer.send(event);
         }
@@ -68,8 +68,8 @@ public class ReservationEventPublisher {
             .headCount(reservation.getHeadCount())
             .totalPrice(reservation.getTotalPrice())
             .status(reservation.getStatus().name())
-            .createdAt(reservation.getCreatedAt() != null 
-                ? reservation.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant() 
+            .createdAt(reservation.getCreatedAt() != null
+                ? reservation.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant()
                 : Instant.now())
             .build();
 
@@ -79,4 +79,3 @@ public class ReservationEventPublisher {
             .build();
     }
 }
-

@@ -3,6 +3,7 @@ package com.barofarm.support.experience.application;
 import com.barofarm.support.common.exception.CustomException;
 import com.barofarm.support.experience.application.dto.ReservationServiceRequest;
 import com.barofarm.support.experience.application.dto.ReservationServiceResponse;
+import com.barofarm.support.experience.application.event.ReservationEventPublisher;
 import com.barofarm.support.experience.domain.Experience;
 import com.barofarm.support.experience.domain.ExperienceRepository;
 import com.barofarm.support.experience.domain.ExperienceStatus;
@@ -11,7 +12,6 @@ import com.barofarm.support.experience.domain.ReservationRepository;
 import com.barofarm.support.experience.domain.ReservationStatus;
 import com.barofarm.support.experience.exception.ExperienceErrorCode;
 import com.barofarm.support.experience.exception.ReservationErrorCode;
-import com.barofarm.support.experience.application.event.ReservationEventPublisher;
 import com.barofarm.support.experience.infrastructure.cache.FarmCacheService;
 import jakarta.persistence.OptimisticLockException;
 import java.util.UUID;
@@ -245,7 +245,7 @@ public class ReservationService {
         Reservation reservation = request.toEntity();
         reservation.changeStatus(ReservationStatus.REQUESTED);
         Reservation savedReservation = reservationRepository.save(reservation);
-        
+
         // 예약 생성 이벤트 발행 (비동기)
         try {
             reservationEventPublisher.publishReservationCreated(savedReservation);
@@ -254,7 +254,7 @@ public class ReservationService {
             // 로깅만 수행하고 계속 진행
             log.error("예약 생성 이벤트 발행 실패: reservationId={}", savedReservation.getReservationId(), e);
         }
-        
+
         return ReservationServiceResponse.from(savedReservation);
     }
 
@@ -339,20 +339,20 @@ public class ReservationService {
             // JPA 더티 체킹, @Transactional 종료 시 자동으로 변경사항이 DB에 반영됨
             // @Version 필드가 있으면 자동으로 낙관적 락 적용
             // 저장 시 버전이 변경되면 OptimisticLockException 발생
-            
+
             // 예약 상태 변경 이벤트 발행 (비동기)
             try {
                 reservationEventPublisher.publishReservationStatusChanged(reservation);
             } catch (Exception e) {
                 // 이벤트 발행 실패는 상태 변경 실패로 이어지지 않음
-                log.error("예약 상태 변경 이벤트 발행 실패: reservationId={}, status={}", 
+                log.error("예약 상태 변경 이벤트 발행 실패: reservationId={}, status={}",
                     reservation.getReservationId(), status, e);
             }
-            
+
             return ReservationServiceResponse.from(reservation);
         } catch (OptimisticLockException e) {
             // 낙관적 락 실패: 다른 트랜잭션이 먼저 수정함
-            log.warn("예약 상태 변경 시 동시 수정 감지: reservationId={}, status={}", 
+            log.warn("예약 상태 변경 시 동시 수정 감지: reservationId={}, status={}",
                 reservationId, status, e);
             throw new CustomException(ReservationErrorCode.CONCURRENT_MODIFICATION);
         }

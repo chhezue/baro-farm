@@ -51,7 +51,7 @@ public class FarmCacheService {
                 return true;
             }
         } catch (Exception e) {
-            log.warn("⚠️ [CACHE] Redis Set 조회 실패, API로 fallback - userId: {}, farmId: {}, error: {}", 
+            log.warn("⚠️ [CACHE] Redis Set 조회 실패, API로 fallback - userId: {}, farmId: {}, error: {}",
                 userId, farmId, e.getMessage());
         }
 
@@ -71,7 +71,7 @@ public class FarmCacheService {
                         redisTemplate.expire(setKey, TTL);
                         log.debug("💾 [CACHE] Farm ID added to Redis Set - userId: {}, farmId: {}", userId, farmId);
                     } catch (Exception e) {
-                        log.warn("⚠️ [CACHE] Redis Set 저장 실패 - userId: {}, farmId: {}, error: {}", 
+                        log.warn("⚠️ [CACHE] Redis Set 저장 실패 - userId: {}, farmId: {}, error: {}",
                             userId, farmId, e.getMessage());
                     }
                 }
@@ -83,10 +83,10 @@ public class FarmCacheService {
                 // farm이 존재하지 않음
                 return false;
             }
-            log.warn("⚠️ [CACHE] Farm 접근 권한 확인 실패 - userId: {}, farmId: {}, error: {}", 
+            log.warn("⚠️ [CACHE] Farm 접근 권한 확인 실패 - userId: {}, farmId: {}, error: {}",
                 userId, farmId, e.getMessage());
         } catch (Exception e) {
-            log.warn("⚠️ [CACHE] Farm 접근 권한 확인 중 오류 - userId: {}, farmId: {}, error: {}", 
+            log.warn("⚠️ [CACHE] Farm 접근 권한 확인 중 오류 - userId: {}, farmId: {}, error: {}",
                 userId, farmId, e.getMessage());
         }
 
@@ -146,21 +146,21 @@ public class FarmCacheService {
         try {
             // /me 엔드포인트를 사용하여 모든 farm 조회 (큰 사이즈로 요청)
             PageRequest pageRequest = PageRequest.of(0, 100); // 최대 100개까지
-            FarmResponseDto<CustomPage<FarmListInfo>> response = 
+            FarmResponseDto<CustomPage<FarmListInfo>> response =
                 farmClient.getMyFarmList(userId, pageRequest);
 
             // 응답에서 모든 farm의 ID 추출
             UUID firstFarmId = null;
-            
-            if (response != null && response.data() != null 
-                && response.data().content() != null 
+
+            if (response != null && response.data() != null
+                && response.data().content() != null
                 && !response.data().content().isEmpty()) {
-                
+
                 // 3. 모든 farm을 Redis Set에 저장 (다음 요청을 위해)
                 try {
                     // 기존 Set 삭제 후 새로 추가 (최신 상태 유지)
                     redisTemplate.delete(setKey);
-                    
+
                     // 모든 farmId를 Set에 추가
                     for (FarmListInfo farm : response.data().content()) {
                         redisTemplate.opsForSet().add(setKey, farm.id().toString());
@@ -168,11 +168,11 @@ public class FarmCacheService {
                             firstFarmId = farm.id(); // 첫 번째 farm 저장
                         }
                     }
-                    
+
                     // Set에 TTL 설정
                     redisTemplate.expire(setKey, TTL);
-                    
-                    log.debug("💾 [CACHE] All farms saved to Redis Set - userId: {}, farmCount: {}, firstFarmId: {}", 
+
+                    log.debug("💾 [CACHE] All farms saved to Redis Set - userId: {}, farmCount: {}, firstFarmId: {}",
                         userId, response.data().content().size(), firstFarmId);
                 } catch (Exception e) {
                     // Redis 저장 실패해도 계속 진행 (Feign 결과는 반환)
@@ -202,7 +202,7 @@ public class FarmCacheService {
             // Set에 farmId 추가
             redisTemplate.opsForSet().add(setKey, farmId.toString());
             redisTemplate.expire(setKey, TTL);
-            
+
             log.info("🔄 [CACHE] Farm cache updated - userId: {}, farmId: {}", userId, farmId);
         } catch (Exception e) {
             log.warn("⚠️ [CACHE] Redis 캐시 업데이트 실패 - userId: {}, farmId: {}, error: {}", userId, farmId, e.getMessage());
@@ -221,13 +221,13 @@ public class FarmCacheService {
         try {
             // Set에서 farmId 제거
             redisTemplate.opsForSet().remove(setKey, farmId.toString());
-            
+
             // Set이 비어있으면 전체 삭제
             Long setSize = redisTemplate.opsForSet().size(setKey);
             if (setSize == null || setSize == 0) {
                 redisTemplate.delete(setKey);
             }
-            
+
             log.info("🗑️ [CACHE] Farm cache deleted - userId: {}, farmId: {}", userId, farmId);
         } catch (Exception e) {
             log.warn("⚠️ [CACHE] Redis 캐시 삭제 실패 - userId: {}, farmId: {}, error: {}", userId, farmId, e.getMessage());
@@ -250,4 +250,3 @@ public class FarmCacheService {
         }
     }
 }
-

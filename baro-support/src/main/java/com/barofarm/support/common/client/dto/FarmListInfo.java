@@ -21,4 +21,3 @@ public record FarmListInfo(
     Object image  // 상세 정보 불필요하므로 Object로 처리
 ) {
 }
-

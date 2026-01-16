@@ -30,10 +30,10 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * ReservationService 통합 테스트
  * 동시성 제어(비관적 락, 낙관적 락) 검증
- * 
+ *
  * 실제 DB, Redis 등 외부 의존성이 필요
  * 실행하려면 test 프로파일 설정과 테스트용 DB/Redis가 필요
- * 
+ *
  * 통합 테스트 실행 방법:
  * 1. test 프로파일용 application-test.yml 설정
  * 2. 테스트용 DB 및 Redis 실행
@@ -179,4 +179,3 @@ class ReservationServiceIntegrationTest {
         assertThat(finalReservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
     }
 }
-

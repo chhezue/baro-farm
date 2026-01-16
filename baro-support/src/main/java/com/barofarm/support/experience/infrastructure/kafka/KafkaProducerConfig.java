@@ -26,10 +26,10 @@ public class KafkaProducerConfig {
         config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
-        
+
         // Producer 재시도 설정
         config.put(ProducerConfig.RETRIES_CONFIG, 2); // 최대 2번 재시도
-        
+
         // ACKS 설정: 브로커로부터 받을 확인(acknowledgment) 수준
         // 옵션:
         // "0": 브로커 응답을 기다리지 않음 (가장 빠르지만 메시지 손실 위험 높음)
@@ -38,7 +38,7 @@ public class KafkaProducerConfig {
         // Reservation 이벤트는 알림 등에 사용되므로 "all" (메시지 손실 최소화)
         // 대부분의 경우 "1" 사용 (빠르고 안전)
         config.put(ProducerConfig.ACKS_CONFIG, "1");
-        
+
         config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true); // 중복 방지
 
         return new DefaultKafkaProducerFactory<>(config);
@@ -49,4 +49,3 @@ public class KafkaProducerConfig {
         return new KafkaTemplate<>(reservationEventProducerFactory());
     }
 }
-
