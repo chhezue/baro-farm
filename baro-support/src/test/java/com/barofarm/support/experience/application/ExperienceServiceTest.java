@@ -26,6 +26,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -40,6 +41,9 @@ class ExperienceServiceTest {
 
     @Mock
     private FarmClient farmClient;
+
+    @Mock
+    private ApplicationEventPublisher applicationEventPublisher;
 
     @InjectMocks
     private ExperienceService experienceService;
@@ -209,7 +213,7 @@ class ExperienceServiceTest {
         assertThat(responsePage.getContent()).hasSize(2);
         assertThat(responsePage.getContent()).extracting("title").contains("딸기 수확 체험", "블루베리 수확 체험");
         // FarmClient는 호출되지 않아야 한다 (farmId를 직접 전달했기 때문)
-        verify(farmId, never());
+        verify(farmClient, never()).getFarmIdByUserId(userId);
         verify(experienceRepository, times(1)).findByFarmId(customFarmId, pageable);
     }
 }
