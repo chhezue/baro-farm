@@ -16,7 +16,6 @@ import com.barofarm.support.experience.application.dto.ReservationServiceRespons
 import com.barofarm.support.experience.domain.ReservationStatus;
 import com.barofarm.support.experience.presentation.dto.ReservationRequest;
 import com.barofarm.support.experience.presentation.dto.ReservationResponse;
-import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -46,8 +45,6 @@ class ReservationControllerTest {
     private UUID buyerId;
     private UUID reservationId;
     private UUID userId;
-    private String userEmail;
-    private String userRole;
     private ReservationRequest request;
     private ReservationServiceResponse serviceResponse;
 
@@ -57,14 +54,12 @@ class ReservationControllerTest {
         buyerId = UUID.randomUUID();
         reservationId = UUID.randomUUID();
         userId = buyerId; // 기본적으로 buyerId와 동일하게 설정
-        userEmail = "test@example.com";
-        userRole = "BUYER";
 
         request = new ReservationRequest(experienceId, buyerId, LocalDate.of(2025, 3, 15), "10:00-12:00", 2,
-                BigInteger.valueOf(30000));
+                30000L);
 
         serviceResponse = new ReservationServiceResponse(reservationId, experienceId, buyerId,
-                LocalDate.of(2025, 3, 15), "10:00-12:00", 2, BigInteger.valueOf(30000), ReservationStatus.REQUESTED,
+                LocalDate.of(2025, 3, 15), "10:00-12:00", 2, 30000L, ReservationStatus.REQUESTED,
                 LocalDateTime.now(), LocalDateTime.now());
     }
 
@@ -73,7 +68,7 @@ class ReservationControllerTest {
     void createReservation() {
         when(reservationService.createReservation(eq(userId), any())).thenReturn(serviceResponse);
 
-        ResponseDto<ReservationResponse> result = reservationController.createReservation(userId, userEmail, userRole, request);
+        ResponseDto<ReservationResponse> result = reservationController.createReservation(userId, request);
 
         assertThat(result).isNotNull();
         assertThat(result.data()).isNotNull();
@@ -89,7 +84,7 @@ class ReservationControllerTest {
         when(reservationService.getReservationById(eq(userId), eq(reservationId))).thenReturn(serviceResponse);
 
         // when
-        ResponseDto<ReservationResponse> result = reservationController.getReservationById(userId, userEmail, userRole, reservationId);
+        ResponseDto<ReservationResponse> result = reservationController.getReservationById(userId, reservationId);
 
         // then
         assertThat(result).isNotNull();
@@ -105,7 +100,7 @@ class ReservationControllerTest {
         UUID sellerId = UUID.randomUUID();
         UUID reservationId2 = UUID.randomUUID();
         ReservationServiceResponse serviceResponse2 = new ReservationServiceResponse(reservationId2, experienceId,
-                buyerId, LocalDate.of(2025, 3, 16), "14:00-16:00", 3, BigInteger.valueOf(45000),
+                buyerId, LocalDate.of(2025, 3, 16), "14:00-16:00", 3, 45000L,
                 ReservationStatus.CONFIRMED, LocalDateTime.now(), LocalDateTime.now());
 
         Pageable pageable = PageRequest.of(0, 10);
@@ -115,9 +110,7 @@ class ReservationControllerTest {
                 .thenReturn(servicePage);
 
         // when
-        String sellerEmail = "seller@example.com";
-        String sellerRole = "SELLER";
-        ResponseDto<CustomPage<ReservationResponse>> result = reservationController.getReservations(sellerId, sellerEmail, sellerRole, experienceId, null,
+        ResponseDto<CustomPage<ReservationResponse>> result = reservationController.getReservations(sellerId, experienceId, null,
                 pageable);
 
         // then
@@ -134,7 +127,7 @@ class ReservationControllerTest {
         // given
         UUID otherExperienceId = UUID.randomUUID();
         ReservationServiceResponse serviceResponse2 = new ReservationServiceResponse(UUID.randomUUID(),
-                otherExperienceId, buyerId, LocalDate.of(2025, 3, 16), "14:00-16:00", 1, BigInteger.valueOf(15000),
+                otherExperienceId, buyerId, LocalDate.of(2025, 3, 16), "14:00-16:00", 1, 15000L,
                 ReservationStatus.REQUESTED, LocalDateTime.now(), LocalDateTime.now());
 
         Pageable pageable = PageRequest.of(0, 10);
@@ -143,7 +136,7 @@ class ReservationControllerTest {
         when(reservationService.getReservationsByBuyerId(eq(userId), eq(buyerId), any(Pageable.class))).thenReturn(servicePage);
 
         // when
-        ResponseDto<CustomPage<ReservationResponse>> result = reservationController.getReservations(userId, userEmail, userRole, null, buyerId,
+        ResponseDto<CustomPage<ReservationResponse>> result = reservationController.getReservations(userId, null, buyerId,
                 pageable);
 
         // then
@@ -161,7 +154,7 @@ class ReservationControllerTest {
         Pageable pageable = PageRequest.of(0, 10);
 
         // when
-        ResponseDto<CustomPage<ReservationResponse>> result = reservationController.getReservations(userId, userEmail, userRole, null, null,
+        ResponseDto<CustomPage<ReservationResponse>> result = reservationController.getReservations(userId, null, null,
                 pageable);
 
         // then
@@ -178,16 +171,14 @@ class ReservationControllerTest {
         // given
         UUID sellerId = UUID.randomUUID();
         ReservationServiceResponse updatedServiceResponse = new ReservationServiceResponse(reservationId, experienceId,
-                buyerId, LocalDate.of(2025, 3, 15), "10:00-12:00", 2, BigInteger.valueOf(30000),
+                buyerId, LocalDate.of(2025, 3, 15), "10:00-12:00", 2, 30000L,
                 ReservationStatus.CONFIRMED, LocalDateTime.now(), LocalDateTime.now());
 
         when(reservationService.updateReservationStatus(eq(sellerId), eq(reservationId), eq(ReservationStatus.CONFIRMED)))
                 .thenReturn(updatedServiceResponse);
 
         // when
-        String sellerEmail = "seller@example.com";
-        String sellerRole = "SELLER";
-        ResponseDto<ReservationResponse> result = reservationController.updateReservationStatus(sellerId, sellerEmail, sellerRole, reservationId,
+        ResponseDto<ReservationResponse> result = reservationController.updateReservationStatus(sellerId, reservationId,
                 ReservationStatus.CONFIRMED);
 
         // then
@@ -204,7 +195,7 @@ class ReservationControllerTest {
         doNothing().when(reservationService).deleteReservation(userId, reservationId);
 
         // when
-        ResponseDto<Void> result = reservationController.deleteReservation(userId, userEmail, userRole, reservationId);
+        ResponseDto<Void> result = reservationController.deleteReservation(userId, reservationId);
 
         // then
         assertThat(result).isNotNull();

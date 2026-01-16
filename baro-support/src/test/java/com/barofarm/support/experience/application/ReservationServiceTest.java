@@ -1,3 +1,5 @@
+
+
 package com.barofarm.support.experience.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -15,6 +17,7 @@ import com.barofarm.support.common.client.FarmClient;
 import com.barofarm.support.common.exception.CustomException;
 import com.barofarm.support.experience.application.dto.ReservationServiceRequest;
 import com.barofarm.support.experience.application.dto.ReservationServiceResponse;
+import com.barofarm.support.experience.application.event.ReservationEventPublisher;
 import com.barofarm.support.experience.domain.Experience;
 import com.barofarm.support.experience.domain.ExperienceRepository;
 import com.barofarm.support.experience.domain.ExperienceStatus;
@@ -22,7 +25,7 @@ import com.barofarm.support.experience.domain.Reservation;
 import com.barofarm.support.experience.domain.ReservationRepository;
 import com.barofarm.support.experience.domain.ReservationStatus;
 import com.barofarm.support.experience.exception.ReservationErrorCode;
-import java.math.BigInteger;
+import com.barofarm.support.experience.infrastructure.cache.FarmCacheService;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Optional;
@@ -52,6 +55,12 @@ class ReservationServiceTest {
     @Mock
     private FarmClient farmClient;
 
+    @Mock
+    private FarmCacheService farmCacheService;
+
+    @Mock
+    private ReservationEventPublisher reservationEventPublisher;
+
     @InjectMocks
     private ReservationService reservationService;
 
@@ -70,18 +79,18 @@ class ReservationServiceTest {
         reservationId = UUID.randomUUID();
         farmId = UUID.randomUUID();
 
-        validRequest = new ReservationServiceRequest(experienceId, buyerId, LocalDate.of(2025, 3, 15), "10:00-12:00", 2,
-                BigInteger.valueOf(30000), null);
+        validRequest = new ReservationServiceRequest(experienceId, buyerId, LocalDate.of(2025, 3, 15),
+            "10:00-12:00", 2, 30000L, null);
 
         validReservation = new Reservation(reservationId, experienceId, buyerId, LocalDate.of(2025, 3, 15),
-                "10:00-12:00", 2, BigInteger.valueOf(30000), ReservationStatus.REQUESTED);
+                "10:00-12:00", 2, 30000L, ReservationStatus.REQUESTED);
 
         // Experience는 protected 생성자이므로 Reflection을 사용하거나 Mock을 사용
         // 예약 날짜(2025-03-15)가 체험 가능 기간 내에 있도록 설정
         java.time.LocalDateTime availableStart = java.time.LocalDateTime.of(2025, 3, 1, 9, 0);
         java.time.LocalDateTime availableEnd = java.time.LocalDateTime.of(2025, 3, 31, 18, 0);
         experience = new Experience(experienceId, farmId, "Test Experience", "Description",
-                BigInteger.valueOf(15000), 20, 120, availableStart, availableEnd,
+                15000L, 20, 120, availableStart, availableEnd,
                 com.barofarm.support.experience.domain.ExperienceStatus.ON_SALE);
     }
 
@@ -93,6 +102,7 @@ class ReservationServiceTest {
         when(reservationRepository.sumHeadCountByExperienceIdAndReservedDateAndReservedTimeSlot(
                 eq(experienceId), any(LocalDate.class), anyString())).thenReturn(0);
         when(reservationRepository.save(any(Reservation.class))).thenReturn(validReservation);
+        doNothing().when(reservationEventPublisher).publishReservationCreated(any(Reservation.class));
 
         // when
         ReservationServiceResponse response = reservationService.createReservation(buyerId, validRequest);
@@ -105,15 +115,15 @@ class ReservationServiceTest {
         verify(reservationRepository, times(1)).sumHeadCountByExperienceIdAndReservedDateAndReservedTimeSlot(
                 eq(experienceId), any(LocalDate.class), anyString());
         verify(reservationRepository, times(1)).save(any(Reservation.class));
+        verify(reservationEventPublisher, times(1)).publishReservationCreated(any(Reservation.class));
     }
 
     @Test
-    @DisplayName("ID로 예약을 조회할 수 있다")
+    @DisplayName("ID로 예약을 조회할 수 있다 (구매자)")
     void getReservationById() {
         // given
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(validReservation));
-        when(experienceRepository.findById(experienceId)).thenReturn(Optional.of(experience));
-        // buyerId와 일치하므로 접근 가능 (구매자 권한)
+        // buyerId와 일치하므로 구매자 권한으로 접근 가능 (experienceRepository 호출 불필요)
 
         // when
         ReservationServiceResponse response = reservationService.getReservationById(buyerId, reservationId);
@@ -123,7 +133,8 @@ class ReservationServiceTest {
         assertThat(response.getReservationId()).isEqualTo(reservationId);
         assertThat(response.getHeadCount()).isEqualTo(2);
         verify(reservationRepository, times(1)).findById(reservationId);
-        verify(experienceRepository, times(1)).findById(experienceId);
+        // buyerId가 일치하므로 validateBuyerOrSellerAccess에서 experienceRepository 호출하지 않음
+        verify(experienceRepository, never()).findById(any());
     }
 
     @Test
@@ -149,13 +160,13 @@ class ReservationServiceTest {
         UUID sellerId = UUID.randomUUID();
         UUID reservationId2 = UUID.randomUUID();
         Reservation reservation2 = new Reservation(reservationId2, experienceId, buyerId, LocalDate.of(2025, 3, 16),
-                "14:00-16:00", 3, BigInteger.valueOf(45000), ReservationStatus.CONFIRMED);
+                "14:00-16:00", 3, 45000L, ReservationStatus.CONFIRMED);
 
         Pageable pageable = PageRequest.of(0, 10);
         Page<Reservation> reservationPage = new PageImpl<>(
                 Arrays.asList(validReservation, reservation2), pageable, 2);
         when(experienceRepository.findById(experienceId)).thenReturn(Optional.of(experience));
-        when(farmClient.getFarmIdByUserId(sellerId)).thenReturn(farmId);
+        when(farmCacheService.hasFarmAccess(sellerId, farmId)).thenReturn(true);
         when(reservationRepository.findByExperienceId(experienceId, pageable))
                 .thenReturn(reservationPage);
 
@@ -167,7 +178,7 @@ class ReservationServiceTest {
         assertThat(responsePage.getContent()).hasSize(2);
         assertThat(responsePage.getContent()).extracting("reservationId").contains(reservationId, reservationId2);
         verify(experienceRepository, times(1)).findById(experienceId);
-        verify(farmClient, times(1)).getFarmIdByUserId(sellerId);
+        verify(farmCacheService, times(1)).hasFarmAccess(sellerId, farmId);
         verify(reservationRepository, times(1)).findByExperienceId(experienceId, pageable);
     }
 
@@ -177,7 +188,7 @@ class ReservationServiceTest {
         // given
         UUID otherExperienceId = UUID.randomUUID();
         Reservation reservation2 = new Reservation(UUID.randomUUID(), otherExperienceId, buyerId,
-                LocalDate.of(2025, 3, 16), "14:00-16:00", 1, BigInteger.valueOf(15000), ReservationStatus.REQUESTED);
+                LocalDate.of(2025, 3, 16), "14:00-16:00", 1, 15000L, ReservationStatus.REQUESTED);
 
         Pageable pageable = PageRequest.of(0, 10);
         Page<Reservation> reservationPage = new PageImpl<>(
@@ -202,7 +213,8 @@ class ReservationServiceTest {
         UUID sellerId = UUID.randomUUID();
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(validReservation));
         when(experienceRepository.findById(experienceId)).thenReturn(Optional.of(experience));
-        when(farmClient.getFarmIdByUserId(sellerId)).thenReturn(farmId);
+        when(farmCacheService.hasFarmAccess(sellerId, farmId)).thenReturn(true);
+        doNothing().when(reservationEventPublisher).publishReservationStatusChanged(any(Reservation.class));
 
         // when
         ReservationServiceResponse response = reservationService.updateReservationStatus(sellerId, reservationId,
@@ -213,7 +225,8 @@ class ReservationServiceTest {
         assertThat(response.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
         verify(reservationRepository, times(1)).findById(reservationId);
         verify(experienceRepository, times(1)).findById(experienceId);
-        verify(farmClient, times(1)).getFarmIdByUserId(sellerId);
+        verify(farmCacheService, times(1)).hasFarmAccess(sellerId, farmId);
+        verify(reservationEventPublisher, times(1)).publishReservationStatusChanged(any(Reservation.class));
         // JPA 더티 체킹 사용하므로 save 호출하지 않음
         verify(reservationRepository, never()).save(any(Reservation.class));
     }
@@ -271,7 +284,7 @@ class ReservationServiceTest {
     void createReservation_ExperienceNotAvailable() {
         // given
         Experience closedExperience = new Experience(experienceId, UUID.randomUUID(), "Test Experience", "Description",
-                BigInteger.valueOf(15000), 20, 120, java.time.LocalDateTime.now(), java.time.LocalDateTime.now().plusDays(30),
+                15000L, 20, 120, java.time.LocalDateTime.now(), java.time.LocalDateTime.now().plusDays(30),
                 ExperienceStatus.CLOSED);
         when(experienceRepository.findById(experienceId)).thenReturn(Optional.of(closedExperience));
 
@@ -291,7 +304,7 @@ class ReservationServiceTest {
         // given
         java.time.LocalDate invalidDate = LocalDate.of(2025, 6, 1); // 체험 가능 기간 밖
         ReservationServiceRequest invalidDateRequest = new ReservationServiceRequest(experienceId, buyerId, invalidDate,
-                "10:00-12:00", 2, BigInteger.valueOf(30000), null);
+                "10:00-12:00", 2, 30000L, null);
         when(experienceRepository.findById(experienceId)).thenReturn(Optional.of(experience));
 
         // when & then
@@ -347,7 +360,7 @@ class ReservationServiceTest {
         // given
         UUID sellerId = UUID.randomUUID();
         Reservation canceledReservation = new Reservation(reservationId, experienceId, buyerId, LocalDate.of(2025, 3, 15),
-                "10:00-12:00", 2, BigInteger.valueOf(30000), ReservationStatus.CANCELED);
+                "10:00-12:00", 2, 30000L, ReservationStatus.CANCELED);
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(canceledReservation));
         // 상태 검증이 먼저 수행되므로 experienceRepository와 farmClient stubbing 불필요
 
@@ -366,7 +379,7 @@ class ReservationServiceTest {
         // given
         // CANCELED는 구매자만 가능하므로 buyerId 사용
         Reservation completedReservation = new Reservation(reservationId, experienceId, buyerId, LocalDate.of(2025, 3, 15),
-                "10:00-12:00", 2, BigInteger.valueOf(30000), ReservationStatus.COMPLETED);
+                "10:00-12:00", 2, 30000L, ReservationStatus.COMPLETED);
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(completedReservation));
 
         // when & then
@@ -384,7 +397,7 @@ class ReservationServiceTest {
     void deleteReservation_CannotDeleteConfirmedOrCompleted() {
         // given
         Reservation confirmedReservation = new Reservation(reservationId, experienceId, buyerId, LocalDate.of(2025, 3, 15),
-                "10:00-12:00", 2, BigInteger.valueOf(30000), ReservationStatus.CONFIRMED);
+                "10:00-12:00", 2, 30000L, ReservationStatus.CONFIRMED);
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(confirmedReservation));
 
         // when & then
@@ -416,7 +429,7 @@ class ReservationServiceTest {
     void deleteReservation_CanDeleteCanceled() {
         // given
         Reservation canceledReservation = new Reservation(reservationId, experienceId, buyerId, LocalDate.of(2025, 3, 15),
-                "10:00-12:00", 2, BigInteger.valueOf(30000), ReservationStatus.CANCELED);
+                "10:00-12:00", 2, 30000L, ReservationStatus.CANCELED);
         when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(canceledReservation));
         doNothing().when(reservationRepository).deleteById(reservationId);
 
@@ -426,4 +439,5 @@ class ReservationServiceTest {
         // then
         verify(reservationRepository, times(1)).deleteById(reservationId);
     }
+
 }

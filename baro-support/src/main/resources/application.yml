@@ -1,5 +1,5 @@
 server:
-  port: 8089
+  port: ${SERVER_PORT:8089}  # 환경 변수로 오버라이드 가능 (Config Server 설정 덮어쓰기 방지)
 
 api:
   v1: /api/v1
@@ -7,6 +7,8 @@ api:
 spring:
   application:
     name: support-service
+  config:
+    import: ${SPRING_CONFIG_IMPORT:optional:configserver:http://config:8888}
   main:
     allow-bean-definition-overriding: true
   datasource:
@@ -23,14 +25,7 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
         use_sql_comments: true
-  batch:
-    job:
-      enabled: false
-  task:
-    scheduling:
-      cron:
-        settlement: "0 0 0 1 * *"
-
+        
   mail:
     host: smtp.naver.com
     port: 465
@@ -43,42 +38,28 @@ spring:
       
   elasticsearch:
     uris: ${SPRING_ELASTICSEARCH_URIS:http://elasticsearch:9200}
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      # password: ${SPRING_REDIS_PASSWORD:}  # 필요시
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
     consumer:
       group-id: support-service
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "*"
-        spring.json.type.mapping: productEvent:com.barofarm.support.event.ProductEvent
-        spring.json.use.type.headers: false
-        spring.json.value.default.type: com.barofarm.support.event.ProductEvent
-        # 재연결 설정
-        reconnect.backoff.ms: 50          # 재연결 시 초기 백오프 시간 (50ms)
-        reconnect.backoff.max.ms: 1000    # 재연결 시 최대 백오프 시간 (1초)
-        # 세션 및 하트비트 설정
-        session.timeout.ms: 30000          # 세션 타임아웃 (30초)
-        heartbeat.interval.ms: 3000        # 하트비트 간격 (3초)
-        # 폴링 및 요청 타임아웃 설정
-        max.poll.interval.ms: 300000       # 최대 폴링 간격 (5분)
-        request.timeout.ms: 30000          # 요청 타임아웃 (30초)
-        # 메타데이터 갱신 설정
-        metadata.max.age.ms: 300000        # 메타데이터 최대 유지 시간 (5분)
-        # 연결 재시도 설정
-        connections.max.idle.ms: 540000    # 최대 유휴 연결 시간 (9분)
       auto-offset-reset: latest  # earliest에서 latest로 변경하여 오래된 메시지 건너뛰기
       # auto-offset-reset: earliest
-    listener:
-      # Consumer 재시작 설정
-      auto-startup: true                   # 자동 시작
-      # 에러 처리 설정
-      ack-mode: batch                      # 배치 단위로 커밋
-      # 재시도 설정
-      concurrency: 1                       # 동시 Consumer 스레드 수
 
 eureka:
   client:
+    # Eureka 서버에 등록 (Config Server의 eureka-server 설정과 충돌 방지)
+    register-with-eureka: true
+    fetch-registry: true
     service-url:
       # Docker 환경에서는 서비스 이름(eureka) 사용, 로컬에서는 localhost 사용
       # 환경 변수 EUREKA_CLIENT_SERVICEURL_DEFAULTZONE으로 오버라이드 가능

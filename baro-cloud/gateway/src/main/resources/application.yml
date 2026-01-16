@@ -1,10 +1,11 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}  # 환경 변수로 오버라이드 가능 (Config Server 설정 덮어쓰기 방지)
 
 spring:
   application:
     name: gateway-service
-
+  config:
+    import: ${SPRING_CONFIG_IMPORT:optional:configserver:http://config:8888}
   cloud:
     gateway:
       globalcors:
@@ -20,15 +21,77 @@ spring:
       discovery:
         locator:
           enabled: true
-          lower-case-service-id: true
+          lower-case-service-id: true  # 소문자 서비스 ID 사용
       server:
         webflux:
           routes:
+            # ============================================
+            # OpenAPI 문서 프록시 
+            # ============================================
+            - id: auth-service-openapi
+              uri: lb://auth-service
+              predicates:
+                - Path=/openapi/auth/v3/api-docs, /openapi/auth/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/auth/(?<segment>.*), /${segment}
+
+            - id: buyer-service-openapi
+              uri: lb://buyer-service
+              predicates:
+                - Path=/openapi/buyer/v3/api-docs, /openapi/buyer/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/buyer/(?<segment>.*), /${segment}
+
+            - id: seller-service-openapi
+              uri: lb://seller-service
+              predicates:
+                - Path=/openapi/seller/v3/api-docs, /openapi/seller/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/seller/(?<segment>.*), /${segment}
+
+            - id: order-service-openapi
+              uri: lb://order-service
+              predicates:
+                - Path=/openapi/order/v3/api-docs, /openapi/order/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/order/(?<segment>.*), /${segment}
+
+            - id: payment-service-openapi
+              uri: lb://payment-service
+              predicates:
+                - Path=/openapi/payment/v3/api-docs, /openapi/payment/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/payment/(?<segment>.*), /${segment}
+
+            - id: support-service-openapi
+              uri: lb://support-service
+              predicates:
+                - Path=/openapi/support/v3/api-docs, /openapi/support/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/support/(?<segment>.*), /${segment}
+
+            - id: settlement-service-openapi
+              uri: lb://settlement-service
+              predicates:
+                - Path=/openapi/settlement/v3/api-docs, /openapi/settlement/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/settlement/(?<segment>.*), /${segment}
+
+            - id: ai-service-openapi
+              uri: lb://ai-service
+              predicates:
+                - Path=/openapi/ai/v3/api-docs, /openapi/ai/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/ai/(?<segment>.*), /${segment}
+
+            # ============================================
+            # 일반 API 서비스 라우트
+            # ============================================
             # Auth Service
             - id: auth-service
               uri: lb://auth-service
               predicates:
-                - Path=/auth-service/**
+                - Path=/auth-service/**,/api/auth/**
               filters:
                 - RewritePath=/auth-service/(?<segment>.*), /${segment}
 
@@ -36,7 +99,7 @@ spring:
             - id: buyer-service
               uri: lb://buyer-service
               predicates:
-                - Path=/buyer-service/**
+                - Path=/buyer-service/**,/api/buyers/**,/api/carts/**,/api/products/**
               filters:
                 - RewritePath=/buyer-service/(?<segment>.*), /${segment}
 
@@ -44,68 +107,55 @@ spring:
             - id: seller-service
               uri: lb://seller-service
               predicates:
-                - Path=/seller-service/**
+                - Path=/seller-service/**,/api/sellers/**,/api/farms/**
               filters:
                 - RewritePath=/seller-service/(?<segment>.*), /${segment}
 
-            # Order Service
+            # Order Service (주문만)
             - id: order-service
               uri: lb://order-service
               predicates:
-                - Path=/order-service/**,/api/payments/**
+                - Path=/order-service/**,/api/orders/**
               filters:
                 - RewritePath=/order-service/(?<segment>.*), /${segment}
+
+            # Payment Service (결제, 예치금 분리)
+            - id: payment-service
+              uri: lb://payment-service
+              predicates:
+                - Path=/payment-service/**,/api/payments/**,/api/deposits/**
+              filters:
+                - RewritePath=/payment-service/(?<segment>.*), /${segment}
 
             # Support Service
             - id: support-service
               uri: lb://support-service
               predicates:
-                - Path=/support-service/**
+                - Path=/support-service/**,/api/deliveries/**,/api/notifications/**,/api/experiences/**,/api/reviews/**
               filters:
                 - RewritePath=/support-service/(?<segment>.*), /${segment}
 
-            # Auth Service API 문서 프록시
-            - id: auth-service-openapi
-              uri: lb://AUTH-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
+            # Settlement Service
+            - id: settlement-service
+              uri: lb://settlement-service
               predicates:
-                - Path=/openapi/auth/v3/api-docs
+                - Path=/settlement-service/**,/api/settlements/**
               filters:
-                - RewritePath=/openapi/auth/(?<segment>.*), /${segment}
+                - RewritePath=/settlement-service/(?<segment>.*), /${segment}
 
-            # Buyer Service API 문서 프록시
-            - id: buyer-service-openapi
-              uri: lb://BUYER-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
+            # AI Service
+            - id: ai-service
+              uri: lb://ai-service
               predicates:
-                - Path=/openapi/buyer/v3/api-docs
+                - Path=/ai-service/**,/api/ai/**,/api/search/**,/api/recommend/**,/api/chatbot/**,/api/season/**
               filters:
-                - RewritePath=/openapi/buyer/(?<segment>.*), /${segment}
-
-            # Seller Service API 문서 프록시
-            - id: seller-service-openapi
-              uri: lb://SELLER-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
-              predicates:
-                - Path=/openapi/seller/v3/api-docs
-              filters:
-                - RewritePath=/openapi/seller/(?<segment>.*), /${segment}
-
-            # Order Service API 문서 프록시
-            - id: order-service-openapi
-              uri: lb://ORDER-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
-              predicates:
-                - Path=/openapi/order/v3/api-docs
-              filters:
-                - RewritePath=/openapi/order/(?<segment>.*), /${segment}
-
-            # Support Service API 문서 프록시
-            - id: support-service-openapi
-              uri: lb://SUPPORT-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
-              predicates:
-                - Path=/openapi/support/v3/api-docs
-              filters:
-                - RewritePath=/openapi/support/(?<segment>.*), /${segment}
+                - RewritePath=/ai-service/(?<segment>.*), /${segment}
 
 eureka:
   client:
+    # Eureka 서버에 등록 (Config Server의 eureka-server 설정과 충돌 방지)
+    register-with-eureka: true
+    fetch-registry: true
     service-url:
       # Docker 환경에서는 서비스 이름(eureka) 사용, 로컬에서는 localhost 사용
       # 환경 변수 EUREKA_CLIENT_SERVICEURL_DEFAULTZONE으로 오버라이드 가능
@@ -137,8 +187,14 @@ springdoc:
         url: /openapi/seller/v3/api-docs
       - name: Order Service
         url: /openapi/order/v3/api-docs
+      - name: Payment Service
+        url: /openapi/payment/v3/api-docs
       - name: Support Service
         url: /openapi/support/v3/api-docs
+      - name: Settlement Service
+        url: /openapi/settlement/v3/api-docs
+      - name: AI Service
+        url: /openapi/ai/v3/api-docs
   api-docs:
     enabled: true
   enable-native-support: true

@@ -1,0 +1,35 @@
+# Payment 모듈
+# 결제 관리
+
+services:
+  baro-payment:
+    image: ${DOCKER_REGISTRY:-ghcr.io/do-develop-space}/baro-payment:${IMAGE_TAG:-latest}
+    container_name: baro-payment
+    ports:
+      - "8088:8088"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:8761/eureka/
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - SPRING_DATASOURCE_URL=jdbc:mysql://baro-mysql:3306/${MYSQL_DATABASE_PAYMENT:-baropayment}?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true
+      - MYSQL_DATABASE=${MYSQL_DATABASE_PAYMENT:-baropayment}
+      - MYSQL_USER=${MYSQL_USER:-barouser}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-baropassword}
+      # Toss Secret Key (Spring relaxed binding: PAYMENT_TOSS_SECRET_KEY -> payment.toss.secret-key)
+      - PAYMENT_TOSS_SECRET_KEY=${TOSS_SECRET_KEY}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
+      - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+      - AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME}
+      - JAVA_OPTS=-Xms64m -Xmx128m
+    volumes:
+      - /mnt/s3:/mnt/s3:rw
+    restart: unless-stopped
+    networks:
+      - baro-network
+
+networks:
+  baro-network:
+    name: be_baro-network  # 네트워크 이름 명시적으로 지정
+    external: true
+
+

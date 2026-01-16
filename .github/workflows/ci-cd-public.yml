@@ -1,0 +1,694 @@
+name: CI/CD Pipeline - Public EC2 (K8s Control-Plane Deployment)
+
+# ==================================================
+# Public EC2용 CI/CD Pipeline
+# - 배포 대상: data (MySQL, Redis), cloud (eureka, gateway, config)
+#   - data 배포 시 환경변수로 Kafka/Elasticsearch 추가 선택 가능:
+#     * DEPLOY_KAFKA=true: Kafka 추가 배포 (docker-compose.kafka.yml)
+#     * DEPLOY_ELASTICSEARCH=true: Elasticsearch 추가 배포 (docker-compose.elasticsearch.yml)
+#     * 기본값: Redis + MySQL만 배포
+# - 배포 방식: Kubernetes (k8s) - Control-Plane이 Public EC2에 있음
+# - Runner: public-ec2-runner (self-hosted)
+# ==================================================
+
+on:
+  push:
+    branches:
+      - main-data
+      - main-cloud
+      - main-eureka
+      - main-gateway
+      - main-config
+  pull_request:
+    branches:
+      - main-data
+      - main-cloud
+      - main-eureka
+      - main-gateway
+      - main-config
+    types: [opened, synchronize, reopened]
+
+# GITHUB_TOKEN에 패키지 쓰기 권한 부여
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: do-develop-space
+  IMAGE_VERSION: 0.1.0
+
+jobs:
+  # ==================================================
+  # CI: Build, Test, Code Quality
+  # ==================================================
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && 
+       (startsWith(github.ref, 'refs/heads/main-cloud') ||
+        startsWith(github.ref, 'refs/heads/main-eureka') ||
+        startsWith(github.ref, 'refs/heads/main-gateway') ||
+        startsWith(github.ref, 'refs/heads/main-config'))) ||
+      (github.event_name == 'pull_request' && 
+       (startsWith(github.base_ref, 'main-cloud') ||
+        startsWith(github.base_ref, 'main-eureka') ||
+        startsWith(github.base_ref, 'main-gateway') ||
+        startsWith(github.base_ref, 'main-config')))
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Extract module name from branch
+        id: module
+        run: |
+          if [[ "$GITHUB_REF" == refs/heads/main-* ]]; then
+            MODULE=$(echo ${GITHUB_REF#refs/heads/main-} | tr '[:upper:]' '[:lower:]')
+          else
+            MODULE=""
+          fi
+          
+          # 빌드할 모듈 결정 (Public EC2용: cloud, eureka, gateway, config)
+          case "$MODULE" in
+            cloud) BUILD_MODULE=":baro-cloud:eureka,:baro-cloud:gateway,:baro-cloud:config" ;;
+            eureka) BUILD_MODULE=":baro-cloud:eureka" ;;
+            gateway) BUILD_MODULE=":baro-cloud:gateway" ;;
+            config) BUILD_MODULE=":baro-cloud:config" ;;
+            *) BUILD_MODULE="" ;;
+          esac
+          
+          echo "module=$MODULE" >> $GITHUB_OUTPUT
+          echo "build_module=$BUILD_MODULE" >> $GITHUB_OUTPUT
+          echo "Extracted module: $MODULE -> Build: $BUILD_MODULE"
+      
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+      
+      - name: Cache Gradle build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Code formatting check (Spotless)
+        continue-on-error: true
+        run: |
+          BUILD_MODULE="${{ steps.module.outputs.build_module }}"
+          if [ -n "$BUILD_MODULE" ]; then
+            # 쉼표로 구분된 여러 모듈 처리
+            IFS=',' read -ra MODULES <<< "$BUILD_MODULE"
+            for module in "${MODULES[@]}"; do
+              ./gradlew ${module}:spotlessCheck
+            done
+          else
+            ./gradlew spotlessCheck
+          fi
+      
+      - name: Lint check (Checkstyle)
+        continue-on-error: true
+        run: |
+          BUILD_MODULE="${{ steps.module.outputs.build_module }}"
+          if [ -n "$BUILD_MODULE" ]; then
+            # 쉼표로 구분된 여러 모듈 처리
+            IFS=',' read -ra MODULES <<< "$BUILD_MODULE"
+            for module in "${MODULES[@]}"; do
+              ./gradlew ${module}:checkstyleMain
+            done
+          else
+            ./gradlew checkstyleMain
+          fi
+      
+      - name: Build with Gradle
+        run: |
+          BUILD_MODULE="${{ steps.module.outputs.build_module }}"
+          if [ -n "$BUILD_MODULE" ]; then
+            # 쉼표로 구분된 여러 모듈 처리
+            IFS=',' read -ra MODULES <<< "$BUILD_MODULE"
+            for module in "${MODULES[@]}"; do
+              ./gradlew ${module}:build -x test
+            done
+          else
+            ./gradlew build -x test
+          fi
+      
+      - name: Run tests
+        continue-on-error: true
+        run: |
+          BUILD_MODULE="${{ steps.module.outputs.build_module }}"
+          if [ -n "$BUILD_MODULE" ]; then
+            # 쉼표로 구분된 여러 모듈 처리
+            IFS=',' read -ra MODULES <<< "$BUILD_MODULE"
+            for module in "${MODULES[@]}"; do
+              ./gradlew ${module}:test
+            done
+          else
+            ./gradlew test
+          fi
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/build/test-results/test/'
+          if-no-files-found: ignore
+      
+      - name: Determine artifact paths
+        id: artifacts
+        run: |
+          MODULE="${{ steps.module.outputs.module }}"
+          BUILD_MODULE="${{ steps.module.outputs.build_module }}"
+          
+          case "$MODULE" in
+            cloud) ARTIFACT_PATHS="baro-cloud/eureka/build/libs/*.jar
+            baro-cloud/gateway/build/libs/*.jar
+            baro-cloud/config/build/libs/*.jar" ;;
+            eureka) ARTIFACT_PATHS="baro-cloud/eureka/build/libs/*.jar" ;;
+            gateway) ARTIFACT_PATHS="baro-cloud/gateway/build/libs/*.jar" ;;
+            config) ARTIFACT_PATHS="baro-cloud/config/build/libs/*.jar" ;;
+            *) ARTIFACT_PATHS="" ;;
+          esac
+          
+          echo "paths<<EOF" >> $GITHUB_OUTPUT
+          echo "$ARTIFACT_PATHS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Upload build artifacts
+        if: steps.artifacts.outputs.paths != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            ${{ steps.artifacts.outputs.paths }}
+          if-no-files-found: ignore
+
+  # ==================================================
+  # Docker: Build and Push Images
+  # ==================================================
+  determine-service:
+    name: Determine Service to Build
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && 
+       (startsWith(github.ref, 'refs/heads/main-data') ||
+        startsWith(github.ref, 'refs/heads/main-cloud') ||
+        startsWith(github.ref, 'refs/heads/main-eureka') ||
+        startsWith(github.ref, 'refs/heads/main-gateway') ||
+        startsWith(github.ref, 'refs/heads/main-config'))) ||
+      (github.event_name == 'pull_request' && 
+       (startsWith(github.base_ref, 'main-data') ||
+        startsWith(github.base_ref, 'main-cloud') ||
+        startsWith(github.base_ref, 'main-eureka') ||
+        startsWith(github.base_ref, 'main-gateway') ||
+        startsWith(github.base_ref, 'main-config')))
+    outputs:
+      service: ${{ steps.module.outputs.service }}
+      module: ${{ steps.module.outputs.module }}
+      image_tag: ${{ steps.module.outputs.image_tag }}
+    steps:
+      - name: Extract service name from branch
+        id: module
+        run: |
+          if [[ "$GITHUB_REF" == refs/heads/main-* ]]; then
+            MODULE=$(echo ${GITHUB_REF#refs/heads/main-} | tr '[:upper:]' '[:lower:]')
+          else
+            MODULE=""
+          fi
+          
+          # 모듈명을 서비스명으로 변환 (Public EC2용: data, cloud, eureka, gateway, config)
+          case "$MODULE" in
+            data) SERVICE="data" ;;  # data는 빌드 없이 배포만
+            cloud) SERVICE="cloud" ;;  # cloud는 빌드 필요 (eureka, gateway, config)
+            eureka) SERVICE="eureka" ;;
+            gateway) SERVICE="gateway" ;;
+            config) SERVICE="config" ;;
+            *) SERVICE="" ;;
+          esac
+          
+          # 이미지 태그 결정
+          if [[ "$GITHUB_REF" == refs/heads/main-* ]]; then
+            IMAGE_TAG="latest"
+          else
+            IMAGE_TAG="latest"
+          fi
+          
+          echo "module=$MODULE" >> $GITHUB_OUTPUT
+          echo "service=$SERVICE" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "Extracted module: $MODULE -> service: $SERVICE with tag: $IMAGE_TAG"
+
+  # ==================================================
+  # Docker: Build and Push Images
+  # ==================================================
+  docker-build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [build-and-test, determine-service]
+    timeout-minutes: 30
+    if: |
+      github.event_name == 'push' && 
+      startsWith(github.ref, 'refs/heads/main-') &&
+      needs.determine-service.outputs.service != '' &&
+      needs.determine-service.outputs.service != 'data'
+    
+    # cloud 모듈일 때는 eureka, gateway, config를 각각 빌드
+    strategy:
+      matrix:
+        service: ${{ needs.determine-service.outputs.service == 'cloud' && fromJSON('["eureka", "gateway", "config"]') || fromJSON(format('["{0}"]', needs.determine-service.outputs.service)) }}
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+      
+      - name: Cache Gradle build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: build-artifacts
+          path: .
+      
+      - name: Build module if artifact not found
+        run: |
+          SERVICE="${{ matrix.service }}"
+          case "$SERVICE" in
+            eureka) MODULE_PATH="baro-cloud/eureka" ;;
+            gateway) MODULE_PATH="baro-cloud/gateway" ;;
+            config) MODULE_PATH="baro-cloud/config" ;;
+            *) MODULE_PATH="" ;;
+          esac
+          
+          if [ -n "$MODULE_PATH" ]; then
+            JAR_COUNT=$(find "$MODULE_PATH/build/libs" -name "*.jar" 2>/dev/null | wc -l)
+            if [ "$JAR_COUNT" -eq 0 ]; then
+              echo "JAR file not found, building module: $MODULE_PATH"
+              GRADLE_MODULE=$(echo "$MODULE_PATH" | tr '/' ':')
+              ./gradlew :${GRADLE_MODULE}:build -x test
+            else
+              echo "JAR file found in $MODULE_PATH/build/libs"
+            fi
+          fi
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+          buildkitd-flags: --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host
+          version: latest
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: do-develop-space
+          password: ${{ secrets.GHCR_PAT }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}
+          tags: |
+            type=raw,value=latest
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-,format=short
+            type=raw,value={{branch}}-{{date 'YYYYMMDD-HHmmss'}}
+          flavor: |
+            latest=true
+      
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:buildcache,mode=max
+      
+      - name: Make package public
+        if: success()
+        run: |
+          PACKAGE_NAME="${{ matrix.service }}"
+          echo "Making package ${PACKAGE_NAME} public..."
+          
+          curl -X PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/user/packages/container/${PACKAGE_NAME} \
+            -d '{"visibility":"public"}' || echo "Failed to make package public (may already be public or require manual setup)"
+          
+          echo "✅ Package ${PACKAGE_NAME} visibility set to public"
+
+  # ==================================================
+  # CD: Deploy to Public EC2 (K8s - Control-Plane)
+  # ==================================================
+  deploy:
+    name: Deploy to Public EC2 (K8s Control-Plane)
+    # GitHub-hosted runner에서 실행
+    # kubeconfig를 통해 Kubernetes 클러스터에 원격 접근
+    runs-on: ubuntu-latest
+    needs: [build-and-test, determine-service, docker-build]
+    timeout-minutes: 30  # 배포 타임아웃 설정
+    if: |
+      startsWith(github.ref, 'refs/heads/main-') &&
+      needs.determine-service.outputs.module != '' &&
+      always() && 
+      (needs.determine-service.outputs.module == 'data' || 
+       (needs.docker-build.result == 'success' || needs.docker-build.result == 'skipped'))
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Extract module name
+        id: module
+        run: |
+          MODULE="${{ needs.determine-service.outputs.module }}"
+          echo "name=$MODULE" >> $GITHUB_OUTPUT
+          echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+          echo "🚀 Deploying module: $MODULE from branch: ${GITHUB_REF#refs/heads/}"
+
+      - name: Setup SSH for deployment
+        if: steps.module.outputs.name != ''
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Deploy data with docker-compose (SSH)
+        if: steps.module.outputs.name == 'data'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+          DEPLOY_KAFKA: ${{ vars.DEPLOY_KAFKA || 'false' }}
+          DEPLOY_ELASTICSEARCH: ${{ vars.DEPLOY_ELASTICSEARCH || 'false' }}
+          DATA_EC2_IP: ${{ secrets.DATA_EC2_IP || '' }}  # Data EC2 Private IP (Kafka ADVERTISED_LISTENERS용)
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
+        run: |
+          echo "🚀 data 인프라 docker-compose 배포 시작 (SSH를 통한 원격 배포)"
+          
+          # 필요한 파일들을 안전하게 복사 (기존 파일 보존)
+          echo "📦 필요한 파일 복사 중 (기존 파일 보존)..."
+          
+          # docker-compose.data.yml 복사 (기존 파일 백업)
+          if [ -f docker-compose.data.yml ]; then
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "if [ -f /home/ubuntu/apps/BE/docker-compose.data.yml ]; then cp /home/ubuntu/apps/BE/docker-compose.data.yml /home/ubuntu/apps/BE/docker-compose.data.yml.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true; fi"
+            scp -o StrictHostKeyChecking=no docker-compose.data.yml ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/ || {
+              echo "⚠️  docker-compose.data.yml 복사 실패, 기존 파일 사용"
+            }
+          fi
+          
+          # 선택적 docker-compose 파일 복사 (기존 파일 백업)
+          if [ -f docker-compose.kafka.yml ]; then
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "if [ -f /home/ubuntu/apps/BE/docker-compose.kafka.yml ]; then cp /home/ubuntu/apps/BE/docker-compose.kafka.yml /home/ubuntu/apps/BE/docker-compose.kafka.yml.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true; fi"
+            scp -o StrictHostKeyChecking=no docker-compose.kafka.yml ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/ 2>/dev/null || {
+              echo "⚠️  docker-compose.kafka.yml 복사 실패 (계속 진행)"
+            }
+          fi
+          
+          if [ -f docker-compose.elasticsearch.yml ]; then
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "if [ -f /home/ubuntu/apps/BE/docker-compose.elasticsearch.yml ]; then cp /home/ubuntu/apps/BE/docker-compose.elasticsearch.yml /home/ubuntu/apps/BE/docker-compose.elasticsearch.yml.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true; fi"
+            scp -o StrictHostKeyChecking=no docker-compose.elasticsearch.yml ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/ 2>/dev/null || {
+                echo "⚠️  docker-compose.elasticsearch.yml 복사 실패 (계속 진행)"
+              }
+          fi
+          
+          # deploy-module.sh 스크립트 복사 (scripts 디렉토리 보존, 기존 파일 백업)
+          if [ -f scripts/deploy-module.sh ]; then
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ubuntu/apps/BE/scripts && if [ -f /home/ubuntu/apps/BE/scripts/deploy-module.sh ]; then cp /home/ubuntu/apps/BE/scripts/deploy-module.sh /home/ubuntu/apps/BE/scripts/deploy-module.sh.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true; fi"
+            scp -o StrictHostKeyChecking=no scripts/deploy-module.sh ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/scripts/ || {
+              echo "⚠️  deploy-module.sh 복사 실패, 기존 파일 사용"
+            }
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "chmod +x /home/ubuntu/apps/BE/scripts/deploy-module.sh"
+          fi
+          
+          # SSH를 통해 배포 실행 (DEPLOY_KAFKA, DEPLOY_ELASTICSEARCH, DATA_EC2_IP 환경변수 전달)
+          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "cd /home/ubuntu/apps/BE || mkdir -p /home/ubuntu/apps/BE && cd /home/ubuntu/apps/BE && if [ ! -f docker-compose.data.yml ]; then echo '❌ docker-compose.data.yml 파일을 찾을 수 없습니다.' && exit 1; fi && if ! docker network ls --format '{{.Name}}' | grep -q '^be_baro-network$'; then docker network create be_baro-network || echo '네트워크가 이미 존재합니다.'; fi && if [ -f scripts/deploy-module.sh ]; then DEPLOY_KAFKA='${DEPLOY_KAFKA}' DEPLOY_ELASTICSEARCH='${DEPLOY_ELASTICSEARCH}' DATA_EC2_IP='${DATA_EC2_IP}' GITHUB_TOKEN='${GITHUB_TOKEN}' bash scripts/deploy-module.sh data; else echo '❌ scripts/deploy-module.sh를 찾을 수 없습니다.' && exit 1; fi"
+
+      - name: Deploy to k8s (SSH)
+        if: steps.module.outputs.name != 'data'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+          IMAGE_TAG: ${{ needs.determine-service.outputs.image_tag }}
+          MODULE_NAME: ${{ steps.module.outputs.name }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USERNAME || 'ubuntu' }}
+          DATA_EC2_IP: ${{ secrets.DATA_EC2_IP || '' }}  # Data EC2 Private IP (필수)
+        run: |
+          echo "🚀 k8s 배포 시작 (SSH를 통한 원격 배포): ${MODULE_NAME} (이미지 태그: ${IMAGE_TAG})"
+          
+          # 필요한 파일들을 안전하게 복사 (기존 파일 보존)
+          echo "📦 필요한 파일 복사 중 (기존 파일 보존)..."
+          
+          # k8s 디렉토리 복사 (기존 파일 보존)
+          if [ -d k8s ]; then
+            # 기존 k8s 디렉토리의 추가 파일들 백업 (scripts, README.md, .env 등)
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ubuntu/apps/k8s && if [ -d /home/ubuntu/apps/k8s/scripts ] && [ \"\$(ls -A /home/ubuntu/apps/k8s/scripts 2>/dev/null)\" ]; then mkdir -p /home/ubuntu/apps/k8s.backup.scripts.\$(date +%Y%m%d_%H%M%S) && cp -r /home/ubuntu/apps/k8s/scripts /home/ubuntu/apps/k8s.backup.scripts.\$(date +%Y%m%d_%H%M%S)/ 2>/dev/null || true; fi"
+            # k8s 디렉토리 복사 (최신 파일로 강제 덮어쓰기)
+            echo "📦 k8s 디렉토리 복사 중 (최신 파일로 강제 덮어쓰기)..."
+            # apps/, cloud/, redis/ 등 주요 디렉토리의 YAML 파일들을 먼저 삭제
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "
+              cd /home/ubuntu/apps/k8s 2>/dev/null || true
+              find apps cloud redis -type f \\( -name 'deployment.yaml' -o -name 'service.yaml' -o -name 'kustomization.yaml' -o -name 'daemonset.yaml' \\) -delete 2>/dev/null || true
+              echo '🗑️  기존 YAML 파일 삭제 완료'
+            "
+            # rsync로 복사 (--times 옵션으로 타임스탬프도 업데이트, --no-perms로 권한 문제 방지)
+            if command -v rsync &> /dev/null; then
+              rsync -av --times --no-perms k8s/ ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/k8s/ || {
+                echo "⚠️  rsync 실패, scp로 재시도..."
+                # scp로 강제 복사
+                ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ubuntu/apps/k8s"
+                scp -o StrictHostKeyChecking=no -r k8s/* ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/k8s/ || {
+                  echo "❌ k8s 디렉토리 복사 실패"
+                  exit 1
+                }
+              }
+            else
+              # scp 사용
+              ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ubuntu/apps/k8s"
+              scp -o StrictHostKeyChecking=no -r k8s/* ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/k8s/ || {
+                echo "❌ k8s 디렉토리 복사 실패"
+                exit 1
+              }
+            fi
+            # 복사 후 파일 날짜 확인
+            echo "📅 복사된 파일 날짜 확인:"
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "ls -lh /home/ubuntu/apps/k8s/cloud/*/*.yaml 2>/dev/null | head -5 || echo '파일을 찾을 수 없습니다'"
+            echo "✅ k8s 디렉토리 복사 완료 (최신 파일로 업데이트됨)"
+            # 백업한 scripts 디렉토리 복원 (복사된 k8s에 scripts가 없거나 덮어씌워진 경우)
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "BACKUP_SCRIPTS=\$(ls -td /home/ubuntu/apps/k8s.backup.scripts.* 2>/dev/null | head -1) && if [ -n \"\$BACKUP_SCRIPTS\" ] && [ -d \"\$BACKUP_SCRIPTS/scripts\" ] && [ ! -d /home/ubuntu/apps/k8s/scripts ] || [ -z \"\$(ls -A /home/ubuntu/apps/k8s/scripts 2>/dev/null)\" ]; then mkdir -p /home/ubuntu/apps/k8s/scripts && cp -r \"\$BACKUP_SCRIPTS/scripts\"/* /home/ubuntu/apps/k8s/scripts/ 2>/dev/null || true && echo '✅ scripts 디렉토리 복원 완료'; fi"
+          fi
+          
+          # deploy-k8s.sh 스크립트 복사 (기존 파일 백업)
+          DEPLOY_SCRIPT="scripts/deploy-k8s.sh"
+          if [ "${MODULE_NAME}" = "settlement" ] && [ -f "scripts/deploy-daemonset.sh" ]; then
+            DEPLOY_SCRIPT="scripts/deploy-daemonset.sh"
+          fi
+          
+          if [ -f "$DEPLOY_SCRIPT" ]; then
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ubuntu/apps/BE/scripts && if [ -f /home/ubuntu/apps/BE/$DEPLOY_SCRIPT ]; then cp /home/ubuntu/apps/BE/$DEPLOY_SCRIPT /home/ubuntu/apps/BE/$DEPLOY_SCRIPT.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true; fi"
+            scp -o StrictHostKeyChecking=no "$DEPLOY_SCRIPT" ${EC2_USER}@${EC2_HOST}:/home/ubuntu/apps/BE/"$DEPLOY_SCRIPT" || {
+              echo "⚠️  $DEPLOY_SCRIPT 복사 실패, 기존 파일 사용"
+            }
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "chmod +x /home/ubuntu/apps/BE/$DEPLOY_SCRIPT"
+          else
+            echo "❌ 배포 스크립트를 찾을 수 없습니다: $DEPLOY_SCRIPT"
+            exit 1
+          fi
+          
+          # SSH를 통해 배포 실행 (Public EC2에서 직접 kubectl 사용)
+          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "cd /home/ubuntu/apps/BE && if [ ! -d k8s ]; then echo '❌ k8s 디렉토리를 찾을 수 없습니다.' && exit 1; fi && if [ ! -f $DEPLOY_SCRIPT ]; then echo '❌ $DEPLOY_SCRIPT를 찾을 수 없습니다.' && exit 1; fi && export DATA_EC2_IP='${DATA_EC2_IP}' && GITHUB_TOKEN='${GITHUB_TOKEN}' bash $DEPLOY_SCRIPT ${MODULE_NAME} ${IMAGE_TAG}" || {
+            echo "❌ 배포 스크립트 실행 실패"
+            # 원격에서 Pod 상태 확인
+            ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get pods -n baro-prod -l app=baro-${MODULE_NAME} 2>&1 || true"
+            exit 1
+          }
+          
+          echo ""
+          echo "✅ 배포 완료: ${MODULE_NAME}"
+          
+          # 배포 후 검증 (원격에서 확인)
+          echo ""
+          echo "🔍 배포 검증 중..."
+          sleep 5  # Pod 시작 대기
+          
+            # Pod 상태 확인
+            echo "📊 Pod 상태:"
+          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get pods -n baro-prod 2>&1 || true"
+            
+            # Service 상태 확인
+            echo ""
+            echo "📊 Service 상태:"
+          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get svc -n baro-prod 2>&1 || true"
+            
+            # Node 상태 확인
+            echo ""
+            echo "📊 Node 상태:"
+          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "kubectl get nodes 2>&1 || true"
+
+  # ==================================================
+  # Cleanup: 오래된 이미지 정리
+  # ==================================================
+  cleanup:
+    name: Cleanup Old Images
+    runs-on: ubuntu-latest
+    needs: [deploy, determine-service]
+    if: |
+      success() &&
+      needs.determine-service.outputs.service != '' &&
+      needs.determine-service.outputs.service != 'data'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Cleanup container images by tag policy
+        env:
+          SERVICE: ${{ needs.determine-service.outputs.service }}
+          OWNER: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+          IMAGE_VERSION: ${{ env.IMAGE_VERSION }}
+        run: |
+          if [ -z "$SERVICE" ] || [ "$SERVICE" = "data" ]; then
+            echo "No service to clean up. Skipping."
+            exit 0
+          fi
+
+          if [ -z "$GH_TOKEN" ]; then
+            echo "❌ GH_TOKEN is not set."
+            exit 1
+          fi
+
+          echo "🧹 Cleaning up GHCR images for service: $SERVICE (owner: $OWNER)"
+          echo "  - Keep tags: latest, $IMAGE_VERSION"
+
+          sudo apt-get update -y >/dev/null 2>&1 || true
+          sudo apt-get install -y jq >/dev/null 2>&1 || true
+
+          API_ROOT="https://api.github.com"
+
+          # cloud 모듈인 경우 eureka, gateway, config 각각 정리
+          if [ "$SERVICE" = "cloud" ]; then
+            for svc in eureka gateway config; do
+              echo ""
+              echo "🧹 Cleaning up ${svc}..."
+              VERSIONS_JSON=$(curl -sS \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                "${API_ROOT}/users/${OWNER}/packages/container/${svc}/versions?per_page=100")
+
+              if echo "$VERSIONS_JSON" | jq -e 'type=="array"' >/dev/null 2>&1; then
+                KEEP_TAG_1="latest"
+                KEEP_TAG_2="$IMAGE_VERSION"
+
+                echo "$VERSIONS_JSON" | jq -c '.[]' | while read -r row; do
+                  ID=$(echo "$row" | jq -r '.id')
+                  CREATED_AT=$(echo "$row" | jq -r '.created_at')
+                  TAGS=$(echo "$row" | jq -r '.metadata.container.tags | join(",")')
+
+                  if [ "$TAGS" = "null" ] || [ -z "$TAGS" ]; then
+                    SHOULD_DELETE=1
+                  else
+                    SHOULD_DELETE=1
+                    if echo "$TAGS" | grep -q "$KEEP_TAG_1"; then
+                      SHOULD_DELETE=0
+                    fi
+                    if [ "$SHOULD_DELETE" -eq 1 ] && [ -n "$KEEP_TAG_2" ] && echo "$TAGS" | grep -q "$KEEP_TAG_2"; then
+                      SHOULD_DELETE=0
+                    fi
+                  fi
+
+                  if [ "$SHOULD_DELETE" -eq 1 ]; then
+                    echo "  -> Deleting ${svc} version ${ID}"
+                    curl -sS -X DELETE \
+                      -H "Authorization: Bearer $GH_TOKEN" \
+                      -H "Accept: application/vnd.github+json" \
+                      "${API_ROOT}/user/packages/container/${svc}/versions/${ID}" || echo "  ⚠️ Failed to delete version ${ID}"
+                  fi
+                done
+              fi
+            done
+          else
+            # 단일 서비스 정리
+            VERSIONS_JSON=$(curl -sS \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "${API_ROOT}/users/${OWNER}/packages/container/${SERVICE}/versions?per_page=100")
+
+            if echo "$VERSIONS_JSON" | jq -e 'type=="array"' >/dev/null 2>&1; then
+              :
+            else
+              echo "No versions found or failed to fetch versions."
+              exit 0
+            fi
+
+            KEEP_TAG_1="latest"
+            KEEP_TAG_2="$IMAGE_VERSION"
+
+            echo "$VERSIONS_JSON" | jq -c '.[]' | while read -r row; do
+              ID=$(echo "$row" | jq -r '.id')
+              CREATED_AT=$(echo "$row" | jq -r '.created_at')
+              TAGS=$(echo "$row" | jq -r '.metadata.container.tags | join(",")')
+
+              if [ "$TAGS" = "null" ] || [ -z "$TAGS" ]; then
+                SHOULD_DELETE=1
+              else
+                SHOULD_DELETE=1
+                if echo "$TAGS" | grep -q "$KEEP_TAG_1"; then
+                  SHOULD_DELETE=0
+                fi
+                if [ "$SHOULD_DELETE" -eq 1 ] && [ -n "$KEEP_TAG_2" ] && echo "$TAGS" | grep -q "$KEEP_TAG_2"; then
+                  SHOULD_DELETE=0
+                fi
+              fi
+
+              echo "Version ID=${ID}, created_at=${CREATED_AT}, tags=[${TAGS}]"
+
+              if [ "$SHOULD_DELETE" -eq 1 ]; then
+                echo "  -> Deleting this version"
+                curl -sS -X DELETE \
+                  -H "Authorization: Bearer $GH_TOKEN" \
+                  -H "Accept: application/vnd.github+json" \
+                  "${API_ROOT}/user/packages/container/${SERVICE}/versions/${ID}" || echo "  ⚠️ Failed to delete version ${ID}"
+              else
+                echo "  -> Keeping this version"
+              fi
+            done
+          fi

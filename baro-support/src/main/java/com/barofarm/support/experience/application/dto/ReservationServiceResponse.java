@@ -2,7 +2,6 @@ package com.barofarm.support.experience.application.dto;
 
 import com.barofarm.support.experience.domain.Reservation;
 import com.barofarm.support.experience.domain.ReservationStatus;
-import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -22,7 +21,7 @@ public class ReservationServiceResponse {
     private LocalDate reservedDate;
     private String reservedTimeSlot;
     private Integer headCount;
-    private BigInteger totalPrice;
+    private Long totalPrice;
     private ReservationStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

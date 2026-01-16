@@ -13,7 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import java.math.BigInteger;
+import jakarta.persistence.Version;
 import java.time.LocalDate;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -64,11 +64,15 @@ public class Reservation extends BaseEntity {
     private Integer headCount;
 
     @Column(name = "total_price", nullable = false)
-    private BigInteger totalPrice;
+    private Long totalPrice;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ReservationStatus status;
+
+    @Version
+    @Column(name = "version")
+    private Long version;  // 낙관적 락용 버전 필드 (동시 수정 방지)
 
     public Reservation(
         UUID reservationId,
@@ -77,7 +81,7 @@ public class Reservation extends BaseEntity {
         LocalDate reservedDate,
         String reservedTimeSlot,
         Integer headCount,
-        BigInteger totalPrice,
+        Long totalPrice,
         ReservationStatus status
     ) {
         this.reservationId = reservationId;
@@ -102,7 +106,7 @@ public class Reservation extends BaseEntity {
             LocalDate reservedDate,
             String reservedTimeSlot,
             Integer headCount,
-            BigInteger totalPrice
+            Long totalPrice
     ) {
         if (reservedDate != null) {
             this.reservedDate = reservedDate;
