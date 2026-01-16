@@ -4,6 +4,7 @@ import com.barofarm.order.common.entity.BaseEntity;
 import com.barofarm.order.order.application.dto.request.OrderCreateCommand;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
