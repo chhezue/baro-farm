@@ -31,7 +31,8 @@ public class DepositChargeConfirmedConsumer {
         topics = "deposit-charge-confirmed",
         groupId = "support-service.deposit-charge-confirmed",
         properties = {
-            "spring.json.value.default.type=com.barofarm.support.deposit.infrastructure.kafka.dto.DepositChargeConfirmedEvent"
+            "spring.json.value.default.type="
+                + "com.barofarm.support.deposit.infrastructure.kafka.dto.DepositChargeConfirmedEvent"
         }
     )
     @Transactional

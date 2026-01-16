@@ -13,7 +13,6 @@ import com.barofarm.support.experience.domain.ReservationRepository;
 import com.barofarm.support.experience.domain.ReservationStatus;
 import com.barofarm.support.experience.exception.ReservationErrorCode;
 import com.barofarm.support.experience.infrastructure.cache.FarmCacheService;
-import java.math.BigInteger;
 import java.time.LocalDate;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -74,7 +73,7 @@ class ReservationServiceIntegrationTest {
         java.time.LocalDateTime availableStart = java.time.LocalDateTime.of(2025, 3, 1, 9, 0);
         java.time.LocalDateTime availableEnd = java.time.LocalDateTime.of(2025, 3, 31, 18, 0);
         experience = new Experience(experienceId, farmId, "Test Experience", "Description",
-                BigInteger.valueOf(15000), 10, 120, availableStart, availableEnd, ExperienceStatus.ON_SALE);
+                15000L, 10, 120, availableStart, availableEnd, ExperienceStatus.ON_SALE);
         experienceRepository.save(experience);
     }
 
@@ -99,7 +98,7 @@ class ReservationServiceIntegrationTest {
                 try {
                     ReservationServiceRequest request = new ReservationServiceRequest(
                             experienceId, buyerId, reservedDate, reservedTimeSlot,
-                            headCountPerThread, BigInteger.valueOf(15000 * headCountPerThread), null);
+                            headCountPerThread, (long) (15000 * headCountPerThread), null);
                     reservationService.createReservation(buyerId, request);
                     successCount.incrementAndGet();
                 } catch (CustomException e) {
@@ -135,7 +134,7 @@ class ReservationServiceIntegrationTest {
         LocalDate reservedDate = LocalDate.of(2025, 3, 15);
         ReservationServiceRequest request = new ReservationServiceRequest(
                 experienceId, buyerId1, reservedDate, "10:00-12:00",
-                2, BigInteger.valueOf(30000), null);
+                2, 30000L, null);
         ReservationServiceResponse created = reservationService.createReservation(buyerId1, request);
         UUID reservationId = created.getReservationId();
 

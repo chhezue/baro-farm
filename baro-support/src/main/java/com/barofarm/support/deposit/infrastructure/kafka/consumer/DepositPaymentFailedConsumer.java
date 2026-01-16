@@ -23,7 +23,8 @@ public class DepositPaymentFailedConsumer {
         topics = "deposit-payment-failed",
         groupId = "support-service.deposit-payment-failed",
         properties = {
-            "spring.json.value.default.type=com.barofarm.support.deposit.infrastructure.kafka.dto.DepositPaymentFailedEvent"
+            "spring.json.value.default.type="
+                + "com.barofarm.support.deposit.infrastructure.kafka.dto.DepositPaymentFailedEvent"
         }
     )
     @Transactional

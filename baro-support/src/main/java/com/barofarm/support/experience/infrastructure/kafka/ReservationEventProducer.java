@@ -18,19 +18,21 @@ public class ReservationEventProducer {
     public void send(ReservationEvent event) {
         ReservationEvent.ReservationEventData data = event.getData();
         log.info(
-            "📤 [PRODUCER] Sending reservation event to topic '{}' - Type: {}, Reservation ID: {}, Experience ID: {}, Buyer ID: {}",
+            "📤 [PRODUCER] Sending reservation event to topic '{}' - Type: {}, Reservation ID: {}, "
+                + "Experience ID: {}, Buyer ID: {}",
             TOPIC, event.getType(), data.getReservationId(), data.getExperienceId(), data.getBuyerId());
-        
+
         kafkaTemplate.send(TOPIC, event).whenComplete((result, ex) -> {
             if (ex == null) {
                 log.info(
-                    "✅ [PRODUCER] Successfully sent reservation event to topic '{}' - Type: {}, Reservation ID: {}, "
-                        + "Partition: {}, Offset: {}",
+                    "✅ [PRODUCER] Successfully sent reservation event to topic '{}' - Type: {}, "
+                        + "Reservation ID: {}, Partition: {}, Offset: {}",
                     TOPIC, event.getType(), data.getReservationId(),
                     result.getRecordMetadata().partition(), result.getRecordMetadata().offset());
             } else {
                 log.error(
-                    "❌ [PRODUCER] Failed to send reservation event to topic '{}' - Type: {}, Reservation ID: {}, Error: {}",
+                    "❌ [PRODUCER] Failed to send reservation event to topic '{}' - Type: {}, "
+                        + "Reservation ID: {}, Error: {}",
                     TOPIC, event.getType(), data.getReservationId(), ex.getMessage(), ex);
             }
         });
