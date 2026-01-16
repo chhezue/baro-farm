@@ -40,9 +40,9 @@ spring:
     uris: ${SPRING_ELASTICSEARCH_URIS:http://elasticsearch:9200}
   data:
     redis:
-      host: ${SPRING_REDIS_HOST:localhost}
-      port: ${SPRING_REDIS_PORT:6379}
-      # password: ${SPRING_REDIS_PASSWORD:}  # 필요시
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}  # Kubernetes에서는 secret에서 가져옴
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     producer:

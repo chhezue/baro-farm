@@ -128,6 +128,17 @@ spec:
                 secretKeyRef:
                   name: baro-secrets
                   key: SPRING_MAIL_PASSWORD
+            # Redis 설정 (Data EC2 Private IP)
+            # 실제 배포 시 deploy-k8s.sh 스크립트가 자동으로 Data EC2 IP로 치환
+            - name: SPRING_DATA_REDIS_HOST
+              value: "CHANGE_ME_TO_EC2_IP"  # 배포 스크립트가 자동으로 Data EC2 IP로 치환
+            - name: SPRING_DATA_REDIS_PORT
+              value: "6379"
+            - name: SPRING_DATA_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: baro-secrets
+                  key: REDIS_PASSWORD
           # resources:
           #   requests:
           #     cpu: "100m"
