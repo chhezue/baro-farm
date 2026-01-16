@@ -1,8 +1,7 @@
 package com.barofarm.payment.common.response;
 
-import org.springframework.data.domain.Page;
-
 import java.util.List;
+import org.springframework.data.domain.Page;
 
 public record CustomPage<T>(
 

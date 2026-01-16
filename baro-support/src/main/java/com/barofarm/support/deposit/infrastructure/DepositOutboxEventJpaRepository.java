@@ -10,4 +10,3 @@ public interface DepositOutboxEventJpaRepository extends JpaRepository<DepositOu
 
     List<DepositOutboxEvent> findTop100ByStatusOrderByCreatedAtAsc(DepositOutboxStatus status);
 }
-

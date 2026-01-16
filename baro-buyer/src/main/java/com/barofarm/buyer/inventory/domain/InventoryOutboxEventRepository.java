@@ -4,4 +4,3 @@ public interface InventoryOutboxEventRepository {
 
     InventoryOutboxEvent save(InventoryOutboxEvent event);
 }
-

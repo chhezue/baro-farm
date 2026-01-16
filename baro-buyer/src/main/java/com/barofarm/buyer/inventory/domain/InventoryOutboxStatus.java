@@ -5,4 +5,3 @@ public enum InventoryOutboxStatus {
     SENT,
     FAILED
 }
-

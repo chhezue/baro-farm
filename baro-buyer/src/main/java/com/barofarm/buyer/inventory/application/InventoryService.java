@@ -1,5 +1,7 @@
 package com.barofarm.buyer.inventory.application;
 
+import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.*;
+
 import com.barofarm.buyer.common.exception.CustomException;
 import com.barofarm.buyer.inventory.application.dto.request.*;
 import com.barofarm.buyer.inventory.domain.*;
@@ -8,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.*;
 
 @Service
 @RequiredArgsConstructor

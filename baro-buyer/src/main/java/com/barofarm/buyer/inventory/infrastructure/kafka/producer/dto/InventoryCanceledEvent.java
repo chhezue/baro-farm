@@ -6,4 +6,3 @@ public record InventoryCanceledEvent(
     UUID orderId
 ) {
 }
-

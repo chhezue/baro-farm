@@ -1,5 +1,7 @@
 package com.barofarm.buyer.inventory.domain;
 
+import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.*;
+
 import com.barofarm.buyer.common.entity.BaseEntity;
 import com.barofarm.buyer.common.exception.CustomException;
 import jakarta.persistence.*;
@@ -9,7 +11,6 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.*;
 
 @Entity
 @Getter

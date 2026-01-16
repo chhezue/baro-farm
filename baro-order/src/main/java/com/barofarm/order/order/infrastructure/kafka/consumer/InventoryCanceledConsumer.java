@@ -1,5 +1,7 @@
 package com.barofarm.order.order.infrastructure.kafka.consumer;
 
+import static com.barofarm.order.order.exception.OrderErrorCode.OUTBOX_SERIALIZATION_FAILED;
+
 import com.barofarm.order.common.exception.CustomException;
 import com.barofarm.order.order.domain.Order;
 import com.barofarm.order.order.domain.OrderOutboxEvent;
@@ -16,8 +18,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import static com.barofarm.order.order.exception.OrderErrorCode.OUTBOX_SERIALIZATION_FAILED;
 
 @Component
 @RequiredArgsConstructor

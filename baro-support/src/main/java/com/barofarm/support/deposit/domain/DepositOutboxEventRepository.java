@@ -4,4 +4,3 @@ public interface DepositOutboxEventRepository {
 
     DepositOutboxEvent save(DepositOutboxEvent event);
 }
-

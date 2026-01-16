@@ -7,4 +7,3 @@ public record OrderCancelRequestedEvent(
     Long amount
 ) {
 }
-

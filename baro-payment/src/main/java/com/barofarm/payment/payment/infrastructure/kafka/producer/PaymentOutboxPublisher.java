@@ -3,14 +3,13 @@ package com.barofarm.payment.payment.infrastructure.kafka.producer;
 import com.barofarm.payment.payment.domain.PaymentOutboxEvent;
 import com.barofarm.payment.payment.domain.PaymentOutboxStatus;
 import com.barofarm.payment.payment.infrastructure.PaymentOutboxEventJpaRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Component
 @RequiredArgsConstructor

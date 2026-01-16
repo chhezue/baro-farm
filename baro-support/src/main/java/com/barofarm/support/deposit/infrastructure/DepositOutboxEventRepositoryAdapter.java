@@ -16,4 +16,3 @@ public class DepositOutboxEventRepositoryAdapter implements DepositOutboxEventRe
         return depositOutboxEventJpaRepository.save(event);
     }
 }
-

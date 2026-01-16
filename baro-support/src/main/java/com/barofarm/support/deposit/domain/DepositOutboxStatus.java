@@ -5,4 +5,3 @@ public enum DepositOutboxStatus {
     SENT,
     FAILED
 }
-

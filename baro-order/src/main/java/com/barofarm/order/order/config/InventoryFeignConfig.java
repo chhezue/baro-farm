@@ -4,9 +4,9 @@ import com.barofarm.order.order.infrastructure.rest.InventoryErrorDecoder;
 import feign.Request;
 import feign.Retryer;
 import feign.codec.ErrorDecoder;
+import java.util.concurrent.TimeUnit;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import java.util.concurrent.TimeUnit;
 
 @Configuration
 public class InventoryFeignConfig {

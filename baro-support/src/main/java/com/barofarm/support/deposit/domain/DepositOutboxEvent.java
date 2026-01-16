@@ -79,4 +79,3 @@ public class DepositOutboxEvent extends BaseEntity {
         this.status = DepositOutboxStatus.FAILED;
     }
 }
-

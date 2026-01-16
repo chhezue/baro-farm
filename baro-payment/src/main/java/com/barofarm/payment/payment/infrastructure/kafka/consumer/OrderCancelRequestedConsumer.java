@@ -1,5 +1,7 @@
 package com.barofarm.payment.payment.infrastructure.kafka.consumer;
 
+import static com.barofarm.payment.payment.exception.PaymentErrorCode.PAYMENT_NOT_FOUND;
+
 import com.barofarm.payment.common.exception.CustomException;
 import com.barofarm.payment.payment.application.dto.request.TossPaymentRefundCommand;
 import com.barofarm.payment.payment.domain.Payment;
@@ -9,8 +11,8 @@ import com.barofarm.payment.payment.domain.PaymentRepository;
 import com.barofarm.payment.payment.domain.PaymentStatus;
 import com.barofarm.payment.payment.exception.PaymentErrorCode;
 import com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.OrderCancelRequestedEvent;
-import com.barofarm.payment.payment.infrastructure.kafka.producer.dto.PaymentCanceledEvent;
 import com.barofarm.payment.payment.infrastructure.kafka.producer.dto.PaymentCancelFailedEvent;
+import com.barofarm.payment.payment.infrastructure.kafka.producer.dto.PaymentCanceledEvent;
 import com.barofarm.payment.payment.infrastructure.rest.DepositClient;
 import com.barofarm.payment.payment.infrastructure.rest.TossPaymentClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -23,11 +25,10 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import static com.barofarm.payment.payment.exception.PaymentErrorCode.PAYMENT_NOT_FOUND;
-
 @Component
 @RequiredArgsConstructor
-public class OrderCancelRequestedConsumer {
+public class
+OrderCancelRequestedConsumer {
 
     private final PaymentRepository paymentRepository;
     private final TossPaymentClient tossPaymentClient;

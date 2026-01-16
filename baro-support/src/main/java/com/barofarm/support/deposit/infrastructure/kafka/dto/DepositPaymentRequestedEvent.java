@@ -8,4 +8,3 @@ public record DepositPaymentRequestedEvent(
     long amount
 ) {
 }
-

@@ -6,4 +6,3 @@ public record OrderCancelRequestedEvent(
     UUID orderId
 ) {
 }
-

@@ -31,4 +31,3 @@ public enum DepositErrorCode implements BaseErrorCode {
         return message;
     }
 }
-

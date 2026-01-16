@@ -1,5 +1,7 @@
 package com.barofarm.order.order.application;
 
+import static com.barofarm.order.order.exception.OrderErrorCode.*;
+
 import com.barofarm.order.common.exception.CustomException;
 import com.barofarm.order.common.response.CustomPage;
 import com.barofarm.order.common.response.ResponseDto;
@@ -17,7 +19,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import static com.barofarm.order.order.exception.OrderErrorCode.*;
 
 @Service
 @RequiredArgsConstructor

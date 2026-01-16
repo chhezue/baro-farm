@@ -1,10 +1,12 @@
 package com.barofarm.payment.payment.infrastructure.kafka.consumer;
 
+import static com.barofarm.payment.payment.exception.PaymentErrorCode.PAYMENT_NOT_FOUND;
+
 import com.barofarm.payment.common.exception.CustomException;
+import com.barofarm.payment.payment.application.dto.request.TossPaymentRefundCommand;
 import com.barofarm.payment.payment.domain.Payment;
 import com.barofarm.payment.payment.domain.PaymentRepository;
 import com.barofarm.payment.payment.domain.PaymentStatus;
-import com.barofarm.payment.payment.application.dto.request.TossPaymentRefundCommand;
 import com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.InventoryConfirmedFailEvent;
 import com.barofarm.payment.payment.infrastructure.rest.TossPaymentClient;
 import lombok.RequiredArgsConstructor;
@@ -13,8 +15,6 @@ import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import static com.barofarm.payment.payment.exception.PaymentErrorCode.PAYMENT_NOT_FOUND;
 
 @Component
 @RequiredArgsConstructor
