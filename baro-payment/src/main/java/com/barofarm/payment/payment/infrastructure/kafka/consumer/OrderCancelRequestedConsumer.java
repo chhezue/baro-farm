@@ -95,7 +95,7 @@ OrderCancelRequestedConsumer {
                 "PAYMENT",
                 payment.getId().toString(),
                 "payment-canceled",
-                payment.getOrderId(),
+                payment.getOrderId().toString(),
                 payload
             );
             paymentOutboxEventRepository.save(outbox);
@@ -118,7 +118,7 @@ OrderCancelRequestedConsumer {
                 "PAYMENT",
                 payment.getId().toString(),
                 "payment-cancel-failed",
-                payment.getOrderId(),
+                payment.getOrderId().toString(),
                 payload
             );
             paymentOutboxEventRepository.save(outboxEvent);

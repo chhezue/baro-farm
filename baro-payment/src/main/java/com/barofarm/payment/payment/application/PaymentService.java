@@ -42,7 +42,7 @@ public class PaymentService {
         Payment saved = paymentRepository.save(payment);
 
         PaymentConfirmedEvent event = new PaymentConfirmedEvent(
-            UUID.fromString(saved.getOrderId()),
+            saved.getOrderId(),
             saved.getAmount()
         );
 
@@ -53,7 +53,7 @@ public class PaymentService {
                 "PAYMENT",
                 saved.getId().toString(),
                 "payment-confirmed",
-                saved.getOrderId(),
+                saved.getOrderId().toString(),
                 payload
             );
             paymentOutboxEventRepository.save(outbox);

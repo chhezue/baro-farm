@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public record TossPaymentConfirmInfo(
     UUID id,
-    String orderId,
+    UUID orderId,
     String paymentKey,
     Long amount,
     PaymentStatus status,

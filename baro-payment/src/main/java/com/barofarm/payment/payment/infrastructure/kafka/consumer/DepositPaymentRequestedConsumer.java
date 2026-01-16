@@ -57,7 +57,7 @@ public class DepositPaymentRequestedConsumer {
                 "PAYMENT",
                 saved.getId().toString(),
                 "payment-confirmed",
-                saved.getOrderId(),
+                saved.getOrderId().toString(),
                 payload
             );
 
