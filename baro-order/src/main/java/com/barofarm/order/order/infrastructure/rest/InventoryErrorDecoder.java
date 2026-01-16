@@ -21,13 +21,10 @@ public class InventoryErrorDecoder implements ErrorDecoder {
         // 404, 409 등 비즈니스 에러 → 바로 매핑
         if (status == 404) {
             return new CustomException(OrderErrorCode.INVENTORY_NOT_FOUND);
-        }
-        else if (status == 409) {
+        } else if (status == 409) {
             return new CustomException(OrderErrorCode.OUT_OF_STOCK);
-        }
-
-        // 5xx → 재시도
-        else if (status >= 500) {
+        } else if (status >= 500) {
+            // 5xx → 재시도
             return new RetryableException(
                 status,
                 "Retryable inventory error. status=" + status,

@@ -3,7 +3,10 @@ package com.barofarm.order.order.infrastructure.kafka.consumer;
 import static com.barofarm.order.order.exception.OrderErrorCode.ORDER_NOT_FOUND;
 
 import com.barofarm.order.common.exception.CustomException;
-import com.barofarm.order.order.domain.*;
+import com.barofarm.order.order.domain.Order;
+import com.barofarm.order.order.domain.OrderOutboxEvent;
+import com.barofarm.order.order.domain.OrderOutboxEventRepository;
+import com.barofarm.order.order.domain.OrderRepository;
 import com.barofarm.order.order.exception.OrderErrorCode;
 import com.barofarm.order.order.infrastructure.kafka.consumer.dto.InventoryConfirmedEvent;
 import com.barofarm.order.order.infrastructure.kafka.producer.dto.OrderConfirmedEvent;
@@ -29,7 +32,8 @@ public class InventoryConfirmedConsumer {
         topics = "inventory-confirmed",
         groupId = "order-service.inventory-confirmed",
         properties = {
-            "spring.json.value.default.type=com.barofarm.order.order.infrastructure.kafka.consumer.dto.InventoryConfirmedEvent"
+            "spring.json.value.default.type="
+                + "com.barofarm.order.order.infrastructure.kafka.consumer.dto.InventoryConfirmedEvent"
         }
     )
     @RetryableTopic(

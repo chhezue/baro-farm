@@ -24,7 +24,8 @@ public class PaymentCancelFailedConsumer {
         topics = "payment-cancel-failed",
         groupId = "order-service.payment-cancel-failed",
         properties = {
-            "spring.json.value.default.type=com.barofarm.order.order.infrastructure.kafka.consumer.dto.PaymentCancelFailedEvent"
+            "spring.json.value.default.type="
+                + "com.barofarm.order.order.infrastructure.kafka.consumer.dto.PaymentCancelFailedEvent"
         }
     )
     @Transactional

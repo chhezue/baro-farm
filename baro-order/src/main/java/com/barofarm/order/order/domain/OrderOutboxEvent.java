@@ -1,7 +1,14 @@
 package com.barofarm.order.order.domain;
 
 import com.barofarm.order.common.entity.BaseEntity;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Lob;
+import jakarta.persistence.Table;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -61,6 +68,11 @@ public class OrderOutboxEvent extends BaseEntity {
         return new OrderOutboxEvent(aggregateType, aggregateId, topic, correlationId, payload);
     }
 
-    public void markSent()   { this.status = OrderOutboxStatus.SENT; }
-    public void markFailed() { this.status = OrderOutboxStatus.FAILED; }
+    public void markSent() {
+        this.status = OrderOutboxStatus.SENT;
+    }
+
+    public void markFailed() {
+        this.status = OrderOutboxStatus.FAILED;
+    }
 }

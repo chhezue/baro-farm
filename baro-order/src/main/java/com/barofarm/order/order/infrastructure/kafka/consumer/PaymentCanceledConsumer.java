@@ -23,7 +23,8 @@ public class PaymentCanceledConsumer {
         topics = "payment-canceled",
         groupId = "order-service.payment-canceled",
         properties = {
-            "spring.json.value.default.type=com.barofarm.order.order.infrastructure.kafka.consumer.dto.PaymentCanceledEvent"
+            "spring.json.value.default.type="
+                + "com.barofarm.order.order.infrastructure.kafka.consumer.dto.PaymentCanceledEvent"
         }
     )
     @Transactional

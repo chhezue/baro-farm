@@ -31,7 +31,8 @@ public class InventoryCanceledConsumer {
         topics = "inventory-canceled",
         groupId = "order-service.inventory-canceled",
         properties = {
-            "spring.json.value.default.type=com.barofarm.order.order.infrastructure.kafka.consumer.dto.InventoryCanceledEvent"
+            "spring.json.value.default.type="
+                + "com.barofarm.order.order.infrastructure.kafka.consumer.dto.InventoryCanceledEvent"
         }
     )
     @Transactional

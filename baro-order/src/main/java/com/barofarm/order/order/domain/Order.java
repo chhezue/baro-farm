@@ -2,7 +2,14 @@ package com.barofarm.order.order.domain;
 
 import com.barofarm.order.common.entity.BaseEntity;
 import com.barofarm.order.order.application.dto.request.OrderCreateCommand;
-import jakarta.persistence.*;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +68,8 @@ public class Order extends BaseEntity {
         );
     }
 
-    public void addOrderItem(UUID productId, String productName, UUID sellerId, Long quantity, Long unitPrice, UUID inventoryId) {
+    public void addOrderItem(UUID productId, String productName, UUID sellerId,
+                             Long quantity, Long unitPrice, UUID inventoryId) {
         OrderItem orderItem = OrderItem.of(this, productId, productName, sellerId, quantity, unitPrice, inventoryId);
         this.orderItems.add(orderItem);
         this.totalAmount += orderItem.getTotalPrice();
