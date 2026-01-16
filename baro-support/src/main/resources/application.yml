@@ -54,7 +54,10 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       auto-offset-reset: latest  # earliest에서 latest로 변경하여 오래된 메시지 건너뛰기
       # auto-offset-reset: earliest
-
+payment:
+  toss:
+    secret-key: ${TOSS_SECRET_KEY:}
+    
 eureka:
   client:
     # Eureka 서버에 등록 (Config Server의 eureka-server 설정과 충돌 방지)
