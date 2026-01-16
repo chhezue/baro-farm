@@ -11,9 +11,9 @@ labels:
   - includeSelectors: false  # selector는 immutable이므로 false로 설정
     includeTemplates: true
     pairs:
-      app: baro-order
+      app: baro-payment
       component: app
 
 images:
-  - name: ghcr.io/do-develop-space/baro-order
+  - name: ghcr.io/do-develop-space/baro-payment
     newTag: latest
