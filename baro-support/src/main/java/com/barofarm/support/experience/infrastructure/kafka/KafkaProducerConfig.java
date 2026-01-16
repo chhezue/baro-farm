@@ -1,6 +1,7 @@
 package com.barofarm.support.experience.infrastructure.kafka;
 
 import com.barofarm.support.event.ReservationEvent;
+import com.barofarm.support.experience.event.ExperienceEvent;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -47,5 +48,23 @@ public class KafkaProducerConfig {
     @Bean
     public KafkaTemplate<String, ReservationEvent> reservationEventKafkaTemplate() {
         return new KafkaTemplate<>(reservationEventProducerFactory());
+    }
+
+    @Bean
+    public ProducerFactory<String, ExperienceEvent> experienceEventProducerFactory() {
+        Map<String, Object> config = new HashMap<>();
+        config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        config.put(ProducerConfig.RETRIES_CONFIG, 2);
+        config.put(ProducerConfig.ACKS_CONFIG, "1");
+        config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+
+        return new DefaultKafkaProducerFactory<>(config);
+    }
+
+    @Bean
+    public KafkaTemplate<String, ExperienceEvent> experienceEventKafkaTemplate() {
+        return new KafkaTemplate<>(experienceEventProducerFactory());
     }
 }
