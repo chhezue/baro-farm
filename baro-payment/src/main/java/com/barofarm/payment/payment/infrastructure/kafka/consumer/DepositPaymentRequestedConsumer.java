@@ -32,7 +32,8 @@ public class DepositPaymentRequestedConsumer {
         topics = "deposit-payment-requested",
         groupId = "payment-service.deposit-payment-requested",
         properties = {
-            "spring.json.value.default.type=com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.DepositPaymentRequestedEvent"
+            "spring.json.value.default.type="
+                + "com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.DepositPaymentRequestedEvent"
         }
     )
     @RetryableTopic(

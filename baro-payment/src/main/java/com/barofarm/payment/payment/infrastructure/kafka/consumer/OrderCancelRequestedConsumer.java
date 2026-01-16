@@ -40,7 +40,8 @@ OrderCancelRequestedConsumer {
         topics = "order-cancel-requested",
         groupId = "payment-service.order-cancel-requested",
         properties = {
-            "spring.json.value.default.type=com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.OrderCancelRequestedEvent"
+            "spring.json.value.default.type="
+                + "com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.OrderCancelRequestedEvent"
         }
     )
     @RetryableTopic(

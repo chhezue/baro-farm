@@ -22,7 +22,8 @@ public class PaymentOutboxPublisher {
     @Scheduled(fixedDelay = 20000L)
     @Transactional
     public void publishOutboxEvents() {
-        List<PaymentOutboxEvent> events = outboxRepository.findTop100ByStatusOrderByCreatedAtAsc(PaymentOutboxStatus.PENDING);
+        List<PaymentOutboxEvent> events = outboxRepository
+            .findTop100ByStatusOrderByCreatedAtAsc(PaymentOutboxStatus.PENDING);
 
         for (PaymentOutboxEvent event : events) {
             try {

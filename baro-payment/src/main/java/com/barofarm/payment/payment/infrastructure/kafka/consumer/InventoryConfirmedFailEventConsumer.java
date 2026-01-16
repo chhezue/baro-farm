@@ -27,7 +27,8 @@ public class InventoryConfirmedFailEventConsumer {
         topics = "inventory-confirmed-fail",
         groupId = "payment-service.inventory-confirmed-fail",
         properties = {
-            "spring.json.value.default.type=com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.InventoryConfirmedFailEvent"
+            "spring.json.value.default.type="
+                + "com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.InventoryConfirmedFailEvent"
         }
     )
     @RetryableTopic(
