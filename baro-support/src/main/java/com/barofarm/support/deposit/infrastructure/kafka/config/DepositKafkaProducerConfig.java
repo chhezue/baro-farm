@@ -47,4 +47,3 @@ public class DepositKafkaProducerConfig {
         return new KafkaTemplate<>(depositProducerFactory());
     }
 }
-
