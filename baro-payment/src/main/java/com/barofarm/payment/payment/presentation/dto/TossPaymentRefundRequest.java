@@ -1,6 +1,6 @@
 package com.barofarm.payment.payment.presentation.dto;
 
-import com.barofarm.order.payment.application.dto.request.TossPaymentRefundCommand;
+import com.barofarm.payment.payment.application.dto.request.TossPaymentRefundCommand;
 
 public record TossPaymentRefundRequest(
     String paymentKey,

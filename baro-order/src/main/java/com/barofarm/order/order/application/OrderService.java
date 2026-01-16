@@ -134,22 +134,14 @@ public class OrderService {
         return ResponseDto.ok(OrderCancelInfo.from(order));
     }
 
-//    @Transactional(readOnly = true)
-//    public CustomPage<OrderItemSettlementResponse> findOrderItemsForSettlement(
-//        LocalDate startDate, LocalDate endDate, Pageable pageable) {
-//        LocalDateTime startDateTime = startDate.atStartOfDay();
-//        LocalDateTime endDateTime = endDate.plusDays(1).atStartOfDay().minusNanos(1);
-//
-//        return orderItemRepository.findOrderItemsForSettlement(startDateTime, endDateTime, pageable);
-//    }
-//
-//    @Transactional(readOnly = true)
-//    public OrderItemInternalResponse getOrderItem(UUID orderItemId) {
-//        OrderItem orderItem = orderItemRepository.findById(orderItemId)
-//                .orElseThrow(() -> new CustomException(ORDER_ITEM_NOT_FOUND));
-//
-//        return OrderItemInternalResponse.from(orderItem);
-//    }
+
+    @Transactional(readOnly = true)
+    public OrderItemInternalResponse getOrderItem(UUID orderItemId) {
+        OrderItem orderItem = orderItemRepository.findById(orderItemId)
+                .orElseThrow(() -> new CustomException(ORDER_ITEM_NOT_FOUND));
+
+        return OrderItemInternalResponse.from(orderItem);
+    }
 
     private void validateOwner(UUID userId, Order order) {
         if (!order.getUserId().equals(userId)) {

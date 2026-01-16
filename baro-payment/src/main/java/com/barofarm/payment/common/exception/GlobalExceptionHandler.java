@@ -1,6 +1,6 @@
 package com.barofarm.payment.common.exception;
 
-import com.barofarm.order.common.response.ResponseDto;
+import com.barofarm.payment.common.response.ResponseDto;
 import feign.RetryableException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

@@ -13,7 +13,7 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(
-    name = "outbox_event",
+    name = "payment_outbox_event",
     indexes = {
         @Index(name = "idx_outbox_status_created_at", columnList = "status, created_at")
     }

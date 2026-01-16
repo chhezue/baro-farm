@@ -20,7 +20,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
-
 import static com.barofarm.payment.payment.domain.Purpose.DEPOSIT_CHARGE;
 import static com.barofarm.payment.payment.domain.Purpose.ORDER_PAYMENT;
 
@@ -97,10 +96,4 @@ public class PaymentService {
 
         return ResponseDto.ok(TossPaymentConfirmInfo.from(saved));
     }
-//
-//    @Transactional
-//    public Payment createPayment(UUID orderId, Long amount){
-//        Payment paymnet = Payment.of(orderId, amount);
-//        return paymentRepository.save(paymnet);
-//    }
 }
