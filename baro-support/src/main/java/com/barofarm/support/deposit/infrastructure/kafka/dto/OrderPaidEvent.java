@@ -1,7 +1,7 @@
 package com.barofarm.support.deposit.infrastructure.kafka.dto;
 
-import java.util.UUID;
 import com.barofarm.order.order.domain.Address;
+import java.util.UUID;
 
 public record OrderPaidEvent(
     UUID orderId,

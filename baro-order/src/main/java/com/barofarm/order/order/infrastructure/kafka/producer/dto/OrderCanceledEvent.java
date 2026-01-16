@@ -12,4 +12,3 @@ public record OrderCanceledEvent(
         return new OrderCanceledEvent(event.orderId(), event.amount());
     }
 }
-

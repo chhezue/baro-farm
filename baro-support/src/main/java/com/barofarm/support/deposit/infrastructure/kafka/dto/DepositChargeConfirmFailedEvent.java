@@ -9,4 +9,3 @@ public record DepositChargeConfirmFailedEvent(
     String reason
 ) {
 }
-

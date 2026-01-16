@@ -32,4 +32,3 @@ public record OrderConfirmedFailEvent(
         return new OrderConfirmedFailEvent(event.orderId(), orderAddress);
     }
 }
-

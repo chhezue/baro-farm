@@ -1,5 +1,7 @@
 package com.barofarm.order.order.infrastructure.kafka.consumer;
 
+import static com.barofarm.order.order.exception.OrderErrorCode.ORDER_NOT_FOUND;
+
 import com.barofarm.order.common.exception.CustomException;
 import com.barofarm.order.order.domain.*;
 import com.barofarm.order.order.exception.OrderErrorCode;
@@ -7,15 +9,13 @@ import com.barofarm.order.order.infrastructure.kafka.consumer.dto.InventoryConfi
 import com.barofarm.order.order.infrastructure.kafka.producer.dto.OrderConfirmedEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.UUID;
-
-import static com.barofarm.order.order.exception.OrderErrorCode.ORDER_NOT_FOUND;
 
 @Component
 @RequiredArgsConstructor

@@ -1,5 +1,7 @@
 package com.barofarm.order.order.infrastructure.kafka.consumer;
 
+import static com.barofarm.order.order.exception.OrderErrorCode.ORDER_NOT_FOUND;
+
 import com.barofarm.order.common.exception.CustomException;
 import com.barofarm.order.order.domain.Order;
 import com.barofarm.order.order.domain.OrderRepository;
@@ -11,8 +13,6 @@ import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import static com.barofarm.order.order.exception.OrderErrorCode.ORDER_NOT_FOUND;
 
 @Component
 @RequiredArgsConstructor

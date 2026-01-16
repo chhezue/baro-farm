@@ -1,5 +1,7 @@
 package com.barofarm.order.order.application;
 
+import static com.barofarm.order.order.exception.OrderErrorCode.*;
+
 import com.barofarm.order.common.exception.CustomException;
 import com.barofarm.order.common.response.CustomPage;
 import com.barofarm.order.common.response.ResponseDto;
@@ -17,7 +19,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import static com.barofarm.order.order.exception.OrderErrorCode.*;
 
 @Service
 @RequiredArgsConstructor
@@ -134,22 +135,14 @@ public class OrderService {
         return ResponseDto.ok(OrderCancelInfo.from(order));
     }
 
-//    @Transactional(readOnly = true)
-//    public CustomPage<OrderItemSettlementResponse> findOrderItemsForSettlement(
-//        LocalDate startDate, LocalDate endDate, Pageable pageable) {
-//        LocalDateTime startDateTime = startDate.atStartOfDay();
-//        LocalDateTime endDateTime = endDate.plusDays(1).atStartOfDay().minusNanos(1);
-//
-//        return orderItemRepository.findOrderItemsForSettlement(startDateTime, endDateTime, pageable);
-//    }
-//
-//    @Transactional(readOnly = true)
-//    public OrderItemInternalResponse getOrderItem(UUID orderItemId) {
-//        OrderItem orderItem = orderItemRepository.findById(orderItemId)
-//                .orElseThrow(() -> new CustomException(ORDER_ITEM_NOT_FOUND));
-//
-//        return OrderItemInternalResponse.from(orderItem);
-//    }
+
+    @Transactional(readOnly = true)
+    public OrderItemInternalResponse getOrderItem(UUID orderItemId) {
+        OrderItem orderItem = orderItemRepository.findById(orderItemId)
+                .orElseThrow(() -> new CustomException(ORDER_ITEM_NOT_FOUND));
+
+        return OrderItemInternalResponse.from(orderItem);
+    }
 
     private void validateOwner(UUID userId, Order order) {
         if (!order.getUserId().equals(userId)) {

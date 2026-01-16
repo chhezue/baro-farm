@@ -16,4 +16,3 @@ public class InventoryOutboxEventRepositoryAdapter implements InventoryOutboxEve
         return inventoryOutboxEventJpaRepository.save(event);
     }
 }
-

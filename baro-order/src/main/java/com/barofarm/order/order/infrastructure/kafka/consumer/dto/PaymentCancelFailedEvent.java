@@ -8,4 +8,3 @@ public record PaymentCancelFailedEvent(
     String reason
 ) {
 }
-

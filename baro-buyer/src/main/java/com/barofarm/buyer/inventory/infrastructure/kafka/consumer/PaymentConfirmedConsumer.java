@@ -10,13 +10,13 @@ import com.barofarm.buyer.inventory.infrastructure.kafka.producer.dto.InventoryC
 import com.barofarm.buyer.inventory.infrastructure.kafka.producer.dto.InventoryConfirmedFailEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor

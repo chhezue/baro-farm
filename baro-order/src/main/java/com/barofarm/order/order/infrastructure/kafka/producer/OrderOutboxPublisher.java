@@ -3,14 +3,13 @@ package com.barofarm.order.order.infrastructure.kafka.producer;
 import com.barofarm.order.order.domain.OrderOutboxEvent;
 import com.barofarm.order.order.domain.OrderOutboxStatus;
 import com.barofarm.order.order.infrastructure.OrderOutboxEventJpaRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -20,7 +19,7 @@ public class OrderOutboxPublisher {
     private final OrderOutboxEventJpaRepository outboxRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
 
-    //@Scheduled(fixedDelay = 20000L)
+    @Scheduled(fixedDelay = 2000L)
     @Transactional
     public void publishOrderEvents() {
         List<OrderOutboxEvent> events =
@@ -42,4 +41,3 @@ public class OrderOutboxPublisher {
         }
     }
 }
-

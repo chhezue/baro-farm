@@ -8,4 +8,3 @@ public record DepositChargeConfirmedEvent(
     long amount
 ) {
 }
-

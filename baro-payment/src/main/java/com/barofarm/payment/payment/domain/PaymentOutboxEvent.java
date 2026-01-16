@@ -2,18 +2,16 @@ package com.barofarm.payment.payment.domain;
 
 import com.barofarm.payment.common.entity.BaseEntity;
 import jakarta.persistence.*;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(
-    name = "outbox_event",
+    name = "payment_outbox_event",
     indexes = {
         @Index(name = "idx_outbox_status_created_at", columnList = "status, created_at")
     }

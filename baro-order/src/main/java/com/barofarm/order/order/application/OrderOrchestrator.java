@@ -5,9 +5,9 @@ import com.barofarm.order.order.application.dto.request.OrderCreateCommand;
 import com.barofarm.order.order.application.dto.response.OrderCreateInfo;
 import com.barofarm.order.order.infrastructure.rest.InventoryClient;
 import com.barofarm.order.order.infrastructure.rest.dto.InventoryReserveRequest;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor

@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("${api.v1}/deposits")
 @RequiredArgsConstructor
-public class DepositController {
+public class DepositController implements DepositSwaggerApi{
 
     private final DepositService depositService;
 
