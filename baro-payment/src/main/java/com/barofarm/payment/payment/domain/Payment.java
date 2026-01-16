@@ -29,8 +29,8 @@ public class Payment extends BaseEntity {
     @Column(name = "payment_key", nullable = false, unique = true, length = 200)
     private String paymentKey;
 
-    @Column(name = "order_id", nullable = false, length = 100)
-    private String orderId;
+    @Column(name = "order_id", columnDefinition = "BINARY(16)")
+    private UUID orderId;
 
     @Column(name = "total_amount", nullable = false)
     private Long amount;
@@ -57,7 +57,7 @@ public class Payment extends BaseEntity {
 
     private Payment(UUID userId,
                     String paymentKey,
-                    String orderId,
+                    UUID orderId,
                     Long amount,
                     String method,
                     Purpose purpose,
@@ -82,7 +82,7 @@ public class Payment extends BaseEntity {
         return new Payment(
             userId,
             response.paymentKey(),
-            response.orderId(),
+            UUID.fromString(response.orderId()),
             response.totalAmount(),
             response.method(),
             purpose,
@@ -100,7 +100,7 @@ public class Payment extends BaseEntity {
         return new Payment(
             userId,
             "DEPOSIT:" + orderId,
-            orderId.toString(),
+            orderId,
             amount,
             "DEPOSIT",
             Purpose.ORDER_PAYMENT,
