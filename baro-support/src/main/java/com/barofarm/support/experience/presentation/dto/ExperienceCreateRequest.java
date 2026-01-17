@@ -6,7 +6,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
@@ -35,7 +34,7 @@ public class ExperienceCreateRequest {
     @Schema(description = "1인당 가격 (원)", example = "30000", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "1인당 가격은 필수입니다")
     @Min(value = 0, message = "가격은 0원 이상이어야 합니다")
-    private BigInteger pricePerPerson;
+    private Long pricePerPerson;
 
     @Schema(description = "수용 인원", example = "20", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "수용 인원은 필수입니다")

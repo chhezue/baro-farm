@@ -47,14 +47,13 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
     implementation 'org.springframework.cloud:spring-cloud-starter-config' // Config Server 클라이언트
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
-    implementation 'org.springframework.boot:spring-boot-starter-batch'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
-
-    // Elasticsearch
-    implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
 
     // Kafka 연결
     implementation 'org.springframework.kafka:spring-kafka'
+
+    // Redis 연결
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
     // Database
     runtimeOnly 'com.mysql:mysql-connector-j'

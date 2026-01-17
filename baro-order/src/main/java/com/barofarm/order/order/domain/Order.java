@@ -1,10 +1,10 @@
 package com.barofarm.order.order.domain;
 
-
 import com.barofarm.order.common.entity.BaseEntity;
 import com.barofarm.order.order.application.dto.request.OrderCreateCommand;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -39,26 +39,8 @@ public class Order extends BaseEntity {
     @Column(name = "user_id", columnDefinition = "BINARY(16)")
     private UUID userId;
 
-    @Column(name = "receiver_name", nullable = false)
-    private String receiverName;
-
-    @Column(name = "phone", nullable = false)
-    private String phone;
-
-    @Column(name = "email", nullable = false)
-    private String email;
-
-    @Column(name = "zip_code", nullable = false)
-    private String zipCode;
-
-    @Column(name = "address", nullable = false)
-    private String address;
-
-    @Column(name = "address_detail", nullable = false)
-    private String addressDetail;
-
-    @Column(name = "delivery_memo")
-    private String deliveryMemo;
+    @Embedded
+    private Address address;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> orderItems = new ArrayList<>();
@@ -70,23 +52,11 @@ public class Order extends BaseEntity {
     private Order(
             UUID id,
             UUID userId,
-            String receiverName,
-            String phone,
-            String email,
-            String zipCode,
-            String address,
-            String addressDetail,
-            String deliveryMemo
+            Address address
     ) {
         this.id = id;
         this.userId = userId;
-        this.receiverName = receiverName;
-        this.phone = phone;
-        this.email = email;
-        this.zipCode = zipCode;
         this.address = address;
-        this.addressDetail = addressDetail;
-        this.deliveryMemo = deliveryMemo;
         this.totalAmount = 0L;
         this.status = OrderStatus.PENDING;
     }
@@ -95,32 +65,35 @@ public class Order extends BaseEntity {
         return new Order(
                 UUID.randomUUID(),
                 userId,
-                command.receiverName(),
-                command.phone(),
-                command.email(),
-                command.zipCode(),
-                command.address(),
-                command.addressDetail(),
-                command.deliveryMemo()
+                Address.from(command)
         );
     }
 
-    public void addOrderItem(UUID productId, UUID sellerId, int quantity, Long unitPrice) {
-        OrderItem orderItem = OrderItem.of(this, productId, sellerId, quantity, unitPrice);
+    public void addOrderItem(UUID productId, String productName, UUID sellerId,
+                             Long quantity, Long unitPrice, UUID inventoryId) {
+        OrderItem orderItem = OrderItem.of(this, productId, productName, sellerId, quantity, unitPrice, inventoryId);
         this.orderItems.add(orderItem);
         this.totalAmount += orderItem.getTotalPrice();
     }
 
-    public void markPaid() {
-        this.status = OrderStatus.PAID;
+    public void markFailed(){
+        this.status = OrderStatus.FAILED;
     }
 
-    public void cancel() {
+    public void markConfirmed(){
+        this.status = OrderStatus.CONFIRMED;
+    }
+
+    public void markAwaitingPayment() {
+        this.status = OrderStatus.AWAITING_PAYMENT;
+    }
+
+    public void markCancelPending() {
+        this.status = OrderStatus.CANCEL_PENDING;
+    }
+
+    public void markCancel() {
         this.status = OrderStatus.CANCELED;
         this.canceledAt = LocalDateTime.now();
-    }
-
-    public boolean isCanceled() {
-        return this.status == OrderStatus.CANCELED;
     }
 }

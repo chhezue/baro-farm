@@ -1,5 +1,6 @@
 package com.barofarm.buyer.config;
 
+import com.barofarm.buyer.product.domain.CategoryRepository;
 import com.barofarm.buyer.product.domain.ProductRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -11,4 +12,7 @@ public abstract class BaseRepositoryTest {
 
     @Autowired
     protected ProductRepository productRepository;
+
+    @Autowired
+    protected CategoryRepository categoryRepository;
 }

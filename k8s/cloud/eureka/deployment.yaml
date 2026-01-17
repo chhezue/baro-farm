@@ -23,6 +23,16 @@ spec:
         component: cloud
     spec:
       hostNetwork: true
+      nodeSelector:
+        kubernetes.io/hostname: ip-10-0-5-208  # 마스터 노드에 고정 배치
+      tolerations:
+        # Master node taint 허용 (master node 메모리 보호를 위한 taint가 설정된 경우)
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          # NoSchedule: 새로운 Pod는 스케줄링하지 않음 (이미 실행 중인 Pod는 유지)
+          # PreferNoSchedule: 가능하면 스케줄링하지 않음 (부득이하면 허용)
+          # NoExecute: 새로운 Pod는 스케줄링하지 않음 + 이미 실행 중인 Pod도 제거 가능
+          effect: NoSchedule
       containers:
         - name: eureka
           image: ghcr.io/do-develop-space/eureka:latest
@@ -34,10 +44,15 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
+            # hostNetwork: true 사용 시 localhost로 설정 (k8s Service DNS 미사용)
             - name: EUREKA_INSTANCE_HOSTNAME
-              value: "eureka"
+              value: "localhost"
             - name: JAVA_OPTS
-              value: "-Xms128m -Xmx256m"
+              value: "-Xms64m -Xmx128m -Djava.net.preferIPv4Stack=true"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xms64m -Xmx128m -XX:MaxMetaspaceSize=128m -XX:CompressedClassSpaceSize=64m -XX:MaxDirectMemorySize=32m -XX:NativeMemoryTracking=summary"
+            - name: SERVER_ADDRESS
+              value: "0.0.0.0"
           # resources:
           #   requests:
           #     memory: "128Mi"
