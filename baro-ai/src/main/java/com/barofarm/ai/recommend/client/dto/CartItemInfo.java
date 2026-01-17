@@ -1,0 +1,14 @@
+package com.barofarm.ai.recommend.client.dto;
+
+import java.util.UUID;
+
+// 장바구니의 개별 상품 정보 DTO (Buyer Service의 CartItemInfo와 동일한 구조)
+public record CartItemInfo(
+    UUID itemId,
+    UUID productId,
+    Integer quantity,
+    Long unitPrice,
+    Long lineTotalPrice,
+    String optionInfoJson // TODO: Cart PR 후, inventoryId로 변경
+) {
+}

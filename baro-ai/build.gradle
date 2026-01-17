@@ -65,6 +65,10 @@ dependencies {
     implementation 'org.springframework.ai:spring-ai-openai-spring-boot-starter'
     implementation 'org.springframework.ai:spring-ai-ollama-spring-boot-starter'
 
+    // OpenFeign (외부 서비스 통신)
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    implementation 'io.github.openfeign:feign-okhttp:13.6'
+
     // Database
     runtimeOnly 'com.mysql:mysql-connector-j'
 }
