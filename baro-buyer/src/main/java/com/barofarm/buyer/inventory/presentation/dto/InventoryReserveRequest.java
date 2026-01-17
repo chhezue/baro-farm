@@ -4,7 +4,7 @@ import com.barofarm.buyer.inventory.application.dto.request.InventoryReserveComm
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import java.util.*;
+import java.util.List;
 import java.util.UUID;
 
 public record InventoryReserveRequest(

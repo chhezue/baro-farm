@@ -25,11 +25,13 @@ public class InventoryOutboxPublisher {
     @Scheduled(fixedDelay = 20000L)
     @Transactional
     public void publishInventoryEvents() {
-        List<InventoryOutboxEvent> events = outboxRepository.findTop100ByStatusOrderByCreatedAtAsc(InventoryOutboxStatus.PENDING);
+        List<InventoryOutboxEvent> events =
+            outboxRepository.findTop100ByStatusOrderByCreatedAtAsc(InventoryOutboxStatus.PENDING);
 
         for (InventoryOutboxEvent event : events) {
             try {
-                InventoryConfirmedEvent payload = objectMapper.readValue(event.getPayload(), InventoryConfirmedEvent.class);
+                InventoryConfirmedEvent payload =
+                    objectMapper.readValue(event.getPayload(), InventoryConfirmedEvent.class);
 
                 kafkaTemplate.send(
                     event.getTopic(),

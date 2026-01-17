@@ -32,7 +32,9 @@ public class PaymentCancelRequestedConsumer {
     )
     @Transactional
     public void handle(PaymentCanceledEvent event) {
-        inventoryFacadeService.cancelInventory(InventoryCancelCommand.of(event.orderId()));
+        inventoryFacadeService.cancelInventory(
+            InventoryCancelCommand.of(event.orderId())
+        );
 
         InventoryCanceledEvent canceledEvent = new InventoryCanceledEvent(event.orderId());
         try {

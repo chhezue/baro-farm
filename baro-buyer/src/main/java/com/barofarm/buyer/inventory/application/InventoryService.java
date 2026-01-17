@@ -1,11 +1,22 @@
 package com.barofarm.buyer.inventory.application;
 
-import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.*;
+import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.ALREADY_CANCELED;
+import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INVENTORY_HAS_ACTIVE_RESERVATIONS;
+import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INVENTORY_NOT_FOUND;
+import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INVENTORY_RESERVATION_NOT_FOUND;
 
 import com.barofarm.buyer.common.exception.CustomException;
-import com.barofarm.buyer.inventory.application.dto.request.*;
-import com.barofarm.buyer.inventory.domain.*;
-import java.util.*;
+import com.barofarm.buyer.inventory.application.dto.request.InventoryCancelCommand;
+import com.barofarm.buyer.inventory.application.dto.request.InventoryConfirmCommand;
+import com.barofarm.buyer.inventory.application.dto.request.InventoryCreateCommand;
+import com.barofarm.buyer.inventory.application.dto.request.InventoryReserveCommand;
+import com.barofarm.buyer.inventory.domain.Inventory;
+import com.barofarm.buyer.inventory.domain.InventoryRepository;
+import com.barofarm.buyer.inventory.domain.InventoryReservation;
+import com.barofarm.buyer.inventory.domain.InventoryReservationRepository;
+import com.barofarm.buyer.inventory.domain.InventoryReservationStatus;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -19,13 +30,13 @@ public class InventoryService {
     private final InventoryReservationRepository inventoryReservationRepository;
 
     @Transactional
-    public void reserveInventory(InventoryReserveCommand command){
+    public void reserveInventory(InventoryReserveCommand command) {
 
-        try{
-            // 멱등성 검증 로직 : 이미 커밋된 후 나중에 다시 호출된 경우
-            List<InventoryReservation> reservations = inventoryReservationRepository.findAllByOrderId(command.orderId());
-            boolean allReserved = !reservations.isEmpty() &&
-                reservations.stream()
+        try {
+            List<InventoryReservation> reservations =
+                inventoryReservationRepository.findAllByOrderId(command.orderId());
+            boolean allReserved = !reservations.isEmpty()
+                && reservations.stream()
                     .allMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.RESERVED);
             if (allReserved) {
                 return;
@@ -40,12 +51,11 @@ public class InventoryService {
                     InventoryReservation.of(command.orderId(), item.quantity())
                 );
             }
-        }
-        // 멱등성 검증 로직 : 동시에 두번 들어가서 유니크 키 충돌이 발생하는 경우(낙관적 락 충돌보다 먼저 일어나는 케이스 보정)
-        catch(DataIntegrityViolationException e){
-            List<InventoryReservation> existing = inventoryReservationRepository.findAllByOrderId(command.orderId());
-            boolean allReserved = !existing.isEmpty() &&
-                existing.stream()
+        } catch (DataIntegrityViolationException e) {
+            List<InventoryReservation> existing =
+                inventoryReservationRepository.findAllByOrderId(command.orderId());
+            boolean allReserved = !existing.isEmpty()
+                && existing.stream()
                     .allMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.RESERVED);
             if (allReserved) {
                 return;
@@ -55,9 +65,10 @@ public class InventoryService {
     }
 
     public void confirmInventory(InventoryConfirmCommand command) {
-        List<InventoryReservation> reservations = inventoryReservationRepository.findAllByOrderId(command.orderId());
+        List<InventoryReservation> reservations =
+            inventoryReservationRepository.findAllByOrderId(command.orderId());
 
-        if(reservations.isEmpty()){
+        if (reservations.isEmpty()) {
             throw new CustomException(INVENTORY_RESERVATION_NOT_FOUND);
         }
 
@@ -73,7 +84,7 @@ public class InventoryService {
             throw new CustomException(ALREADY_CANCELED);
         }
 
-        for(InventoryReservation inventoryReservation : reservations){
+        for (InventoryReservation inventoryReservation : reservations) {
             Inventory inventory = inventoryReservation.getInventory();
             Long requestedQuantity = inventoryReservation.getReservedQuantity();
 
@@ -85,9 +96,10 @@ public class InventoryService {
     @Transactional
     public void cancelInventory(InventoryCancelCommand command) {
 
-        List<InventoryReservation> reservations = inventoryReservationRepository.findAllByOrderId(command.orderId());
+        List<InventoryReservation> reservations =
+            inventoryReservationRepository.findAllByOrderId(command.orderId());
 
-        if(reservations.isEmpty()){
+        if (reservations.isEmpty()) {
             return;
         }
 
@@ -122,7 +134,6 @@ public class InventoryService {
         Inventory inventory = inventoryRepository.findById(inventoryId)
             .orElseThrow(() -> new CustomException(INVENTORY_NOT_FOUND));
 
-        // 예약 수량이 남아 있으면 삭제 불가 (필요 없으면 이 if 블록 제거)
         if (inventory.getReservedQuantity() > 0) {
             throw new CustomException(INVENTORY_HAS_ACTIVE_RESERVATIONS);
         }

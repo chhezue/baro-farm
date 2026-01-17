@@ -43,29 +43,35 @@ public class PaymentConfirmedConsumer {
         try {
             inventoryFacadeService.confirmForPaymentSaga(orderId);
 
-            String payload = objectMapper.writeValueAsString(InventoryConfirmedEvent.from(event));
+            String payload =
+                objectMapper.writeValueAsString(InventoryConfirmedEvent.from(event));
 
-            inventoryOutboxEventRepository.save(InventoryOutboxEvent.pending(
-                "INVENTORY",
-                orderId.toString(),
-                "inventory-confirmed",
-                orderId.toString(),
-                payload
-            ));
-        } catch (CustomException customException) {
-            try{
-                String payload = objectMapper.writeValueAsString(InventoryConfirmedFailEvent.from(event));
-                inventoryOutboxEventRepository.save(InventoryOutboxEvent.pending(
+            inventoryOutboxEventRepository.save(
+                InventoryOutboxEvent.pending(
                     "INVENTORY",
                     orderId.toString(),
-                    "inventory-confirmed-fail",
+                    "inventory-confirmed",
                     orderId.toString(),
                     payload
-                ));
+                )
+            );
+        } catch (CustomException customException) {
+            try {
+                String payload =
+                    objectMapper.writeValueAsString(InventoryConfirmedFailEvent.from(event));
+                inventoryOutboxEventRepository.save(
+                    InventoryOutboxEvent.pending(
+                        "INVENTORY",
+                        orderId.toString(),
+                        "inventory-confirmed-fail",
+                        orderId.toString(),
+                        payload
+                    )
+                );
             } catch (JsonProcessingException jsonProcessingException) {
                 throw new CustomException(InventoryErrorCode.OUTBOX_SERIALIZATION_FAILED);
             }
-        } catch (JsonProcessingException jsonProcessingException){
+        } catch (JsonProcessingException jsonProcessingException) {
             throw new CustomException(InventoryErrorCode.OUTBOX_SERIALIZATION_FAILED);
         }
     }

@@ -3,11 +3,15 @@ package com.barofarm.buyer.inventory.presentation;
 import com.barofarm.buyer.common.response.ResponseDto;
 import com.barofarm.buyer.inventory.application.InventoryFacadeService;
 import com.barofarm.buyer.inventory.application.InventoryService;
-import com.barofarm.buyer.inventory.presentation.dto.*;
+import com.barofarm.buyer.inventory.presentation.dto.InventoryCancelRequest;
+import com.barofarm.buyer.inventory.presentation.dto.InventoryReserveRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/internal/inventories")

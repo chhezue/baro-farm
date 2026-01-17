@@ -1,10 +1,18 @@
 package com.barofarm.buyer.inventory.domain;
 
-import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.*;
+import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INSUFFICIENT_STOCK;
+import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INVALID_REQUEST;
+import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.RESERVED_QUANTITY_NOT_ENOUGH;
 
 import com.barofarm.buyer.common.entity.BaseEntity;
 import com.barofarm.buyer.common.exception.CustomException;
-import jakarta.persistence.*;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -68,7 +76,7 @@ public class Inventory extends BaseEntity {
             throw new CustomException(INVALID_REQUEST);
         }
 
-        if(this.quantity < requestedQuantity){
+        if (this.quantity < requestedQuantity) {
             throw new CustomException(INSUFFICIENT_STOCK);
         }
 
@@ -92,7 +100,7 @@ public class Inventory extends BaseEntity {
         this.reservedQuantity -= requestedQuantity;
     }
 
-    public void addInventoryReservation(InventoryReservation inventoryReservation){
+    public void addInventoryReservation(InventoryReservation inventoryReservation) {
         this.inventoryReservations.add(inventoryReservation);
         inventoryReservation.assignInventory(this);
     }
