@@ -1,6 +1,5 @@
 package com.barofarm.auth.infrastructure.oauth;
 
-import com.barofarm.auth.application.port.out.OAuthProviderClient;
 import com.barofarm.auth.domain.oauth.OAuthProvider;
 import com.barofarm.auth.domain.oauth.OAuthUserInfo;
 import java.net.URI;
@@ -11,7 +10,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
-public class NaverOAuthClient implements OAuthProviderClient {
+public class NaverOAuthClient implements OAuthProviderHandler {
 
     private final NaverOAuthProperties properties;
     private final RestClient restClient;
@@ -22,13 +21,15 @@ public class NaverOAuthClient implements OAuthProviderClient {
     }
 
     @Override
-    public OAuthUserInfo fetchUserInfo(OAuthProvider provider, String code, String state) {
-        if (provider != OAuthProvider.NAVER) {
-            // 현재는 네이버만 지원하므로 명시적으로 차단한다.
-            throw new IllegalArgumentException("Unsupported OAuth provider: " + provider);
-        }
+    public OAuthProvider provider() {
+        return OAuthProvider.NAVER;
+    }
 
+    @Override
+    public OAuthUserInfo fetchUserInfo(String code, String state) {
+        // 1) 인가 코드로 액세스 토큰 발급
         TokenResponse token = requestAccessToken(code, state);
+        // 2) 액세스 토큰으로 사용자 정보 조회
         NaverUserInfoResponse userInfo = requestUserInfo(token.access_token());
 
         return new OAuthUserInfo(
@@ -41,7 +42,7 @@ public class NaverOAuthClient implements OAuthProviderClient {
     }
 
     private TokenResponse requestAccessToken(String code, String state) {
-        // 네이버 토큰 교환은 쿼리 파라미터 기반으로 진행한다.
+        // 네이버는 쿼리 파라미터 기반으로 토큰 발급을 처리한다.
         URI uri = UriComponentsBuilder.fromUriString(properties.getTokenUri())
             .queryParam("grant_type", "authorization_code")
             .queryParam("client_id", properties.getClientId())
@@ -60,7 +61,7 @@ public class NaverOAuthClient implements OAuthProviderClient {
     }
 
     private NaverUserInfoResponse requestUserInfo(String accessToken) {
-        // Authorization 헤더로 사용자 정보를 요청한다.
+        // Authorization 헤더에 Bearer 토큰을 붙여 호출한다.
         return restClient.get()
             .uri(properties.getUserInfoUri())
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
