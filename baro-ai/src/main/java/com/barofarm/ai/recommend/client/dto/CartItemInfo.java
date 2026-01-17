@@ -6,9 +6,10 @@ import java.util.UUID;
 public record CartItemInfo(
     UUID itemId,
     UUID productId,
+    String productName,
     Integer quantity,
     Long unitPrice,
     Long lineTotalPrice,
-    String optionInfoJson // TODO: Cart PR 후, inventoryId로 변경
+    UUID inventoryId
 ) {
 }

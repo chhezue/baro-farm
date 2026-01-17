@@ -1,8 +1,10 @@
 package com.barofarm.ai.recommend.presentation;
 
 import com.barofarm.ai.recommend.application.PersonalizedRecommendService;
+import com.barofarm.ai.recommend.application.RecipeRecommendService;
 import com.barofarm.ai.recommend.application.dto.response.PersonalRecommendResponse;
 import com.barofarm.ai.recommend.application.dto.response.PersonalRecommendWithScoreResponse;
+import com.barofarm.ai.recommend.application.dto.response.RecipeRecommendResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,6 +13,8 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class RecommendationController {
 
     private final PersonalizedRecommendService personalizedRecommendService;
+    private final RecipeRecommendService recipeRecommendService;
 
     @Operation(
         summary = "개인화 추천 상품 조회",
@@ -50,5 +55,18 @@ public class RecommendationController {
         @RequestParam(required = false, defaultValue = "15") int topK
     ) {
         return personalizedRecommendService.recommendProductsWithScore(userId, topK);
+    }
+
+    @Operation(
+        summary = "장바구니 기반 레시피 추천 (테스트용)",
+        description = "Feign 통신 없이 직접 장바구니 상품명을 입력받아 레시피를 추천합니다. "
+            + "LLM 성능 테스트 및 디버깅을 위해 사용합니다."
+    )
+    @PostMapping("/recipes/test")
+    public RecipeRecommendResponse testRecommendFromCart(
+        @Parameter(description = "테스트할 장바구니 상품명 목록", example = "[\"청송 사과\", \"한돈 삼겹살\", \"순창 고추장\"]")
+        @RequestBody List<String> productNames
+    ) {
+        return recipeRecommendService.testRecommendFromProductNames(productNames);
     }
 }
