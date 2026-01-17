@@ -2,9 +2,9 @@ package com.barofarm.buyer.cart.presentation;
 
 import com.barofarm.buyer.cart.application.CartService;
 import com.barofarm.buyer.cart.application.dto.CartInfo;
-import com.barofarm.buyer.cart.presentation.dto.AddItemRequest;
-import com.barofarm.buyer.cart.presentation.dto.UpdateOptionRequest;
-import com.barofarm.buyer.cart.presentation.dto.UpdateQuantityRequest;
+import com.barofarm.buyer.cart.presentation.dto.CartItemCreateRequest;
+import com.barofarm.buyer.cart.presentation.dto.OptionUpdateRequest;
+import com.barofarm.buyer.cart.presentation.dto.QuantityUpdateRequest;
 import com.barofarm.buyer.common.response.ResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -45,7 +45,7 @@ public class CartController {
   public ResponseDto<CartInfo> addItem(
       @RequestHeader(value = "X-User-Id", required = false) UUID buyerId,
       @RequestHeader(value = "X-Session-Key", required = false) String sessionKey,
-      @RequestBody AddItemRequest request) {
+      @RequestBody CartItemCreateRequest request) {
     CartInfo cartInfo = cartService.addItem(buyerId, sessionKey, request.toCommand());
     return ResponseDto.ok(cartInfo);
   }
@@ -56,7 +56,7 @@ public class CartController {
       @RequestHeader(value = "X-User-Id", required = false) UUID buyerId,
       @RequestHeader(value = "X-Session-Key", required = false) String sessionKey,
       @PathVariable UUID itemId,
-      @RequestBody UpdateQuantityRequest request) {
+      @RequestBody QuantityUpdateRequest request) {
     CartInfo cartInfo = cartService.updateQuantity(buyerId, sessionKey, itemId, request.quantity());
     return ResponseDto.ok(cartInfo);
   }
@@ -67,7 +67,7 @@ public class CartController {
       @RequestHeader(value = "X-User-Id", required = false) UUID buyerId,
       @RequestHeader(value = "X-Session-Key", required = false) String sessionKey,
       @PathVariable UUID itemId,
-      @RequestBody UpdateOptionRequest request) {
+      @RequestBody OptionUpdateRequest request) {
     CartInfo cartInfo = cartService.updateOption(buyerId, sessionKey, itemId, request.inventoryId());
     return ResponseDto.ok(cartInfo);
   }

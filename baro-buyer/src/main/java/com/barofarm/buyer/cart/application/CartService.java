@@ -1,7 +1,7 @@
 package com.barofarm.buyer.cart.application;
 
-import com.barofarm.buyer.cart.application.dto.AddItemCommand;
 import com.barofarm.buyer.cart.application.dto.CartInfo;
+import com.barofarm.buyer.cart.application.dto.CartItemCreateCommand;
 import com.barofarm.buyer.cart.domain.Cart;
 import com.barofarm.buyer.cart.domain.CartItem;
 import com.barofarm.buyer.cart.domain.CartRepository;
@@ -52,7 +52,7 @@ public class CartService {
 
     // 장바구니에 상품 추가
     @Transactional
-    public CartInfo addItem(UUID buyerId, String sessionKey, AddItemCommand command) {
+    public CartInfo addItem(UUID buyerId, String sessionKey, CartItemCreateCommand command) {
         // 1. 장바구니 조회 또는 신규 생성
         Cart cart = findOrCreateCart(buyerId, sessionKey);
 
@@ -164,6 +164,7 @@ public class CartService {
             .toList();
 
         Map<UUID, String> productNameMap = new HashMap<>();
+        Map<UUID, String> productCategoryNameMap = new HashMap<>();
         Map<UUID, Integer> inventoryUnitMap = new HashMap<>();
 
         for (UUID id : productIds) {
@@ -171,8 +172,10 @@ public class CartService {
             try {
                 ProductDetailInfo product = productService.getProductDetail(id);
                 productNameMap.put(id, product.productName());
+                productCategoryNameMap.put(id, product.categoryName());
             } catch (Exception e) {
                 productNameMap.put(id, null); // 실패 시 null 저장
+                productCategoryNameMap.put(id, null); // 실패 시 null 저장
             }
         }
 
@@ -187,7 +190,7 @@ public class CartService {
             }
         }
 
-        return CartInfo.from(cart, productNameMap, inventoryUnitMap);
+        return CartInfo.from(cart, productNameMap, productCategoryNameMap, inventoryUnitMap);
     }
 
     // 기존 장바구니 조회 (없으면 예외)
