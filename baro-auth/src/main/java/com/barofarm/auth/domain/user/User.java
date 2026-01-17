@@ -21,13 +21,15 @@ public class User extends BaseEntity{
     @Column(name = "id", columnDefinition = "BINARY(16)")
     private UUID id;
 
-    @Column(name = "email", nullable = false, length = 320, unique = true)
+    // 소셜 로그인에서 이메일이 비어올 수 있어 nullable로 둔다.
+    @Column(name = "email", length = 320, unique = true)
     private String email;
 
     @Column(name = "name", nullable = false, length = 50)
     private String name;
 
-    @Column(name = "phone", nullable = false, length = 30)
+    // 네이버/카카오에서 전화번호 제공이 선택이므로 nullable로 둔다.
+    @Column(name = "phone", length = 30)
     private String phone;
 
     @Column(name = "marketing_consent", nullable = false)
@@ -40,6 +42,10 @@ public class User extends BaseEntity{
     @Enumerated(EnumType.STRING)
     @Column(name = "user_state", nullable = false, length = 20)
     private UserState userState;
+
+    // 마지막 로그인 시각은 인증 흐름에서만 갱신되도록 엔티티가 직접 관리한다.
+    @Column(name = "last_login_at")
+    private java.time.LocalDateTime lastLoginAt;
 
     // 생성자 보호
     protected User() {
@@ -57,6 +63,11 @@ public class User extends BaseEntity{
     // 팩토리 패턴?
     public static User create(String email, String name, String phone, boolean marketingConsent) {
         return new User(email, name, phone, marketingConsent);
+    }
+
+    public void touchLastLogin(java.time.LocalDateTime now) {
+        // 로그인 시각 갱신을 도메인 내부로 캡슐화한다.
+        this.lastLoginAt = now;
     }
 
     public void changeToSeller() {

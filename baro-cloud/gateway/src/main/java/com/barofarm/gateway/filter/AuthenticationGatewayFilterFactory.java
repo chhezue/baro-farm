@@ -19,6 +19,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+/**
+ *  AuthenticationGatewayFilterFactory는 인증(Authentication) 담당
+ *    - 하는 일: JWT 토큰을 검증하고, 유저 정보를 헤더로 추출해서 붙임
+ *    - 결과: 다운스트림/OPA가 쓸 수 있게 X-User-Id, X-User-Role, X-User-Status, X-User-Flags 같은 헤더를 세팅
+ *    - 즉 “이 요청이 누구인지 확인 + 사용자 속성 전달” 단계
+ */
 @Component
 public class AuthenticationGatewayFilterFactory
     extends AbstractGatewayFilterFactory<AuthenticationGatewayFilterFactory.Config> {

@@ -18,6 +18,13 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+
+/*
+ *   OpaAuthorizationGatewayFilterFactory는 인가(Authorization) 담당
+ *     - 하는 일: 위에서 만든 헤더 + 요청 정보(method/path) + 라우트 정보(service)를 OPA로 보내서 허용/차단 결정 받음
+ *     - 결과: OPA가 true면 통과, false면 403, 오류면 503
+ *     - 즉 “이 사용자가 이 요청을 해도 되는지 판단” 단계
+ */
 @Component
 public class OpaAuthorizationGatewayFilterFactory
     extends AbstractGatewayFilterFactory<OpaAuthorizationGatewayFilterFactory.Config> {
