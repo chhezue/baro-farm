@@ -30,7 +30,8 @@ public class PaymentConfirmedConsumer {
         topics = "payment-confirmed",
         groupId = "inventory-service.payment-confirmed",
         properties = {
-            "spring.json.value.default.type=com.barofarm.buyer.inventory.infrastructure.kafka.consumer.dto.PaymentConfirmedEvent"
+            "spring.json.value.default.type="
+                + "com.barofarm.buyer.inventory.infrastructure.kafka.consumer.dto.PaymentConfirmedEvent"
         }
     )
     @RetryableTopic(
