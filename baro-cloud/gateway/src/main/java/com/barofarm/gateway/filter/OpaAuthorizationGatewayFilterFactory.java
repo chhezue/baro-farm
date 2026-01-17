@@ -1,5 +1,11 @@
 package com.barofarm.gateway.filter;
 
+import io.github.resilience4j.bulkhead.Bulkhead;
+import io.github.resilience4j.bulkhead.BulkheadRegistry;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.reactor.bulkhead.operator.BulkheadOperator;
+import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,9 +42,13 @@ public class OpaAuthorizationGatewayFilterFactory
     private final WebClient webClient;
     private final String authzUrl;
     private final Duration timeout;
+    private final CircuitBreaker opaCircuitBreaker;
+    private final Bulkhead opaBulkhead;
 
     public OpaAuthorizationGatewayFilterFactory(
         WebClient.Builder webClientBuilder,
+        CircuitBreakerRegistry circuitBreakerRegistry,
+        BulkheadRegistry bulkheadRegistry,
         @Value("${opa.url:http://opa:8181}") String opaUrl,
         @Value("${opa.authz-path:/v1/data/gateway/authz/allow}") String authzPath,
         @Value("${opa.timeout-ms:2000}") long timeoutMs
@@ -47,6 +57,8 @@ public class OpaAuthorizationGatewayFilterFactory
         this.webClient = webClientBuilder.build();
         this.authzUrl = opaUrl + authzPath;
         this.timeout = Duration.ofMillis(timeoutMs);
+        this.opaCircuitBreaker = circuitBreakerRegistry.circuitBreaker("opaAuthz");
+        this.opaBulkhead = bulkheadRegistry.bulkhead("opaAuthz");
     }
 
     @Override
@@ -55,16 +67,23 @@ public class OpaAuthorizationGatewayFilterFactory
             Map<String, Object> input = buildInput(exchange);
             // OPA 입력을 확인하고 싶을 때 사용하는 디버그 포인트.
             // 필요한 경우 로깅 코드(예: log.debug("OPA input: {}", input))를 활성화하세요.
-            return webClient.post()
+            Mono<OpaResponse> responseMono = webClient.post()
                 .uri(authzUrl)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of("input", input))
                 .retrieve()
-                .bodyToMono(OpaResponse.class)
+                .bodyToMono(OpaResponse.class);
+
+            return responseMono
+                .transformDeferred(CircuitBreakerOperator.of(opaCircuitBreaker))
+                .transformDeferred(BulkheadOperator.of(opaBulkhead))
                 .timeout(timeout)
-                .flatMap(response -> Boolean.TRUE.equals(response == null ? null : response.result)
-                    ? chain.filter(exchange)
-                    : deny(exchange, HttpStatus.FORBIDDEN))
+                .flatMap((OpaResponse response) -> {
+                    boolean allowed = response != null && Boolean.TRUE.equals(response.getResult());
+                    return allowed
+                        ? chain.filter(exchange)
+                        : deny(exchange, HttpStatus.FORBIDDEN);
+                })
                 .onErrorResume(ex -> deny(exchange, HttpStatus.SERVICE_UNAVAILABLE));
         };
     }
