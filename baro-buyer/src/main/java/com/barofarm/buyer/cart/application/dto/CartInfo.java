@@ -3,6 +3,7 @@ package com.barofarm.buyer.cart.application.dto;
 import com.barofarm.buyer.cart.domain.Cart;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 // 장바구니 조회 Info DTO (Service 출력용)
@@ -25,20 +26,16 @@ public record CartInfo(
         );
     }
 
-    /**
-     * 실시간 상품명으로 CartInfo 생성
-     * 장바구니 조회 시 항상 실시간 상품명을 함께 반환
-     * @param cart 장바구니 도메인 객체
-     * @param productNameMap 상품ID -> 상품명 매핑 (실시간 조회 결과)
-     */
-    public static CartInfo from(Cart cart, java.util.Map<UUID, String> productNameMap) {
+    // 실시간 상품명과 재고 단위로 CartInfo 생성
+    public static CartInfo from(Cart cart, Map<UUID, String> productNameMap, Map<UUID, Integer> inventoryUnitMap) {
         return new CartInfo(
             cart.getId(),
             cart.getBuyerId(),
             cart.getItems().stream()
                 .map(item -> {
                     String realTimeName = productNameMap.get(item.getProductId());
-                    return CartItemInfo.from(item, realTimeName);  // 실시간 상품명 사용
+                    Integer unit = inventoryUnitMap.get(item.getInventoryId());
+                    return CartItemInfo.from(item, realTimeName, unit);  // 실시간 상품명과 단위 사용
                 })
                 .toList(),
             cart.calculateTotalPrice(),

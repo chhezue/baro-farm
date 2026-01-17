@@ -8,8 +8,11 @@ import com.barofarm.buyer.cart.domain.CartRepository;
 import com.barofarm.buyer.cart.exception.CartErrorCode;
 import com.barofarm.buyer.common.exception.CustomException;
 import com.barofarm.buyer.inventory.application.InventoryService;
+import com.barofarm.buyer.inventory.domain.Inventory;
 import com.barofarm.buyer.product.application.ProductService;
+import com.barofarm.buyer.product.application.dto.ProductDetailInfo;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,11 +39,11 @@ public class CartService {
     public CartInfo getCart(UUID buyerId, String sessionKey) {
         if (buyerId != null) {
             return cartRepository.findByBuyerId(buyerId)
-                .map(this::createCartInfoWithProductNames)
+                .map(this::createCartInfo)
                 .orElseGet(CartInfo::empty);
         } else if (sessionKey != null) {
             return cartRepository.findBySessionKey(sessionKey)
-                .map(this::createCartInfoWithProductNames)
+                .map(this::createCartInfo)
                 .orElseGet(CartInfo::empty);
         } else {
             return CartInfo.empty();
@@ -64,7 +67,7 @@ public class CartService {
         // 새로운 아이템 저장
         cart.addItem(item);
 
-        return createCartInfoWithProductNames(cart);
+        return createCartInfo(cart);
     }
 
     // 장바구니 항목 수량 변경
@@ -80,7 +83,7 @@ public class CartService {
         CartItem item = itemOpt.get();
         cart.changeItemQuantity(item, quantity);
 
-        return createCartInfoWithProductNames(cart);
+        return createCartInfo(cart);
     }
 
     // 장바구니 항목 옵션 변경
@@ -96,7 +99,7 @@ public class CartService {
         CartItem item = itemOpt.get();
         cart.changeItemOption(item, inventoryId);
 
-        return createCartInfoWithProductNames(cart);
+        return createCartInfo(cart);
     }
 
     // 장바구니 항목 삭제
@@ -141,31 +144,50 @@ public class CartService {
         // 4. Guest Cart 삭제
         cartRepository.delete(guestCart);
 
-        return createCartInfoWithProductNames(userCart);
+        return createCartInfo(userCart);
     }
 
     /* ====== 내부 헬퍼 메소드 ====== */
 
-    // 장바구니 조회 시, 실시간 상품명으로 CartInfo 생성하여 반환
+    // 장바구니 조회 시, 실시간 상품명과 재고 단위로 CartInfo 생성하여 반환
     // TODO: N+1 문제 해결
-    private CartInfo createCartInfoWithProductNames(Cart cart) {
-        var productIds = cart.getItems().stream()
+    // TODO: 판매자가 상품명/재고를 마음대로 변경하지 못하도록 관리자 정책 필요
+    private CartInfo createCartInfo(Cart cart) {
+        List<UUID> productIds = cart.getItems().stream()
             .map(CartItem::getProductId)
             .distinct()
             .toList();
 
+        List<UUID> inventoryIds = cart.getItems().stream()
+            .map(CartItem::getInventoryId)
+            .distinct()
+            .toList();
+
         Map<UUID, String> productNameMap = new HashMap<>();
+        Map<UUID, Integer> inventoryUnitMap = new HashMap<>();
 
         for (UUID id : productIds) {
+            // 상품 조회에 실패해도 장바구니는 정상 표시
             try {
-                var product = productService.getProductDetail(id);
+                ProductDetailInfo product = productService.getProductDetail(id);
                 productNameMap.put(id, product.productName());
             } catch (Exception e) {
-                productNameMap.put(id, null);
+                productNameMap.put(id, null); // 실패 시 null 저장
             }
         }
 
-        return CartInfo.from(cart, productNameMap);
+        for (UUID inventoryId : inventoryIds) {
+            // 재고 정보 조회에 실패해도 장바구니는 정상 표시
+            try {
+                Inventory inventory = inventoryService.getInventory(inventoryId);
+                Integer unit = inventory.getUnit();
+                inventoryUnitMap.put(inventoryId, unit);
+            } catch (Exception e) {
+                inventoryUnitMap.put(inventoryId, null); // 실패 시 null 저장
+            }
+        }
+
+        return CartInfo.from(cart, productNameMap, inventoryUnitMap);
     }
 
     // 기존 장바구니 조회 (없으면 예외)

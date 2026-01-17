@@ -8,26 +8,28 @@ public record CartItemInfo(
     UUID itemId,
     UUID productId,
     String productName,
+    String productCategoryName,
     Integer quantity,
     Long unitPrice,
     Long lineTotalPrice,
-    UUID inventoryId
+    UUID inventoryId,
+    Integer unit
 ) {
-    /**
-     * 실시간 상품명 사용 (ProductService로 조회)
-     * 장바구니 조회 시 항상 실시간 상품명을 반환
-     */
-    public static CartItemInfo from(CartItem item, String realTimeProductName) {
+
+    // 실시간 상품명과 재고 단위로 CartInfo 생성
+    public static CartItemInfo from(CartItem item, String productName, Integer unit) {
         return new CartItemInfo(
             item.getId(),
             item.getProductId(),
-            realTimeProductName != null
-                ? realTimeProductName
-                : "(상품 정보를 불러올 수 없습니다)",
+            productName != null
+                ? productName
+                : "(상품명을 불러올 수 없습니다)",
+            null, // productCategoryName - 추후 구현 예정
             item.getQuantity(),
             item.getUnitPrice(),
             item.calculatePrice(),      // CartItem 도메인 메서드 사용
-            item.getInventoryId()
+            item.getInventoryId(),
+            unit != null ? unit : -1  // unit이 null이면 오류 표시 값 -1로 설정
         );
     }
 }
