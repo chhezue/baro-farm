@@ -49,6 +49,13 @@ public class AuthenticationGatewayFilterFactory
             ServerHttpRequest request = exchange.getRequest();
 
             String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+            // [1] 브라우저는 HttpOnly 쿠키를 사용하므로, gateway에서 Bearer 헤더로 변환해준다.
+            if (authHeader == null) {
+                var cookie = request.getCookies().getFirst("access_token");
+                if (cookie != null && cookie.getValue() != null && !cookie.getValue().isBlank()) {
+                    authHeader = "Bearer " + cookie.getValue();
+                }
+            }
             if (authHeader == null) {
                 return chain.filter(exchange);
             }

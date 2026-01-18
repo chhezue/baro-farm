@@ -83,6 +83,10 @@ public class JwtTokenProvider {
         return Duration.ofMillis(refreshTokenValidityMs);
     }
 
+    public Duration getAccessTokenValidity() {
+        return Duration.ofMillis(accessTokenValidityMs);
+    }
+
     private Claims parseClaims(String token) {
         return Jwts.parser().setSigningKey(key).build().parseClaimsJws(token).getBody();
     }

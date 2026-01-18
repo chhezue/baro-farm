@@ -2,10 +2,10 @@ package com.barofarm.auth.presentation.api;
 
 import com.barofarm.auth.application.usecase.OAuthLinkStartResult;
 import com.barofarm.auth.application.usecase.OAuthLoginStateResult;
-import com.barofarm.auth.application.usecase.TokenResult;
 import com.barofarm.auth.infrastructure.security.AuthUserPrincipal;
 import com.barofarm.auth.presentation.dto.oauth.OAuthCallbackRequest;
 import com.barofarm.auth.presentation.dto.oauth.OAuthLinkCallbackRequest;
+import com.barofarm.auth.presentation.dto.token.AuthTokenResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -27,7 +27,7 @@ public interface OAuthSwaggerApi {
         @ApiResponse(responseCode = "401", description = "state 검증 실패"),
         @ApiResponse(responseCode = "409", description = "link_required")
     })
-    ResponseEntity<TokenResult> oauthCallback(OAuthCallbackRequest request);
+    ResponseEntity<AuthTokenResponse> oauthCallback(OAuthCallbackRequest request);
 
     @Operation(summary = "계정 연결 시작", description = "로그인된 사용자에게 연결용 state를 발급한다.")
     @ApiResponses({@ApiResponse(responseCode = "200", description = "발급 성공")})
