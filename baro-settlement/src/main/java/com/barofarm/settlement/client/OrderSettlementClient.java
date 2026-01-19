@@ -1,6 +1,6 @@
 package com.barofarm.settlement.client;
 
-import com.barofarm.settlement.common.response.CustomPage;
+import com.barofarm.dto.CustomPage;
 import java.time.LocalDate;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
