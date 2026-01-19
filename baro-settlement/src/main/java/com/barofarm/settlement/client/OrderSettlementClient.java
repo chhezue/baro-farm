@@ -11,9 +11,9 @@ public interface OrderSettlementClient {
 
     @GetMapping("/internal/settlements/order-items")
     CustomPage<OrderItemSettlementResponse> getOrderItems(
-        @RequestParam LocalDate startDate,
-        @RequestParam LocalDate endDate,
-        @RequestParam int page,
-        @RequestParam int size
+        @RequestParam("startDate") LocalDate startDate,
+        @RequestParam("endDate") LocalDate endDate,
+        @RequestParam("page") int page,
+        @RequestParam("size") int size
     );
 }
