@@ -58,6 +58,13 @@ public class Product extends BaseEntity {
   @Column(name = "product_status", nullable = false)
   private ProductStatus productStatus;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "seasonality_type")
+  private SeasonalityType seasonalityType;
+
+  @Column(name = "seasonality_value", length = 20)
+  private String seasonalityValue;
+
     @OneToMany(
         mappedBy = "product",
         cascade = CascadeType.ALL,
@@ -134,6 +141,11 @@ public class Product extends BaseEntity {
             addImage(imageUrl, order++);
         }
     }
+
+  public void updateSeasonality(SeasonalityType seasonalityType, String seasonalityValue) {
+    this.seasonalityType = seasonalityType;
+    this.seasonalityValue = seasonalityValue;
+  }
 
   public void validateOwner(UUID memberId) {
     if (!this.sellerId.equals(memberId)) {
