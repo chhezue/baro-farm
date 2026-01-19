@@ -5,13 +5,13 @@ import com.barofarm.common.entity.BaseEntity;
 import com.barofarm.exception.CustomException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.ConstraintMode;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.Id;
-import jakarta.persistence.ConstraintMode;
 import jakarta.persistence.ForeignKey;
+import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -45,7 +45,7 @@ public class Product extends BaseEntity {
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(
-      name = "category_id", 
+      name = "category_id",
       nullable = false,
       foreignKey = @ForeignKey(value = ConstraintMode.NO_CONSTRAINT)
   )
