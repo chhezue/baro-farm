@@ -42,8 +42,6 @@ dependencies {
     testRuntimeOnly 'com.h2database:h2'
 
     // ========= Auth 서비스 의존성 =========
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator' // 251211: actuator 노출로 health 확인 허용

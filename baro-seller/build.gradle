@@ -44,19 +44,13 @@ dependencies {
     testRuntimeOnly 'com.h2database:h2'
 
     // ========= Seller 서비스 의존성 =========
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator' // Health check용
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
     implementation 'org.springframework.cloud:spring-cloud-starter-config' // Config Server 클라이언트
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 
-    // AWS S3
-    implementation "software.amazon.awssdk:s3"
-
-    // Kafka 연결
-    implementation 'org.springframework.kafka:spring-kafka'
+    // AWS S3 (공통 모듈에서 제공)
 
     runtimeOnly 'com.mysql:mysql-connector-j'
 }
