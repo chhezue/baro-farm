@@ -41,6 +41,8 @@ dependencies {
 
     // ========= Buyer 서비스 의존성 =========
     implementation project(':baro-common')
+    implementation 'org.springframework.boot:spring-boot-starter-web'       // REST 컨트롤러
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'  // jakarta.persistence (@Entity 등)
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator' // Health check용
