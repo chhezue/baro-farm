@@ -14,8 +14,8 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://baro-mysql:3306/${MYSQL_DATABASE:-barobuyer}?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: ${MYSQL_USER:barouser}
-    password: ${MYSQL_PASSWORD:baroUser123!!123!!}
+    username: ${MYSQL_USER:}
+    password: ${MYSQL_PASSWORD:}
   jpa:
     hibernate:
       ddl-auto: update  # 일시적으로 update로 변경 (스키마 수정 후 validate로 변경)
@@ -32,11 +32,6 @@ spring:
       group-id: support-service
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "*"
-        spring.json.type.mapping: productEvent:com.barofarm.support.event.ProductEvent
-        spring.json.use.type.headers: false
-        spring.json.value.default.type: com.barofarm.support.event.ProductEvent
       auto-offset-reset: latest  # earliest에서 latest로 변경하여 오래된 메시지 건너뛰기
       # auto-offset-reset: earliest
     producer:

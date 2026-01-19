@@ -2,6 +2,7 @@ package com.barofarm.buyer.product.presentation;
 
 import com.barofarm.buyer.product.application.ProductService;
 import com.barofarm.buyer.product.application.dto.ProductDetailInfo;
+import com.barofarm.buyer.product.domain.UserType;
 import com.barofarm.buyer.product.presentation.dto.ProductCreateRequest;
 import com.barofarm.buyer.product.presentation.dto.ProductUpdateRequest;
 import com.barofarm.dto.CustomPage;
@@ -44,7 +45,7 @@ public class ProductController {
   @PostMapping
   public ResponseDto<ProductDetailInfo> createProduct(
       @RequestHeader("X-User-Id") UUID memberId,
-      @RequestHeader("X-User-Role") String role,
+      @RequestHeader("X-User-Role") UserType role,
       @Valid @RequestBody ProductCreateRequest request) {
     return ResponseDto.ok(productService.createProduct(request.toCommand(memberId, role)));
   }
@@ -55,7 +56,7 @@ public class ProductController {
   @PatchMapping("/{id}")
   public ResponseDto<ProductDetailInfo> updateProduct(
       @RequestHeader("X-User-Id") UUID memberId,
-      @RequestHeader("X-User-Role") String role,
+      @RequestHeader("X-User-Role") UserType role,
       @PathVariable UUID id,
       @Valid @RequestBody ProductUpdateRequest request) {
     return ResponseDto.ok(productService.updateProduct(id, request.toCommand(memberId, role)));
@@ -67,7 +68,7 @@ public class ProductController {
   @DeleteMapping("/{id}")
   public ResponseDto<Void> deleteProduct(
       @RequestHeader("X-User-Id") UUID memberId,
-      @RequestHeader("X-User-Role") String role,
+      @RequestHeader("X-User-Role") UserType role,
       @PathVariable UUID id) {
     productService.deleteProduct(id, memberId, role);
     return ResponseDto.ok(null);

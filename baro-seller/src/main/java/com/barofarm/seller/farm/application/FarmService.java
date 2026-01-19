@@ -13,6 +13,7 @@ import com.barofarm.seller.farm.application.dto.response.FarmCreateInfo;
 import com.barofarm.seller.farm.application.dto.response.FarmDetailInfo;
 import com.barofarm.seller.farm.application.dto.response.FarmListInfo;
 import com.barofarm.seller.farm.application.dto.response.FarmUpdateInfo;
+import com.barofarm.seller.farm.application.event.FarmEventPublisher;
 import com.barofarm.seller.farm.domain.Farm;
 import com.barofarm.seller.farm.domain.FarmImageRepository;
 import com.barofarm.seller.farm.domain.FarmRepository;
@@ -21,12 +22,14 @@ import com.barofarm.seller.seller.domain.SellerRepository;
 import com.barofarm.storage.s3.S3ImageUploader;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FarmService {
@@ -34,6 +37,7 @@ public class FarmService {
     private final SellerRepository sellerRepository;
     private final S3ImageUploader s3ImageUploader;
     private final FarmImageRepository farmImageRepository;
+    private final FarmEventPublisher farmEventPublisher;
 
     @Transactional
     public ResponseDto<FarmCreateInfo> createFarm(UUID sellerId, FarmCreateCommand command, MultipartFile image) {
@@ -69,6 +73,16 @@ public class FarmService {
         }
 
         Farm saved = farmRepository.save(farm);
+
+        // Farm 생성 이벤트 발행 (비동기)
+        try {
+            farmEventPublisher.publishFarmCreated(saved);
+        } catch (Exception e) {
+            // 이벤트 발행 실패는 Farm 생성 실패로 이어지지 않음
+            // 로깅만 수행하고 계속 진행
+            log.error("Farm 생성 이벤트 발행 실패: farmId={}", saved.getId(), e);
+        }
+
         return ResponseDto.ok(FarmCreateInfo.from(saved));
     }
 
@@ -95,6 +109,13 @@ public class FarmService {
         );
 
         farm.update(details);
+
+        // Farm 수정 이벤트 발행 (비동기)
+        try {
+            farmEventPublisher.publishFarmUpdated(farm);
+        } catch (Exception e) {
+            log.error("Farm 수정 이벤트 발행 실패: farmId={}", farm.getId(), e);
+        }
 
         String oldKey = (farm.getImage() != null) ? farm.getImage().getS3Key() : null;
 
@@ -142,6 +163,13 @@ public class FarmService {
 
         if (!farm.getSeller().getId().equals(sellerId)) {
             throw new CustomException(FARM_FORBIDDEN);
+        }
+
+        // Farm 삭제 이벤트 발행 (비동기, 삭제 전에 발행)
+        try {
+            farmEventPublisher.publishFarmDeleted(farm);
+        } catch (Exception e) {
+            log.error("Farm 삭제 이벤트 발행 실패: farmId={}", farm.getId(), e);
         }
 
         farmRepository.delete(farm);

@@ -51,7 +51,7 @@ public class OrderConfirmedHistoryPayloadMapper implements HistoryPayloadMapper 
                 .map(item -> OrderItemData.builder()
                     .productId(item.getProductId())
                     .productName(resolveProductName(item))
-                    .quantity(item.getQuantity())
+                    .quantity(Math.toIntExact(item.getQuantity()))
                     .build())
                 .toList();
         }

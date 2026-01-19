@@ -44,10 +44,6 @@ public interface ExperienceSwaggerApi {
     @PostMapping
     ResponseDto<ExperienceResponse> createExperience(
         @Parameter(description = "사용자 ID", required = true) @RequestHeader("X-User-Id") UUID userId,
-        @Parameter(description = "사용자 이메일", hidden = true)
-        @RequestHeader(value = "X-User-Email", required = false) String userEmail,
-        @Parameter(description = "사용자 역할", hidden = true)
-        @RequestHeader(value = "X-User-Role", required = false) String userRole,
         @Valid @RequestBody ExperienceCreateRequest request
     );
 
@@ -94,10 +90,6 @@ public interface ExperienceSwaggerApi {
     @GetMapping("/my-farm")
     ResponseDto<CustomPage<ExperienceResponse>> getMyExperiences(
         @Parameter(description = "사용자 ID", required = true) @RequestHeader("X-User-Id") UUID userId,
-        @Parameter(description = "사용자 이메일", hidden = true)
-        @RequestHeader(value = "X-User-Email", required = false) String userEmail,
-        @Parameter(description = "사용자 역할", hidden = true)
-        @RequestHeader(value = "X-User-Role", required = false) String userRole,
         @Parameter(description = "농장 ID (선택사항, 지정 시 해당 농장 기준으로 조회)", required = false)
         @RequestParam(required = false) UUID farmId,
         Pageable pageable
@@ -124,10 +116,6 @@ public interface ExperienceSwaggerApi {
     @PutMapping("/{id}")
     ResponseDto<ExperienceResponse> updateExperience(
         @Parameter(description = "사용자 ID", required = true) @RequestHeader("X-User-Id") UUID userId,
-        @Parameter(description = "사용자 이메일", hidden = true)
-        @RequestHeader(value = "X-User-Email", required = false) String userEmail,
-        @Parameter(description = "사용자 역할", hidden = true)
-        @RequestHeader(value = "X-User-Role", required = false) String userRole,
         @Parameter(description = "체험 프로그램 ID", required = true) @PathVariable("id") UUID id,
         @Valid @RequestBody ExperienceUpdateRequest request
     );
@@ -148,10 +136,6 @@ public interface ExperienceSwaggerApi {
     @DeleteMapping("/{id}")
     ResponseDto<Void> deleteExperience(
         @Parameter(description = "사용자 ID", required = true) @RequestHeader("X-User-Id") UUID userId,
-        @Parameter(description = "사용자 이메일", hidden = true)
-        @RequestHeader(value = "X-User-Email", required = false) String userEmail,
-        @Parameter(description = "사용자 역할", hidden = true)
-        @RequestHeader(value = "X-User-Role", required = false) String userRole,
         @Parameter(description = "체험 프로그램 ID", required = true) @PathVariable("id") UUID id
     );
 }
