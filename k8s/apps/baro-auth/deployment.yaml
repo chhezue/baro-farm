@@ -47,14 +47,14 @@ spec:
           command: ['sh', '-c']
           args:
             - |
-              mkdir -p /mnt/s3/auth
-              chown -R 1001:1001 /mnt/s3/auth
-              chmod -R 755 /mnt/s3/auth
+              mkdir -p /mnt/s3/logs/auth
+              chown -R 1001:1001 /mnt/s3/logs/auth
+              chmod -R 755 /mnt/s3/logs/auth
           securityContext:
             runAsUser: 0  # root 권한 필요
           volumeMounts:
             - name: log-volume
-              mountPath: /mnt/s3/auth
+              mountPath: /mnt/s3/logs/auth
       containers:
         - name: baro-auth
           image: ghcr.io/do-develop-space/baro-auth:latest
@@ -125,10 +125,10 @@ spec:
                   key: SPRING_MAIL_PASSWORD
             # 로그 디렉토리 설정
             - name: LOG_DIR
-              value: "/mnt/s3/auth"
+              value: "/mnt/s3/logs/auth"
           volumeMounts:
             - name: log-volume
-              mountPath: /mnt/s3/auth
+              mountPath: /mnt/s3/logs/auth
           # resources:
           #   requests:
           #     cpu: "100m"
@@ -166,6 +166,6 @@ spec:
       volumes:
         - name: log-volume
           hostPath:
-            path: /mnt/s3/auth
+            path: /mnt/s3/logs/auth
             type: DirectoryOrCreate
 

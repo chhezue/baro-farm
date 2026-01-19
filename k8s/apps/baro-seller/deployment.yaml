@@ -47,14 +47,14 @@ spec:
           command: ['sh', '-c']
           args:
             - |
-              mkdir -p /mnt/s3/seller
-              chown -R 1001:1001 /mnt/s3/seller
-              chmod -R 755 /mnt/s3/seller
+              mkdir -p /mnt/s3/logs/seller
+              chown -R 1001:1001 /mnt/s3/logs/seller
+              chmod -R 755 /mnt/s3/logs/seller
           securityContext:
             runAsUser: 0  # root 권한 필요
           volumeMounts:
             - name: log-volume
-              mountPath: /mnt/s3/seller
+              mountPath: /mnt/s3/logs/seller
       containers:
         - name: baro-seller
           image: ghcr.io/do-develop-space/baro-seller:latest
@@ -129,10 +129,10 @@ spec:
                   key: AWS_S3_BUCKET_NAME
             # 로그 디렉토리 설정
             - name: LOG_DIR
-              value: "/mnt/s3/seller"
+              value: "/mnt/s3/logs/seller"
           volumeMounts:
             - name: log-volume
-              mountPath: /mnt/s3/seller
+              mountPath: /mnt/s3/logs/seller
           # resources:
           #   requests:
           #     cpu: "100m"
@@ -167,6 +167,6 @@ spec:
       volumes:
         - name: log-volume
           hostPath:
-            path: /mnt/s3/seller
+            path: /mnt/s3/logs/seller
             type: DirectoryOrCreate
 

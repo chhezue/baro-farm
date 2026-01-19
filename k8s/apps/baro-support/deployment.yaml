@@ -47,14 +47,14 @@ spec:
           command: ['sh', '-c']
           args:
             - |
-              mkdir -p /mnt/s3/support
-              chown -R 1001:1001 /mnt/s3/support
-              chmod -R 755 /mnt/s3/support
+              mkdir -p /mnt/s3/logs/support
+              chown -R 1001:1001 /mnt/s3/logs/support
+              chmod -R 755 /mnt/s3/logs/support
           securityContext:
             runAsUser: 0  # root 권한 필요
           volumeMounts:
             - name: log-volume
-              mountPath: /mnt/s3/support
+              mountPath: /mnt/s3/logs/support
       containers:
         - name: baro-support
           image: ghcr.io/do-develop-space/baro-support:latest
@@ -157,10 +157,10 @@ spec:
                   key: REDIS_PASSWORD
             # 로그 디렉토리 설정
             - name: LOG_DIR
-              value: "/mnt/s3/support"
+              value: "/mnt/s3/logs/support"
           volumeMounts:
             - name: log-volume
-              mountPath: /mnt/s3/support
+              mountPath: /mnt/s3/logs/support
           # resources:
           #   requests:
           #     cpu: "100m"
@@ -198,6 +198,6 @@ spec:
       volumes:
         - name: log-volume
           hostPath:
-            path: /mnt/s3/support
+            path: /mnt/s3/logs/support
             type: DirectoryOrCreate
 

@@ -47,14 +47,14 @@ spec:
           command: ['sh', '-c']
           args:
             - |
-              mkdir -p /mnt/s3/ai
-              chown -R 1001:1001 /mnt/s3/ai
-              chmod -R 755 /mnt/s3/ai
+              mkdir -p /mnt/s3/logs/ai
+              chown -R 1001:1001 /mnt/s3/logs/ai
+              chmod -R 755 /mnt/s3/logs/ai
           securityContext:
             runAsUser: 0  # root 권한 필요
           volumeMounts:
             - name: log-volume
-              mountPath: /mnt/s3/ai
+              mountPath: /mnt/s3/logs/ai
       containers:
         - name: baro-ai
           image: ghcr.io/do-develop-space/baro-ai:latest
@@ -137,10 +137,10 @@ spec:
                   key: SPRING_AI_OPENAI_API_KEY
             # 로그 디렉토리 설정
             - name: LOG_DIR
-              value: "/mnt/s3/ai"
+              value: "/mnt/s3/logs/ai"
           volumeMounts:
             - name: log-volume
-              mountPath: /mnt/s3/ai
+              mountPath: /mnt/s3/logs/ai
           # resources:
           #   requests:
           #     cpu: "100m"
@@ -178,6 +178,6 @@ spec:
       volumes:
         - name: log-volume
           hostPath:
-            path: /mnt/s3/ai
+            path: /mnt/s3/logs/ai
             type: DirectoryOrCreate
 
