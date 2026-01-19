@@ -4,25 +4,19 @@ import co.elastic.clients.elasticsearch._types.FieldValue;
 import com.barofarm.ai.common.exception.CustomException;
 import com.barofarm.ai.embedding.domain.UserProfileEmbeddingDocument;
 import com.barofarm.ai.embedding.infrastructure.elasticsearch.UserProfileEmbeddingRepository;
-import com.barofarm.ai.log.domain.CartLogDocument;
-import com.barofarm.ai.log.domain.OrderLogDocument;
-import com.barofarm.ai.log.infrastructure.elasticsearch.CartLogRepository;
-import com.barofarm.ai.log.infrastructure.elasticsearch.OrderLogRepository;
 import com.barofarm.ai.recommend.application.dto.response.PersonalRecommendResponse;
 import com.barofarm.ai.recommend.exception.RecommendErrorCode;
 import com.barofarm.ai.search.domain.ProductDocument;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
@@ -36,8 +30,6 @@ public class PersonalizedRecommendService {
 
     private final UserProfileEmbeddingRepository userProfileEmbeddingRepository;
     private final ElasticsearchOperations elasticsearchOperations;
-    private final CartLogRepository cartLogRepository;
-    private final OrderLogRepository orderLogRepository;
 
     // 사용자 프로필 벡터를 기반으로 개인화된 상품을 추천 (유사도 점수 및 매칭 이유 포함)
     public List<PersonalRecommendResponse> recommendProductsWithScore(UUID userId, int topK) {
@@ -51,21 +43,20 @@ public class PersonalizedRecommendService {
             return List.of();
         }
 
-        // 이미 경험한 상품을 추천하지 않기 위해 로그 가져옴.
-        Instant thirtyDaysAgo = Instant.now().minus(30, ChronoUnit.DAYS);
-        Pageable top5 = PageRequest.of(0, 5);
+        // 이미 구매했거나 장바구니에 담은 상품은 추천하지 않기 위해 sourceProductIds 사용
+        List<String> experiencedProductIds = profile.getSourceProductIds() != null
+            ? profile.getSourceProductIds()
+            : List.of();  // null이면 빈 리스트 사용
 
-        List<CartLogDocument> cartLogs = cartLogRepository
-            .findAllByUserIdAndOccurredAtAfterOrderByOccurredAtDesc(userId, thirtyDaysAgo, top5);
-        List<OrderLogDocument> orderLogs = orderLogRepository
-            .findAllByUserIdAndOccurredAtAfterOrderByOccurredAtDesc(userId, thirtyDaysAgo, top5);
+        log.debug("사용자 {}의 추천에서 임베딩의 sourceProductIds({}개)로 상품 제외",
+                 userId, experiencedProductIds.size());
 
         // 3. List<Double>을 float[]로 변환
         float[] userVector = convertToFloatArray(profile.getUserProfileVector());
 
         // 4. Elasticsearch 벡터 유사도 검색 (점수 포함)
         List<PersonalRecommendResponse> results =
-            findSimilarProductsByVectorWithScore(userVector, topK, cartLogs, orderLogs);
+            findSimilarProductsByVectorWithScore(userVector, topK, experiencedProductIds);
 
         return results;
     }
@@ -75,8 +66,7 @@ public class PersonalizedRecommendService {
     private List<PersonalRecommendResponse> findSimilarProductsByVectorWithScore(
         float[] userVector,
         int topK,
-        List<CartLogDocument> cartLogs,
-        List<OrderLogDocument> orderLogs
+        List<String> experiencedProductIds
     ) {
         try {
             // 중복 제거를 위해 더 많은 상품을 가져온 후 필터링 (topK * 2로 충분히 가져옴)
@@ -113,9 +103,9 @@ public class PersonalizedRecommendService {
                 elasticsearchOperations.search(queryWithBuffer, ProductDocument.class);
 
             // 이미 주문하거나 장바구니에 담은 상품 ID 수집
-            Set<UUID> excludedProductIds = new HashSet<>();
-            cartLogs.forEach(log -> excludedProductIds.add(log.getProductId()));
-            orderLogs.forEach(log -> excludedProductIds.add(log.getProductId()));
+            Set<UUID> excludedProductIds = experiencedProductIds.stream()
+                .map(UUID::fromString)  // String을 UUID로 변환
+                .collect(Collectors.toSet());
 
             List<PersonalRecommendResponse> results = new ArrayList<>();
             Set<UUID> seenProductIds = new HashSet<>(); // 중복 제거용 Set

@@ -65,6 +65,27 @@ public class UserProfileEmbeddingService {
         List<OrderLogDocument> orderLogs = orderLogRepository
             .findAllByUserIdAndOccurredAtAfterOrderByOccurredAtDesc(userId, thirtyDaysAgo, top5);
 
+        // 1.5. 임베딩 생성에 사용한 로그들의 ID 수집 (동일성/재현성 확보)
+        List<String> sourceSearchLogIds = searchLogs.stream()
+            .map(SearchLogDocument::getId)
+            .collect(Collectors.toList());
+
+        List<String> sourceCartLogIds = cartLogs.stream()
+            .map(CartLogDocument::getId)
+            .collect(Collectors.toList());
+
+        List<String> sourceOrderLogIds = orderLogs.stream()
+            .map(OrderLogDocument::getId)
+            .collect(Collectors.toList());
+
+        // productId 추출 (cart + order에서만, UUID를 문자열로 변환)
+        List<String> sourceProductIds = Stream.concat(
+                cartLogs.stream().map(cart -> cart.getProductId().toString()),
+                orderLogs.stream().map(order -> order.getProductId().toString())
+            )
+            .distinct()  // 중복 제거
+            .collect(Collectors.toList());
+
         int totalLogCount = searchLogs.size() + cartLogs.size() + orderLogs.size();
         int minTotalLogs = MIN_TOTAL_LOGS_FOR_EMBEDDING;
 
@@ -102,6 +123,12 @@ public class UserProfileEmbeddingService {
             .userId(userId)
             .userProfileVector(vector)
             .lastUpdatedAt(Instant.now())
+            // 임베딩 생성에 사용한 로그들의 ID (동일성/재현성 확보)
+            .sourceSearchLogIds(sourceSearchLogIds)
+            .sourceCartLogIds(sourceCartLogIds)
+            .sourceOrderLogIds(sourceOrderLogIds)
+            // 빠른 상품 제외를 위한 productId 목록
+            .sourceProductIds(sourceProductIds)
             .build();
 
         userProfileEmbeddingRepository.save(embeddingDocument);
