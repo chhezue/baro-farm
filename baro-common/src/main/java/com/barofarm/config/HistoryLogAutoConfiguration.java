@@ -23,7 +23,7 @@ public class HistoryLogAutoConfiguration {
     @ConditionalOnBean(KafkaTemplate.class)
     public HistoryLogWriter historyLogWriter(
         ObjectMapper objectMapper,
-        KafkaTemplate<?, ?> kafkaTemplate,
+        KafkaTemplate<String, Object> kafkaTemplate,
         HistoryLogProperties properties
     ) {
         return new HistoryLogWriter(objectMapper, kafkaTemplate, properties);
