@@ -11,7 +11,8 @@ public enum RecommendErrorCode implements BaseErrorCode {
     USER_PROFILE_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자 프로필 벡터를 찾을 수 없습니다."),
     INVALID_TOP_K(HttpStatus.BAD_REQUEST, "추천할 상품 개수는 1 이상이어야 합니다."),
     RECOMMENDATION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "추천 생성에 실패했습니다."),
-    VECTOR_SEARCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "벡터 유사도 검색에 실패했습니다.");
+    VECTOR_SEARCH_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "벡터 유사도 검색에 실패했습니다."),
+    INVALID_VECTOR_DATA(HttpStatus.BAD_REQUEST, "벡터 데이터가 유효하지 않습니다.");
 
     private final HttpStatus status;
     private final String message;

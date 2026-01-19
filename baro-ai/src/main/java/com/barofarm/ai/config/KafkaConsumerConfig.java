@@ -18,8 +18,9 @@ import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 
 /**
- * Kafka Consumer 설정
+ * [Kafka Consumer 설정]
  * ProductEvent, ExperienceEvent, CartEvent, OrderEvent를 각각 처리하기 위한 별도의 ConsumerFactory 설정
+ * TODO: 재시도 로직 or DLQ 설정
  */
 @Configuration
 @EnableKafka
