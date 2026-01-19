@@ -1,0 +1,62 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+    id 'com.diffplug.spotless'
+    id 'checkstyle'
+}
+
+group = 'com.barofarm'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+ext {
+    set('springCloudVersion', "2025.0.0")
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+}
+
+dependencies {
+    // ========= 공통 유틸 / 개발 편의 =========
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Swagger(OpenAPI)
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
+
+    // ========= Payment 서비스 의존성 =========
+    implementation project(':baro-common')
+    implementation 'org.springframework.boot:spring-boot-starter-web'       // REST 컨트롤러
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'  // JPA 엔티티/리포지토리
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator' // Health check용
+    implementation 'org.springframework.kafka:spring-kafka'
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    implementation 'org.springframework.retry:spring-retry'
+
+    // Database
+    runtimeOnly 'com.mysql:mysql-connector-j'
+
+    // Thymeleaf
+    // implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+}
+
+bootJar {
+    enabled = true
+    mainClass = 'com.barofarm.payment.PaymentApplication'
+}
+
+jar {
+    enabled = false
+}

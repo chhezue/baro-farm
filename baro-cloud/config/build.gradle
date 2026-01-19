@@ -34,21 +34,12 @@ dependencies {
     // Swagger(OpenAPI)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
 
-    // ========= 테스트 =========
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testRuntimeOnly 'com.h2database:h2'
-
     // ========= Config 서비스 의존성 =========
     implementation 'org.springframework.cloud:spring-cloud-config-server'
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
     
     // ========= Actuator (Git 정보 노출용) =========
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
-}
-
-tasks.named('test') {
-    useJUnitPlatform()
 }
 
 bootJar {

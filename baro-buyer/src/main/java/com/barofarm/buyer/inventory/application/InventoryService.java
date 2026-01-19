@@ -1,20 +1,24 @@
 package com.barofarm.buyer.inventory.application;
 
-import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INVALID_REQUEST;
+import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.ALREADY_CANCELED;
+import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INVENTORY_HAS_ACTIVE_RESERVATIONS;
 import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INVENTORY_NOT_FOUND;
+import static com.barofarm.buyer.inventory.exception.InventoryErrorCode.INVENTORY_RESERVATION_NOT_FOUND;
 
-import com.barofarm.buyer.common.exception.CustomException;
-import com.barofarm.buyer.inventory.application.dto.request.InventoryDecreaseCommand;
-import com.barofarm.buyer.inventory.application.dto.request.InventoryIncreaseCommand;
+import com.barofarm.buyer.inventory.application.dto.request.InventoryCancelCommand;
+import com.barofarm.buyer.inventory.application.dto.request.InventoryConfirmCommand;
+import com.barofarm.buyer.inventory.application.dto.request.InventoryCreateCommand;
+import com.barofarm.buyer.inventory.application.dto.request.InventoryReserveCommand;
 import com.barofarm.buyer.inventory.domain.Inventory;
 import com.barofarm.buyer.inventory.domain.InventoryRepository;
+import com.barofarm.buyer.inventory.domain.InventoryReservation;
+import com.barofarm.buyer.inventory.domain.InventoryReservationRepository;
+import com.barofarm.buyer.inventory.domain.InventoryReservationStatus;
+import com.barofarm.exception.CustomException;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,59 +27,117 @@ import org.springframework.transaction.annotation.Transactional;
 public class InventoryService {
 
     private final InventoryRepository inventoryRepository;
+    private final InventoryReservationRepository inventoryReservationRepository;
 
     @Transactional
-    public void decreaseStock(InventoryDecreaseCommand command) {
+    public void reserveInventory(InventoryReserveCommand command) {
 
-        Set<UUID> productIds = command.items().stream()
-            .map(InventoryDecreaseCommand.Item::productId)
-            .collect(Collectors.toSet());
+        try {
+            List<InventoryReservation> reservations =
+                inventoryReservationRepository.findAllByOrderId(command.orderId());
+            boolean allReserved = !reservations.isEmpty()
+                && reservations.stream()
+                    .allMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.RESERVED);
+            if (allReserved) {
+                return;
+            }
 
-        if (productIds.isEmpty()) {
-            throw new CustomException(INVALID_REQUEST);
+            for (InventoryReserveCommand.Item item : command.items()) {
+                Inventory inventory = inventoryRepository.findById(item.inventoryId())
+                    .orElseThrow(() -> new CustomException(INVENTORY_NOT_FOUND));
+
+                inventory.markReserve(item.quantity());
+                inventory.addInventoryReservation(
+                    InventoryReservation.of(command.orderId(), item.quantity())
+                );
+            }
+        } catch (DataIntegrityViolationException e) {
+            List<InventoryReservation> existing =
+                inventoryReservationRepository.findAllByOrderId(command.orderId());
+            boolean allReserved = !existing.isEmpty()
+                && existing.stream()
+                    .allMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.RESERVED);
+            if (allReserved) {
+                return;
+            }
+            throw e;
+        }
+    }
+
+    public void confirmInventory(InventoryConfirmCommand command) {
+        List<InventoryReservation> reservations =
+            inventoryReservationRepository.findAllByOrderId(command.orderId());
+
+        if (reservations.isEmpty()) {
+            throw new CustomException(INVENTORY_RESERVATION_NOT_FOUND);
         }
 
-        List<Inventory> inventories = inventoryRepository.findByProductIdInForUpdate(productIds);
+        boolean allConfirmed = reservations.stream()
+            .allMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.CONFIRMED);
+        if (allConfirmed) {
+            return;
+        }
 
-        Map<UUID, Inventory> inventoryMap = inventories.stream()
-            .collect(Collectors.toMap(
-                Inventory::getProductId,
-                Function.identity()
-            ));
+        boolean anyCanceled = reservations.stream()
+            .anyMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.CANCELED);
+        if (anyCanceled) {
+            throw new CustomException(ALREADY_CANCELED);
+        }
 
-        for (InventoryDecreaseCommand.Item item : command.items()) {
-            Inventory inventory = inventoryMap.get(item.productId());
-            if (inventory == null) {
-                throw new CustomException(INVENTORY_NOT_FOUND);
-            }
-            inventory.decrease(item.quantity());
+        for (InventoryReservation inventoryReservation : reservations) {
+            Inventory inventory = inventoryReservation.getInventory();
+            Long requestedQuantity = inventoryReservation.getReservedQuantity();
+
+            inventory.confirm(requestedQuantity);
+            inventoryReservation.confirm();
         }
     }
 
     @Transactional
-    public void increaseStock(InventoryIncreaseCommand command) {
-        Set<UUID> productIds = command.items().stream()
-                .map(InventoryIncreaseCommand.Item::productId)
-                .collect(Collectors.toSet());
+    public void cancelInventory(InventoryCancelCommand command) {
 
-        if (productIds.isEmpty()) {
-            throw new CustomException(INVALID_REQUEST);
+        List<InventoryReservation> reservations =
+            inventoryReservationRepository.findAllByOrderId(command.orderId());
+
+        if (reservations.isEmpty()) {
+            return;
         }
 
-        List<Inventory> inventories = inventoryRepository.findByProductIdInForUpdate(productIds);
-
-        Map<UUID, Inventory> inventoryMap = inventories.stream()
-                .collect(Collectors.toMap(
-                        Inventory::getProductId,
-                        Function.identity()
-                ));
-
-        for (InventoryIncreaseCommand.Item item : command.items()) {
-            Inventory inventory = inventoryMap.get(item.productId());
-            if (inventory == null) {
-                throw new CustomException(INVENTORY_NOT_FOUND);
-            }
-            inventory.increase(item.quantity());
+        boolean allCanceled = reservations.stream()
+            .allMatch(r -> r.getInventoryReservationStatus() == InventoryReservationStatus.CANCELED);
+        if (allCanceled) {
+            return;
         }
+
+        for (InventoryReservation inventoryReservation : reservations) {
+            Inventory inventory = inventoryReservation.getInventory();
+            Long requestedQuantity = inventoryReservation.getReservedQuantity();
+
+            inventory.markCancel(requestedQuantity);
+            inventoryReservation.markCancel();
+        }
+    }
+
+    @Transactional
+    public UUID createInventory(InventoryCreateCommand command) {
+        Inventory inventory = Inventory.of(
+            command.productId(),
+            command.quantity(),
+            command.unit()
+        );
+        Inventory saved = inventoryRepository.save(inventory);
+        return saved.getId();
+    }
+
+    @Transactional
+    public void deleteInventory(UUID inventoryId) {
+        Inventory inventory = inventoryRepository.findById(inventoryId)
+            .orElseThrow(() -> new CustomException(INVENTORY_NOT_FOUND));
+
+        if (inventory.getReservedQuantity() > 0) {
+            throw new CustomException(INVENTORY_HAS_ACTIVE_RESERVATIONS);
+        }
+
+        inventoryRepository.delete(inventory);
     }
 }

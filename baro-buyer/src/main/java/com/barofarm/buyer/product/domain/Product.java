@@ -1,14 +1,19 @@
 package com.barofarm.buyer.product.domain;
 
-import com.barofarm.buyer.common.entity.BaseEntity;
-import com.barofarm.buyer.common.exception.CustomException;
 import com.barofarm.buyer.product.exception.ProductErrorCode;
+import com.barofarm.common.entity.BaseEntity;
+import com.barofarm.exception.CustomException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.ConstraintMode;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
@@ -38,15 +43,16 @@ public class Product extends BaseEntity {
   @Column(columnDefinition = "TEXT")
   private String description;
 
-  @Enumerated(EnumType.STRING)
-  @Column(name = "category", nullable = false, length = 30)
-  private ProductCategory productCategory;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(
+      name = "category_id",
+      nullable = false,
+      foreignKey = @ForeignKey(value = ConstraintMode.NO_CONSTRAINT)
+  )
+  private Category category;
 
   @Column(nullable = false)
   private Long price;
-
-  @Column(name = "stock_quantity", nullable = false)
-  private Integer stockQuantity;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "product_status", nullable = false)
@@ -71,19 +77,17 @@ public class Product extends BaseEntity {
       UUID sellerId,
       String productName,
       String description,
-      ProductCategory productCategory,
+      Category category,
       Long price,
-      Integer stockQuantity,
       ProductStatus productStatus) {
 
-    validateConstructorParams(sellerId, productName, productCategory, price, stockQuantity);
+    validateConstructorParams(sellerId, productName, category, price);
     this.id = UUID.randomUUID();
     this.sellerId = sellerId;
     this.productName = productName;
     this.description = description;
-    this.productCategory = productCategory;
+    this.category = category;
     this.price = price;
-    this.stockQuantity = stockQuantity;
     this.productStatus = productStatus;
   }
 
@@ -91,18 +95,16 @@ public class Product extends BaseEntity {
       UUID sellerId,
       String productName,
       String description,
-      ProductCategory productCategory,
+      Category category,
       Long price,
-      Integer stockQuantity,
       ProductStatus productStatus) {
 
       return new Product(
           sellerId,
           productName,
           description,
-          productCategory,
+          category,
           price,
-          stockQuantity,
           productStatus
       );
   }
@@ -110,18 +112,16 @@ public class Product extends BaseEntity {
   public void update(
       String productName,
       String description,
-      ProductCategory productCategory,
+      Category category,
       Long price,
-      Integer stockQuantity,
       ProductStatus productStatus) {
 
-    validateUpdateParams(productName, productCategory, price, stockQuantity, productStatus);
+    validateUpdateParams(productName, category, price, productStatus);
 
     this.productName = productName;
     this.description = description;
-    this.productCategory = productCategory;
+    this.category = category;
     this.price = price;
-    this.stockQuantity = stockQuantity;
     this.productStatus = productStatus;
   }
 
@@ -154,30 +154,29 @@ public class Product extends BaseEntity {
   }
 
   private void validateConstructorParams(
-      UUID sellerId, String productName, ProductCategory category, Long price, Integer stock) {
+      UUID sellerId, String productName, Category category, Long price) {
     if (sellerId == null) {
       throw new CustomException(ProductErrorCode.SELLER_NULL);
     }
-    validateCommonFields(productName, category, price, stock);
+    validateCommonFields(productName, category, price);
   }
 
   private void validateUpdateParams(
       String productName,
-      ProductCategory category,
+      Category category,
       Long price,
-      Integer stock,
       ProductStatus status) {
-    validateCommonFields(productName, category, price, stock);
+    validateCommonFields(productName, category, price);
     if (status == null) {
       throw new CustomException(ProductErrorCode.STATUS_NULL);
     }
   }
 
   private void validateCommonFields(
-      String productName, ProductCategory category, Long price, Integer stock) {
-    if (productName == null) {
-      throw new CustomException(ProductErrorCode.PRODUCT_NAME_NULL);
-    }
+      String productName, Category category, Long price) {
+      if (productName == null) {
+        throw new CustomException(ProductErrorCode.PRODUCT_NAME_NULL);
+        }
     if (productName.isBlank()) {
       throw new CustomException(ProductErrorCode.PRODUCT_NAME_EMPTY);
     }
@@ -192,12 +191,6 @@ public class Product extends BaseEntity {
     }
     if (price < 0) {
       throw new CustomException(ProductErrorCode.INVALID_PRICE);
-    }
-    if (stock == null) {
-      throw new CustomException(ProductErrorCode.STOCK_NULL);
-    }
-    if (stock < 0) {
-      throw new CustomException(ProductErrorCode.INVALID_STOCK);
     }
   }
 }
