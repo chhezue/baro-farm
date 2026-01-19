@@ -1,4 +1,4 @@
-package com.barofarm.common.entity;
+package com.barofarm.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;

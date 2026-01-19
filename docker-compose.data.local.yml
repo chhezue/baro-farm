@@ -1,0 +1,152 @@
+# macOS 로컬 실행용 데이터 인프라 (Redis + MySQL + Kafka + Elasticsearch)
+services:
+  # ===================================
+  # Cache & Session Store
+  # ===================================
+  redis:
+    image: redis:7.2-alpine
+    container_name: baro-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+      - ~/.baro/local-s3:/mnt/s3:rw
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123} --maxmemory 128mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+        reservations:
+          memory: 64M
+    restart: unless-stopped
+    networks:
+      - baro-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis123}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ===================================
+  # Database
+  # ===================================
+  mysql:
+    image: mysql:8.0
+    container_name: baro-mysql
+    ports:
+      - "3306:3306"
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+        reservations:
+          memory: 160M
+    command: --innodb-buffer-pool-size=96M --max-connections=70 --performance-schema=OFF --lower-case-table-names=1
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-barofarm}
+      - MYSQL_USER=${MYSQL_USER:-barouser}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-baropassword}
+      # 모듈별 데이터베이스 환경 변수 (선택사항, 스크립트에서 자동 생성)
+      # MYSQL_DATABASE_AUTH=baroauth
+      # MYSQL_DATABASE_SELLER=baroseller
+      # MYSQL_DATABASE_BUYER=barobuyer
+      # MYSQL_DATABASE_ORDER=baroorder
+      # MYSQL_DATABASE_SUPPORT=barosupport
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./scripts/init-db:/docker-entrypoint-initdb.d
+      - ~/.baro/local-s3:/mnt/s3:rw
+    restart: unless-stopped
+    networks:
+      - baro-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u${MYSQL_USER:-barouser}", "-p${MYSQL_PASSWORD:-baropassword}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===================================
+  # Message Queue (Kafka KRaft Mode)
+  # ===================================
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: baro-kafka
+    init: true
+    ports:
+      - "29092:29092"
+    environment:
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@127.0.0.1:29093
+      KAFKA_CLUSTER_ID: ${KAFKA_CLUSTER_ID:-q1Sh-9_ISia_zwGINzRvyQ}
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-q1Sh-9_ISia_zwGINzRvyQ}
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:29092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms192m -Xmx256m
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+      - ~/.baro/local-s3:/mnt/s3:rw
+    restart: unless-stopped
+    networks:
+      - baro-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:29092"]
+      interval: 60s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ===================================
+  # Search Engine (Elasticsearch)
+  # ===================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.0.0
+    container_name: baro-elasticsearch
+    init: true
+    environment:
+      - node.name=es01
+      - cluster.name=docker-cluster
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms192m -Xmx384m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+      - ~/.baro/local-s3:/mnt/s3:rw
+    restart: unless-stopped
+    networks:
+      - baro-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  redis-data:
+    driver: local
+  mysql-data:
+    driver: local
+  kafka-data:
+    driver: local
+  elasticsearch-data:
+    driver: local
+
+networks:
+  baro-network:
+    name: be_baro-network
+    external: true

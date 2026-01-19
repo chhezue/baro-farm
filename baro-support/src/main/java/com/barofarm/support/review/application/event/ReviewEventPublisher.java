@@ -36,6 +36,7 @@ public class ReviewEventPublisher {
                 .productId(event.getProductId())
                 .rating(event.getRating())
                 .content(event.getContent())
+                .imageUrls(event.getImageUrls())
                 .occurredAt(event.getOccurredAt())
                 .build())
             .build();

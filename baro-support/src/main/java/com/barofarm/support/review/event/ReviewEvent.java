@@ -1,6 +1,7 @@
 package com.barofarm.support.review.event;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import lombok.Builder;
 import lombok.Getter;
@@ -29,6 +30,7 @@ public class ReviewEvent {
         private UUID productId;
         private Integer rating;
         private String content;
+        private List<String> imageUrls;
         private LocalDateTime occurredAt;
     }
 }
