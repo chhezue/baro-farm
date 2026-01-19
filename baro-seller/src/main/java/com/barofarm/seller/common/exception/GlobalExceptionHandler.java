@@ -11,11 +11,4 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 public class GlobalExceptionHandler extends BaseExceptionHandler {
-
-    // 컨트롤러 메서드 파라미터 타입 불일치 처리
-    @ExceptionHandler({ MethodArgumentTypeMismatchException.class, ConversionFailedException.class })
-    public ResponseEntity<ResponseDto<Void>> handleTypeMismatch(Exception e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-            .body(ResponseDto.error(HttpStatus.BAD_REQUEST, "잘못된 파라미터 형식: " + e.getMessage()));
-    }
 }

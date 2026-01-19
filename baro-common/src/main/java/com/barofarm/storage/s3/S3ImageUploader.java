@@ -16,6 +16,8 @@ import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
 import javax.imageio.stream.ImageOutputStream;
 import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -23,6 +25,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class S3ImageUploader {
 
+    private static final Logger LOG = LoggerFactory.getLogger(S3ImageUploader.class);
     private static final String WEBP_CONTENT_TYPE = "image/webp";
 
     private final S3Client s3Client;
@@ -53,14 +56,19 @@ public class S3ImageUploader {
 
     public void deleteObject(String key) {
         if (key == null || key.isBlank()) {
-            throw new IllegalArgumentException("S3 object key is required.");
+            return;
         }
-
-        DeleteObjectRequest request = DeleteObjectRequest.builder()
-            .bucket(properties.getS3().getBucket())
-            .key(key)
-            .build();
-        s3Client.deleteObject(request);
+        try {
+            DeleteObjectRequest request = DeleteObjectRequest.builder()
+                .bucket(properties.getS3().getBucket())
+                .key(key)
+                .build();
+            s3Client.deleteObject(request);
+        } catch (Exception e) {
+            // 삭제 실패는 치명적이지 않다면 로그만 남기고 스킵
+            // (운영에선 warn 정도가 적당)
+            LOG.warn("S3 delete failed (ignored). key={}", key, e);
+        }
     }
 
     private void validateImage(MultipartFile file) {

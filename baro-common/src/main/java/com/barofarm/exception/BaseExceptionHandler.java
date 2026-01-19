@@ -212,8 +212,7 @@ public abstract class BaseExceptionHandler {
 
         ResponseDto<Void> body = ResponseDto.error(
             HttpStatus.INTERNAL_SERVER_ERROR,
-            "서버 내부 오류가 발생했습니다: " + e.getMessage()
-        );
+            "서버 내부 오류가 발생했습니다");
 
         return ResponseEntity
             .status(HttpStatus.INTERNAL_SERVER_ERROR)
