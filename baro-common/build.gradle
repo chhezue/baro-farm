@@ -21,12 +21,7 @@ dependencies {
     implementation 'software.amazon.awssdk:s3:2.25.60'
     implementation 'com.twelvemonkeys.imageio:imageio-webp:3.10.1'
 
-    testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-}
-
-test {
-    useJUnitPlatform()
+    // (공용 모듈: 현재 테스트 없음)
 }
 
 // 공통 모듈이므로 실행 JAR는 만들지 않음
