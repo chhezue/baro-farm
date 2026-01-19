@@ -10,6 +10,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.ConstraintMode;
 import jakarta.persistence.ForeignKey;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -45,8 +46,8 @@ public class Product extends BaseEntity {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(
       name = "category_id", 
-      nullable = true,  // 임시로 NULL 허용 (기존 데이터 정리를 위해)
-      foreignKey = @jakarta.persistence.ForeignKey(value = jakarta.persistence.ConstraintMode.NO_CONSTRAINT)
+      nullable = false,
+      foreignKey = @ForeignKey(value = ConstraintMode.NO_CONSTRAINT)
   )
   private Category category;
 
