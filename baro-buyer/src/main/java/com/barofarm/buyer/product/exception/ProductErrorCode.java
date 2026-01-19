@@ -17,6 +17,7 @@ public enum ProductErrorCode implements BaseErrorCode {
 
   // ======== 카테고리 관련 ========
   CATEGORY_NULL(HttpStatus.BAD_REQUEST, "상품 카테고리는 필수 값입니다."),
+  CATEGORY_NOT_FOUND(HttpStatus.NOT_FOUND, "상품 카테고리를 찾을 수 없습니다."),
 
   // ======== 가격 관련 ========
   PRICE_NULL(HttpStatus.BAD_REQUEST, "가격은 필수 값입니다."),

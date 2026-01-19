@@ -1,7 +1,6 @@
 package com.barofarm.buyer.product.presentation.dto;
 
 import com.barofarm.buyer.product.application.dto.ProductCreateCommand;
-import com.barofarm.buyer.product.domain.ProductCategory;
 import com.barofarm.buyer.product.domain.ProductStatus;
 import com.barofarm.buyer.product.domain.UserType;
 import jakarta.validation.constraints.Max;
@@ -18,7 +17,7 @@ public record ProductCreateRequest(
     String description,
 
     @NotNull(message = "카테고리는 필수입니다.")
-    ProductCategory productCategory,
+    UUID categoryId,
 
     @NotNull(message = "가격은 필수입니다.")
     @Min(value = 0, message = "가격은 0 이상이어야 합니다.")
@@ -40,7 +39,7 @@ public record ProductCreateRequest(
         role,
         productName,
         description,
-        productCategory,
+        categoryId,
         price,
         stockQuantity,
         imageUrls);
