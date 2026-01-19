@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
+  <!-- 로그 디렉토리: 환경 변수 LOG_DIR 사용, 기본값은 logs -->
+  <property name="LOG_DIR" value="${LOG_DIR:-logs}"/>
   <property name="LOG_PATTERN"
             value="%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n"/>
   <property name="HISTORY_PATTERN" value="%msg%n"/>
@@ -17,9 +19,9 @@
 
   <!-- ERROR 파일 -->
   <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <file>logs/error.log</file>
+    <file>${LOG_DIR}/error.log</file>
     <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-      <fileNamePattern>logs/error.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+      <fileNamePattern>${LOG_DIR}/error.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
       <maxFileSize>100MB</maxFileSize>
       <maxHistory>30</maxHistory>
     </rollingPolicy>
@@ -35,9 +37,9 @@
 
   <!-- WARN(access) 파일 -->
   <appender name="ACCESS_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <file>logs/access.log</file>
+    <file>${LOG_DIR}/access.log</file>
     <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-      <fileNamePattern>logs/access.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+      <fileNamePattern>${LOG_DIR}/access.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
       <maxFileSize>100MB</maxFileSize>
       <maxHistory>30</maxHistory>
     </rollingPolicy>
@@ -53,9 +55,9 @@
 
   <!-- CART history 파일 -->
   <appender name="CART_HISTORY_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <file>logs/cart-history.log</file>
+    <file>${LOG_DIR}/cart-history.log</file>
     <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-      <fileNamePattern>logs/cart-history.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+      <fileNamePattern>${LOG_DIR}/cart-history.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
       <maxFileSize>500MB</maxFileSize>
       <maxHistory>90</maxHistory>
     </rollingPolicy>
@@ -66,9 +68,9 @@
 
   <!-- ORDER history 파일 -->
   <appender name="ORDER_HISTORY_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <file>logs/order-history.log</file>
+    <file>${LOG_DIR}/order-history.log</file>
     <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-      <fileNamePattern>logs/order-history.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+      <fileNamePattern>${LOG_DIR}/order-history.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
       <maxFileSize>500MB</maxFileSize>
       <maxHistory>90</maxHistory>
     </rollingPolicy>
