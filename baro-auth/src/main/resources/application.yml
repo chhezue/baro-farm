@@ -110,6 +110,12 @@ auth:
     same-site: Strict
     path: /
     domain: ${AUTH_COOKIE_DOMAIN:}
+  kafka:
+    topic:
+      user-events: ${AUTH_USER_EVENTS_TOPIC:user-events}
+  outbox:
+    publish-interval-ms: ${AUTH_OUTBOX_PUBLISH_INTERVAL_MS:1000}
+    max-attempts: ${AUTH_OUTBOX_MAX_ATTEMPTS:5}
 
 
 oauth:

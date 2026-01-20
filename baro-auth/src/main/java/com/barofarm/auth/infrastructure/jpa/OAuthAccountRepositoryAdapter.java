@@ -25,6 +25,11 @@ public class OAuthAccountRepositoryAdapter implements OAuthAccountRepository {
     }
 
     @Override
+    public void deleteAllByUserId(UUID userId) {
+        repository.deleteAllByUserId(userId);
+    }
+
+    @Override
     public OAuthAccount save(OAuthAccount account) {
         return repository.save(account);
     }

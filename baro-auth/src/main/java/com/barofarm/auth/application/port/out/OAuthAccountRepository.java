@@ -15,5 +15,7 @@ public interface OAuthAccountRepository {
 
     Optional<OAuthAccount> findByProviderAndUserId(OAuthProvider provider, UUID userId);
 
+    void deleteAllByUserId(UUID userId);
+
     OAuthAccount save(OAuthAccount account);
 }

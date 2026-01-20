@@ -16,6 +16,7 @@ import com.barofarm.auth.application.usecase.PasswordResetCommand;
 import com.barofarm.auth.application.usecase.SignUpCommand;
 import com.barofarm.auth.application.usecase.SignUpResult;
 import com.barofarm.auth.application.usecase.TokenResult;
+import com.barofarm.auth.application.usecase.WithdrawCommand;
 import com.barofarm.auth.common.exception.CustomException;
 import com.barofarm.auth.domain.credential.AuthCredential;
 import com.barofarm.auth.domain.oauth.OAuthAccount;
@@ -26,6 +27,7 @@ import com.barofarm.auth.exception.AuthErrorCode;
 import com.barofarm.auth.infrastructure.jpa.AuthCredentialJpaRepository;
 import com.barofarm.auth.infrastructure.jpa.RefreshTokenJpaRepository;
 import com.barofarm.auth.infrastructure.jpa.UserJpaRepository;
+import com.barofarm.auth.infrastructure.outbox.OutboxEventService;
 import com.barofarm.auth.infrastructure.security.JwtTokenProvider;
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -59,6 +61,7 @@ public class AuthService {
     private final OAuthProviderClient oauthProviderClient;
     private final OAuthStateStore oauthStateStore;
     private final HotlistEventPublisher hotlistEventPublisher;
+    private final OutboxEventService outboxEventService;
     private final Clock clock;
 
     public SignUpResult signUp(SignUpCommand request) {
@@ -284,10 +287,46 @@ public class AuthService {
         publishUserStateEvent(user, userState, reason);
     }
 
+    public void withdrawUser(UUID userId, WithdrawCommand command) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new CustomException(AuthErrorCode.USER_NOT_FOUND));
+
+        boolean stateChanged = user.getUserState() != User.UserState.WITHDRAWN;
+        if (stateChanged) {
+            String anonymizedEmail = buildWithdrawnEmail(userId);
+            String anonymizedName = "WITHDRAWN";
+            user.withdraw(anonymizedEmail, anonymizedName);
+            userRepository.save(user);
+        }
+
+        // [1] 탈퇴 시 자격 증명/세션을 즉시 폐기해 재사용을 차단한다.
+        credentialRepository.deleteByUserId(userId);
+        oauthAccountRepository.deleteAllByUserId(userId);
+        refreshTokenRepository.deleteAllByUserId(userId);
+
+        // [2] OPA 핫리스트 반영 + 아웃박스 적재는 상태 변경 시에만 수행한다.
+        if (stateChanged) {
+            String reason = normalizeReason(command);
+            publishUserStateEvent(user, User.UserState.WITHDRAWN, reason);
+            outboxEventService.enqueueUserWithdrawnEvent(user, reason);
+        }
+    }
+
     private String generateSalt() {
         byte[] bytes = new byte[32]; // 32 bytes -> 64 hex chars
         RANDOM.nextBytes(bytes);
         return HexFormat.of().formatHex(bytes);
+    }
+
+    private String buildWithdrawnEmail(UUID userId) {
+        return "withdrawn+" + userId + "@deleted.local";
+    }
+
+    private String normalizeReason(WithdrawCommand command) {
+        if (command == null || command.reason() == null || command.reason().isBlank()) {
+            return "USER_WITHDRAW";
+        }
+        return command.reason().trim();
     }
 
     private String resolveRole(User.UserType userType) {

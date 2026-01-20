@@ -19,6 +19,7 @@ import com.barofarm.auth.presentation.dto.token.AuthTokenResponse;
 import com.barofarm.auth.presentation.dto.token.LogoutRequest;
 import com.barofarm.auth.presentation.dto.token.RefreshTokenRequest;
 import com.barofarm.auth.presentation.dto.user.MeResponse;
+import com.barofarm.auth.presentation.dto.user.WithdrawRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -122,6 +123,20 @@ public class AuthController implements AuthSwaggerApi {
                 principal.getRole());
 
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/me/withdraw")
+    public ResponseEntity<Void> withdraw(
+        @AuthenticationPrincipal AuthUserPrincipal principal,
+        @RequestBody(required = false) WithdrawRequest request
+    ) {
+        // [1] 요청 바디가 없어도 처리 가능하도록 null reason 허용.
+        authService.withdrawUser(
+            principal.getUserId(),
+            request == null ? null : request.toServiceRequest()
+        );
+        HttpHeaders headers = clearAuthCookies();
+        return ResponseEntity.ok().headers(headers).build();
     }
 
     // ==== Seller와 관련된 부분

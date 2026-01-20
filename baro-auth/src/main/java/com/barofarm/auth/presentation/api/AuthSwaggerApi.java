@@ -11,6 +11,7 @@ import com.barofarm.auth.presentation.dto.token.AuthTokenResponse;
 import com.barofarm.auth.presentation.dto.token.LogoutRequest;
 import com.barofarm.auth.presentation.dto.token.RefreshTokenRequest;
 import com.barofarm.auth.presentation.dto.user.MeResponse;
+import com.barofarm.auth.presentation.dto.user.WithdrawRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -67,6 +68,13 @@ public interface AuthSwaggerApi {
             @ApiResponse(responseCode = "401", description = "인증 필요")})
     @SecurityRequirement(name = "bearerAuth")
     ResponseEntity<MeResponse> getCurrentUser(@Parameter(hidden = true) AuthUserPrincipal principal);
+
+    @Operation(summary = "Account withdrawal", description = "Mark account as withdrawn and revoke credentials")
+    @ApiResponses({@ApiResponse(responseCode = "200", description = "Success"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized")})
+    @SecurityRequirement(name = "bearerAuth")
+    ResponseEntity<Void> withdraw(@Parameter(hidden = true) AuthUserPrincipal principal,
+            WithdrawRequest request);
 
     @Operation(summary = "판매자 권한 부여", description = "관리자/시스템용 seller 권한 부여")
     @ApiResponses({@ApiResponse(responseCode = "200", description = "성공"),

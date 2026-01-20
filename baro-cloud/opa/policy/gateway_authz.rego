@@ -119,6 +119,8 @@ blocked_status(status) {
   status == "SUSPENDED"
 } else {
   status == "BLOCKED"
+} else {
+  status == "WITHDRAWN"
 }
 
 subject_user_status := status {

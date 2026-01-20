@@ -80,6 +80,14 @@ public class User extends BaseEntity{
         }
     }
 
+    public void withdraw(String anonymizedEmail, String anonymizedName) {
+        this.userState = UserState.WITHDRAWN;
+        this.email = anonymizedEmail;
+        this.name = anonymizedName;
+        this.phone = null;
+        this.marketingConsent = false;
+    }
+
     public enum UserType {
         CUSTOMER,
         SELLER,
@@ -89,6 +97,7 @@ public class User extends BaseEntity{
     public enum UserState {
         ACTIVE,
         SUSPENDED,
-        BLOCKED
+        BLOCKED,
+        WITHDRAWN
     }
 }
