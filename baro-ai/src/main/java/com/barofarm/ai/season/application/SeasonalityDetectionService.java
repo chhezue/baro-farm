@@ -78,122 +78,33 @@ public class SeasonalityDetectionService {
             log.info("제철 판단 시작: productId={}, productName={}, category={}",
                 productId, productName, category);
 
-            SeasonalityInfo seasonalityInfo;
-            SeasonalityDetectionResponse response = null;
-
             // RAG 검색 결과를 변수에 저장 (중복 검색 방지)
-            List<SeasonalityKnowledgeSearchService.SeasonalityKnowledge> knowledgeList = null;
-            if (knowledgeSearchService.isPresent()) {
-                knowledgeList = knowledgeSearchService.get()
-                    .searchSimilarKnowledge(productName, category);
-            }
+            List<SeasonalityKnowledgeSearchService.SeasonalityKnowledge> knowledgeList =
+                searchKnowledgeIfAvailable(productName, category);
 
             // 1. RAG 검색으로 정확한 매칭 확인 (LLM 호출 없이 직접 반환 가능)
             if (knowledgeList != null && !knowledgeList.isEmpty()) {
-                String matchedProductName = knowledgeList.get(0).productName();
-                String matchedCategory = knowledgeList.get(0).category();
-                String matchedValue = knowledgeList.get(0).seasonalityValue();
-                String matchedType = knowledgeList.get(0).seasonalityType();
-
-                // 정확한 매칭: LLM 호출 없이 직접 반환 (CSV 데이터가 정답)
-                boolean isExactMatch = matchedProductName.equals(productName) &&
-                                      matchedCategory.equalsIgnoreCase(category);
-
-                if (isExactMatch) {
-                    log.info("RAG 정확한 매칭 발견 - LLM 호출 생략: productId={}, productName={}, matched={}",
-                             productId, productName, matchedProductName);
-
-                    SeasonalityType seasonalityType = SeasonalityType.valueOf(matchedType);
-                    seasonalityInfo = new SeasonalityInfo(
-                        matchedProductName,  // CSV의 정확한 상품명
-                        matchedCategory,
-                        seasonalityType,
-                        matchedValue,
-                        0.95,  // 정확한 매칭이므로 높은 신뢰도
-                        LocalDateTime.now()
-                    );
-
-                    // buyer-service에 제철 정보 업데이트 요청
-                    SeasonalityUpdateRequest updateRequest = new SeasonalityUpdateRequest(
-                        seasonalityInfo.type(),
-                        seasonalityInfo.value()
-                    );
-                    productUpdateClient.updateSeasonality(productId, updateRequest);
-                    log.debug("제철 정보 업데이트 완료: type={}, value={}",
-                        updateRequest.seasonalityType(), updateRequest.seasonalityValue());
-
-                    // 로그 저장 (LLM 응답 없음으로 처리)
-                    // saveLog(productId, productName, category, null, seasonalityInfo, SeasonalityDetectionLog.DetectionStatus.SUCCESS);
-
-                    log.info("제철 판단 완료 (RAG 직접 반환): productId={}, seasonality={}, confidence={}",
-                        productId, seasonalityInfo.value(), seasonalityInfo.confidence());
-
+                Optional<SeasonalityInfo> exactMatchResult =
+                    handleExactMatchInAsync(productId, productName, category, knowledgeList);
+                if (exactMatchResult.isPresent()) {
                     return CompletableFuture.completedFuture(null);
                 }
-
-                // 부분/유사 매칭: LLM 호출 필요 (buildSeasonalityPrompt에서 처리)
-                log.debug("RAG 매칭 발견 - LLM 호출로 확장/판단: productId={}, productName={}, matched={}",
-                         productId, productName, matchedProductName);
             }
 
-            // 2. LLM 호출하여 제철 판단 (RAG 매칭 없음 또는 부분/유사 매칭)
-            // 이미 검색한 knowledgeList를 전달하여 중복 검색 방지
-            response = detectSeasonalityWithLLM(productName, category, knowledgeList);
-
-            // 3. RAG 기반 confidence 계산 (이미 검색한 knowledgeList 재사용)
-            double calculatedConfidence = calculateConfidenceBasedOnRAG(
-                productName,
-                category,
-                response,
-                knowledgeList  // 중복 검색 없이 재사용
-            );
-
-            // 4. 신뢰도 검증 (임계값: 0.7)
-            if (calculatedConfidence < 0.7) {
-                log.warn("제철 판단 신뢰도 낮음: productId={}, RAG confidence={}, LLM confidence={}",
-                    productId, calculatedConfidence, response.confidence());
-                // saveLog(productId, productName, category, response, null, SeasonalityDetectionLog.DetectionStatus.FAILED);
+            // 2-4. LLM 호출 및 신뢰도 검증
+            Optional<SeasonalityInfo> llmResult =
+                processWithLLMInAsync(productId, productName, category, knowledgeList);
+            if (llmResult.isEmpty()) {
                 return CompletableFuture.completedFuture(null);
             }
 
-            // 5. 제철 정보 생성 (RAG 기반 confidence 사용)
-            seasonalityInfo = new SeasonalityInfo(
-                response.detectedProductName(),  // LLM이 판단한 전체 상품명
-                category,
-                response.seasonalityType(),
-                response.seasonalityValue(),
-                calculatedConfidence,  // RAG 기반 confidence 사용
-                LocalDateTime.now()
-            );
+            SeasonalityInfo seasonalityInfo = llmResult.get();
+            SeasonalityDetectionResponse response =
+                detectSeasonalityWithLLM(productName, category, knowledgeList);
 
-            // 6. LLM 생성 데이터 저장 (Elasticsearch 인덱스 + VectorStore + CSV)
-            // 단, RAG 결과와 동일한 경우 저장 생략 (이미 데이터베이스에 있음)
-            boolean shouldStore = shouldStoreLLMResponse(response, knowledgeList);
-            if (shouldStore && knowledgeStoreService.isPresent()) {
-                knowledgeStoreService.get().storeLLMGeneratedKnowledge(
-                    response.detectedProductName(),
-                    category,
-                    response
-                );
-            } else if (!shouldStore) {
-                log.debug("LLM 응답이 RAG 결과와 동일 - 저장 생략: {} ({})",
-                    response.detectedProductName(), category);
-            }
-
-            // buyer-service에 제철 정보 업데이트 요청
-            SeasonalityUpdateRequest updateRequest = new SeasonalityUpdateRequest(
-                seasonalityInfo.type(),
-                seasonalityInfo.value()
-            );
-            productUpdateClient.updateSeasonality(productId, updateRequest);
-            log.debug("제철 정보 업데이트 완료: type={}, value={}",
-                updateRequest.seasonalityType(), updateRequest.seasonalityValue());
-
-            // 7. 로그 저장
-            // saveLog(productId, productName, category, response, seasonalityInfo, SeasonalityDetectionLog.DetectionStatus.SUCCESS);
-
-            log.info("제철 판단 완료: productId={}, seasonality={}, RAG confidence={}, LLM confidence={}",
-                productId, response.seasonalityValue(), calculatedConfidence, response.confidence());
+            // 5-7. 제철 정보 저장 및 업데이트
+            storeAndUpdateSeasonalityInAsync(productId, productName, category, response,
+                seasonalityInfo, knowledgeList);
 
         } catch (Exception e) {
             log.error("제철 판단 실패: productId={}", productId, e);
@@ -201,6 +112,109 @@ public class SeasonalityDetectionService {
         }
 
         return CompletableFuture.completedFuture(null);
+    }
+
+    private Optional<SeasonalityInfo> handleExactMatchInAsync(
+            UUID productId,
+            String productName,
+            String category,
+            List<SeasonalityKnowledgeSearchService.SeasonalityKnowledge> knowledgeList) {
+
+        SeasonalityKnowledgeSearchService.SeasonalityKnowledge firstMatch = knowledgeList.get(0);
+        String matchedProductName = firstMatch.productName();
+        String matchedCategory = firstMatch.category();
+        String matchedValue = firstMatch.seasonalityValue();
+        String matchedType = firstMatch.seasonalityType();
+
+        boolean isExactMatch = matchedProductName.equals(productName) &&
+                              matchedCategory.equalsIgnoreCase(category);
+
+        if (!isExactMatch) {
+            log.debug("RAG 매칭 발견 - LLM 호출로 확장/판단: productId={}, productName={}, matched={}",
+                     productId, productName, matchedProductName);
+            return Optional.empty();
+        }
+
+        log.info("RAG 정확한 매칭 발견 - LLM 호출 생략: productId={}, productName={}, matched={}",
+                 productId, productName, matchedProductName);
+
+        SeasonalityType seasonalityType = SeasonalityType.valueOf(matchedType);
+        SeasonalityInfo seasonalityInfo = new SeasonalityInfo(
+            matchedProductName, matchedCategory, seasonalityType, matchedValue, 0.95,
+            LocalDateTime.now());
+
+        updateProductSeasonality(productId, seasonalityInfo);
+        log.info("제철 판단 완료 (RAG 직접 반환): productId={}, seasonality={}, confidence={}",
+            productId, seasonalityInfo.value(), seasonalityInfo.confidence());
+
+        return Optional.of(seasonalityInfo);
+    }
+
+    private Optional<SeasonalityInfo> processWithLLMInAsync(
+            UUID productId,
+            String productName,
+            String category,
+            List<SeasonalityKnowledgeSearchService.SeasonalityKnowledge> knowledgeList) {
+
+        SeasonalityDetectionResponse response =
+            detectSeasonalityWithLLM(productName, category, knowledgeList);
+
+        double calculatedConfidence = calculateConfidenceBasedOnRAG(
+            productName, category, response, knowledgeList);
+
+        if (calculatedConfidence < 0.7) {
+            log.warn("제철 판단 신뢰도 낮음: productId={}, RAG confidence={}, LLM confidence={}",
+                productId, calculatedConfidence, response.confidence());
+            // saveLog(productId, productName, category, response, null,
+            //     SeasonalityDetectionLog.DetectionStatus.FAILED);
+            return Optional.empty();
+        }
+
+        SeasonalityInfo seasonalityInfo = new SeasonalityInfo(
+            response.detectedProductName(), category, response.seasonalityType(),
+            response.seasonalityValue(), calculatedConfidence, LocalDateTime.now());
+
+        return Optional.of(seasonalityInfo);
+    }
+
+    private void storeAndUpdateSeasonalityInAsync(
+            UUID productId,
+            String productName,
+            String category,
+            SeasonalityDetectionResponse response,
+            SeasonalityInfo seasonalityInfo,
+            List<SeasonalityKnowledgeSearchService.SeasonalityKnowledge> knowledgeList) {
+
+        boolean shouldStore = shouldStoreLLMResponse(response, knowledgeList);
+        if (shouldStore && knowledgeStoreService.isPresent()) {
+            knowledgeStoreService.get().storeLLMGeneratedKnowledge(
+                response.detectedProductName(), category, response);
+        } else if (!shouldStore) {
+            log.debug("LLM 응답이 RAG 결과와 동일 - 저장 생략: {} ({})",
+                response.detectedProductName(), category);
+        }
+
+        updateProductSeasonality(productId, seasonalityInfo);
+
+        log.info("제철 판단 완료: productId={}, seasonality={}, RAG confidence={}, LLM confidence={}",
+            productId, response.seasonalityValue(),
+            seasonalityInfo.confidence(), response.confidence());
+    }
+
+    private List<SeasonalityKnowledgeSearchService.SeasonalityKnowledge> searchKnowledgeIfAvailable(
+            String productName, String category) {
+        if (knowledgeSearchService.isPresent()) {
+            return knowledgeSearchService.get().searchSimilarKnowledge(productName, category);
+        }
+        return null;
+    }
+
+    private void updateProductSeasonality(UUID productId, SeasonalityInfo seasonalityInfo) {
+        SeasonalityUpdateRequest updateRequest =
+            new SeasonalityUpdateRequest(seasonalityInfo.type(), seasonalityInfo.value());
+        productUpdateClient.updateSeasonality(productId, updateRequest);
+        log.debug("제철 정보 업데이트 완료: type={}, value={}",
+            updateRequest.seasonalityType(), updateRequest.seasonalityValue());
     }
 
     /**
@@ -406,213 +420,262 @@ public class SeasonalityDetectionService {
         }
 
         if (knowledgeList != null && !knowledgeList.isEmpty()) {
-                log.info("RAG 검색 결과 {}개를 프롬프트에 포함", knowledgeList.size());
+            log.info("RAG 검색 결과 {}개를 프롬프트에 포함", knowledgeList.size());
 
-                if (useCompactFormat) {
-                    // 최적화된 간결 형식: 제철 값만 포함 (토큰 절감)
-                    // 검색 결과를 명시적으로 참조하도록 강조
-                    promptBuilder.append("참고 제철 (우선 사용): ");
-                    knowledgeList.forEach(knowledge -> {
-                        promptBuilder.append(String.format("%s(%s)=%s ",
-                            knowledge.productName(),
-                            knowledge.category(),
-                            knowledge.seasonalityValue()));
-                    });
-                    promptBuilder.append("\n");
-
-                    // 검색 결과와 일치하는 상품명 명시
-                    String matchedProductName = knowledgeList.get(0).productName();
-                    String matchedCategory = knowledgeList.get(0).category();
-                    String matchedValue = knowledgeList.get(0).seasonalityValue();
-                    String matchedType = knowledgeList.get(0).seasonalityType();
-
-                    // 정확한 매칭 여부 확인
-                    boolean isExactMatch = matchedProductName.equals(productName) &&
-                                          matchedCategory.equalsIgnoreCase(category);
-                    boolean isContainsMatch = (matchedProductName.contains(productName) ||
-                                             productName.contains(matchedProductName)) &&
-                                            matchedCategory.equalsIgnoreCase(category);
-
-                    if (isExactMatch) {
-                        // 정확한 매칭: RAG 결과를 그대로 사용
-                        promptBuilder.append(String.format(
-                            "입력 '%s'는 '%s(%s)'와 정확히 일치합니다.\n\n",
-                            productName, matchedProductName, matchedCategory));
-
-                        promptBuilder.append(String.format(
-                            "%s(%s)의 제철을 JSON으로 응답:\n" +
-                            "위 참고 정보를 그대로 사용하세요. detectedProductName='%s', seasonalityValue='%s', seasonalityType='%s'\n" +
-                            "{\"detectedProductName\":\"%s\"," +
-                            "\"seasonalityType\":\"%s\"," +
-                            "\"seasonalityValue\":\"%s\"," +
-                            "\"confidence\":0.95,\"reasoning\":\"참고 정보와 일치\"}",
-                            productName, category,
-                            matchedProductName, matchedValue, matchedType,
-                            matchedProductName,
-                            matchedType,
-                            matchedValue
-                        ));
-                    } else if (isContainsMatch) {
-                        // 부분 매칭: 품종명 확장 가능 (예: "수미 감자" → "감자 수미감자")
-                        promptBuilder.append(String.format(
-                            "입력 '%s'는 '%s(%s)'의 품종으로 보입니다. 품종명을 전체상품명으로 확장하세요.\n\n",
-                            productName, matchedProductName, matchedCategory));
-
-                        promptBuilder.append(String.format(
-                            "%s(%s)의 제철을 JSON으로 응답:\n" +
-                            "품종명을 전체상품명으로 확장: detectedProductName='%s', seasonalityValue='%s', seasonalityType='%s'\n" +
-                            "{\"detectedProductName\":\"%s\"," +
-                            "\"seasonalityType\":\"%s\"," +
-                            "\"seasonalityValue\":\"%s\"," +
-                            "\"confidence\":0.9,\"reasoning\":\"품종명 확장\"}",
-                            productName, category,
-                            matchedProductName, matchedValue, matchedType,
-                            matchedProductName,
-                            matchedType,
-                            matchedValue
-                        ));
-                    } else {
-                        // 유사 매칭: 참고만 하고 LLM이 판단
-                        // 입력과 결과가 완전히 다른 경우 (예: "오렌지"와 "석류") 오타 교정하지 않음
-                        // 참고 정보는 참고만 하고, 입력된 상품명을 우선 사용
-                        promptBuilder.append(String.format(
-                            "입력 '%s'와 유사한 '%s(%s)' 정보가 있습니다.\n" +
-                            "**중요**: 입력된 상품명 '%s'가 참고 정보와 완전히 다른 작물이면, 참고 정보를 무시하고 입력된 상품명 '%s'의 제철을 직접 판단하세요.\n" +
-                            "참고 정보는 단지 참고용이며, 입력된 상품명이 정확합니다.\n" +
-                            "참고 정보의 상품명이 입력과 의미적으로 유사하거나 포함 관계가 있으면, 참고 정보의 상품명을 우선 사용하세요.\n\n",
-                            productName, matchedProductName, matchedCategory, productName, productName));
-
-                        promptBuilder.append(String.format(
-                            "%s(%s)의 제철을 JSON으로 응답:\n" +
-                            "참고 정보의 상품명이 입력과 의미적으로 유사하면 참고 정보의 상품명을 사용하세요. 그렇지 않으면 입력된 상품명을 그대로 사용하세요.\n" +
-                            "또한 한국에서 농장체험 가능 여부를 판단하세요. (수입 과일, 열대 과일은 불가, 국내 재배 가능한 작물은 가능)\n" +
-                            "{\"detectedProductName\":\"전체상품명\"," +
-                            "\"seasonalityType\":\"MONTH_RANGE|YEAR_ROUND\"," +
-                            "\"seasonalityValue\":\"1-3 형식(예:11-2) 또는 연중\"," +
-                            "\"confidence\":0.0~1.0," +
-                            "\"reasoning\":\"간단설명\"," +
-                            "\"farmExperienceNote\":\"농장체험 가능 또는 농장체험 불가\"}",
-                            productName, category
-                        ));
-                    }
-                } else {
-                    // 전체 형식: content 포함
-                    promptBuilder.append("참고 제철 정보 (우선 사용):\n");
-                    knowledgeList.forEach(knowledge -> {
-                        promptBuilder.append(String.format(
-                            "- %s(%s): %s (제철: %s)\n",
-                            knowledge.productName(),
-                            knowledge.category(),
-                            knowledge.content(),
-                            knowledge.seasonalityValue()
-                        ));
-                    });
-
-                    // 검색 결과와 일치하는 상품명 명시
-                    String matchedProductName = knowledgeList.get(0).productName();
-                    String matchedCategory = knowledgeList.get(0).category();
-                    String matchedValue = knowledgeList.get(0).seasonalityValue();
-                    String matchedType = knowledgeList.get(0).seasonalityType();
-
-                    // 정확한 매칭 여부 확인
-                    boolean isExactMatch = matchedProductName.equals(productName) &&
-                                          matchedCategory.equalsIgnoreCase(category);
-                    boolean isContainsMatch = (matchedProductName.contains(productName) ||
-                                             productName.contains(matchedProductName)) &&
-                                            matchedCategory.equalsIgnoreCase(category);
-
-                    if (isExactMatch) {
-                        // 정확한 매칭: RAG 결과를 그대로 사용
-                        promptBuilder.append(String.format(
-                            "입력 '%s'는 '%s(%s)'와 정확히 일치합니다.\n\n",
-                            productName, matchedProductName, matchedCategory));
-
-                        promptBuilder.append(String.format(
-                            "%s(%s)의 제철을 JSON으로 응답:\n" +
-                            "위 참고 정보를 그대로 사용하세요. detectedProductName='%s', seasonalityValue='%s', seasonalityType='%s'\n" +
-                            "또한 한국에서 농장체험 가능 여부를 판단하세요. (수입 과일, 열대 과일은 불가, 국내 재배 가능한 작물은 가능)\n" +
-                            "{\"detectedProductName\":\"%s\"," +
-                            "\"seasonalityType\":\"%s\"," +
-                            "\"seasonalityValue\":\"%s\"," +
-                            "\"confidence\":0.95," +
-                            "\"reasoning\":\"참고 정보와 일치\"," +
-                            "\"farmExperienceNote\":\"농장체험 가능 또는 농장체험 불가\"}",
-                            productName, category,
-                            matchedProductName, matchedValue, matchedType,
-                            matchedProductName,
-                            matchedType,
-                            matchedValue
-                        ));
-                    } else if (isContainsMatch) {
-                        // 부분 매칭: 품종명 확장 가능 (예: "수미 감자" → "감자 수미감자")
-                        promptBuilder.append(String.format(
-                            "입력 '%s'는 '%s(%s)'의 품종으로 보입니다. 품종명을 전체상품명으로 확장하세요.\n\n",
-                            productName, matchedProductName, matchedCategory));
-
-                        promptBuilder.append(String.format(
-                            "%s(%s)의 제철을 JSON으로 응답:\n" +
-                            "품종명을 전체상품명으로 확장: detectedProductName='%s', seasonalityValue='%s', seasonalityType='%s'\n" +
-                            "또한 한국에서 농장체험 가능 여부를 판단하세요. (수입 과일, 열대 과일은 불가, 국내 재배 가능한 작물은 가능)\n" +
-                            "{\"detectedProductName\":\"%s\"," +
-                            "\"seasonalityType\":\"%s\"," +
-                            "\"seasonalityValue\":\"%s\"," +
-                            "\"confidence\":0.9," +
-                            "\"reasoning\":\"품종명 확장\"," +
-                            "\"farmExperienceNote\":\"농장체험 가능 또는 농장체험 불가\"}",
-                            productName, category,
-                            matchedProductName, matchedValue, matchedType,
-                            matchedProductName,
-                            matchedType,
-                            matchedValue
-                        ));
-                    } else {
-                        // 유사 매칭: 참고만 하고 LLM이 판단
-                        // 입력과 결과가 완전히 다른 경우 (예: "오렌지"와 "석류") 오타 교정하지 않음
-                        // 참고 정보는 참고만 하고, 입력된 상품명을 우선 사용
-                        promptBuilder.append(String.format(
-                            "입력 '%s'와 유사한 '%s(%s)' 정보가 있습니다.\n" +
-                            "**중요**: 입력된 상품명 '%s'가 참고 정보와 완전히 다른 작물이면, 참고 정보를 무시하고 입력된 상품명 '%s'의 제철을 직접 판단하세요.\n" +
-                            "참고 정보는 단지 참고용이며, 입력된 상품명이 정확합니다.\n" +
-                            "참고 정보의 상품명이 입력과 의미적으로 유사하거나 포함 관계가 있으면, 참고 정보의 상품명을 우선 사용하세요.\n\n",
-                            productName, matchedProductName, matchedCategory, productName, productName));
-
-                        promptBuilder.append(String.format(
-                            "%s(%s)의 제철을 JSON으로 응답:\n" +
-                            "참고 정보의 상품명이 입력과 의미적으로 유사하면 참고 정보의 상품명을 사용하세요. 그렇지 않으면 입력된 상품명을 그대로 사용하세요.\n" +
-                            "또한 한국에서 농장체험 가능 여부를 판단하세요. (수입 과일, 열대 과일은 불가, 국내 재배 가능한 작물은 가능)\n" +
-                            "{\"detectedProductName\":\"전체상품명\"," +
-                            "\"seasonalityType\":\"MONTH_RANGE|YEAR_ROUND\"," +
-                            "\"seasonalityValue\":\"1-3 형식(예:11-2) 또는 연중\"," +
-                            "\"confidence\":0.0~1.0," +
-                            "\"reasoning\":\"간단설명\"," +
-                            "\"farmExperienceNote\":\"농장체험 가능 또는 농장체험 불가\"}",
-                            productName, category
-                        ));
-                    }
-                }
+            if (useCompactFormat) {
+                buildPromptWithCompactFormat(promptBuilder, productName, category, knowledgeList);
+            } else {
+                buildPromptWithFullFormat(promptBuilder, productName, category, knowledgeList);
+            }
         } else {
             log.warn("RAG 검색 결과 없음: productName={}, category={}", productName, category);
         }
 
         // RAG 검색 결과가 없을 때만 일반 프롬프트 사용
         if (knowledgeList == null || knowledgeList.isEmpty()) {
-            promptBuilder.append(String.format(
-                "%s(%s)의 제철을 JSON으로 응답:\n" +
-                "품종명(타이벡,천혜향,설향 등)이면 전체상품명(귤 타이벡,감귤 천혜향,딸기 설향 등)으로 확장\n" +
-                "또한 한국에서 농장체험 가능 여부를 판단하세요. (수입 과일, 열대 과일은 불가, 국내 재배 가능한 작물은 가능)\n" +
-                "{\"detectedProductName\":\"전체상품명\"," +
-                "\"seasonalityType\":\"MONTH_RANGE|YEAR_ROUND\"," +
-                "\"seasonalityValue\":\"1-3 형식(예:11-2) 또는 연중\"," +
-                "\"confidence\":0.0~1.0," +
-                "\"reasoning\":\"간단설명\"," +
-                "\"farmExperienceNote\":\"농장체험 가능 또는 농장체험 불가\"}",
-                productName, category
-            ));
+            buildPromptWithoutRAG(promptBuilder, productName, category);
         }
 
         String finalPrompt = promptBuilder.toString();
         log.debug("생성된 프롬프트:\n{}", finalPrompt);
         return finalPrompt;
+    }
+
+    private void buildPromptWithCompactFormat(
+            StringBuilder promptBuilder,
+            String productName,
+            String category,
+            List<SeasonalityKnowledgeSearchService.SeasonalityKnowledge> knowledgeList) {
+        promptBuilder.append("참고 제철 (우선 사용): ");
+        knowledgeList.forEach(knowledge -> {
+            promptBuilder.append(String.format("%s(%s)=%s ",
+                knowledge.productName(), knowledge.category(), knowledge.seasonalityValue()));
+        });
+        promptBuilder.append("\n");
+
+        SeasonalityKnowledgeSearchService.SeasonalityKnowledge firstMatch = knowledgeList.get(0);
+        String matchedProductName = firstMatch.productName();
+        String matchedCategory = firstMatch.category();
+        String matchedValue = firstMatch.seasonalityValue();
+        String matchedType = firstMatch.seasonalityType();
+
+        boolean isExactMatch = matchedProductName.equals(productName) &&
+                              matchedCategory.equalsIgnoreCase(category);
+        boolean isContainsMatch = (matchedProductName.contains(productName) ||
+                                 productName.contains(matchedProductName)) &&
+                                matchedCategory.equalsIgnoreCase(category);
+
+        if (isExactMatch) {
+            appendExactMatchPromptCompact(promptBuilder, productName, category,
+                matchedProductName, matchedValue, matchedType);
+        } else if (isContainsMatch) {
+            appendContainsMatchPromptCompact(promptBuilder, productName, category,
+                matchedProductName, matchedValue, matchedType);
+        } else {
+            appendSimilarMatchPromptCompact(promptBuilder, productName, category,
+                matchedProductName, matchedCategory);
+        }
+    }
+
+    private void buildPromptWithFullFormat(
+            StringBuilder promptBuilder,
+            String productName,
+            String category,
+            List<SeasonalityKnowledgeSearchService.SeasonalityKnowledge> knowledgeList) {
+        promptBuilder.append("참고 제철 정보 (우선 사용):\n");
+        knowledgeList.forEach(knowledge -> {
+            promptBuilder.append(String.format("- %s(%s): %s (제철: %s)\n",
+                knowledge.productName(), knowledge.category(),
+                knowledge.content(), knowledge.seasonalityValue()));
+        });
+
+        SeasonalityKnowledgeSearchService.SeasonalityKnowledge firstMatch = knowledgeList.get(0);
+        String matchedProductName = firstMatch.productName();
+        String matchedCategory = firstMatch.category();
+        String matchedValue = firstMatch.seasonalityValue();
+        String matchedType = firstMatch.seasonalityType();
+
+        boolean isExactMatch = matchedProductName.equals(productName) &&
+                              matchedCategory.equalsIgnoreCase(category);
+        boolean isContainsMatch = (matchedProductName.contains(productName) ||
+                                 productName.contains(matchedProductName)) &&
+                                matchedCategory.equalsIgnoreCase(category);
+
+        if (isExactMatch) {
+            appendExactMatchPromptFull(promptBuilder, productName, category,
+                matchedProductName, matchedValue, matchedType);
+        } else if (isContainsMatch) {
+            appendContainsMatchPromptFull(promptBuilder, productName, category,
+                matchedProductName, matchedValue, matchedType);
+        } else {
+            appendSimilarMatchPromptFull(promptBuilder, productName, category,
+                matchedProductName, matchedCategory);
+        }
+    }
+
+    private void appendExactMatchPromptCompact(
+            StringBuilder promptBuilder,
+            String productName,
+            String category,
+            String matchedProductName,
+            String matchedValue,
+            String matchedType) {
+        promptBuilder.append(String.format("입력 '%s'는 '%s(%s)'와 정확히 일치합니다.\n\n",
+            productName, matchedProductName, category));
+        promptBuilder.append(String.format(
+            "%s(%s)의 제철을 JSON으로 응답:\n" +
+            "위 참고 정보를 그대로 사용하세요. " +
+            "detectedProductName='%s', seasonalityValue='%s', seasonalityType='%s'\n" +
+            "{\"detectedProductName\":\"%s\"," +
+            "\"seasonalityType\":\"%s\"," +
+            "\"seasonalityValue\":\"%s\"," +
+            "\"confidence\":0.95,\"reasoning\":\"참고 정보와 일치\"}",
+            productName, category, matchedProductName, matchedValue, matchedType,
+            matchedProductName, matchedType, matchedValue));
+    }
+
+    private void appendContainsMatchPromptCompact(
+            StringBuilder promptBuilder,
+            String productName,
+            String category,
+            String matchedProductName,
+            String matchedValue,
+            String matchedType) {
+        promptBuilder.append(String.format(
+            "입력 '%s'는 '%s(%s)'의 품종으로 보입니다. 품종명을 전체상품명으로 확장하세요.\n\n",
+            productName, matchedProductName, category));
+        promptBuilder.append(String.format(
+            "%s(%s)의 제철을 JSON으로 응답:\n" +
+            "품종명을 전체상품명으로 확장: detectedProductName='%s', seasonalityValue='%s', seasonalityType='%s'\n" +
+            "{\"detectedProductName\":\"%s\"," +
+            "\"seasonalityType\":\"%s\"," +
+            "\"seasonalityValue\":\"%s\"," +
+            "\"confidence\":0.9,\"reasoning\":\"품종명 확장\"}",
+            productName, category, matchedProductName, matchedValue, matchedType,
+            matchedProductName, matchedType, matchedValue));
+    }
+
+    private void appendSimilarMatchPromptCompact(
+            StringBuilder promptBuilder,
+            String productName,
+            String category,
+            String matchedProductName,
+            String matchedCategory) {
+        promptBuilder.append(String.format(
+            "입력 '%s'와 유사한 '%s(%s)' 정보가 있습니다.\n" +
+            "**중요**: 입력된 상품명 '%s'가 참고 정보와 완전히 다른 작물이면, " +
+            "참고 정보를 무시하고 입력된 상품명 '%s'의 제철을 직접 판단하세요.\n" +
+            "참고 정보는 단지 참고용이며, 입력된 상품명이 정확합니다.\n" +
+            "참고 정보의 상품명이 입력과 의미적으로 유사하거나 포함 관계가 있으면, " +
+            "참고 정보의 상품명을 우선 사용하세요.\n\n",
+            productName, matchedProductName, matchedCategory, productName, productName));
+        promptBuilder.append(String.format(
+            "%s(%s)의 제철을 JSON으로 응답:\n" +
+            "참고 정보의 상품명이 입력과 의미적으로 유사하면 참고 정보의 상품명을 사용하세요. " +
+            "그렇지 않으면 입력된 상품명을 그대로 사용하세요.\n" +
+            "또한 한국에서 농장체험 가능 여부를 판단하세요. " +
+            "(수입 과일, 열대 과일은 불가, 국내 재배 가능한 작물은 가능)\n" +
+            "{\"detectedProductName\":\"전체상품명\"," +
+            "\"seasonalityType\":\"MONTH_RANGE|YEAR_ROUND\"," +
+            "\"seasonalityValue\":\"1-3 형식(예:11-2) 또는 연중\"," +
+            "\"confidence\":0.0~1.0," +
+            "\"reasoning\":\"간단설명\"," +
+            "\"farmExperienceNote\":\"농장체험 가능 또는 농장체험 불가\"}",
+            productName, category));
+    }
+
+    private void appendExactMatchPromptFull(
+            StringBuilder promptBuilder,
+            String productName,
+            String category,
+            String matchedProductName,
+            String matchedValue,
+            String matchedType) {
+        promptBuilder.append(String.format("입력 '%s'는 '%s(%s)'와 정확히 일치합니다.\n\n",
+            productName, matchedProductName, category));
+        promptBuilder.append(String.format(
+            "%s(%s)의 제철을 JSON으로 응답:\n" +
+            "위 참고 정보를 그대로 사용하세요. " +
+            "detectedProductName='%s', seasonalityValue='%s', seasonalityType='%s'\n" +
+            "또한 한국에서 농장체험 가능 여부를 판단하세요. " +
+            "(수입 과일, 열대 과일은 불가, 국내 재배 가능한 작물은 가능)\n" +
+            "{\"detectedProductName\":\"%s\"," +
+            "\"seasonalityType\":\"%s\"," +
+            "\"seasonalityValue\":\"%s\"," +
+            "\"confidence\":0.95," +
+            "\"reasoning\":\"참고 정보와 일치\"," +
+            "\"farmExperienceNote\":\"농장체험 가능 또는 농장체험 불가\"}",
+            productName, category, matchedProductName, matchedValue, matchedType,
+            matchedProductName, matchedType, matchedValue));
+    }
+
+    private void appendContainsMatchPromptFull(
+            StringBuilder promptBuilder,
+            String productName,
+            String category,
+            String matchedProductName,
+            String matchedValue,
+            String matchedType) {
+        promptBuilder.append(String.format(
+            "입력 '%s'는 '%s(%s)'의 품종으로 보입니다. 품종명을 전체상품명으로 확장하세요.\n\n",
+            productName, matchedProductName, category));
+        promptBuilder.append(String.format(
+            "%s(%s)의 제철을 JSON으로 응답:\n" +
+            "품종명을 전체상품명으로 확장: detectedProductName='%s', seasonalityValue='%s', seasonalityType='%s'\n" +
+            "또한 한국에서 농장체험 가능 여부를 판단하세요. " +
+            "(수입 과일, 열대 과일은 불가, 국내 재배 가능한 작물은 가능)\n" +
+            "{\"detectedProductName\":\"%s\"," +
+            "\"seasonalityType\":\"%s\"," +
+            "\"seasonalityValue\":\"%s\"," +
+            "\"confidence\":0.9," +
+            "\"reasoning\":\"품종명 확장\"," +
+            "\"farmExperienceNote\":\"농장체험 가능 또는 농장체험 불가\"}",
+            productName, category, matchedProductName, matchedValue, matchedType,
+            matchedProductName, matchedType, matchedValue));
+    }
+
+    private void appendSimilarMatchPromptFull(
+            StringBuilder promptBuilder,
+            String productName,
+            String category,
+            String matchedProductName,
+            String matchedCategory) {
+        promptBuilder.append(String.format(
+            "입력 '%s'와 유사한 '%s(%s)' 정보가 있습니다.\n" +
+            "**중요**: 입력된 상품명 '%s'가 참고 정보와 완전히 다른 작물이면, " +
+            "참고 정보를 무시하고 입력된 상품명 '%s'의 제철을 직접 판단하세요.\n" +
+            "참고 정보는 단지 참고용이며, 입력된 상품명이 정확합니다.\n" +
+            "참고 정보의 상품명이 입력과 의미적으로 유사하거나 포함 관계가 있으면, " +
+            "참고 정보의 상품명을 우선 사용하세요.\n\n",
+            productName, matchedProductName, matchedCategory, productName, productName));
+        promptBuilder.append(String.format(
+            "%s(%s)의 제철을 JSON으로 응답:\n" +
+            "참고 정보의 상품명이 입력과 의미적으로 유사하면 참고 정보의 상품명을 사용하세요. " +
+            "그렇지 않으면 입력된 상품명을 그대로 사용하세요.\n" +
+            "또한 한국에서 농장체험 가능 여부를 판단하세요. " +
+            "(수입 과일, 열대 과일은 불가, 국내 재배 가능한 작물은 가능)\n" +
+            "{\"detectedProductName\":\"전체상품명\"," +
+            "\"seasonalityType\":\"MONTH_RANGE|YEAR_ROUND\"," +
+            "\"seasonalityValue\":\"1-3 형식(예:11-2) 또는 연중\"," +
+            "\"confidence\":0.0~1.0," +
+            "\"reasoning\":\"간단설명\"," +
+            "\"farmExperienceNote\":\"농장체험 가능 또는 농장체험 불가\"}",
+            productName, category));
+    }
+
+    private void buildPromptWithoutRAG(StringBuilder promptBuilder, String productName, String category) {
+        promptBuilder.append(String.format(
+            "%s(%s)의 제철을 JSON으로 응답:\n" +
+            "품종명(타이벡,천혜향,설향 등)이면 전체상품명(귤 타이벡,감귤 천혜향,딸기 설향 등)으로 확장\n" +
+            "또한 한국에서 농장체험 가능 여부를 판단하세요. " +
+            "(수입 과일, 열대 과일은 불가, 국내 재배 가능한 작물은 가능)\n" +
+            "{\"detectedProductName\":\"전체상품명\"," +
+            "\"seasonalityType\":\"MONTH_RANGE|YEAR_ROUND\"," +
+            "\"seasonalityValue\":\"1-3 형식(예:11-2) 또는 연중\"," +
+            "\"confidence\":0.0~1.0," +
+            "\"reasoning\":\"간단설명\"," +
+            "\"farmExperienceNote\":\"농장체험 가능 또는 농장체험 불가\"}",
+            productName, category));
     }
 
     /**
@@ -880,15 +943,17 @@ public class SeasonalityDetectionService {
         }
 
         String trimmed = season.trim();
-        return switch (trimmed) {
-            case "봄" -> "3-5";
-            case "여름" -> "6-8";
-            case "가을" -> "9-11";
-            case "겨울" -> "12-2";
-            default -> {
-                log.warn("알 수 없는 계절: {}. 1-12로 기본값 사용", season);
-                yield "1-12";
-            }
-        };
+        if ("봄".equals(trimmed)) {
+            return "3-5";
+        } else if ("여름".equals(trimmed)) {
+            return "6-8";
+        } else if ("가을".equals(trimmed)) {
+            return "9-11";
+        } else if ("겨울".equals(trimmed)) {
+            return "12-2";
+        } else {
+            log.warn("알 수 없는 계절: {}. 1-12로 기본값 사용", trimmed);
+            return "1-12";
+        }
     }
 }

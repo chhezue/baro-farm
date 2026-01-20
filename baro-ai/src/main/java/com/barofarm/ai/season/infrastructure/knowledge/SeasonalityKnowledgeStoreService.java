@@ -81,9 +81,10 @@ public class SeasonalityKnowledgeStoreService {
             Instant now = Instant.now();
 
             // LLM이 판단한 농장체험 가능 여부 사용
-            String farmExperienceNote = response.farmExperienceNote() != null && !response.farmExperienceNote().isEmpty()
-                ? response.farmExperienceNote()
-                : "농장체험 가능";  // LLM 응답이 없으면 기본값
+            String farmExperienceNote =
+                response.farmExperienceNote() != null && !response.farmExperienceNote().isEmpty()
+                    ? response.farmExperienceNote()
+                    : "농장체험 가능";  // LLM 응답이 없으면 기본값
 
             // 1. Elasticsearch 키워드 인덱스에 저장
             if (keywordRepository.isPresent()) {
@@ -129,7 +130,6 @@ public class SeasonalityKnowledgeStoreService {
                 seasonalityValue,
                 "LLM_GENERATED",
                 confidence,
-                now,
                 now
             );
 

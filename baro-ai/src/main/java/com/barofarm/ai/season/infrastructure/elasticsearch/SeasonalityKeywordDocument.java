@@ -58,6 +58,26 @@ public class SeasonalityKeywordDocument {
             String seasonalityValue,
             String sourceType,
             Double confidence,
+            Instant timestamp) {
+        this.id = id;
+        this.productName = productName;
+        this.category = category;
+        this.seasonalityType = seasonalityType;
+        this.seasonalityValue = seasonalityValue;
+        this.sourceType = sourceType;
+        this.confidence = confidence;
+        this.createdAt = timestamp;
+        this.updatedAt = timestamp;
+    }
+
+    public SeasonalityKeywordDocument(
+            String id,
+            String productName,
+            String category,
+            String seasonalityType,
+            String seasonalityValue,
+            String sourceType,
+            Double confidence,
             Instant createdAt,
             Instant updatedAt) {
         this.id = id;
