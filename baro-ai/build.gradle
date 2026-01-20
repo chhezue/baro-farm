@@ -39,8 +39,8 @@ configurations.all {
         force 'io.swagger.core.v3:swagger-models:2.2.22'
         force 'io.swagger.core.v3:swagger-annotations:2.2.22'
         // Spring AI 1.0.0-M5 호환을 위한 Elasticsearch Java client 버전 고정
-        // 8.14 이상에서는 k(Long) -> k(Integer)로 변경되어 호환성 문제 발생
-        force 'co.elastic.clients:elasticsearch-java:8.13.4'
+        // 공식 문서에서 8.13.3 권장 (8.14 이상에서는 k(Long) -> k(Integer)로 변경되어 호환성 문제 발생)
+        force 'co.elastic.clients:elasticsearch-java:8.13.3'
     }
 }
 
@@ -67,12 +67,12 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign' // Feign Client
 
     // Elasticsearch
-    // Spring AI 1.0.0-M5 호환을 위해 elasticsearch-java 8.13.4 사용
+    // Spring AI 1.0.0-M5 호환을 위해 elasticsearch-java 8.13.3 사용 (공식 권장 버전)
     implementation('org.springframework.boot:spring-boot-starter-data-elasticsearch') {
         exclude group: 'co.elastic.clients', module: 'elasticsearch-java'
     }
-    // Spring AI 1.0.0-M5 호환 버전 명시적 추가
-    implementation 'co.elastic.clients:elasticsearch-java:8.13.4'
+    // Spring AI 1.0.0-M5 호환 버전 명시적 추가 (8.13.3이 공식 권장)
+    implementation 'co.elastic.clients:elasticsearch-java:8.13.3'
     // Spring AI - Elasticsearch VectorStore (ElasticsearchVectorStore)
     implementation 'org.springframework.ai:spring-ai-elasticsearch-store'
 

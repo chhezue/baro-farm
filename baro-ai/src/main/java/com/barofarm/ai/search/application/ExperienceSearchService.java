@@ -211,8 +211,8 @@ public class ExperienceSearchService {
         }
 
         b.filter(f ->
-            f.range(r -> r.number(n -> {
-                var range = n.field("pricePerPerson");
+            f.range(r -> {
+                var range = r.field("pricePerPerson");
                 if (min != null) {
                     range = range.gte(min.doubleValue());
                 }
@@ -220,7 +220,7 @@ public class ExperienceSearchService {
                     range = range.lte(max.doubleValue());
                 }
                 return range;
-            }))
+            })
         );
     }
 
@@ -231,8 +231,8 @@ public class ExperienceSearchService {
         }
 
         b.filter(f ->
-            f.range(r -> r.number(n -> {
-                var range = n.field("capacity");
+            f.range(r -> {
+                var range = r.field("capacity");
                 if (min != null) {
                     range = range.gte(min.doubleValue());
                 }
@@ -240,7 +240,7 @@ public class ExperienceSearchService {
                     range = range.lte(max.doubleValue());
                 }
                 return range;
-            }))
+            })
         );
     }
 
@@ -251,8 +251,8 @@ public class ExperienceSearchService {
         }
 
         b.filter(f ->
-            f.range(r -> r.number(n -> {
-                var range = n.field("duration");
+            f.range(r -> {
+                var range = r.field("duration");
                 if (min != null) {
                     range = range.gte(min.doubleValue());
                 }
@@ -260,7 +260,7 @@ public class ExperienceSearchService {
                     range = range.lte(max.doubleValue());
                 }
                 return range;
-            }))
+            })
         );
     }
 

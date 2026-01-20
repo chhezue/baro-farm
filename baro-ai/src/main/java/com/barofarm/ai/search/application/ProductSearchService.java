@@ -230,16 +230,16 @@ public class ProductSearchService {
         }
 
         b.filter(f ->
-            f.range(r -> r.number(n -> {
-                var numberRange = n.field("price");
+            f.range(r -> {
+                var range = r.field("price");
                 if (priceMin != null) {
-                    numberRange = numberRange.gte(priceMin.doubleValue());
+                    range = range.gte(priceMin.doubleValue());
                 }
                 if (priceMax != null) {
-                    numberRange = numberRange.lte(priceMax.doubleValue());
+                    range = range.lte(priceMax.doubleValue());
                 }
-                return numberRange;
-            }))
+                return range;
+            })
         );
     }
 
