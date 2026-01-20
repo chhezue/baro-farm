@@ -1,3 +1,4 @@
+/*
 package com.barofarm.support.experience.presentation;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,7 +33,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
-/** ReservationController 유닛 테스트 */
+/* ReservationController 유닛 테스트 */
+/*
 @Disabled("체험/예약 기능 테스트 임시 비활성화")
 @ExtendWith(MockitoExtension.class)
 class ReservationControllerTest {
@@ -204,3 +206,4 @@ class ReservationControllerTest {
         verify(reservationService, times(1)).deleteReservation(userId, reservationId);
     }
 }
+*/

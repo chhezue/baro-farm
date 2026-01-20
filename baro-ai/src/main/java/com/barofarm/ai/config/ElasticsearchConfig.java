@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
  * 제철 지식 RAG용 VectorStore 설정
  *
  * ElasticsearchVectorStore를 사용하여 벡터를 Elasticsearch의 dense_vector 필드에 영구 저장합니다.
- * 
+ *
  * Dense Vector 적용 효과:
  * - Elasticsearch의 k-NN/ANN 알고리즘을 활용한 고성능 벡터 검색
  * - 대용량 데이터에서도 O(log N) 수준의 검색 성능
@@ -26,17 +26,17 @@ public class ElasticsearchConfig {
 
     /**
      * Elasticsearch RestClient 생성
-     * 
+     *
      * @param elasticsearchUris Elasticsearch URI (예: http://localhost:9200)
      * @return RestClient 인스턴스
      */
     @Bean
     public RestClient elasticsearchRestClient(
             @Value("${spring.elasticsearch.uris:http://localhost:9200}") String elasticsearchUris) {
-        
+
         String[] uris = elasticsearchUris.split(",");
         HttpHost[] hosts = new HttpHost[uris.length];
-        
+
         for (int i = 0; i < uris.length; i++) {
             String uri = uris[i].trim();
             if (uri.startsWith("http://")) {
@@ -44,14 +44,14 @@ public class ElasticsearchConfig {
             } else if (uri.startsWith("https://")) {
                 uri = uri.substring(8);
             }
-            
+
             String[] parts = uri.split(":");
             String host = parts[0];
             int port = parts.length > 1 ? Integer.parseInt(parts[1]) : 9200;
-            
+
             hosts[i] = new HttpHost(host, port, uri.startsWith("https://") ? "https" : "http");
         }
-        
+
         return RestClient.builder(hosts).build();
     }
 
@@ -74,4 +74,3 @@ public class ElasticsearchConfig {
             .build();
     }
 }
-

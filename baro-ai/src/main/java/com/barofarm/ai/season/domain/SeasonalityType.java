@@ -13,5 +13,3 @@ public enum SeasonalityType {
     // 연중 재배 가능
     YEAR_ROUND
 }
-
-

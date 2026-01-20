@@ -68,5 +68,3 @@ public class SeasonalityDetectionLog extends BaseEntity {
         SKIPPED   // 판단 건너뜀 (예: 이미 제철 정보가 있음)
     }
 }
-
-

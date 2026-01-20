@@ -1,5 +1,7 @@
 package com.barofarm.ai.season.application;
 
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -8,8 +10,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * 제철 지식 검색 서비스 (RAG용)
@@ -200,4 +200,3 @@ public class SeasonalityKnowledgeSearchService {
         String content
     ) {}
 }
-

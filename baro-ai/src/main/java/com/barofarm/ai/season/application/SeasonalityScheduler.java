@@ -33,24 +33,24 @@ public class SeasonalityScheduler {
             // int pageSize = 50;
             // int offset = 0;
             // while (true) {
-            //     List<ProductSummary> products = 
+            //     List<ProductSummary> products =
             //         productClient.getProductsWithoutSeasonality(offset, pageSize);
-            //     
+            //
             //     if (products.isEmpty()) {
             //         break;
             //     }
-            //     
-            //     products.forEach(product -> 
+            //
+            //     products.forEach(product ->
             //         detectionService.detectSeasonalityAsync(
             //             product.id(),
             //             product.name(),
             //             product.category()
             //         )
             //     );
-            //     
+            //
             //     Thread.sleep(1000);  // Rate Limit 방지
             //     offset += pageSize;
-            //     
+            //
             //     if (offset >= 500) {  // 하루 최대 500개
             //         break;
             //     }

@@ -28,5 +28,3 @@ public interface SeasonalityDetectionLogRepository extends JpaRepository<Seasona
      */
     List<SeasonalityDetectionLog> findByStatusOrderByCreatedAtDesc(SeasonalityDetectionLog.DetectionStatus status);
 }
-
-

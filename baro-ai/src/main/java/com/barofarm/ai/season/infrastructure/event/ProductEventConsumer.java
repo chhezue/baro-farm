@@ -28,7 +28,7 @@ public class ProductEventConsumer {
         groupId = "ai-service-seasonality"
     )
     public void handleProductEvent(ProductEvent event) {
-        log.debug("상품 이벤트 수신: type={}, productId={}", 
+        log.debug("상품 이벤트 수신: type={}, productId={}",
             event.getType(), event.getData().getProductId());
 
         // 신규 상품 생성 시에만 제철 판단 수행
@@ -37,7 +37,7 @@ public class ProductEventConsumer {
             String productName = event.getData().getProductName();
             String productCategory = event.getData().getProductCategory();
 
-            log.info("신규 상품 제철 판단 시작: productId={}, productName={}", 
+            log.info("신규 상품 제철 판단 시작: productId={}, productName={}",
                 productId, productName);
 
             // 비동기 처리 (LLM 호출은 시간이 걸릴 수 있음)
@@ -49,4 +49,3 @@ public class ProductEventConsumer {
         }
     }
 }
-

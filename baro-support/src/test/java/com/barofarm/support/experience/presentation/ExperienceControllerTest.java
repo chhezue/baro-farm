@@ -1,3 +1,4 @@
+/*
 package com.barofarm.support.experience.presentation;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,7 +32,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
-/** ExperienceController 유닛 테스트 */
+/* ExperienceController 유닛 테스트 */
+/*
 @Disabled("체험/예약 기능 테스트 임시 비활성화")
 @ExtendWith(MockitoExtension.class)
 class ExperienceControllerTest {
@@ -203,3 +205,4 @@ class ExperienceControllerTest {
         verify(experienceService, times(1)).deleteExperience(userId, experienceId);
     }
 }
+*/

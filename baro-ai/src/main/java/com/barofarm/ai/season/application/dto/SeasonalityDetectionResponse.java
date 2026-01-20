@@ -14,4 +14,3 @@ public record SeasonalityDetectionResponse(
     String farmExperienceNote  // 농장체험 가능 여부 ("농장체험 가능" 또는 "농장체험 불가")
 ) {
 }
-
