@@ -67,7 +67,12 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign' // Feign Client
 
     // Elasticsearch
-    implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+    // Spring AI 1.0.0-M5 호환을 위해 elasticsearch-java 8.13.4 사용
+    implementation('org.springframework.boot:spring-boot-starter-data-elasticsearch') {
+        exclude group: 'co.elastic.clients', module: 'elasticsearch-java'
+    }
+    // Spring AI 1.0.0-M5 호환 버전 명시적 추가
+    implementation 'co.elastic.clients:elasticsearch-java:8.13.4'
     // Spring AI - Elasticsearch VectorStore (ElasticsearchVectorStore)
     implementation 'org.springframework.ai:spring-ai-elasticsearch-store'
 
