@@ -40,6 +40,7 @@ public class BundleWriter implements BundleWriterPort {
             }
 
             mergeStaticHotlist(policyDir, objectMapper, dataRoot);
+            mergeStaticPolicyData(policyDir, objectMapper, dataRoot);
             byte[] dataBytes = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(dataRoot);
             Files.write(dataFilePath, dataBytes);
 
@@ -124,6 +125,47 @@ public class BundleWriter implements BundleWriterPort {
             });
         } catch (IOException e) {
             LOG.warn("Failed to merge static hotlist data from {}", filePath, e);
+        }
+    }
+
+    private void mergeStaticPolicyData(
+        Path policyDir,
+        ObjectMapper objectMapper,
+        Object dataRoot
+    ) {
+        if (!(dataRoot instanceof Map<?, ?> rootMap) || policyDir == null) {
+            return;
+        }
+        Path dataDir = policyDir.resolve("data");
+        if (!Files.exists(dataDir)) {
+            return;
+        }
+        Map<String, Object> root = castStringObjectMap(rootMap);
+        try (var paths = Files.walk(dataDir)) {
+            paths.filter(Files::isRegularFile)
+                .forEach(path -> {
+                    String relativePath = dataDir.relativize(path).toString().replace("\\", "/");
+                    if (!relativePath.endsWith(".json") || relativePath.startsWith("hotlist/")) {
+                        return;
+                    }
+                    String withoutExt = relativePath.substring(0, relativePath.length() - ".json".length());
+                    String[] segments = withoutExt.split("/");
+                    if (segments.length == 0) {
+                        return;
+                    }
+                    try {
+                        Map<?, ?> parsed = objectMapper.readValue(path.toFile(), Map.class);
+                        Map<String, Object> cursor = root;
+                        for (int i = 0; i < segments.length - 1; i++) {
+                            cursor = getOrCreateMap(cursor, segments[i]);
+                        }
+                        cursor.put(segments[segments.length - 1], castStringObjectMap(parsed));
+                    } catch (IOException e) {
+                        LOG.warn("Failed to merge policy data from {}", path, e);
+                    }
+                });
+        } catch (IOException e) {
+            LOG.warn("Failed to scan policy data directory {}", dataDir, e);
         }
     }
 
