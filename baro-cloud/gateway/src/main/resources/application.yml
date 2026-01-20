@@ -8,22 +8,22 @@ spring:
     import: ${SPRING_CONFIG_IMPORT:optional:configserver:http://config:8888}
   cloud:
     gateway:
-      globalcors:
-        corsConfigurations:
-          '[/**]': # 모든 경로에 대해 CORS 허용
-            allowedOrigins:
-              - "http://localhost:3000"
-              - "http://3.34.14.73:3000"
-            allowedMethods: "*"   # 허용 HTTP 메서드 (GET/POST/PUT/DELETE 등)
-            allowedHeaders: "*"   # 허용 요청 헤더 (Authorization 등)
-            allowCredentials: true # 쿠키/인증 헤더 전달 허용 시 true
-            maxAge: 3600          # 프리플라이트(OPTIONS) 결과를 캐시할 시간(초)
-      discovery:
-        locator:
-          enabled: true
-          lower-case-service-id: true  # 소문자 서비스 ID 사용
       server:
         webflux:
+          globalcors:
+            cors-configurations:
+              '[/**]': # 모든 경로에 대해 CORS 허용
+                allowedOrigins:
+                  - "http://localhost:3000"
+                  - "http://3.34.14.73:3000"
+                allowedMethods: "*"   # 허용 HTTP 메서드 (GET/POST/PUT/DELETE 등)
+                allowedHeaders: "*"   # 허용 요청 헤더 (Authorization 등)
+                allowCredentials: true # 쿠키/인증 헤더 전달 허용 시 true
+                maxAge: 3600          # 프리플라이트(OPTIONS) 결과를 캐시할 시간(초)
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true  # 소문자 서비스 ID 사용
           routes:
             # ============================================
             # OpenAPI 문서 프록시 
@@ -70,12 +70,13 @@ spring:
               filters:
                 - RewritePath=/openapi/support/(?<segment>.*), /${segment}
 
-            - id: settlement-service-openapi
-              uri: lb://settlement-service
-              predicates:
-                - Path=/openapi/settlement/v3/api-docs, /openapi/settlement/v3/api-docs/**
-              filters:
-                - RewritePath=/openapi/settlement/(?<segment>.*), /${segment}
+            # DaemonSet 배포 서비스는 Gateway에서 제공하지 않음
+            # - id: settlement-service-openapi
+            #   uri: lb://settlement-service
+            #   predicates:
+            #     - Path=/openapi/settlement/v3/api-docs, /openapi/settlement/v3/api-docs/**
+            #   filters:
+            #     - RewritePath=/openapi/settlement/(?<segment>.*), /${segment}
 
             - id: ai-service-openapi
               uri: lb://ai-service
@@ -123,7 +124,7 @@ spring:
             - id: payment-service
               uri: lb://payment-service
               predicates:
-                - Path=/payment-service/**,/api/payments/**,/api/deposits/**
+                - Path=/payment-service/**,/api/payments/**
               filters:
                 - RewritePath=/payment-service/(?<segment>.*), /${segment}
 
@@ -131,23 +132,24 @@ spring:
             - id: support-service
               uri: lb://support-service
               predicates:
-                - Path=/support-service/**,/api/deliveries/**,/api/notifications/**,/api/experiences/**,/api/reviews/**
+                - Path=/support-service/**,/api/deliveries/**,/api/notifications/**,/api/experiences/**,/api/reviews/**,/api/deposits/**
               filters:
                 - RewritePath=/support-service/(?<segment>.*), /${segment}
 
             # Settlement Service
-            - id: settlement-service
-              uri: lb://settlement-service
-              predicates:
-                - Path=/settlement-service/**,/api/settlements/**
-              filters:
-                - RewritePath=/settlement-service/(?<segment>.*), /${segment}
+            # DaemonSet 배포 서비스는 Gateway에서 제공하지 않음
+            # - id: settlement-service
+            #   uri: lb://settlement-service
+            #   predicates:
+            #     - Path=/settlement-service/**,/api/settlements/**
+            #   filters:
+            #     - RewritePath=/settlement-service/(?<segment>.*), /${segment}
 
             # AI Service
             - id: ai-service
               uri: lb://ai-service
               predicates:
-                - Path=/ai-service/**,/api/ai/**,/api/search/**,/api/recommend/**,/api/chatbot/**,/api/seasonality/**
+                - Path=/ai-service/**,/api/v1/search/**,/api/v1/recommendations/**,/api/v1/chatbot/**,/api/v1/seasonality/**
               filters:
                 - RewritePath=/ai-service/(?<segment>.*), /${segment}
 
@@ -191,8 +193,8 @@ springdoc:
         url: /openapi/payment/v3/api-docs
       - name: Support Service
         url: /openapi/support/v3/api-docs
-      - name: Settlement Service
-        url: /openapi/settlement/v3/api-docs
+      # - name: Settlement Service
+      #   url: /openapi/settlement/v3/api-docs
       - name: AI Service
         url: /openapi/ai/v3/api-docs
   api-docs:
