@@ -4,6 +4,7 @@ import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
+import co.elastic.clients.json.JsonData;
 import com.barofarm.ai.search.application.dto.product.ProductAutoCompleteResponse;
 import com.barofarm.ai.search.application.dto.product.ProductIndexRequest;
 import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
@@ -233,10 +234,10 @@ public class ProductSearchService {
             f.range(r -> {
                 var range = r.field("price");
                 if (priceMin != null) {
-                    range = range.gte(priceMin.doubleValue());
+                    range = range.gte(JsonData.of(priceMin));
                 }
                 if (priceMax != null) {
-                    range = range.lte(priceMax.doubleValue());
+                    range = range.lte(JsonData.of(priceMax));
                 }
                 return range;
             })

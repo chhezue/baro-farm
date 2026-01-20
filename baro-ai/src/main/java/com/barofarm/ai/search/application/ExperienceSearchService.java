@@ -3,6 +3,7 @@ package com.barofarm.ai.search.application;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
+import co.elastic.clients.json.JsonData;
 import com.barofarm.ai.search.application.dto.experience.ExperienceAutoCompleteResponse;
 import com.barofarm.ai.search.application.dto.experience.ExperienceIndexRequest;
 import com.barofarm.ai.search.application.dto.experience.ExperienceSearchRequest;
@@ -214,10 +215,10 @@ public class ExperienceSearchService {
             f.range(r -> {
                 var range = r.field("pricePerPerson");
                 if (min != null) {
-                    range = range.gte(min.doubleValue());
+                    range = range.gte(JsonData.of(min));
                 }
                 if (max != null) {
-                    range = range.lte(max.doubleValue());
+                    range = range.lte(JsonData.of(max));
                 }
                 return range;
             })
@@ -234,10 +235,10 @@ public class ExperienceSearchService {
             f.range(r -> {
                 var range = r.field("capacity");
                 if (min != null) {
-                    range = range.gte(min.doubleValue());
+                    range = range.gte(JsonData.of(min));
                 }
                 if (max != null) {
-                    range = range.lte(max.doubleValue());
+                    range = range.lte(JsonData.of(max));
                 }
                 return range;
             })
@@ -254,10 +255,10 @@ public class ExperienceSearchService {
             f.range(r -> {
                 var range = r.field("duration");
                 if (min != null) {
-                    range = range.gte(min.doubleValue());
+                    range = range.gte(JsonData.of(min));
                 }
                 if (max != null) {
-                    range = range.lte(max.doubleValue());
+                    range = range.lte(JsonData.of(max));
                 }
                 return range;
             })
