@@ -147,7 +147,7 @@ spring:
             - id: ai-service
               uri: lb://ai-service
               predicates:
-                - Path=/ai-service/**,/api/ai/**,/api/search/**,/api/recommend/**,/api/chatbot/**,/api/season/**
+                - Path=/ai-service/**,/api/ai/**,/api/search/**,/api/recommend/**,/api/chatbot/**,/api/seasonality/**
               filters:
                 - RewritePath=/ai-service/(?<segment>.*), /${segment}
 
