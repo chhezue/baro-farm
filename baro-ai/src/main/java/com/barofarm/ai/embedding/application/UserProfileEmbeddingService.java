@@ -1,6 +1,8 @@
 package com.barofarm.ai.embedding.application;
 
+import com.barofarm.ai.common.exception.CustomException;
 import com.barofarm.ai.embedding.domain.UserProfileEmbeddingDocument;
+import com.barofarm.ai.embedding.exception.EmbeddingErrorCode;
 import com.barofarm.ai.embedding.infrastructure.elasticsearch.UserProfileEmbeddingRepository;
 import com.barofarm.ai.log.domain.CartLogDocument;
 import com.barofarm.ai.log.domain.OrderLogDocument;
@@ -27,6 +29,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class UserProfileEmbeddingService {
 
+    // 프로필 벡터 임베딩을 위한 최소 로그 개수
     private static final int MIN_TOTAL_LOGS_FOR_EMBEDDING = 3;
 
     private final EmbeddingModel embeddingModel;
@@ -49,11 +52,7 @@ public class UserProfileEmbeddingService {
         this.userProfileEmbeddingRepository = userProfileEmbeddingRepository;
     }
 
-    /**
-     * 특정 사용자의 프로필 벡터를 생성하고 저장/업데이트합니다.
-     * 각 로그 타입별로 최대 5개씩 (총 최대 15개) 최근 로그를 사용합니다.
-     * @param userId 대상 사용자 ID
-     */
+    // 특정 사용자의 활동 로그를 가져와서 프로필 벡터를 생성/업데이트
     public void updateUserProfileEmbedding(UUID userId) {
         // 1. 최근 30일간의 사용자 활동 로그를 각 타입별로 최대 5개씩 가져옵니다.
         Instant thirtyDaysAgo = Instant.now().minus(30, ChronoUnit.DAYS);
@@ -66,9 +65,31 @@ public class UserProfileEmbeddingService {
         List<OrderLogDocument> orderLogs = orderLogRepository
             .findAllByUserIdAndOccurredAtAfterOrderByOccurredAtDesc(userId, thirtyDaysAgo, top5);
 
+        // 1.5. 임베딩 생성에 사용한 로그들의 ID 수집 (동일성/재현성 확보)
+        List<String> sourceSearchLogIds = searchLogs.stream()
+            .map(SearchLogDocument::getId)
+            .collect(Collectors.toList());
+
+        List<String> sourceCartLogIds = cartLogs.stream()
+            .map(CartLogDocument::getId)
+            .collect(Collectors.toList());
+
+        List<String> sourceOrderLogIds = orderLogs.stream()
+            .map(OrderLogDocument::getId)
+            .collect(Collectors.toList());
+
+        // productId 추출 (cart + order에서만, UUID를 문자열로 변환)
+        List<String> sourceProductIds = Stream.concat(
+                cartLogs.stream().map(cart -> cart.getProductId().toString()),
+                orderLogs.stream().map(order -> order.getProductId().toString())
+            )
+            .distinct()  // 중복 제거
+            .collect(Collectors.toList());
+
         int totalLogCount = searchLogs.size() + cartLogs.size() + orderLogs.size();
         int minTotalLogs = MIN_TOTAL_LOGS_FOR_EMBEDDING;
 
+        // 로그 개수가 최소 개수 이하인 경우
         if (totalLogCount < minTotalLogs) {
             log.info("사용자 ID {}의 총 로그 개수({})가 {}개 미만이므로 임베딩을 건너뜁니다. " +
                     "(검색:{}, 장바구니:{}, 주문:{})",
@@ -80,18 +101,7 @@ public class UserProfileEmbeddingService {
         log.debug("사용자 ID {}의 로그 데이터: 검색={}, 장바구니={}, 주문={}",
                  userId, searchLogs.size(), cartLogs.size(), orderLogs.size());
 
-        // 3. 로그에서 텍스트를 추출하고 가중치를 적용하여 '대표 텍스트'를 생성합니다.
-        // TODO: [메도이드 알고리즘 적용 조건 체크]
-        // 로그 개수가 충분할 때(총 30개 이상) 메도이드 알고리즘을 사용하여
-        // 대표 로그를 선택한 후 buildRepresentativeText 호출
-        // if (totalLogCount >= 30) {
-        //     List<SearchLogDocument> medoidSearchLogs = selectMedoidLogs(searchLogs);
-        //     List<CartLogDocument> medoidCartLogs = selectMedoidLogs(cartLogs);
-        //     List<OrderLogDocument> medoidOrderLogs = selectMedoidLogs(orderLogs);
-        //     representativeText = buildRepresentativeText(medoidSearchLogs, medoidCartLogs, medoidOrderLogs);
-        // } else {
-        //     representativeText = buildRepresentativeText(searchLogs, cartLogs, orderLogs);
-        // }
+        // 2. 로그를 바탕으로 임베딩할 대표 텍스트 생성
         String representativeText = buildRepresentativeText(searchLogs, cartLogs, orderLogs);
 
         if (!StringUtils.hasText(representativeText)) {
@@ -99,7 +109,7 @@ public class UserProfileEmbeddingService {
             return;
         }
 
-        // 4. 대표 텍스트를 임베딩하여 벡터를 생성합니다.
+        // 3. 대표 텍스트를 임베딩하여 벡터 생성
         List<Double> vector;
         try {
             vector = embedText(representativeText);
@@ -108,44 +118,31 @@ public class UserProfileEmbeddingService {
             return;
         }
 
-        // 5. 생성된 벡터로 UserProfileEmbeddingDocument를 만들어 저장합니다.
+        // 4. 생성된 벡터로 UserProfileEmbeddingDocument를 만들어 저장
         UserProfileEmbeddingDocument embeddingDocument = UserProfileEmbeddingDocument.builder()
             .userId(userId)
             .userProfileVector(vector)
             .lastUpdatedAt(Instant.now())
+            // 임베딩 생성에 사용한 로그들의 ID (동일성/재현성 확보)
+            .sourceSearchLogIds(sourceSearchLogIds)
+            .sourceCartLogIds(sourceCartLogIds)
+            .sourceOrderLogIds(sourceOrderLogIds)
+            // 빠른 상품 제외를 위한 productId 목록
+            .sourceProductIds(sourceProductIds)
             .build();
 
         userProfileEmbeddingRepository.save(embeddingDocument);
+
         log.info("사용자 ID {}의 프로필 벡터를 성공적으로 업데이트했습니다. (총 {}개 로그 사용)",
                 userId, totalLogCount);
     }
 
+    // 벡터로 임베딩할 대표 텍스트 만들기
     private String buildRepresentativeText(
         List<SearchLogDocument> searchLogs,
         List<CartLogDocument> cartLogs,
         List<OrderLogDocument> orderLogs
     ) {
-        // TODO: [메도이드 알고리즘 적용]
-        // 현재는 가중치 기반으로 모든 로그를 반복하여 텍스트를 생성하지만,
-        // 로그 개수가 많을 때(각 타입별 10개 이상, 총 30개 이상) 메도이드 알고리즘을 적용하여
-        // 실제 로그 중에서 가장 대표적인 로그를 선택하는 방식으로 개선 가능
-        //
-        // 적용 방법:
-        // 1. 각 로그 타입별로 로그를 임베딩 벡터로 변환
-        // 2. 각 타입별 로그들 간의 코사인 거리 계산
-        // 3. 다른 모든 로그까지의 거리 합이 최소인 로그(메도이드) 선택
-        // 4. 선택된 메도이드 로그들만 사용하여 대표 텍스트 생성
-        //
-        // 효과적인 데이터 개수:
-        // - 최소: 각 타입별 5개 이상 (총 15개 이상)에서 효과 시작
-        // - 권장: 각 타입별 10개 이상 (총 30개 이상)에서 효과적
-        // - 이상치에 강건하며, 실제 데이터 포인트를 선택하므로 해석이 쉬움
-        //
-        // 예상 효과:
-        // - 노이즈가 많은 로그 중에서 가장 대표적인 로그만 선택하여 임베딩 품질 향상
-        // - 계산 비용 절감 (모든 로그를 반복하지 않고 메도이드만 사용)
-        // - 사용자 프로필의 핵심 관심사만 반영하여 더 정확한 추천 가능
-
         // 1. 검색어 텍스트 (시간 가중치 적용)
         Stream<String> searchKeywords = searchLogs.stream()
             .filter(log -> StringUtils.hasText(log.getSearchQuery()))
@@ -167,9 +164,7 @@ public class UserProfileEmbeddingService {
             .collect(Collectors.joining(", "));
     }
 
-    /**
-     * 검색어에 시간 가중치를 적용합니다.
-     */
+    // Search 로그에 시간 가중치 적용
     private Stream<String> expandSearchQueryWithTimeWeight(SearchLogDocument log) {
         double timeWeight = calculateTimeWeight(log.getSearchedAt());
         long finalWeight = Math.max(1L, Math.round(timeWeight * 1.0)); // 검색어 기본 가중치 1.0
@@ -178,9 +173,7 @@ public class UserProfileEmbeddingService {
             .limit(finalWeight);
     }
 
-    /**
-     * 장바구니 상품에 수량, 이벤트 타입, 시간 가중치를 모두 적용합니다.
-     */
+    // Cart 로그에 수량, 이벤트 타입, 시간 가중치 모두 적용
     private Stream<String> expandCartProductWithFullWeight(CartLogDocument log) {
         int eventWeight = calculateCartEventWeight(log.getEventType());
         int quantityWeight = Math.max(1, log.getQuantity());
@@ -192,9 +185,7 @@ public class UserProfileEmbeddingService {
             .limit(totalWeight);
     }
 
-    /**
-     * 주문 상품에 수량, 이벤트 타입, 시간 가중치를 모두 적용합니다.
-     */
+    // Order 로그에 수량, 이벤트 타입, 시간 가중치 모두 적용
     private Stream<String> expandOrderProductWithFullWeight(OrderLogDocument log) {
         int eventWeight = calculateOrderEventWeight(log.getEventType());
         int quantityWeight = Math.max(1, log.getQuantity());
@@ -206,9 +197,7 @@ public class UserProfileEmbeddingService {
             .limit(totalWeight);
     }
 
-    /**
-     * 장바구니 이벤트 타입별 가중치 계산
-     */
+    // 장바구니 이벤트 타입별 가중치 계산
     private int calculateCartEventWeight(String eventType) {
         return switch (eventType) {
             case "CART_ITEM_ADDED" -> 2;      // 상품 추가: 관심 표현
@@ -218,9 +207,7 @@ public class UserProfileEmbeddingService {
         };
     }
 
-    /**
-     * 주문 이벤트 타입별 가중치 계산
-     */
+    // 주문 이벤트 타입별 가중치 계산
     private int calculateOrderEventWeight(String eventType) {
         return switch (eventType) {
             case "ORDER_CONFIRMED" -> 3;   // 주문 완료: 가장 높은 관심
@@ -229,10 +216,7 @@ public class UserProfileEmbeddingService {
         };
     }
 
-    /**
-     * 이벤트 발생 시간에 따른 가중치를 계산합니다.
-     * 최근 이벤트일수록 높은 가중치를 부여합니다.
-     */
+    // 이벤트 발생 시간에 따른 가중치를 계산 (최근 이벤트일수록 높은 가중치 부여)
     private double calculateTimeWeight(Instant eventTime) {
         long hoursAgo = ChronoUnit.HOURS.between(eventTime, Instant.now());
 
@@ -246,92 +230,7 @@ public class UserProfileEmbeddingService {
         return Math.min(timeWeight, 3.0); // 최대 3배 제한
     }
 
-    // 예시: 매일 새벽 4시에 모든 사용자의 프로필 벡터를 업데이트하는 스케줄러
-    // 실제 운영시에는 모든 사용자를 가져오는 로직이 필요합니다. (e.g., 별도의 User DB 조회)
-    // @Scheduled(cron = "0 0 4 * * *")
-    public void updateAllUserProfiles() {
-        log.info("전체 사용자 프로필 벡터 업데이트 작업을 시작합니다...");
-        // List<UUID> allUserIds = userRepository.findAllIds();
-        // allUserIds.forEach(this::updateUserProfileEmbedding);
-        log.info("전체 사용자 프로필 벡터 업데이트 작업을 완료했습니다.");
-    }
-
-    /**
-     * 테스트용 메소드: 가중치 계산 로직을 검증합니다.
-     */
-    public String testWeightCalculation(UUID userId) {
-        Instant thirtyDaysAgo = Instant.now().minus(30, ChronoUnit.DAYS);
-        List<SearchLogDocument> searchLogs =
-            searchLogRepository.findAllByUserIdAndSearchedAtAfter(userId, thirtyDaysAgo);
-        List<CartLogDocument> cartLogs =
-            cartLogRepository.findAllByUserIdAndOccurredAtAfter(userId, thirtyDaysAgo);
-        List<OrderLogDocument> orderLogs =
-            orderLogRepository.findAllByUserIdAndOccurredAtAfter(userId, thirtyDaysAgo);
-
-        return buildRepresentativeText(searchLogs, cartLogs, orderLogs);
-    }
-
-    /**
-     * 테스트용 공개 메소드: 대표 텍스트 생성 로직을 테스트합니다.
-     */
-    public String buildRepresentativeTextForTest(
-        List<SearchLogDocument> searchLogs,
-        List<CartLogDocument> cartLogs,
-        List<OrderLogDocument> orderLogs
-    ) {
-        return buildRepresentativeText(searchLogs, cartLogs, orderLogs);
-    }
-
-    /**
-     * 테스트용 메소드: 제한된 로그 개수로 임베딩 생성을 테스트합니다.
-     */
-    public void updateUserProfileEmbeddingWithLimitedLogs(UUID userId,
-        List<SearchLogDocument> searchLogs,
-        List<CartLogDocument> cartLogs,
-        List<OrderLogDocument> orderLogs) {
-
-        // 총 로그 개수 검증
-        int totalLogCount = searchLogs.size() + cartLogs.size() + orderLogs.size();
-        if (totalLogCount < 5) {
-            log.info("테스트용: 사용자 ID {}의 총 로그 개수({})가 5개 미만", userId, totalLogCount);
-            return;
-        }
-
-        log.debug("테스트용: 사용자 ID {}의 로그 데이터: 검색={}, 장바구니={}, 주문={}",
-                 userId, searchLogs.size(), cartLogs.size(), orderLogs.size());
-
-        // 대표 텍스트 생성 및 임베딩
-        String representativeText = buildRepresentativeText(searchLogs, cartLogs, orderLogs);
-
-        if (!StringUtils.hasText(representativeText)) {
-            log.info("테스트용: 사용자 ID {}에 대한 충분한 텍스트 데이터가 없음", userId);
-            return;
-        }
-
-        List<Double> vector;
-        try {
-            vector = embedText(representativeText);
-        } catch (Exception e) {
-            log.error("테스트용: 사용자 ID {}의 임베딩 생성 실패: {}", userId, e.getMessage(), e);
-            return;
-        }
-
-        UserProfileEmbeddingDocument embeddingDocument = UserProfileEmbeddingDocument.builder()
-            .userId(userId)
-            .userProfileVector(vector)
-            .lastUpdatedAt(Instant.now())
-            .build();
-
-        userProfileEmbeddingRepository.save(embeddingDocument);
-        log.info("테스트용: 사용자 ID {}의 프로필 벡터 업데이트 완료 (총 {}개 로그 사용)",
-                userId, totalLogCount);
-    }
-
-    /**
-     * 텍스트를 임베딩하여 List<Double> 벡터로 변환합니다.
-     * @param text 임베딩할 텍스트
-     * @return List<Double> 형태의 벡터
-     */
+    // 텍스트를 임베딩하여 벡터로 변환
     private List<Double> embedText(String text) {
         try {
             log.debug("🔄 [USER_PROFILE_EMBEDDING] Generating embedding for text length: {}", text.length());
@@ -357,7 +256,7 @@ public class UserProfileEmbeddingService {
 
         } catch (Exception e) {
             log.error("❌ [USER_PROFILE_EMBEDDING] Failed to generate embedding: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to generate user profile embedding", e);
+            throw new CustomException(EmbeddingErrorCode.EMBEDDING_GENERATION_FAILED);
         }
     }
 }

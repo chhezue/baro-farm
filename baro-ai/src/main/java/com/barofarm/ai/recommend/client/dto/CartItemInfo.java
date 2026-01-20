@@ -7,9 +7,11 @@ public record CartItemInfo(
     UUID itemId,
     UUID productId,
     String productName,
+    String productCategoryName,
     Integer quantity,
     Long unitPrice,
     Long lineTotalPrice,
-    UUID inventoryId
+    UUID inventoryId,
+    Integer unit
 ) {
 }
