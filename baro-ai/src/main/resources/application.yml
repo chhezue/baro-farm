@@ -90,6 +90,9 @@ management:
     health:
       show-details: always
       enabled: true
+  health:
+    elasticsearch:
+      enabled: false  # Elasticsearch Java client 8.13.3과 호환성 문제로 비활성화
 
 # 제철 판단 RAG 설정
 seasonality:
