@@ -1,4 +1,4 @@
-package com.barofarm.ai.review.domain;
+package com.barofarm.ai.review.domain.review;
 
 import com.barofarm.ai.event.model.ReviewEvent;
 import com.barofarm.ai.event.model.ReviewEvent.ReviewEventData;
@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.elasticsearch.annotations.Field;
+import org.springframework.data.elasticsearch.annotations.FieldType;
 
 @Getter
 @Document(indexName = "review_event")
@@ -17,6 +19,7 @@ public class ReviewDocument {
     @Id
     private String id; // reviewId.toString()
 
+    @Field(type = FieldType.Keyword)
     private String productId;
 
     private Integer rating;
@@ -29,6 +32,7 @@ public class ReviewDocument {
 
     private Integer imageCount;
 
+    @Field(type = FieldType.Keyword)
     private Sentiment sentiment;
 
     private LocalDateTime occurredAt;

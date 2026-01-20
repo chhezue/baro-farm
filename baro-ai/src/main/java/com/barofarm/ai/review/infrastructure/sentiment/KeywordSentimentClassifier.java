@@ -1,7 +1,7 @@
 package com.barofarm.ai.review.infrastructure.sentiment;
 
 import com.barofarm.ai.review.application.sentiment.SentimentClassifier;
-import com.barofarm.ai.review.domain.Sentiment;
+import com.barofarm.ai.review.domain.review.Sentiment;
 import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;

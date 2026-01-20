@@ -2,8 +2,8 @@ package com.barofarm.ai.review.application;
 
 import com.barofarm.ai.event.model.ReviewEvent;
 import com.barofarm.ai.review.application.sentiment.SentimentClassifier;
-import com.barofarm.ai.review.domain.ReviewDocument;
-import com.barofarm.ai.review.domain.Sentiment;
+import com.barofarm.ai.review.domain.review.ReviewDocument;
+import com.barofarm.ai.review.domain.review.Sentiment;
 import com.barofarm.ai.review.infrastructure.ReviewRepository;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
