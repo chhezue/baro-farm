@@ -8,7 +8,9 @@ spring:
   application:
     name: ai-service
   config:
-    import: ${SPRING_CONFIG_IMPORT:optional:configserver:http://config:8888}
+    import:
+      - ${SPRING_CONFIG_IMPORT:optional:configserver:http://config:8888}
+      - classpath:review-sentiment.yml
   main:
     allow-bean-definition-overriding: true
   autoconfigure:

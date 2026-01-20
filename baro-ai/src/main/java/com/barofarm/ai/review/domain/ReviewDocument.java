@@ -3,6 +3,7 @@ package com.barofarm.ai.review.domain;
 import com.barofarm.ai.event.model.ReviewEvent;
 import com.barofarm.ai.event.model.ReviewEvent.ReviewEventData;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
@@ -22,30 +23,34 @@ public class ReviewDocument {
 
     private String content;
 
+    private List<String> imageUrls;
+
+    private Integer contentLength;
+
+    private Integer imageCount;
+
     private Sentiment sentiment;
 
     private LocalDateTime occurredAt;
 
-    public ReviewDocument(String id, String productId, Integer rating, String content, Sentiment sentiment,
-                          LocalDateTime occurredAt) {
-        this.id = id;
-        this.productId = productId;
-        this.rating = rating;
+    private ReviewDocument(ReviewEventData data, Sentiment sentiment) {
+        String content = data.content();
+        List<String> imageUrls = data.imageUrls();
+
+        this.id = data.reviewId().toString();
+        this.productId = data.productId().toString();
+        this.rating = data.rating();
         this.content = content;
+        this.imageUrls = imageUrls;
+        this.contentLength = (content == null) ? 0 : content.length();
+        this.imageCount = (imageUrls == null) ? 0 : imageUrls.size();
         this.sentiment = sentiment;
-        this.occurredAt = occurredAt;
+        this.occurredAt = data.occurredAt();
     }
 
     public static ReviewDocument from(ReviewEvent event, Sentiment sentiment) {
         ReviewEventData data = event.data();
 
-        return new ReviewDocument(
-            data.reviewId().toString(),
-            data.productId().toString(),
-            data.rating(),
-            data.content(),
-            sentiment,
-            data.occurredAt()
-        );
+        return new ReviewDocument(data, sentiment);
     }
 }

@@ -1,4 +1,4 @@
-package com.barofarm.ai.event.consumer;
+package com.barofarm.ai.review.presentation.kafka;
 
 import com.barofarm.ai.event.model.ReviewEvent;
 import com.barofarm.ai.review.application.ReviewService;

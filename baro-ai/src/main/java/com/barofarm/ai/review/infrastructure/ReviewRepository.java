@@ -1,4 +1,4 @@
-package com.barofarm.ai.review.repository;
+package com.barofarm.ai.review.infrastructure;
 
 import com.barofarm.ai.review.domain.ReviewDocument;
 import org.springframework.data.elasticsearch.repository.ElasticsearchRepository;

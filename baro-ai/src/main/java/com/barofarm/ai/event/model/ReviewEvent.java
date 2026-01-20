@@ -1,6 +1,7 @@
 package com.barofarm.ai.event.model;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record ReviewEvent(ReviewEventType type,
@@ -15,5 +16,6 @@ public record ReviewEvent(ReviewEventType type,
                                   UUID productId,
                                   Integer rating,
                                   String content,
+                                  List<String> imageUrls,
                                   LocalDateTime occurredAt) {}
 }

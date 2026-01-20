@@ -1,8 +1,11 @@
 package com.barofarm.ai.review.application;
 
 import com.barofarm.ai.event.model.ReviewEvent;
+import com.barofarm.ai.review.application.sentiment.SentimentClassifier;
 import com.barofarm.ai.review.domain.ReviewDocument;
-import com.barofarm.ai.review.repository.ReviewRepository;
+import com.barofarm.ai.review.domain.Sentiment;
+import com.barofarm.ai.review.infrastructure.ReviewRepository;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -11,16 +14,30 @@ import org.springframework.stereotype.Service;
 public class ReviewService {
 
     private final ReviewRepository reviewRepository;
+    private final SentimentClassifier sentimentClassifier;
 
     public ReviewDocument saveReview(ReviewEvent reviewEvent) {
-        return null;
+        Sentiment sentiment = sentimentClassifier.classify(
+            reviewEvent.data().rating(),
+            reviewEvent.data().content()
+        );
+        ReviewDocument document = ReviewDocument.from(reviewEvent, sentiment);
+        return reviewRepository.save(document);
     }
 
     public ReviewDocument updateReview(ReviewEvent reviewEvent) {
-        return null;
+        Sentiment sentiment = sentimentClassifier.classify(
+            reviewEvent.data().rating(),
+            reviewEvent.data().content()
+        );
+        ReviewDocument document = ReviewDocument.from(reviewEvent, sentiment);
+        return reviewRepository.save(document);
     }
 
     public ReviewDocument deleteReview(ReviewEvent reviewEvent) {
-        return null;
+        String id = reviewEvent.data().reviewId().toString();
+        Optional<ReviewDocument> existing = reviewRepository.findById(id);
+        reviewRepository.deleteById(id);
+        return existing.orElse(null);
     }
 }
