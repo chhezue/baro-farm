@@ -64,7 +64,10 @@ public class SeasonalityKnowledgeSearchService {
         String query = String.format("%s %s", productName, category);
         log.info("제철 지식 검색: productName={}, category={}, query={}", productName, category, query);
 
-        SearchRequest searchRequest = SearchRequest.query(query).withTopK(maxResults * 3);
+        SearchRequest searchRequest = SearchRequest.builder()
+            .query(query)
+            .topK(maxResults * 3)
+            .build();
         List<Document> documents = vectorStore.similaritySearch(searchRequest);
 
         log.debug("초기 검색 결과: {}개 문서 발견", documents.size());
