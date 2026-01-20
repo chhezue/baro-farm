@@ -1,6 +1,6 @@
 package com.barofarm.ai.season.presentation;
 
-import com.barofarm.ai.common.response.ResponseDto;
+import com.barofarm.dto.ResponseDto;
 import com.barofarm.ai.season.application.SeasonalityDetectionService;
 import com.barofarm.ai.season.application.dto.SeasonalityInfo;
 import com.barofarm.ai.season.infrastructure.embedding.SeasonalityKnowledgeInitService;
