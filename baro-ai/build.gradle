@@ -38,6 +38,9 @@ configurations.all {
         force 'io.swagger.core.v3:swagger-core:2.2.22'
         force 'io.swagger.core.v3:swagger-models:2.2.22'
         force 'io.swagger.core.v3:swagger-annotations:2.2.22'
+        // Spring AI 1.0.0-M5 호환을 위한 Elasticsearch Java client 버전 고정
+        // 8.14 이상에서는 k(Long) -> k(Integer)로 변경되어 호환성 문제 발생
+        force 'co.elastic.clients:elasticsearch-java:8.13.4'
     }
 }
 
