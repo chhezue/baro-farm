@@ -1,9 +1,9 @@
 package com.barofarm.ai.season.presentation;
 
-import com.barofarm.dto.ResponseDto;
 import com.barofarm.ai.season.application.SeasonalityDetectionService;
 import com.barofarm.ai.season.application.dto.SeasonalityInfo;
 import com.barofarm.ai.season.infrastructure.embedding.SeasonalityKnowledgeInitService;
+import com.barofarm.dto.ResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
