@@ -15,5 +15,3 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class SeasonalityConfig {
     // 설정 완료
 }
-
-

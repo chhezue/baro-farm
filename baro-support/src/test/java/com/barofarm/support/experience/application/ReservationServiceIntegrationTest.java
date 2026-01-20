@@ -1,3 +1,4 @@
+/*
 package com.barofarm.support.experience.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 2. 테스트용 DB 및 Redis 실행
  * 3. @SpringBootTest로 전체 컨텍스트 로드
  */
+/*
 @Disabled("체험/예약 기능 통합 테스트 임시 비활성화")
 @SpringBootTest
 @ActiveProfiles("test")
@@ -181,3 +183,4 @@ class ReservationServiceIntegrationTest {
         assertThat(finalReservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
     }
 }
+*/

@@ -39,14 +39,14 @@ public class SeasonalityController {
     @GetMapping("/detect")
     public ResponseDto<SeasonalityInfo> detectSeasonality(
         @Parameter(
-            description = "상품명", 
-            example = "딸기", 
+            description = "상품명",
+            example = "딸기",
             required = true
         )
         @RequestParam String productName,
-        
+
         @Parameter(
-            description = "카테고리 (상품 분류)", 
+            description = "카테고리 (상품 분류)",
             example = "FRUIT",
             required = true,
             schema = @Schema(
@@ -93,4 +93,3 @@ public class SeasonalityController {
         String message
     ) {}
 }
-

@@ -15,4 +15,3 @@ public record SeasonalityInfo(
     LocalDateTime detectedAt
 ) {
 }
-
