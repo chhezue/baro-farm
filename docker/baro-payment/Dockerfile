@@ -5,7 +5,7 @@ WORKDIR /app
 ENV APP_NAME=baro-payment
 
 # JAR 복사
-COPY baro-order/payment-service/build/libs/payment-service-*.jar app.jar
+COPY baro-payment/build/libs/baro-payment-*.jar app.jar
 
 EXPOSE 8088
 

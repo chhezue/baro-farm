@@ -4,7 +4,7 @@ import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
-import com.barofarm.ai.common.response.CustomPage;
+import co.elastic.clients.json.JsonData;
 import com.barofarm.ai.search.application.dto.product.ProductAutoCompleteResponse;
 import com.barofarm.ai.search.application.dto.product.ProductIndexRequest;
 import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
@@ -13,6 +13,7 @@ import com.barofarm.ai.search.domain.ProductAutocompleteDocument;
 import com.barofarm.ai.search.domain.ProductDocument;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ProductAutocompleteRepository;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ProductSearchRepository;
+import com.barofarm.dto.CustomPage;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -230,16 +231,16 @@ public class ProductSearchService {
         }
 
         b.filter(f ->
-            f.range(r -> r.number(n -> {
-                var numberRange = n.field("price");
+            f.range(r -> {
+                var range = r.field("price");
                 if (priceMin != null) {
-                    numberRange = numberRange.gte(priceMin.doubleValue());
+                    range = range.gte(JsonData.of(priceMin));
                 }
                 if (priceMax != null) {
-                    numberRange = numberRange.lte(priceMax.doubleValue());
+                    range = range.lte(JsonData.of(priceMax));
                 }
-                return numberRange;
-            }))
+                return range;
+            })
         );
     }
 
