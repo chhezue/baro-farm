@@ -1,7 +1,7 @@
 package com.barofarm.buyer.cart.history;
 
-import com.barofarm.buyer.cart.application.dto.AddItemCommand;
 import com.barofarm.buyer.cart.application.dto.CartInfo;
+import com.barofarm.buyer.cart.application.dto.CartItemCreateCommand;
 import com.barofarm.buyer.cart.application.dto.CartItemInfo;
 import com.barofarm.log.history.mapper.HistoryPayloadMapper;
 import com.barofarm.log.history.model.CartEventData;
@@ -19,9 +19,9 @@ public class CartAddHistoryPayloadMapper implements HistoryPayloadMapper {
 
     @Override
     public Object payload(Object[] args, Object returnValue) {
-        AddItemCommand command = null;
+        CartItemCreateCommand command = null;
         if (args != null && args.length >= 3) {
-            command = (AddItemCommand) args[2];
+            command = (CartItemCreateCommand) args[2];
         }
 
         UUID cartId = null;
@@ -41,14 +41,14 @@ public class CartAddHistoryPayloadMapper implements HistoryPayloadMapper {
             .build();
     }
 
-    private UUID findItemId(CartInfo cartInfo, AddItemCommand command) {
+    private UUID findItemId(CartInfo cartInfo, CartItemCreateCommand command) {
         if (cartInfo.items() == null) {
             return null;
         }
         for (CartItemInfo item : cartInfo.items()) {
             if (item.productId().equals(command.productId())) {
-                if (command.optionInfoJson() == null
-                    || command.optionInfoJson().equals(item.optionInfoJson())) {
+                if (command.inventoryId() == null
+                    || command.inventoryId().equals(item.inventoryId())) {
                     return item.itemId();
                 }
             }
