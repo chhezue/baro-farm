@@ -117,11 +117,30 @@ public class RecipePromptService {
      * @return 3개의 레시피 후보
      */
     public RecipeCandidates generateRecipeCandidates(List<String> ownedIngredients) {
+        try {
+            String templateString = buildRecipeCandidateTemplate(ownedIngredients);
+            RecipeCandidates result = callRecipeCandidateLLM(templateString);
+
+            if (result != null && result.candidates() != null) {
+                return processRecipeCandidates(result, ownedIngredients);
+            }
+
+            return result != null ? result : new RecipeCandidates(List.of());
+        } catch (Exception e) {
+            log.error("레시피 후보 생성 실패: {}", e.getMessage(), e);
+            return new RecipeCandidates(List.of());
+        }
+    }
+
+    /**
+     * 레시피 후보 생성을 위한 템플릿 문자열 생성
+     */
+    private String buildRecipeCandidateTemplate(List<String> ownedIngredients) {
         String ownedText = ownedIngredients.stream()
             .map(s -> "- " + s)
             .collect(Collectors.joining("\n"));
 
-        String templateString = """
+        return """
             당신은 '집밥 레시피 추천 AI'입니다.
             아래 '보유 재료'를 활용하여 만들 수 있는 실제 요리 레시피 3가지를 추천합니다.
 
@@ -180,44 +199,45 @@ public class RecipePromptService {
               ]
             }}
             다른 텍스트는 절대 출력하지 마세요.
-            """;
+            """.replace("{ownedIngredients}", ownedText);
+    }
 
-        try {
-            RecipeCandidates result = chatClient.prompt()
-                .user(p -> p.text(templateString).param("ownedIngredients", ownedText))
-                .call()
-                .entity(new ParameterizedTypeReference<>() {
-                });
+    /**
+     * LLM을 호출하여 레시피 후보를 생성
+     */
+    private RecipeCandidates callRecipeCandidateLLM(String templateString) {
+        return chatClient.prompt()
+            .user(p -> p.text(templateString))
+            .call()
+            .entity(new ParameterizedTypeReference<>() {
+            });
+    }
 
-            if (result != null && result.candidates() != null) {
-                // LLM 응답을 서버 계산으로 보정
-                List<CandidateRecipePlan> enhancedCandidates = result.candidates().stream()
-                    .map(candidate -> enhanceWithServerValidation(candidate, ownedIngredients))
-                    .toList();
+    /**
+     * LLM 응답을 처리하고 서버 검증을 적용
+     */
+    private RecipeCandidates processRecipeCandidates(RecipeCandidates result, List<String> ownedIngredients) {
+        // LLM 응답을 서버 계산으로 보정
+        List<CandidateRecipePlan> enhancedCandidates = result.candidates().stream()
+            .map(candidate -> enhanceWithServerValidation(candidate, ownedIngredients))
+            .toList();
 
-                RecipeCandidates enhancedResult = new RecipeCandidates(enhancedCandidates);
+        RecipeCandidates enhancedResult = new RecipeCandidates(enhancedCandidates);
 
-                log.info("레시피 후보 생성 완료. 후보 개수: {}", enhancedResult.candidates().size());
-                enhancedResult.candidates().forEach(candidate ->
-                    log.info("  - 후보: {} (\"/\"/{}/{}), core: {}, extra: {}, used: {}, missing: {}",
-                        candidate.getRecipeName(),
-                        candidate.getCookingMethod(),
-                        candidate.getDifficulty(),
-                        candidate.getMealType(),
-                        candidate.getRecipeIngredientsCore(),
-                        candidate.getRecipeIngredientsExtra(),
-                        candidate.getUsedOwnedIngredients(),
-                        candidate.getMissingIngredientsCore())
-                );
+        log.info("레시피 후보 생성 완료. 후보 개수: {}", enhancedResult.candidates().size());
+        enhancedResult.candidates().forEach(candidate ->
+            log.info("  - 후보: {} (\"/\"/{}/{}), core: {}, extra: {}, used: {}, missing: {}",
+                candidate.getRecipeName(),
+                candidate.getCookingMethod(),
+                candidate.getDifficulty(),
+                candidate.getMealType(),
+                candidate.getRecipeIngredientsCore(),
+                candidate.getRecipeIngredientsExtra(),
+                candidate.getUsedOwnedIngredients(),
+                candidate.getMissingIngredientsCore())
+        );
 
-                return enhancedResult;
-            }
-
-            return result != null ? result : new RecipeCandidates(List.of());
-        } catch (Exception e) {
-            log.error("레시피 후보 생성 실패: {}", e.getMessage(), e);
-            return new RecipeCandidates(List.of());
-        }
+        return enhancedResult;
     }
 
     /**

@@ -203,62 +203,74 @@ ProductEmbeddingService.embedProduct(productName)
 
 ## 👩‍🍳 레시피 추천 API
 
-> ⚠️ **현재 미구현 상태**: 레시피 추천 기능은 아직 구현되지 않았습니다. `RecipeRecommendService`는 현재 빈 클래스입니다.
-
 장바구니 상품을 기반으로 레시피를 추천하고 부족 재료를 제안하는 기능입니다.
 
 ### 예정된 API
 
-#### POST /api/v1/recommendations/recipes/from-cart
+### POST /api/v1/recommendations/recipes/test
 
-장바구니 상품을 분석하여 레시피를 추천합니다.
+테스트용으로 장바구니 정보를 직접 입력받아 레시피를 추천합니다.
 
 #### 요청 본문
 ```json
 {
-  "userId": "550e8400-e29b-41d4-a716-446655440000"
+  "cartId": "123e4567-e89b-12d3-a456-426614174000",
+  "buyerId": "550e8400-e29b-41d4-a716-446655440000",
+  "items": [
+    {
+      "itemId": "223e4567-e89b-12d3-a456-426614174001",
+      "productId": "323e4567-e89b-12d3-a456-426614174002",
+      "productName": "곰곰 무항생제 신선한 대란, 30구, 1개",
+      "productCategoryName": "신선식품",
+      "quantity": 1,
+      "unitPrice": 8000,
+      "lineTotalPrice": 8000,
+      "inventoryId": "423e4567-e89b-12d3-a456-426614174003",
+      "unit": 1
+    }
+  ],
+  "totalPrice": 8000,
+  "createdAt": "2024-01-21T10:00:00",
+  "updatedAt": "2024-01-21T10:00:00"
 }
 ```
 
-#### 예상 응답 형식
+#### 응답 형식
 ```json
 {
   "success": true,
   "data": {
-    "recipeName": "된장찌개",
-    "ingredients": [
-      {"name": "애호박", "available": true},
-      {"name": "두부", "available": true},
-      {"name": "된장", "available": false}
-    ],
-    "instructions": "1. 재료를 썰어 물에 넣고 끓인다...",
-    "missingIngredients": [
+    "recipeName": "계란찜",
+    "ownedIngredients": ["계란"],
+    "missingCoreIngredients": ["대파", "소금"],
+    "missingRecommendations": [
       {
-        "name": "된장",
+        "ingredientName": "대파",
         "recommendedProducts": [
           {
             "productId": "550e8400-e29b-41d4-a716-446655440001",
-            "productName": "국산 된장 500g",
-            "price": 8500
+            "productName": "대파 1단",
+            "price": 2500,
+            "category": "채소"
           }
         ]
       }
-    ]
+    ],
+    "instructions": "1. 계란을 풀어 소금을 넣고 섞는다...\n2. 대파를 썰어 넣는다..."
   }
 }
 ```
 
-#### 예정된 요청 방식별 엔드포인트
+#### 응답 필드 설명
+- `recipeName`: 추천된 레시피 이름
+- `ownedIngredients`: 사용자가 보유한 재료 목록
+- `missingCoreIngredients`: 부족한 핵심 재료 목록
+- `missingRecommendations`: 부족한 재료별 추천 상품 목록
+- `instructions`: 조리법 (줄바꿈으로 구분)
 
-**장바구니 기반**: `POST /api/v1/recommendations/recipes/from-cart`
-**직접 입력**: `POST /api/v1/recommendations/recipes/from-ingredients`
+### GET /api/v1/recommendations/recipes/{userId}
 
-```json
-{
-  "ingredients": ["애호박", "두부", "계란"],
-  "preferences": "매운 음식"
-}
-```
+실제 사용자의 장바구니 정보를 기반으로 레시피를 추천합니다.
 
 ---
 

@@ -216,6 +216,147 @@ public class ProductEmbeddingService {
 }
 ```
 
+### 레시피 추천 로직
+
+> **[Application Layer]** 장바구니 상품을 기반으로 레시피를 추천하는 서비스입니다.
+
+```java
+// recommend/application/RecipeRecommendService.java
+
+@Service
+@RequiredArgsConstructor
+public class RecipeRecommendService {
+
+    private final RecipePromptService recipePromptService;
+    private final ProductNameNormalizer productNameNormalizer;
+
+    public RecipeRecommendResponse testRecommendFromCartWithMissing(CartInfo cart) {
+        // 1. 장바구니 상품에서 보유 재료 추출
+        List<OwnedIngredient> ownedIngredients =
+            recipePromptService.extractOwnedIngredients(cartToCartItems(cart));
+
+        // 2. 보유 재료 목록으로 레시피 후보 생성
+        List<String> ownedNames = ownedIngredients.stream()
+            .map(oi -> IngredientProcessingUtil.normalizeForCompare(oi.name()))
+            .distinct()
+            .toList();
+
+        RecipeCandidates candidates = recipePromptService.generateRecipeCandidates(ownedNames);
+
+        // 3. 첫 번째 레시피 선택 및 부족 재료 계산
+        if (candidates.candidates().isEmpty()) {
+            return createEmptyResponse(ownedNames);
+        }
+
+        CandidateRecipePlan selectedRecipe = candidates.candidates().get(0);
+
+        // 4. 부족한 재료 검색
+        List<String> missingCore = IngredientProcessingUtil.subtractNormalized(
+            selectedRecipe.recipeIngredientsCore(), ownedNames);
+
+        List<IngredientRecommendResponse> recommendations = missingCore.stream()
+            .map(this::searchProductsForIngredient)
+            .toList();
+
+        return new RecipeRecommendResponse(
+            selectedRecipe.recipeName(),
+            ownedNames,
+            missingCore,
+            recommendations,
+            selectedRecipe.instructions()
+        );
+    }
+}
+```
+
+### LLM 기반 재료 추출
+
+> **[Infrastructure Layer]** 상품명에서 실제 재료를 추출하는 LLM 서비스입니다.
+
+```java
+// recommend/infrastructure/llm/ProductNameNormalizer.java
+
+@Component
+@RequiredArgsConstructor
+public class ProductNameNormalizer {
+
+    private final ChatClient chatClient;
+
+    public String normalizeForRecipeIngredient(String productName) {
+        if (productName == null || productName.trim().isEmpty()) {
+            return "";
+        }
+
+        String prompt = buildNormalizationPrompt(productName);
+
+        try {
+            NormalizationResponse response = chatClient.prompt()
+                .user(prompt)
+                .call()
+                .entity(new ParameterizedTypeReference<NormalizationResponse>() {});
+
+            return response != null && response.normalizedIngredient() != null
+                ? response.normalizedIngredient().trim()
+                : "";
+
+        } catch (Exception e) {
+            log.warn("상품명 정규화 실패: '{}', 기본 정규화 적용", productName, e);
+            return applyBasicNormalization(productName);
+        }
+    }
+
+    private String buildNormalizationPrompt(String productName) {
+        return String.format("""
+            당신은 농산물 이커머스 상품명을 분석하여 실제 요리에 사용할 수 있는 '핵심 재료명'만 추출하는 전문가입니다.
+
+            <상품명>
+            %s
+
+            <출력(JSON only)>
+            {{
+              "normalizedIngredient": "핵심재료명"
+            }}
+            """, productName);
+    }
+
+    private record NormalizationResponse(String normalizedIngredient) { }
+}
+```
+
+### 재료 정규화 유틸리티
+
+> **[Domain Layer]** 재료명을 비교하고 정규화하는 도메인 유틸리티입니다.
+
+```java
+// recommend/domain/IngredientProcessingUtil.java
+
+public final class IngredientProcessingUtil {
+
+    private IngredientProcessingUtil() {}
+
+    /**
+     * 재료 이름을 비교를 위한 정규화 (소문자 변환, 공백 제거)
+     */
+    public static String normalizeForCompare(String s) {
+        if (s == null) return "";
+        return s.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+    }
+
+    /**
+     * 정규화된 재료 목록에서 다른 목록의 재료들을 제거
+     */
+    public static List<String> subtractNormalized(List<String> a, List<String> b) {
+        Set<String> bNorm = b.stream()
+            .map(IngredientProcessingUtil::normalizeForCompare)
+            .collect(Collectors.toSet());
+
+        return normalizeList(a).stream()
+            .filter(x -> !bNorm.contains(normalizeForCompare(x)))
+            .toList();
+    }
+}
+```
+
 ### 벡터 기반 추천 로직
 
 > **[Application Layer]** 사용자 프로필 벡터와 상품 벡터의 유사도를 계산하여 추천합니다.
@@ -229,26 +370,28 @@ public class PersonalizedRecommendService {
 
     private final UserProfileEmbeddingService embeddingService;
     private final ProductSearchRepository productSearchRepository;
-    private final RedisTemplate<String, List<Long>> redisTemplate;
+    private final RedisTemplate<String, List<ProductRecommendResponse>> redisTemplate;
 
-    public List<Long> recommendForUser(UUID userId) {
+    public List<ProductRecommendResponse> recommendProducts(UUID userId, int topK) {
         String cacheKey = "recommend:user:" + userId;
 
         // 1. 캐시 조회
-        List<Long> cached = redisTemplate.opsForList().range(cacheKey, 0, -1);
-        if (!cached.isEmpty()) return cached;
+        List<ProductRecommendResponse> cached = redisTemplate.opsForList().range(cacheKey, 0, -1);
+        if (cached != null && !cached.isEmpty()) return cached;
 
         // 2. 사용자 프로필 벡터 조회
-        UserProfileEmbeddingDocument profile = 
+        UserProfileEmbeddingDocument profile =
             embeddingService.getUserProfileVector(userId);
         List<Double> userVector = profile.getUserProfileVector();
 
-        // 3. 상품 벡터와 유사도 계산
-        List<Long> recommendations = findSimilarProducts(userVector, 15);
+        // 3. 상품 벡터와 유사도 계산하여 추천 상품 조회
+        List<ProductRecommendResponse> recommendations = findSimilarProducts(userVector, topK);
 
         // 4. 캐시 저장
-        redisTemplate.opsForList().rightPushAll(cacheKey, recommendations);
-        redisTemplate.expire(cacheKey, 1, TimeUnit.HOURS);
+        if (recommendations != null && !recommendations.isEmpty()) {
+            redisTemplate.opsForList().rightPushAll(cacheKey, recommendations);
+            redisTemplate.expire(cacheKey, 1, TimeUnit.HOURS);
+        }
 
         return recommendations;
     }

@@ -63,15 +63,17 @@ graph LR
   - `GET /api/v1/recommendations/personalized/{userId}` - 일반 추천
   - `GET /api/v1/recommendations/personalized/{userId}/with-score` - 검증용 (유사도 점수 포함)
 
-### 2. **레시피 추천** ⚠️ 미구현
-
-> 현재 미구현 상태입니다. `RecipeRecommendService`는 빈 클래스입니다.
+### 2. **레시피 추천** ✅ 구현 완료
 
 **장바구니 상품 → LLM 분석 → 레시피 + 부족 재료 추천**
 
-- **입력**: 장바구니 상품 목록
-- **처리**: GPT 기반 레시피 생성 + 상품 검색
-- **출력**: 레시피 정보 + 구매 추천 상품
+- **입력**: 장바구니 상품 목록 (실제 상품명)
+- **처리**:
+  - `ProductNameNormalizer`: 상품명에서 재료 추출 (LLM)
+  - `RecipePromptService`: 보유 재료로 레시피 생성 (LLM)
+  - `IngredientProcessingUtil`: 재료 정규화 및 비교
+- **출력**: 레시피 정보 + 부족 재료 + 추천 상품
+- **API**: `POST /api/v1/recommendations/recipes/test` (테스트용)
 
 
 ### 3. **서비스 챗봇** ⚠️ 미구현
@@ -207,10 +209,15 @@ src/main/java/com/barofarm/ai/
 │   ├── domain/               # 검색 도메인 모델
 │   └── infrastructure/       # Elasticsearch 리포지토리
 ├── recommend/
-│   ├── application/           # 추천 서비스
+│   ├── application/           # 추천 서비스 (PersonalizedRecommendService, RecipeRecommendService)
+│   │   ├── config/           # 추천 설정 (RecommendProperties)
 │   │   └── dto/              # 추천 응답 DTO
-│   ├── presentation/          # 추천 컨트롤러
-│   └── exception/            # 추천 에러 코드
+│   ├── domain/               # 도메인 모델 (CandidateRecipePlan, IngredientProcessingUtil, OwnedIngredient, RecipeCandidates)
+│   ├── infrastructure/       # 외부 연동
+│   │   ├── client/           # Cart API 클라이언트
+│   │   └── llm/              # LLM 서비스 (ProductNameNormalizer, RecipePromptService)
+│   ├── presentation/          # 추천 컨트롤러 (RecommendationController)
+│   └── exception/            # 추천 에러 코드 (RecommendErrorCode)
 ├── embedding/
 │   ├── application/           # 임베딩 서비스
 │   ├── domain/               # 임베딩 도메인 모델
@@ -237,8 +244,10 @@ src/main/java/com/barofarm/ai/
 
 | 현재 구조 (As-Is) | 목표 구조 (To-Be) | 설명 |
 | :--- | :--- | :--- |
-| `recommend/presentation` | `recommend/presentation` | REST 컨트롤러 (유지) |
+| `recommend/presentation` | `recommend/presentation` | REST 컨트롤러 (완료) |
 | `recommend/application` | `recommend/application` | 서비스 로직 (완료) |
+| `recommend/domain` | `recommend/domain` | 도메인 모델 (완료) |
+| `recommend/infrastructure` | `recommend/infrastructure` | 외부 연동 (완료) |
 | `recommend/application/dto` | `recommend/application/dto` | DTO (완료) |
 | `recommend/exception` | `recommend/exception` | 에러 코드 (완료) |
 | `search/presentation` | `search/presentation` | REST 컨트롤러 (유지) |

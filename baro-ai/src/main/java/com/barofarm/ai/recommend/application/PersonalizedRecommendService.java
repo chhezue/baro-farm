@@ -7,7 +7,12 @@ import com.barofarm.ai.embedding.infrastructure.elasticsearch.UserProfileEmbeddi
 import com.barofarm.ai.recommend.application.dto.ProductRecommendResponse;
 import com.barofarm.ai.recommend.exception.RecommendErrorCode;
 import com.barofarm.ai.search.domain.ProductDocument;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
