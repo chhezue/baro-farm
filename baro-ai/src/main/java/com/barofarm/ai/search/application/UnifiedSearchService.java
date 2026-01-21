@@ -8,6 +8,7 @@ import com.barofarm.ai.search.application.dto.product.ProductAutoCompleteRespons
 import com.barofarm.ai.search.application.dto.product.ProductSearchResponse;
 import com.barofarm.dto.CustomPage;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -20,10 +21,10 @@ public class UnifiedSearchService {
     private final ExperienceSearchService experienceSearchService;
 
     // 통합 검색
-    public UnifiedSearchResponse search(String q, Pageable pageable) {
+    public UnifiedSearchResponse search(UUID userId, String q, Pageable pageable) {
         // 비동기 처리를 위해 CompletableFuture 사용 (두 개의 ES 쿼리 병렬 실행)
         CompletableFuture<CustomPage<ProductSearchResponse>> productsFuture =
-            CompletableFuture.supplyAsync(() -> productSearchService.searchProducts(q, pageable));
+            CompletableFuture.supplyAsync(() -> productSearchService.searchProducts(userId, q, pageable));
         CompletableFuture<CustomPage<ExperienceSearchResponse>> experiencesFuture =
             CompletableFuture.supplyAsync(() -> experienceSearchService.searchExperiences(q, pageable));
 

@@ -2,7 +2,6 @@ package com.barofarm.order.order.exception;
 
 import com.barofarm.exception.BaseErrorCode;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 
 @Getter

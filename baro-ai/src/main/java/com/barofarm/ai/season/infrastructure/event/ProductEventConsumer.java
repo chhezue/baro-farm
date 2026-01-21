@@ -1,6 +1,6 @@
 package com.barofarm.ai.season.infrastructure.event;
 
-import com.barofarm.ai.event.model.ProductEvent;
+import com.barofarm.ai.search.infrastructure.event.ProductEvent;
 import com.barofarm.ai.season.application.SeasonalityDetectionService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
