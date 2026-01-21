@@ -21,7 +21,7 @@ public class ProductEventPublisher {
     public void publishProductCreated(Product product) {
         log.info(
             "📨 [EVENT_PUBLISHER] Building PRODUCT_CREATED - ID: {}, Name: {}, Category: {}, Price: {}",
-            product.getId(), product.getProductName(), product.getProductCategory(), product.getPrice());
+            product.getId(), product.getProductName(), product.getCategory().getCode(), product.getPrice());
         ProductEvent event = buildEvent(ProductEventType.PRODUCT_CREATED, product);
         log.info("📨 [EVENT_PUBLISHER] Event built successfully - Type: {}, Product ID: {}",
             event.getType(), event.getData().getProductId());
@@ -44,7 +44,7 @@ public class ProductEventPublisher {
             .data(ProductEvent.ProductEventData.builder()
                 .productId(product.getId())
                 .productName(product.getProductName())
-                .productCategory(product.getProductCategory().name()) // enum
+                .productCategory(product.getCategory().getCode())
                 .price(product.getPrice())
                 .status(product.getProductStatus().name()) // enum
                 .updatedAt(Instant.now())

@@ -3,7 +3,7 @@ package com.barofarm.ai.search.application;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
-import com.barofarm.ai.common.response.CustomPage;
+import co.elastic.clients.json.JsonData;
 import com.barofarm.ai.search.application.dto.experience.ExperienceAutoCompleteResponse;
 import com.barofarm.ai.search.application.dto.experience.ExperienceIndexRequest;
 import com.barofarm.ai.search.application.dto.experience.ExperienceSearchRequest;
@@ -12,6 +12,7 @@ import com.barofarm.ai.search.domain.ExperienceAutocompleteDocument;
 import com.barofarm.ai.search.domain.ExperienceDocument;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ExperienceAutocompleteRepository;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ExperienceSearchRepository;
+import com.barofarm.dto.CustomPage;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -211,16 +212,16 @@ public class ExperienceSearchService {
         }
 
         b.filter(f ->
-            f.range(r -> r.number(n -> {
-                var range = n.field("pricePerPerson");
+            f.range(r -> {
+                var range = r.field("pricePerPerson");
                 if (min != null) {
-                    range = range.gte(min.doubleValue());
+                    range = range.gte(JsonData.of(min));
                 }
                 if (max != null) {
-                    range = range.lte(max.doubleValue());
+                    range = range.lte(JsonData.of(max));
                 }
                 return range;
-            }))
+            })
         );
     }
 
@@ -231,16 +232,16 @@ public class ExperienceSearchService {
         }
 
         b.filter(f ->
-            f.range(r -> r.number(n -> {
-                var range = n.field("capacity");
+            f.range(r -> {
+                var range = r.field("capacity");
                 if (min != null) {
-                    range = range.gte(min.doubleValue());
+                    range = range.gte(JsonData.of(min));
                 }
                 if (max != null) {
-                    range = range.lte(max.doubleValue());
+                    range = range.lte(JsonData.of(max));
                 }
                 return range;
-            }))
+            })
         );
     }
 
@@ -251,16 +252,16 @@ public class ExperienceSearchService {
         }
 
         b.filter(f ->
-            f.range(r -> r.number(n -> {
-                var range = n.field("durationMinutes");
+            f.range(r -> {
+                var range = r.field("durationMinutes");
                 if (min != null) {
-                    range = range.gte(min.doubleValue());
+                    range = range.gte(JsonData.of(min));
                 }
                 if (max != null) {
-                    range = range.lte(max.doubleValue());
+                    range = range.lte(JsonData.of(max));
                 }
                 return range;
-            }))
+            })
         );
     }
 

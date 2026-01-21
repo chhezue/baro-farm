@@ -1,6 +1,6 @@
 package com.barofarm.ai.datagen.exception;
 
-import com.barofarm.ai.common.exception.BaseErrorCode;
+import com.barofarm.exception.BaseErrorCode;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;

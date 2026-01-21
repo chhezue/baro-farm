@@ -1,7 +1,7 @@
 package com.barofarm.buyer.product.application.dto;
 
+import com.barofarm.buyer.product.domain.Category;
 import com.barofarm.buyer.product.domain.Product;
-import com.barofarm.buyer.product.domain.ProductCategory;
 import com.barofarm.buyer.product.domain.ProductImage;
 import com.barofarm.buyer.product.domain.ProductStatus;
 import java.time.LocalDateTime;
@@ -13,7 +13,9 @@ public record ProductDetailInfo(
     UUID sellerId,
     String productName,
     String description,
-    ProductCategory productCategory,
+    UUID categoryId,
+    String categoryCode,
+    String categoryName,
     Long price,
     Integer stockQuantity,
     ProductStatus productStatus,
@@ -22,12 +24,15 @@ public record ProductDetailInfo(
     List<String> imageUrls) {
 
   public static ProductDetailInfo from(Product product, int stock) {
+      Category category = product.getCategory();
       return new ProductDetailInfo(
           product.getId(),
           product.getSellerId(),
           product.getProductName(),
           product.getDescription(),
-          product.getProductCategory(),
+          category.getId(),
+          category.getCode(),
+          category.getName(),
           product.getPrice(),
           stock,
           product.getProductStatus(),

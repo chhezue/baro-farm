@@ -1,6 +1,5 @@
 package com.barofarm.buyer.product.application.dto;
 
-import com.barofarm.buyer.product.domain.ProductCategory;
 import com.barofarm.buyer.product.domain.ProductStatus;
 import com.barofarm.buyer.product.domain.UserType;
 import java.util.List;
@@ -11,7 +10,7 @@ public record ProductUpdateCommand(
     UserType role,
     String productName,
     String description,
-    ProductCategory productCategory,
+    UUID categoryId,
     Long price,
     Integer stockQuantity,
     ProductStatus productStatus,

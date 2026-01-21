@@ -1,7 +1,7 @@
 package com.barofarm.ai.embedding.application;
 
-import com.barofarm.ai.common.exception.CustomException;
 import com.barofarm.ai.embedding.exception.EmbeddingErrorCode;
+import com.barofarm.exception.CustomException;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.embedding.EmbeddingModel;

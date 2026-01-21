@@ -1,8 +1,8 @@
 package com.barofarm.ai.recommend.infrastructure.client;
 
-import com.barofarm.ai.common.exception.CommonErrorCode;
-import com.barofarm.ai.common.exception.CustomException;
 import com.barofarm.ai.recommend.exception.RecommendErrorCode;
+import com.barofarm.exception.CommonErrorCode;
+import com.barofarm.exception.CustomException;
 import feign.Response;
 import feign.codec.ErrorDecoder;
 

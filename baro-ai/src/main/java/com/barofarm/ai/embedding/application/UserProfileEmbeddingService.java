@@ -1,6 +1,5 @@
 package com.barofarm.ai.embedding.application;
 
-import com.barofarm.ai.common.exception.CustomException;
 import com.barofarm.ai.embedding.domain.UserProfileEmbeddingDocument;
 import com.barofarm.ai.embedding.exception.EmbeddingErrorCode;
 import com.barofarm.ai.embedding.infrastructure.elasticsearch.UserProfileEmbeddingRepository;
@@ -10,6 +9,7 @@ import com.barofarm.ai.log.domain.SearchLogDocument;
 import com.barofarm.ai.log.infrastructure.elasticsearch.CartLogRepository;
 import com.barofarm.ai.log.infrastructure.elasticsearch.OrderLogRepository;
 import com.barofarm.ai.log.infrastructure.elasticsearch.SearchLogRepository;
+import com.barofarm.exception.CustomException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;

@@ -30,6 +30,23 @@ dependencyManagement {
     }
 }
 
+configurations.all {
+    // Spring AI BOM과 springdoc-openapi의 swagger-core 버전 충돌 해결
+    resolutionStrategy {
+        // Jakarta 버전 (springdoc-openapi 2.8.5가 사용)
+        force 'io.swagger.core.v3:swagger-core-jakarta:2.2.28'
+        force 'io.swagger.core.v3:swagger-models-jakarta:2.2.28'
+        force 'io.swagger.core.v3:swagger-annotations-jakarta:2.2.28'
+        // 일반 버전 (일부 라이브러리가 사용)
+        force 'io.swagger.core.v3:swagger-core:2.2.22'
+        force 'io.swagger.core.v3:swagger-models:2.2.22'
+        force 'io.swagger.core.v3:swagger-annotations:2.2.22'
+        // Spring AI 1.0.0-M5 호환을 위한 Elasticsearch Java client 버전 고정
+        // 공식 문서에서 8.13.3 권장 (8.14 이상에서는 k(Long) -> k(Integer)로 변경되어 호환성 문제 발생)
+        force 'co.elastic.clients:elasticsearch-java:8.13.3'
+    }
+}
+
 dependencies {
     // ========= 공통 유틸 / 개발 편의 =========
     // Lombok
@@ -42,24 +59,28 @@ dependencies {
     // Swagger(OpenAPI)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
 
-    // ========= 테스트 =========
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testRuntimeOnly 'com.h2database:h2'
-
     // ========= AI 서비스 의존성 =========
+    implementation project(':baro-common')
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator' // Health check용
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
     implementation 'org.springframework.cloud:spring-cloud-starter-config' // Config Server 클라이언트
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign' // Feign Client
 
     // Elasticsearch
-    implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+    // Spring AI 1.0.0-M5 호환을 위해 elasticsearch-java 8.13.3 사용 (공식 권장 버전)
+    implementation('org.springframework.boot:spring-boot-starter-data-elasticsearch') {
+        exclude group: 'co.elastic.clients', module: 'elasticsearch-java'
+    }
+    // Spring AI 1.0.0-M5 호환 버전 명시적 추가 (8.13.3이 공식 권장)
+    implementation 'co.elastic.clients:elasticsearch-java:8.13.3'
+    // Spring AI - Elasticsearch VectorStore (ElasticsearchVectorStore)
+    implementation 'org.springframework.ai:spring-ai-elasticsearch-store'
 
     // Kafka 연결
-    implementation 'org.springframework.kafka:spring-kafka'
+   implementation 'org.springframework.kafka:spring-kafka'
 
     // Spring AI
     implementation 'org.springframework.ai:spring-ai-openai-spring-boot-starter'
@@ -71,20 +92,6 @@ dependencies {
 
     // Database
     runtimeOnly 'com.mysql:mysql-connector-j'
-}
-
-// Spring AI BOM이 다른 swagger 버전을 가져올 수 있으므로 버전 강제 지정
-// Springdoc 2.8.5는 swagger-core-jakarta 2.2.28을 사용하므로 모든 swagger 관련 버전을 일치시킴
-configurations.all {
-    resolutionStrategy {
-        // Jakarta 버전 (Springdoc 2.8.5가 사용)
-        force 'io.swagger.core.v3:swagger-annotations-jakarta:2.2.28'
-        force 'io.swagger.core.v3:swagger-core-jakarta:2.2.28'
-        force 'io.swagger.core.v3:swagger-models-jakarta:2.2.28'
-        // 일반 버전 (하위 호환성)
-        force 'io.swagger.core.v3:swagger-annotations:2.2.28'
-        force 'io.swagger.core.v3:swagger-core:2.2.28'
-    }
 }
 
 tasks.named('test') {
@@ -99,4 +106,3 @@ bootJar {
 jar {
     enabled = false
 }
-

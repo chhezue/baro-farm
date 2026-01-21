@@ -1,17 +1,19 @@
 package com.barofarm.buyer.product.application;
 
-import com.barofarm.buyer.common.exception.CustomException;
-import com.barofarm.buyer.common.response.CustomPage;
 import com.barofarm.buyer.inventory.application.InventoryService;
 import com.barofarm.buyer.product.application.dto.ProductCreateCommand;
 import com.barofarm.buyer.product.application.dto.ProductDetailInfo;
 import com.barofarm.buyer.product.application.dto.ProductUpdateCommand;
 import com.barofarm.buyer.product.application.event.ProductTransactionEvent;
+import com.barofarm.buyer.product.domain.Category;
+import com.barofarm.buyer.product.domain.CategoryRepository;
 import com.barofarm.buyer.product.domain.Product;
 import com.barofarm.buyer.product.domain.ProductRepository;
 import com.barofarm.buyer.product.domain.ProductStatus;
 import com.barofarm.buyer.product.domain.UserType;
 import com.barofarm.buyer.product.exception.ProductErrorCode;
+import com.barofarm.dto.CustomPage;
+import com.barofarm.exception.CustomException;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final CategoryRepository categoryRepository;
     private final InventoryService inventoryService;
     private final ApplicationEventPublisher applicationEventPublisher;
 
@@ -68,11 +71,12 @@ public class ProductService {
         // user의 역할이 isSeller가 아니라면 에러 호출
         validateSeller(command.role());
 
+        Category category = getCategory(command.categoryId());
         Product product = Product.create(
             command.sellerId(),
             command.productName(),
             command.description(),
-            command.productCategory(),
+            category,
             command.price(),
             ProductStatus.ON_SALE);
 
@@ -109,10 +113,11 @@ public class ProductService {
 
         product.validateOwner(command.memberId());
 
+        Category category = getCategory(command.categoryId());
         product.update(
             command.productName(),
             command.description(),
-            command.productCategory(),
+            category,
             command.price(),
             command.productStatus());
 
@@ -159,5 +164,10 @@ public class ProductService {
         if(!userType.isSeller()){
             throw new CustomException(ProductErrorCode.FORBIDDEN_ONLY_SELLER);
         }
+    }
+
+    private Category getCategory(UUID categoryId) {
+        return categoryRepository.findById(categoryId)
+            .orElseThrow(() -> new CustomException(ProductErrorCode.CATEGORY_NOT_FOUND));
     }
 }

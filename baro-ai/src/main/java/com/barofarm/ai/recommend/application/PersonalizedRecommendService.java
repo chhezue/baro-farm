@@ -1,12 +1,12 @@
 package com.barofarm.ai.recommend.application;
 
 import co.elastic.clients.elasticsearch._types.FieldValue;
-import com.barofarm.ai.common.exception.CustomException;
 import com.barofarm.ai.embedding.domain.UserProfileEmbeddingDocument;
 import com.barofarm.ai.embedding.infrastructure.elasticsearch.UserProfileEmbeddingRepository;
 import com.barofarm.ai.recommend.application.dto.ProductRecommendResponse;
 import com.barofarm.ai.recommend.exception.RecommendErrorCode;
 import com.barofarm.ai.search.domain.ProductDocument;
+import com.barofarm.exception.CustomException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -89,10 +89,12 @@ public class PersonalizedRecommendService {
                             )
                         )
                         .script(s -> s
-                            .source("cosineSimilarity(params.query_vector, 'vector') + 1.0")
-                            .params(Map.of(
-                                "query_vector", co.elastic.clients.json.JsonData.of(convertToDoubleList(userVector))
-                            ))
+                            .inline(i -> i
+                                .source("cosineSimilarity(params.query_vector, 'vector') + 1.0")
+                                .params(Map.of(
+                                    "query_vector", co.elastic.clients.json.JsonData.of(convertToDoubleList(userVector))
+                                ))
+                            )
                         )
                     )
                 )
