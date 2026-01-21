@@ -41,20 +41,6 @@ spec:
                     operator: DoesNotExist
       securityContext:
         fsGroup: 1001  # 로그 디렉토리 소유권 설정 (1001:1001)
-      initContainers:
-        - name: init-log-dir
-          image: busybox:1.36
-          command: ['sh', '-c']
-          args:
-            - |
-              mkdir -p /mnt/s3/ai
-              chown -R 1001:1001 /mnt/s3/ai
-              chmod -R 755 /mnt/s3/ai
-          securityContext:
-            runAsUser: 0  # root 권한 필요
-          volumeMounts:
-            - name: log-volume
-              mountPath: /mnt/s3/ai
       containers:
         - name: baro-ai
           image: ghcr.io/do-develop-space/baro-ai:latest
@@ -137,10 +123,10 @@ spec:
                   key: SPRING_AI_OPENAI_API_KEY
             # 로그 디렉토리 설정
             - name: LOG_DIR
-              value: "/mnt/s3/ai"
+              value: "/mnt/s3/logs/ai"
           volumeMounts:
             - name: log-volume
-              mountPath: /mnt/s3/ai
+              mountPath: /mnt/s3/logs/ai
           # resources:
           #   requests:
           #     cpu: "100m"
@@ -178,6 +164,6 @@ spec:
       volumes:
         - name: log-volume
           hostPath:
-            path: /mnt/s3/ai
+            path: /mnt/s3/logs/ai
             type: DirectoryOrCreate
 

@@ -4,6 +4,7 @@ import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
+import co.elastic.clients.json.JsonData;
 import com.barofarm.ai.embedding.application.ProductEmbeddingService;
 import com.barofarm.ai.embedding.application.UserProfileEmbeddingService;
 import com.barofarm.ai.log.application.LogWriteService;
@@ -302,16 +303,16 @@ public class ProductSearchService {
         }
 
         b.filter(f ->
-            f.range(r -> r.number(n -> {
-                var numberRange = n.field("price");
+            f.range(r -> {
+                var range = r.field("price");
                 if (priceMin != null) {
-                    numberRange = numberRange.gte(priceMin.doubleValue());
+                    range = range.gte(JsonData.of(priceMin));
                 }
                 if (priceMax != null) {
-                    numberRange = numberRange.lte(priceMax.doubleValue());
+                    range = range.lte(JsonData.of(priceMax));
                 }
-                return numberRange;
-            }))
+                return range;
+            })
         );
     }
 

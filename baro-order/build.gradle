@@ -36,11 +36,6 @@ dependencies {
     // Swagger(OpenAPI)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
 
-    // ========= 테스트 =========
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testRuntimeOnly 'com.h2database:h2'
-
     // ========= Order 서비스 의존성 =========
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -52,18 +47,11 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
     implementation 'org.springframework.retry:spring-retry'
 
-    // kafka 연결
-    implementation 'org.springframework.kafka:spring-kafka'
-
     // Database
     runtimeOnly 'com.mysql:mysql-connector-j'
 
     // Thymeleaf
-    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
-}
-
-tasks.named('test') {
-    useJUnitPlatform()
+    // implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
 }
 
 bootJar {

@@ -2,13 +2,10 @@ package com.barofarm.order.order.exception;
 
 import com.barofarm.exception.BaseErrorCode;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 
 @Getter
-@RequiredArgsConstructor
 public enum OrderErrorCode implements BaseErrorCode {
-
 
     OUT_OF_STOCK(HttpStatus.CONFLICT, "재고가 부족합니다."),
     PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "상품을 찾을 수 없습니다."),
@@ -26,6 +23,11 @@ public enum OrderErrorCode implements BaseErrorCode {
 
     private final HttpStatus status;
     private final String message;
+
+    OrderErrorCode(HttpStatus status, String message) {
+        this.status = status;
+        this.message = message;
+    }
 
     @Override
     public HttpStatus getStatus() {

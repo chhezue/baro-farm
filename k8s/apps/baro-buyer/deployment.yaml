@@ -41,20 +41,6 @@ spec:
                     operator: DoesNotExist
       securityContext:
         fsGroup: 1001  # 로그 디렉토리 소유권 설정 (1001:1001)
-      initContainers:
-        - name: init-log-dir
-          image: busybox:1.36
-          command: ['sh', '-c']
-          args:
-            - |
-              mkdir -p /mnt/s3/buyer
-              chown -R 1001:1001 /mnt/s3/buyer
-              chmod -R 755 /mnt/s3/buyer
-          securityContext:
-            runAsUser: 0  # root 권한 필요
-          volumeMounts:
-            - name: log-volume
-              mountPath: /mnt/s3/buyer
       containers:
         - name: baro-buyer
           image: ghcr.io/do-develop-space/baro-buyer:latest
@@ -75,13 +61,13 @@ spec:
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: "http://localhost:8761/eureka/"  # 배포 스크립트가 자동으로 Data EC2 IP로 치환 (Cloud 모듈이 Data EC2에서 실행됨) 
             - name: JAVA_OPTS
-              value: "-Xms64m -Xmx128m"
+              value: "-Xms64m -Xmx144m"
             - name: JAVA_TOOL_OPTIONS
               value: >
                 -Duser.timezone=Asia/Seoul
                 -Xms64m
                 -Xmx128m
-                -XX:MaxMetaspaceSize=128m
+                -XX:MaxMetaspaceSize=144m
                 -XX:CompressedClassSpaceSize=64m
                 -XX:MaxDirectMemorySize=32m
                 -XX:ReservedCodeCacheSize=24m
@@ -140,17 +126,17 @@ spec:
                   key: AWS_S3_BUCKET_NAME
             # 로그 디렉토리 설정
             - name: LOG_DIR
-              value: "/mnt/s3/buyer"
+              value: "/mnt/s3/logs/buyer"
           volumeMounts:
             - name: log-volume
-              mountPath: /mnt/s3/buyer
+              mountPath: /mnt/s3/logs/buyer
           resources:
             requests:
               cpu: "100m"
-              memory: "288Mi"
+              memory: "384Mi"
             limits:
               cpu: "500m"
-              memory: "448Mi"  # 실제 RSS: 367MB
+              memory: "640Mi"  # 힙(256MB) + Metaspace(256MB) + 오버헤드(128MB)
           livenessProbe:
             httpGet:
               path: /actuator/health
@@ -181,6 +167,6 @@ spec:
       volumes:
         - name: log-volume
           hostPath:
-            path: /mnt/s3/buyer
+            path: /mnt/s3/logs/buyer
             type: DirectoryOrCreate
 

@@ -12,21 +12,20 @@ repositories {
 }
 
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-aop'
+    // ========= 공통 Spring Infra =========
+    implementation 'org.springframework.boot:spring-boot-starter-web'      // MVC + ServletException, HttpServletRequest, Handler 예외 등
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa' // Page/Pageable, JPA Auditing(BaseEntity) 등
+    implementation 'org.springframework.boot:spring-boot-starter-aop'      // AOP (로그/히스토리 등 공통 관점)
+
+    // ========= 공통 유틸 =========
+    implementation 'org.springframework.kafka:spring-kafka'                // Kafka 공통 설정/유틸
+    implementation 'com.fasterxml.jackson.core:jackson-databind'           // ObjectMapper, TypeReference 등 JSON 직렬화
+    implementation 'software.amazon.awssdk:s3:2.25.60'                      // S3 업로드/다운로드 공통 유틸
+    implementation 'com.twelvemonkeys.imageio:imageio-webp:3.10.1'         // WebP 이미지 처리 공통 유틸
+
+    // ========= 개발 편의 =========
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.kafka:spring-kafka'
-    implementation 'software.amazon.awssdk:s3:2.25.60'
-    implementation 'com.twelvemonkeys.imageio:imageio-webp:3.10.1'
-
-    testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-}
-
-test {
-    useJUnitPlatform()
 }
 
 // 공통 모듈이므로 실행 JAR는 만들지 않음

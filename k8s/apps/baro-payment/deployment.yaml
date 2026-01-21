@@ -41,20 +41,6 @@ spec:
                     operator: DoesNotExist
       securityContext:
         fsGroup: 1001  # 로그 디렉토리 소유권 설정 (1001:1001)
-      initContainers:
-        - name: init-log-dir
-          image: busybox:1.36
-          command: ['sh', '-c']
-          args:
-            - |
-              mkdir -p /mnt/s3/payment
-              chown -R 1001:1001 /mnt/s3/payment
-              chmod -R 755 /mnt/s3/payment
-          securityContext:
-            runAsUser: 0  # root 권한 필요
-          volumeMounts:
-            - name: log-volume
-              mountPath: /mnt/s3/payment
       containers:
         - name: baro-payment
           image: ghcr.io/do-develop-space/baro-payment:latest
@@ -135,10 +121,10 @@ spec:
                   key: AWS_S3_BUCKET_NAME
             # 로그 디렉토리 설정
             - name: LOG_DIR
-              value: "/mnt/s3/payment"
+              value: "/mnt/s3/logs/payment"
           volumeMounts:
             - name: log-volume
-              mountPath: /mnt/s3/payment
+              mountPath: /mnt/s3/logs/payment
           # resources:
           #   requests:
           #     cpu: "100m"
@@ -173,6 +159,6 @@ spec:
       volumes:
         - name: log-volume
           hostPath:
-            path: /mnt/s3/payment
+            path: /mnt/s3/logs/payment
             type: DirectoryOrCreate
 

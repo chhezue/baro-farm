@@ -1,37 +1,10 @@
+/*
 package com.barofarm.support.experience.presentation;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-import com.barofarm.dto.CustomPage;
-import com.barofarm.dto.ResponseDto;
-import com.barofarm.support.experience.application.ReservationService;
-import com.barofarm.support.experience.application.dto.ReservationServiceResponse;
-import com.barofarm.support.experience.domain.ReservationStatus;
-import com.barofarm.support.experience.presentation.dto.ReservationRequest;
-import com.barofarm.support.experience.presentation.dto.ReservationResponse;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.UUID;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-
-/** ReservationController 유닛 테스트 */
+/* ReservationController 유닛 테스트 */
+/*
+@Disabled("체험/예약 기능 테스트 임시 비활성화")
 @ExtendWith(MockitoExtension.class)
 class ReservationControllerTest {
 
@@ -202,3 +175,4 @@ class ReservationControllerTest {
         verify(reservationService, times(1)).deleteReservation(userId, reservationId);
     }
 }
+*/

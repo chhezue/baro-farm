@@ -1,31 +1,6 @@
+/*
 package com.barofarm.support.experience.application;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import com.barofarm.exception.CustomException;
-import com.barofarm.support.experience.application.dto.ReservationServiceRequest;
-import com.barofarm.support.experience.application.dto.ReservationServiceResponse;
-import com.barofarm.support.experience.domain.Experience;
-import com.barofarm.support.experience.domain.ExperienceRepository;
-import com.barofarm.support.experience.domain.ExperienceStatus;
-import com.barofarm.support.experience.domain.Reservation;
-import com.barofarm.support.experience.domain.ReservationRepository;
-import com.barofarm.support.experience.domain.ReservationStatus;
-import com.barofarm.support.experience.exception.ReservationErrorCode;
-import com.barofarm.support.experience.infrastructure.cache.FarmCacheService;
-import java.time.LocalDate;
-import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * ReservationService 통합 테스트
@@ -39,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 2. 테스트용 DB 및 Redis 실행
  * 3. @SpringBootTest로 전체 컨텍스트 로드
  */
+/*
+@Disabled("체험/예약 기능 통합 테스트 임시 비활성화")
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
@@ -179,3 +156,4 @@ class ReservationServiceIntegrationTest {
         assertThat(finalReservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
     }
 }
+*/

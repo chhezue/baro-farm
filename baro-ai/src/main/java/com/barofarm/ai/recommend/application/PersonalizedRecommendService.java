@@ -179,12 +179,12 @@ public class PersonalizedRecommendService {
                                 )
                             )
                         )
-                        .script(s -> s
+                        .script(s -> s.inline(i -> i
                             .source("cosineSimilarity(params.query_vector, 'vector') + 1.0")
                             .params(java.util.Map.of(
                                 "query_vector", co.elastic.clients.json.JsonData.of(convertToDoubleList(userVector))
                             ))
-                        )
+                        ))
                     )
                 )
                 .withPageable(PageRequest.of(0, topK))
@@ -209,12 +209,12 @@ public class PersonalizedRecommendService {
                                 )
                             )
                         )
-                        .script(s -> s
+                        .script(s -> s.inline(i -> i
                             .source("cosineSimilarity(params.query_vector, 'vector') + 1.0")
                             .params(java.util.Map.of(
                                 "query_vector", co.elastic.clients.json.JsonData.of(convertToDoubleList(userVector))
                             ))
-                        )
+                        ))
                     )
                 )
                 .withPageable(PageRequest.of(0, topK * 2)) // 중복 제거를 위해 더 많이 가져옴
@@ -417,12 +417,12 @@ public class PersonalizedRecommendService {
                                 )
                             )
                         )
-                        .script(s -> s
+                        .script(s -> s.inline(i -> i
                             .source("cosineSimilarity(params.query_vector, 'vector') + 1.0")
                             .params(java.util.Map.of(
                                 "query_vector", co.elastic.clients.json.JsonData.of(convertToDoubleList(userVector))
                             ))
-                        )
+                        ))
                     )
                 )
                 .withPageable(PageRequest.of(0, topK))
@@ -447,12 +447,12 @@ public class PersonalizedRecommendService {
                                 )
                             )
                         )
-                        .script(s -> s
+                        .script(s -> s.inline(i -> i
                             .source("cosineSimilarity(params.query_vector, 'vector') + 1.0")
                             .params(java.util.Map.of(
                                 "query_vector", co.elastic.clients.json.JsonData.of(convertToDoubleList(userVector))
                             ))
-                        )
+                        ))
                     )
                 )
                 .withPageable(PageRequest.of(0, topK * 2)) // 중복 제거를 위해 더 많이 가져옴

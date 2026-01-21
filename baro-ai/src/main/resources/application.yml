@@ -17,6 +17,7 @@ spring:
     exclude:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
       - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.ai.autoconfigure.vectorstore.elasticsearch.ElasticsearchVectorStoreAutoConfiguration
 
   # Elasticsearch 설정
   elasticsearch:
@@ -94,4 +95,16 @@ management:
     health:
       show-details: always
       enabled: true
+  health:
+    elasticsearch:
+      enabled: false  # Elasticsearch Java client 8.13.3과 호환성 문제로 비활성화
+
+# 제철 판단 RAG 설정
+seasonality:
+  rag:
+    enabled: ${SEASONALITY_RAG_ENABLED:true}  # RAG 활성화 여부 (기본: true, 최적화 적용)
+    max-results: ${SEASONALITY_RAG_MAX_RESULTS:1}  # 검색 결과 최대 개수 (최적화: 3 → 1)
+    compact-format: ${SEASONALITY_RAG_COMPACT_FORMAT:true}  # 간결한 형식 사용 (제철 값만, 토큰 절감)
+  csv:
+    path: ${SEASONALITY_CSV_PATH:/mnt/s3/dataset/season/seasonality-data.csv}  # CSV 파일 경로
 

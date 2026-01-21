@@ -10,6 +10,7 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
@@ -35,8 +36,10 @@ public class KafkaConsumerConfig {
     /**
      * DLQ(Dead Letter Queue)용 KafkaTemplate 생성
      * 실패한 메시지를 DLQ 토픽으로 전송하기 위해 사용
+     * HistoryLogWriter에서도 사용되므로 @Primary로 지정
      */
     @Bean
+    @Primary
     public KafkaTemplate<String, Object> dlqKafkaTemplate() {
         Map<String, Object> config = new HashMap<>();
         config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);

@@ -41,20 +41,6 @@ spec:
                     operator: DoesNotExist
       securityContext:
         fsGroup: 1001  # 로그 디렉토리 소유권 설정 (1001:1001)
-      initContainers:
-        - name: init-log-dir
-          image: busybox:1.36
-          command: ['sh', '-c']
-          args:
-            - |
-              mkdir -p /mnt/s3/order
-              chown -R 1001:1001 /mnt/s3/order
-              chmod -R 755 /mnt/s3/order
-          securityContext:
-            runAsUser: 0  # root 권한 필요
-          volumeMounts:
-            - name: log-volume
-              mountPath: /mnt/s3/order
       containers:
         - name: baro-order
           image: ghcr.io/do-develop-space/baro-order:latest
@@ -135,10 +121,10 @@ spec:
                   key: AWS_S3_BUCKET_NAME
             # 로그 디렉토리 설정
             - name: LOG_DIR
-              value: "/mnt/s3/order"
+              value: "/mnt/s3/logs/order"
           volumeMounts:
             - name: log-volume
-              mountPath: /mnt/s3/order
+              mountPath: /mnt/s3/logs/order
           # resources:
           #   requests:
           #     cpu: "100m"
@@ -173,6 +159,6 @@ spec:
       volumes:
         - name: log-volume
           hostPath:
-            path: /mnt/s3/order
+            path: /mnt/s3/logs/order
             type: DirectoryOrCreate
 
