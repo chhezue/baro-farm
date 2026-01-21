@@ -1,7 +1,7 @@
 package com.barofarm.support.experience.presentation;
 
-import com.barofarm.support.common.response.CustomPage;
-import com.barofarm.support.common.response.ResponseDto;
+import com.barofarm.dto.CustomPage;
+import com.barofarm.dto.ResponseDto;
 import com.barofarm.support.experience.application.ExperienceService;
 import com.barofarm.support.experience.application.dto.ExperienceServiceResponse;
 import com.barofarm.support.experience.presentation.dto.ExperienceCreateRequest;
@@ -27,8 +27,6 @@ public class ExperienceController implements ExperienceSwaggerApi {
     @Override
     public ResponseDto<ExperienceResponse> createExperience(
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole,
             @Valid @RequestBody ExperienceCreateRequest request
     ) {
         // Command DTO → Service DTO 변환
@@ -60,8 +58,6 @@ public class ExperienceController implements ExperienceSwaggerApi {
     @Override
     public ResponseDto<CustomPage<ExperienceResponse>> getMyExperiences(
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole,
             @RequestParam(required = false) UUID farmId,
             Pageable pageable
     ) {
@@ -73,8 +69,6 @@ public class ExperienceController implements ExperienceSwaggerApi {
     @Override
     public ResponseDto<ExperienceResponse> updateExperience(
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole,
             @PathVariable("id") UUID id,
             @Valid @RequestBody ExperienceUpdateRequest request
     ) {
@@ -86,8 +80,6 @@ public class ExperienceController implements ExperienceSwaggerApi {
     @Override
     public ResponseDto<Void> deleteExperience(
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader(value = "X-User-Email", required = false) String userEmail,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole,
             @PathVariable("id") UUID id
     ) {
         experienceService.deleteExperience(userId, id);

@@ -3,7 +3,7 @@ package com.barofarm.ai.search.application;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
-import com.barofarm.ai.common.response.CustomPage;
+import co.elastic.clients.json.JsonData;
 import com.barofarm.ai.search.application.dto.experience.ExperienceAutoCompleteResponse;
 import com.barofarm.ai.search.application.dto.experience.ExperienceIndexRequest;
 import com.barofarm.ai.search.application.dto.experience.ExperienceSearchRequest;
@@ -12,6 +12,7 @@ import com.barofarm.ai.search.domain.ExperienceAutocompleteDocument;
 import com.barofarm.ai.search.domain.ExperienceDocument;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ExperienceAutocompleteRepository;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ExperienceSearchRepository;
+import com.barofarm.dto.CustomPage;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -181,11 +182,11 @@ public class ExperienceSearchService {
         );
     }
 
-    // 오탈자 허용 검색
+    // 오탈자 허용 검색 (raw 필드 사용: keyword 타입이므로 fuzzy search에 적합)
     private void applyFuzzyMatch(BoolQuery.Builder b, String keyword) {
         b.should(m ->
             m.match(mm ->
-                mm.field("experienceName")
+                mm.field("experienceName.raw")  // raw 필드 사용 (keyword 타입)
                   .query(keyword)
                   .fuzziness("AUTO") // ES가 자동으로 편집 거리 계산
                   .prefixLength(1)   // 앞 글자 1개는 정확히 일치해야 함
@@ -211,16 +212,16 @@ public class ExperienceSearchService {
         }
 
         b.filter(f ->
-            f.range(r -> r.number(n -> {
-                var range = n.field("pricePerPerson");
+            f.range(r -> {
+                var range = r.field("pricePerPerson");
                 if (min != null) {
-                    range = range.gte(min.doubleValue());
+                    range = range.gte(JsonData.of(min));
                 }
                 if (max != null) {
-                    range = range.lte(max.doubleValue());
+                    range = range.lte(JsonData.of(max));
                 }
                 return range;
-            }))
+            })
         );
     }
 
@@ -231,16 +232,16 @@ public class ExperienceSearchService {
         }
 
         b.filter(f ->
-            f.range(r -> r.number(n -> {
-                var range = n.field("capacity");
+            f.range(r -> {
+                var range = r.field("capacity");
                 if (min != null) {
-                    range = range.gte(min.doubleValue());
+                    range = range.gte(JsonData.of(min));
                 }
                 if (max != null) {
-                    range = range.lte(max.doubleValue());
+                    range = range.lte(JsonData.of(max));
                 }
                 return range;
-            }))
+            })
         );
     }
 
@@ -251,16 +252,16 @@ public class ExperienceSearchService {
         }
 
         b.filter(f ->
-            f.range(r -> r.number(n -> {
-                var range = n.field("duration");
+            f.range(r -> {
+                var range = r.field("durationMinutes");
                 if (min != null) {
-                    range = range.gte(min.doubleValue());
+                    range = range.gte(JsonData.of(min));
                 }
                 if (max != null) {
-                    range = range.lte(max.doubleValue());
+                    range = range.lte(JsonData.of(max));
                 }
                 return range;
-            }))
+            })
         );
     }
 

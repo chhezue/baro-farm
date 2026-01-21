@@ -116,12 +116,13 @@ spring:
               filters:
                 - RewritePath=/openapi/support/(?<segment>.*), /${segment}
 
-            - id: settlement-service-openapi
-              uri: lb://settlement-service
-              predicates:
-                - Path=/openapi/settlement/v3/api-docs, /openapi/settlement/v3/api-docs/**
-              filters:
-                - RewritePath=/openapi/settlement/(?<segment>.*), /${segment}
+            # DaemonSet 배포 서비스는 Gateway에서 제공하지 않음
+            # - id: settlement-service-openapi
+            #   uri: lb://settlement-service
+            #   predicates:
+            #     - Path=/openapi/settlement/v3/api-docs, /openapi/settlement/v3/api-docs/**
+            #   filters:
+            #     - RewritePath=/openapi/settlement/(?<segment>.*), /${segment}
 
             - id: ai-service-openapi
               uri: lb://ai-service
@@ -188,6 +189,13 @@ spring:
                 - Path=/settlement-service/**
               filters:
                 - RewritePath=/settlement-service/(?<segment>.*), /${segment}
+            # DaemonSet 배포 서비스는 Gateway에서 제공하지 않음
+            # - id: settlement-service
+            #   uri: lb://settlement-service
+            #   predicates:
+            #     - Path=/settlement-service/**,/api/settlements/**
+            #   filters:
+            #     - RewritePath=/settlement-service/(?<segment>.*), /${segment}
 
             # AI Service
             - id: ai-service
@@ -267,8 +275,8 @@ springdoc:
         url: /openapi/payment/v3/api-docs
       - name: Support Service
         url: /openapi/support/v3/api-docs
-      - name: Settlement Service
-        url: /openapi/settlement/v3/api-docs
+      # - name: Settlement Service
+      #   url: /openapi/settlement/v3/api-docs
       - name: AI Service
         url: /openapi/ai/v3/api-docs
   api-docs:

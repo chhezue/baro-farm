@@ -1,9 +1,9 @@
 package com.barofarm.auth.presentation.dto.oauth;
 
 import com.barofarm.auth.application.usecase.OAuthLinkCallbackCommand;
-import com.barofarm.auth.common.exception.CustomException;
 import com.barofarm.auth.domain.oauth.OAuthProvider;
 import com.barofarm.auth.exception.AuthErrorCode;
+import com.barofarm.exception.CustomException;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 

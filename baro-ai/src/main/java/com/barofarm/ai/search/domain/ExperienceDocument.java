@@ -10,6 +10,8 @@ import org.springframework.data.elasticsearch.annotations.DateFormat;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
+import org.springframework.data.elasticsearch.annotations.InnerField;
+import org.springframework.data.elasticsearch.annotations.MultiField;
 
 @Getter
 @Document(indexName = "experience")
@@ -17,7 +19,17 @@ public class ExperienceDocument {
     @Id
     private UUID experienceId; // PK
 
-    @Field(type = FieldType.Text, analyzer = "nori")
+    // experienceName: nori analyzer로 토큰화 (일반 검색용)
+    // experienceName.raw: keyword 타입으로 원본 텍스트 저장 (fuzzy search용)
+    @MultiField(
+        mainField = @Field(type = FieldType.Text, analyzer = "nori"),
+        otherFields = {
+            @InnerField(
+                suffix = "raw",
+                type = FieldType.Keyword
+            )
+        }
+    )
     private String experienceName; // 체험명
 
     @Field(type = FieldType.Long)

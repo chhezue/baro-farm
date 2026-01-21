@@ -1,27 +1,39 @@
-# 구현 가이드
+# 🛠️ 구현 가이드
 
-## 📋 구현 개요
+> baro-ai 모듈의 개발 환경 설정과 핵심 구현 패턴
 
-이 문서는 `baro-ai` 모듈의 **"로그 기반 개인화 추천 + 레시피 추천 + (보조) 검색/챗봇"** 기능을 구현하기 위한 상세 가이드입니다.
+## 📋 목차
 
-### 주요 구현 원칙
-- **로그 중심 아키텍처**: 사용자 행동 로그를 기반으로 한 추천 엔진
-- **이벤트 드리븐**: Kafka 기반 실시간 데이터 처리
-- **벡터 기반 검색**: Elasticsearch 활용 의미 검색
-- **모듈 분리**: 각 레이어의 책임 명확한 분리
+- [개발 환경](#-개발-환경)
+- [핵심 구현 패턴](#-핵심-구현-패턴)
+- [테스트 전략](#-테스트-전략)
+- [배포 및 운영](#-배포-및-운영)
 
-## 🛠️ 개발 환경 설정
+---
 
-### 1. 필수 의존성
+## 🛠️ 개발 환경
+
+### 필수 요구사항
+
+```text
+- Java: 17 이상
+- Gradle: 7.6 이상
+- Elasticsearch: 8.x
+- Redis: 7.x
+- Kafka: 3.x
+- Docker & Docker Compose
+```
+
+### 의존성 설정
 
 ```gradle
 // build.gradle
 dependencies {
-    // Spring AI
+    // AI/ML
     implementation 'org.springframework.ai:spring-ai-openai-spring-boot-starter:1.0.0-M5'
     implementation 'org.springframework.ai:spring-ai-ollama-spring-boot-starter:1.0.0-M5'
 
-    // 데이터베이스 & 검색
+    // 데이터/검색
     implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
@@ -29,13 +41,13 @@ dependencies {
     // 메시징
     implementation 'org.springframework.kafka:spring-kafka'
 
-    // 공통
+    // 웹/검증
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 }
 ```
 
-### 2. 환경 설정
+### 환경 설정
 
 ```yaml
 # application.yml
@@ -71,574 +83,510 @@ spring:
 # AI 설정
 ai:
   openai:
-    api-key: ${OPENAI_API_KEY}
+    api-key: ${SPRING_AI_OPENAI_API_KEY:}
     chat:
-      model: gpt-4
+      options:
+        model: ${SPRING_AI_OPENAI_MODEL:gpt-4o-mini}
+        temperature: 0.7
     embedding:
-      model: text-embedding-ada-002
-  ollama:
-    base-url: http://localhost:11434
+      options:
+        model: ${SPRING_AI_OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
 ```
 
-## 📝 패키지별 구현 예시
+### 로컬 개발 실행
 
-### 1. `event/` 패키지 - Kafka 이벤트 수신
+```bash
+# 1. 인프라 서비스 실행
+docker-compose -f docker-compose.data.yml up -d
 
-**역할**: `ProductEvent`, `CartEvent`, `OrderEvent`, `SearchEvent`, `ExperienceEvent` 등 Kafka 이벤트 수신 → 내부 도메인으로 전달
+# 2. 애플리케이션 빌드 및 실행
+./gradlew build
+./gradlew bootRun
 
-#### 1.1 이벤트 Consumer
+# 3. API 테스트
+curl http://localhost:8092/actuator/health
+```
+
+---
+
+## 🚀 핵심 구현 패턴
+
+### 이벤트 기반 데이터 수집
+
+> **[Infrastructure Layer]** Kafka와 같은 외부 메시징 시스템과의 연동을 담당하는 인프라 계층의 일부입니다.
 
 ```java
+// infrastructure/messaging/consumer/CartEventConsumer.java
+
 @Component
 @RequiredArgsConstructor
-public class ExperienceEventConsumer {
+public class CartEventConsumer {
 
-    private final ExperienceSearchService experienceSearchService;
+    private final LogWriteService logWriteService; // Application Service 호출
 
     @KafkaListener(
-        topics = "experience-events",
-        groupId = "search-service",
-        containerFactory = "experienceEventListenerContainerFactory"
+        topics = "cart-events",
+        groupId = "ai-service",
+        containerFactory = "cartEventListenerContainerFactory"
     )
-    public void onMessage(ExperienceEvent event) {
+    public void onMessage(CartEvent event) {
         try {
-            experienceSearchService.indexExperience(
-                toRequest(event.getData())
-            );
+            // 인프라 계층은 애플리케이션 계층의 서비스를 호출하여 유스케이스를 실행합니다.
+            logWriteService.saveCartEvent(event);
         } catch (Exception e) {
-            log.error("Failed to process experience event", e);
+            log.error("Failed to process cart event", e);
         }
     }
-
-    private ExperienceIndexRequest toRequest(ExperienceEvent.ExperienceEventData data) {
-        return new ExperienceIndexRequest(
-            data.getExperienceId(),
-            data.getExperienceName(),
-            data.getPricePerPerson(),
-            data.getCapacity(),
-            data.getDurationMinutes(),
-            data.getAvailableStartDate().toLocalDate(),
-            data.getAvailableEndDate().toLocalDate(),
-            data.getStatus()
-        );
-    }
 }
 ```
 
-### 2. `log/` 패키지 - 사용자 행동 로그 저장소
+### 사용자 프로필 임베딩 생성
 
-**역할**: `CartEventLog`, `OrderEventLog`, `SearchLog`, `UserEventLog` 등 유저 행동을 RDB에 시간 순으로 저장
-
-#### 2.1 로그 엔티티 예시
+> **[Application Layer]** 사용자 행동 로그를 기반으로 가중치를 적용하여 임베딩 벡터를 생성하는 서비스입니다.
 
 ```java
-@Entity
-@Table(name = "cart_event_logs")
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class CartEventLog extends BaseEntity {
+// embedding/application/UserProfileEmbeddingService.java
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(nullable = false)
-    private Long userId;
-
-    @Column(nullable = false)
-    private Long productId;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private CartEventType eventType; // ADD, REMOVE, UPDATE
-
-    private Integer quantity;
-
-    @Builder
-    public CartEventLog(Long userId, Long productId, CartEventType eventType, Integer quantity) {
-        this.userId = userId;
-        this.productId = productId;
-        this.eventType = eventType;
-        this.quantity = quantity;
-    }
-}
-```
-
-#### 2.2 로그 서비스 예시
-
-```java
 @Service
-@RequiredArgsConstructor
-public class LogWriteService {
+public class UserProfileEmbeddingService {
 
-    private final CartEventLogRepository cartEventLogRepository;
-    private final OrderEventLogRepository orderEventLogRepository;
+    private static final int MIN_TOTAL_LOGS_FOR_EMBEDDING = 3;
+    private final EmbeddingModel embeddingModel;
+    private final CartLogRepository cartLogRepository;
+    private final OrderLogRepository orderLogRepository;
     private final SearchLogRepository searchLogRepository;
+    private final UserProfileEmbeddingRepository userProfileEmbeddingRepository;
 
-    @Transactional
-    public void saveCartEvent(CartEvent event) {
-        CartEventLog log = CartEventLog.builder()
-            .userId(event.getUserId())
-            .productId(event.getProductId())
-            .eventType(CartEventType.valueOf(event.getEventType()))
-            .quantity(event.getQuantity())
+    public void updateUserProfileEmbedding(UUID userId) {
+        // 1. 최근 30일간의 로그를 각 타입별로 최대 5개씩 가져옴
+        Instant thirtyDaysAgo = Instant.now().minus(30, ChronoUnit.DAYS);
+        Pageable top5 = PageRequest.of(0, 5);
+
+        List<SearchLogDocument> searchLogs = searchLogRepository
+            .findAllByUserIdAndSearchedAtAfterOrderBySearchedAtDesc(userId, thirtyDaysAgo, top5);
+        List<CartLogDocument> cartLogs = cartLogRepository
+            .findAllByUserIdAndOccurredAtAfterOrderByOccurredAtDesc(userId, thirtyDaysAgo, top5);
+        List<OrderLogDocument> orderLogs = orderLogRepository
+            .findAllByUserIdAndOccurredAtAfterOrderByOccurredAtDesc(userId, thirtyDaysAgo, top5);
+
+        // 2. 품질 검증 (최소 3개 이상 필요)
+        int totalLogCount = searchLogs.size() + cartLogs.size() + orderLogs.size();
+        if (totalLogCount < MIN_TOTAL_LOGS_FOR_EMBEDDING) {
+            return; // 임베딩 건너뜀
+        }
+
+        // 3. 가중치 적용 텍스트 생성
+        String representativeText = buildRepresentativeText(searchLogs, cartLogs, orderLogs);
+
+        // 4. 임베딩 벡터 생성
+        List<Double> vector = embedText(representativeText);
+
+        // 5. Elasticsearch에 저장
+        UserProfileEmbeddingDocument document = UserProfileEmbeddingDocument.builder()
+            .userId(userId)
+            .userProfileVector(vector)
+            .lastUpdatedAt(Instant.now())
             .build();
-
-        cartEventLogRepository.save(log);
+        userProfileEmbeddingRepository.save(document);
     }
 
-    @Transactional
-    public void saveOrderEvent(OrderEvent event) {
-        // 주문 항목별로 로그 저장
-        for (OrderItem item : event.getOrderItems()) {
-            OrderEventLog log = OrderEventLog.builder()
-                .userId(event.getUserId())
-                .productId(item.getProductId())
-                .quantity(item.getQuantity())
-                .totalPrice(item.getTotalPrice())
-                .build();
-
-            orderEventLogRepository.save(log);
-        }
+    private String buildRepresentativeText(...) {
+        // 수량 × 이벤트 타입 × 시간 가중치를 적용하여 텍스트 생성
+        // 예: "청송사과" × (이벤트:2 × 수량:3 × 시간:2.8) = 17번 반복
     }
 }
 ```
 
-### 3. `recommend/` 패키지 - 추천 도메인
+### 상품 임베딩 생성
+
+> **[Application Layer]** 상품명을 기반으로 임베딩 벡터를 생성하는 서비스입니다.
 
 ```java
+// embedding/application/ProductEmbeddingService.java
+
 @Service
-@RequiredArgsConstructor
-public class PersonalizedRecommendService {
+public class ProductEmbeddingService {
 
-    private final ElasticsearchOperations operations;
-    private final RedisTemplate<String, List<Long>> redisTemplate;
+    private final EmbeddingModel embeddingModel;
 
-    public List<Long> generatePersonalizedRecommendations(Long userId) {
-        // 1. 사용자 행동 로그 조회
-        List<UserEventLog> userLogs = getUserBehaviorLogs(userId);
-
-        // 2. 행동 패턴 분석
-        Map<String, Integer> categoryPreferences = analyzePreferences(userLogs);
-
-        // 3. 선호 카테고리 기반 상품 검색
-        List<Long> recommendations = new ArrayList<>();
-
-        for (Map.Entry<String, Integer> entry : categoryPreferences.entrySet()) {
-            String category = entry.getKey();
-            int weight = entry.getValue();
-
-            // 카테고리별 상품 검색 (가중치만큼)
-            List<Long> categoryProducts = searchProductsByCategory(category, weight);
-            recommendations.addAll(categoryProducts);
-        }
-
-        // 4. 중복 제거 및 상위 15개 반환
-        return recommendations.stream()
-            .distinct()
-            .limit(15)
-            .collect(Collectors.toList());
-    }
-
-    private List<UserEventLog> getUserBehaviorLogs(Long userId) {
-        // 최근 30일간의 사용자 행동 로그 조회
-        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-
-        return userEventLogRepository.findByUserIdAndCreatedAtAfter(
-            userId, thirtyDaysAgo);
-    }
-
-    private Map<String, Integer> analyzePreferences(List<UserEventLog> logs) {
-        return logs.stream()
-            .filter(log -> "VIEW_PRODUCT".equals(log.getEventType()) ||
-                          "ADD_TO_CART".equals(log.getEventType()) ||
-                          "PURCHASE".equals(log.getEventType()))
-            .collect(Collectors.groupingBy(
-                log -> extractCategory(log.getTargetId()),
-                Collectors.summingInt(log -> getEventWeight(log.getEventType()))
-            ));
-    }
-
-    private int getEventWeight(String eventType) {
-        return switch (eventType) {
-            case "PURCHASE" -> 5;
-            case "ADD_TO_CART" -> 3;
-            case "VIEW_PRODUCT" -> 1;
-            default -> 0;
-        };
+    public float[] embedProduct(String productName) {
+        var embeddings = embeddingModel.embed(List.of(productName));
+        return embeddings.get(0); // 1536차원 float 배열
     }
 }
 ```
 
-#### 3.2 RecipeRecommendService
+### 레시피 추천 로직
 
-**역할**: 장바구니 재료 → LLM 레시피 생성 → 부족 재료 검색
-
-#### 2.1 레시피 추천 서비스
+> **[Application Layer]** 장바구니 상품을 기반으로 레시피를 추천하는 서비스입니다.
 
 ```java
+// recommend/application/RecipeRecommendService.java
+
 @Service
 @RequiredArgsConstructor
 public class RecipeRecommendService {
 
-    private final ChatModel chatModel;
-    private final ProductSearchService productSearchService;
+    private final RecipePromptService recipePromptService;
+    private final ProductNameNormalizer productNameNormalizer;
 
-    public RecipeRecommendation suggestRecipe(List<CartItem> cartItems) {
-        // 1. 장바구니 상품 목록 추출
-        List<String> ingredients = cartItems.stream()
-            .map(CartItem::getProductName)
-            .collect(Collectors.toList());
+    public RecipeRecommendResponse testRecommendFromCartWithMissing(CartInfo cart) {
+        // 1. 장바구니 상품에서 보유 재료 추출
+        List<OwnedIngredient> ownedIngredients =
+            recipePromptService.extractOwnedIngredients(cartToCartItems(cart));
 
-        // 2. LLM으로 레시피 생성
-        String recipePrompt = buildRecipePrompt(ingredients);
-        String recipeResponse = chatModel.call(recipePrompt);
+        // 2. 보유 재료 목록으로 레시피 후보 생성
+        List<String> ownedNames = ownedIngredients.stream()
+            .map(oi -> IngredientProcessingUtil.normalizeForCompare(oi.name()))
+            .distinct()
+            .toList();
 
-        // 3. 부족한 재료 추출 (간단한 파싱)
-        List<String> missingIngredients = extractMissingIngredients(recipeResponse);
+        RecipeCandidates candidates = recipePromptService.generateRecipeCandidates(ownedNames);
 
-        // 4. 부족 재료로 상품 검색
-        List<ProductSearchResponse> recommendedProducts = missingIngredients.stream()
-            .flatMap(ingredient -> productSearchService
-                .searchProducts(ingredient, PageRequest.of(0, 3))
-                .getContent()
-                .stream())
-            .collect(Collectors.toList());
-
-        return new RecipeRecommendation(
-            parseRecipe(recipeResponse),
-            recommendedProducts
-        );
-    }
-
-    private String buildRecipePrompt(List<String> ingredients) {
-        return String.format("""
-            다음 재료들로 만들 수 있는 한국 요리를 추천해주세요:
-
-            재료: %s
-
-            다음 형식으로 답변해주세요:
-            1. 요리명
-            2. 필요한 추가 재료 (없으면 "없음"이라고 답변)
-            3. 간단한 조리법
-
-            예시:
-            1. 된장찌개
-            2. 된장, 감자, 양파
-            3. 1. 재료를 썰어 물에 넣고 끓인다. 2. 된장을 풀어 맛을 낸다.
-            """, String.join(", ", ingredients));
-    }
-
-    private List<String> extractMissingIngredients(String response) {
-        // 간단한 파싱 로직 (실제로는 더 정교한 파싱 필요)
-        String[] lines = response.split("\n");
-        for (String line : lines) {
-            if (line.startsWith("2.")) {
-                String ingredients = line.substring(2).trim();
-                if ("없음".equals(ingredients)) {
-                    return List.of();
-                }
-                return Arrays.asList(ingredients.split(","));
-            }
+        // 3. 첫 번째 레시피 선택 및 부족 재료 계산
+        if (candidates.candidates().isEmpty()) {
+            return createEmptyResponse(ownedNames);
         }
-        return List.of();
-    }
-}
-```
 
-### 4. `embedding/` 패키지 - 벡터/임베딩 관리
+        CandidateRecipePlan selectedRecipe = candidates.candidates().get(0);
 
-**역할**: 로그/도메인 이벤트 → 벡터 표현으로 변환, RAG용 정책 임베딩
+        // 4. 부족한 재료 검색
+        List<String> missingCore = IngredientProcessingUtil.subtractNormalized(
+            selectedRecipe.recipeIngredientsCore(), ownedNames);
 
-#### 3.1 정책 문서 임베딩
+        List<IngredientRecommendResponse> recommendations = missingCore.stream()
+            .map(this::searchProductsForIngredient)
+            .toList();
 
-```java
-@Service
-public class PolicyEmbeddingService {
-
-    @Autowired
-    private EmbeddingModel embeddingModel;
-
-    @Autowired
-    private ElasticsearchVectorStore vectorStore;
-
-    public void initializePolicyDocuments() {
-        List<Document> policyDocuments = loadPolicyDocuments();
-
-        // 정책 문서들을 벡터로 변환하여 저장
-        vectorStore.add(policyDocuments.stream()
-            .map(doc -> {
-                List<Double> embedding = embeddingModel.embed(doc.getContent());
-                return new Document(doc.getContent(),
-                    Map.of("embedding", embedding, "type", "policy"));
-            })
-            .collect(Collectors.toList()));
-    }
-
-    private List<Document> loadPolicyDocuments() {
-        return List.of(
-            new Document("환불 정책: 상품 수령 후 7일 이내에 환불 가능합니다.", Map.of("category", "refund")),
-            new Document("배송비 정책: 30,000원 이상 구매 시 무료배송입니다.", Map.of("category", "shipping")),
-            new Document("신선도 보장: 모든 농산물은 수확 후 24시간 이내 배송됩니다.", Map.of("category", "freshness"))
+        return new RecipeRecommendResponse(
+            selectedRecipe.recipeName(),
+            ownedNames,
+            missingCore,
+            recommendations,
+            selectedRecipe.instructions()
         );
     }
 }
 ```
 
-#### 3.2 챗봇 서비스
+### LLM 기반 재료 추출
+
+> **[Infrastructure Layer]** 상품명에서 실제 재료를 추출하는 LLM 서비스입니다.
 
 ```java
-@Service
+// recommend/infrastructure/llm/ProductNameNormalizer.java
+
+@Component
 @RequiredArgsConstructor
-public class ChatbotService {
+public class ProductNameNormalizer {
 
-    private final ChatModel chatModel;
-    private final VectorStore vectorStore;
+    private final ChatClient chatClient;
 
-    public String answerQuestion(String question) {
-        // 1. 질문과 유사한 정책 문서 검색
-        List<Document> relevantDocs = vectorStore.similaritySearch(question, 3);
+    public String normalizeForRecipeIngredient(String productName) {
+        if (productName == null || productName.trim().isEmpty()) {
+            return "";
+        }
 
-        // 2. 검색된 문서를 컨텍스트로 활용
-        String context = relevantDocs.stream()
-            .map(Document::getContent)
-            .collect(Collectors.joining("\n\n"));
+        String prompt = buildNormalizationPrompt(productName);
 
-        // 3. 컨텍스트 기반 답변 생성
-        String prompt = String.format("""
-            다음은 바로팜 서비스 정책입니다:
+        try {
+            NormalizationResponse response = chatClient.prompt()
+                .user(prompt)
+                .call()
+                .entity(new ParameterizedTypeReference<NormalizationResponse>() {});
 
+            return response != null && response.normalizedIngredient() != null
+                ? response.normalizedIngredient().trim()
+                : "";
+
+        } catch (Exception e) {
+            log.warn("상품명 정규화 실패: '{}', 기본 정규화 적용", productName, e);
+            return applyBasicNormalization(productName);
+        }
+    }
+
+    private String buildNormalizationPrompt(String productName) {
+        return String.format("""
+            당신은 농산물 이커머스 상품명을 분석하여 실제 요리에 사용할 수 있는 '핵심 재료명'만 추출하는 전문가입니다.
+
+            <상품명>
             %s
 
-            위 정책 정보를 바탕으로 다음 질문에 답변해주세요.
-            정책에 없는 내용은 "정확한 답변을 위해 고객센터로 문의해주세요"라고 안내하세요.
+            <출력(JSON only)>
+            {{
+              "normalizedIngredient": "핵심재료명"
+            }}
+            """, productName);
+    }
 
-            질문: %s
+    private record NormalizationResponse(String normalizedIngredient) { }
+}
+```
 
-            답변은 친절하고 정확하게 작성해주세요.
-            """, context, question);
+### 재료 정규화 유틸리티
 
-        return chatModel.call(prompt);
+> **[Domain Layer]** 재료명을 비교하고 정규화하는 도메인 유틸리티입니다.
+
+```java
+// recommend/domain/IngredientProcessingUtil.java
+
+public final class IngredientProcessingUtil {
+
+    private IngredientProcessingUtil() {}
+
+    /**
+     * 재료 이름을 비교를 위한 정규화 (소문자 변환, 공백 제거)
+     */
+    public static String normalizeForCompare(String s) {
+        if (s == null) return "";
+        return s.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+    }
+
+    /**
+     * 정규화된 재료 목록에서 다른 목록의 재료들을 제거
+     */
+    public static List<String> subtractNormalized(List<String> a, List<String> b) {
+        Set<String> bNorm = b.stream()
+            .map(IngredientProcessingUtil::normalizeForCompare)
+            .collect(Collectors.toSet());
+
+        return normalizeList(a).stream()
+            .filter(x -> !bNorm.contains(normalizeForCompare(x)))
+            .toList();
     }
 }
 ```
 
-### 5. `search/` 패키지 - AI 관점 검색 뷰
+### 벡터 기반 추천 로직
 
-**역할**: ES 기반 상품/체험 검색 + 자동완성, 추천/레시피에서 내부 클라이언트로 사용
-
-#### 4.1 하이브리드 검색 서비스
+> **[Application Layer]** 사용자 프로필 벡터와 상품 벡터의 유사도를 계산하여 추천합니다.
 
 ```java
+// recommend/application/PersonalizedRecommendService.java
+
 @Service
 @RequiredArgsConstructor
-public class HybridSearchService {
+public class PersonalizedRecommendService {
 
-    private final ChatModel chatModel;
-    private final ElasticsearchOperations elasticsearchOps;
-    private final VectorStore vectorStore;
+    private final UserProfileEmbeddingService embeddingService;
+    private final ProductSearchRepository productSearchRepository;
+    private final RedisTemplate<String, List<ProductRecommendResponse>> redisTemplate;
 
-    public SearchResult hybridSearch(String query) {
-        // 1. LLM으로 쿼리 의도 분석
-        String intent = analyzeIntent(query);
+    public List<ProductRecommendResponse> recommendProducts(UUID userId, int topK) {
+        String cacheKey = "recommend:user:" + userId;
 
-        // 2. 다중 검색 전략 실행
-        CompletableFuture<List<Product>> keywordResults = searchByKeywords(query);
-        CompletableFuture<List<Product>> vectorResults = searchByVector(query);
+        // 1. 캐시 조회
+        List<ProductRecommendResponse> cached = redisTemplate.opsForList().range(cacheKey, 0, -1);
+        if (cached != null && !cached.isEmpty()) return cached;
 
-        // 3. 결과 병합 및 랭킹
-        List<ScoredProduct> allResults = Stream.of(keywordResults, vectorResults)
-            .map(CompletableFuture::join)
-            .flatMap(List::stream)
-            .distinct()
-            .map(product -> calculateScore(product, query, intent))
-            .sorted(Comparator.comparing(ScoredProduct::getScore).reversed())
-            .limit(50)
-            .collect(Collectors.toList());
+        // 2. 사용자 프로필 벡터 조회
+        UserProfileEmbeddingDocument profile =
+            embeddingService.getUserProfileVector(userId);
+        List<Double> userVector = profile.getUserProfileVector();
 
-        return new SearchResult(allResults);
-    }
+        // 3. 상품 벡터와 유사도 계산하여 추천 상품 조회
+        List<ProductRecommendResponse> recommendations = findSimilarProducts(userVector, topK);
 
-    private String analyzeIntent(String query) {
-        String prompt = String.format("""
-            다음 검색어의 의도를 분석하여 한 단어로 답변해주세요:
-
-            검색어: %s
-
-            의도: 상품명, 카테고리, 브랜드, 가격, 기타 중 하나
-            """, query);
-
-        return chatModel.call(prompt).trim();
-    }
-
-    private CompletableFuture<List<Product>> searchByKeywords(String query) {
-        return CompletableFuture.supplyAsync(() -> {
-            // Elasticsearch 키워드 검색
-            NativeQuery searchQuery = NativeQuery.builder()
-                .withQuery(q -> q.bool(b -> {
-                    b.should(m -> m.matchPhrase(mp ->
-                        mp.field("productName").query(query).boost(3.0f)));
-                    b.should(m -> m.match(m ->
-                        m.field("productName").query(query).boost(2.0f)));
-                    b.should(m -> m.prefix(p ->
-                        p.field("productNameChosung").value(query).boost(1.5f)));
-                    b.minimumShouldMatch("1");
-                    return b;
-                }))
-                .withPageable(PageRequest.of(0, 20))
-                .build();
-
-            SearchHits<ProductDocument> hits = elasticsearchOps.search(searchQuery, ProductDocument.class);
-            return hits.getSearchHits().stream()
-                .map(hit -> convertToProduct(hit.getContent()))
-                .collect(Collectors.toList());
-        });
-    }
-
-    private CompletableFuture<List<Product>> searchByVector(String query) {
-        return CompletableFuture.supplyAsync(() -> {
-            // 벡터 유사도 검색
-            return vectorStore.similaritySearch(query, 20).stream()
-                .map(this::convertToProduct)
-                .collect(Collectors.toList());
-        });
-    }
-
-    private ScoredProduct calculateScore(Product product, String query, String intent) {
-        double score = 0.0;
-
-        // 정확도 점수
-        if (product.getName().contains(query)) score += 3.0;
-        if (product.getName().toLowerCase().contains(query.toLowerCase())) score += 2.0;
-
-        // 의도 기반 가중치
-        switch (intent) {
-            case "카테고리" -> score += product.getCategory().contains(query) ? 1.5 : 0;
-            case "가격" -> score += query.matches(".*\\d+.*") ? 1.0 : 0;
+        // 4. 캐시 저장
+        if (recommendations != null && !recommendations.isEmpty()) {
+            redisTemplate.opsForList().rightPushAll(cacheKey, recommendations);
+            redisTemplate.expire(cacheKey, 1, TimeUnit.HOURS);
         }
 
-        return new ScoredProduct(product, score);
+        return recommendations;
     }
 }
 ```
 
-## 🧪 테스트 및 배포
+### Elasticsearch 도큐먼트 모델
 
-### 단위 테스트
+> **[Infrastructure Layer]** Elasticsearch라는 특정 기술에 종속적인 데이터 모델입니다. 데이터 영속성을 담당하는 인프라 계층에 위치합니다.
+
+#### 사용자 프로필 임베딩 문서
 
 ```java
-@SpringBootTest
-class RecommendationServiceTest {
+// embedding/domain/UserProfileEmbeddingDocument.java
 
-    @Autowired
-    private PersonalizedRecommendService recommendationService;
+@Document(indexName = "user_profile_embeddings")
+@Getter
+@Builder
+public class UserProfileEmbeddingDocument {
 
-    @Autowired
-    private UserEventLogRepository logRepository;
+    @Id
+    private UUID userId; // 사용자 ID를 문서 ID로 사용
+
+    @Field(type = FieldType.Dense_Vector, dims = 1536)
+    private List<Double> userProfileVector; // 1536차원 벡터
+
+    @Field(type = FieldType.Date)
+    private Instant lastUpdatedAt;
+}
+```
+
+#### 로그 도큐먼트
+
+```java
+// log/domain/CartLogDocument.java
+
+@Document(indexName = "cart_event_logs")
+@Getter
+@NoArgsConstructor
+public class CartLogDocument {
+
+    @Id
+    private String id;
+
+    @Field(type = FieldType.Keyword)
+    private UUID userId;
+
+    @Field(type = FieldType.Keyword)
+    private UUID productId;
+
+    @Field(type = FieldType.Text, analyzer = "nori")
+    private String productName; // 임베딩 텍스트 데이터
+
+    @Field(type = FieldType.Keyword)
+    private String eventType; // ADD, REMOVE, UPDATE
+
+    @Field(type = FieldType.Integer)
+    private Integer quantity; // 관심 강도
+
+    @Field(type = FieldType.Date)
+    private Instant occurredAt; // 시간 가중치 계산용
+}
+```
+
+---
+
+## 🧪 테스트 전략
+
+계층형 아키텍처는 각 계층의 역할을 명확히 하므로, 테스트 전략 또한 체계적으로 수립할 수 있습니다.
+
+### 단위 테스트 (Domain Layer)
+
+> **[Domain Layer]** 도메인 계층의 순수한 비즈니스 로직을 검증합니다. 외부 의존성 없이 가장 빠르고 안정적으로 실행되어야 합니다.
+
+```java
+// domain/model/recommendation/RecommendationTest.java
+
+class RecommendationTest {
 
     @Test
-    void shouldGeneratePersonalizedRecommendations() {
+    void shouldCreateRecommendationSuccessfully() {
         // Given
-        Long userId = 1L;
-        logRepository.save(createMockLog(userId, "VIEW_PRODUCT", 100L));
-        logRepository.save(createMockLog(userId, "ADD_TO_CART", 101L));
-        logRepository.save(createMockLog(userId, "PURCHASE", 102L));
+        Product product = new Product("사과", 1000);
+        User user = new User("testUser");
 
         // When
-        List<Long> recommendations = recommendationService
-            .generatePersonalizedRecommendations(userId);
+        Recommendation recommendation = Recommendation.of(user, product);
 
         // Then
-        assertThat(recommendations).isNotEmpty();
-        assertThat(recommendations.size()).isLessThanOrEqualTo(15);
+        assertThat(recommendation.getUser()).isEqualTo(user);
+        assertThat(recommendation.getProduct()).isEqualTo(product);
     }
 }
 ```
 
-### 통합 테스트
+### 통합 테스트 (Application & Infrastructure Layers)
+
+> **[Application Layer Test]** 애플리케이션 서비스가 도메인과 인프라를 올바르게 조율하는지 검증합니다. `@SpringBootTest`를 사용하여 필요한 의존성을 주입받아 테스트합니다.
 
 ```java
+// application/recommendation/PersonalizedRecommendServiceTest.java
+
+@SpringBootTest
+class PersonalizedRecommendServiceTest {
+
+    @Autowired
+    private PersonalizedRecommendService service;
+
+    @MockBean // infrastructure/persistence 계층은 Mocking 처리
+    private RecommendationRepository recommendationRepository;
+
+    @Test
+    void shouldReturnRecommendationsWhenUserHasLogs() {
+        // Given: 사용자 행동 로그가 있는 경우
+        Long userId = 1L;
+        // when(recommendationRepository.findByUser(..)).thenReturn(..);
+
+        // When: 추천 요청
+        List<Long> recommendations = service.recommendForUser(userId);
+
+        // Then: 추천 결과 반환
+        assertThat(recommendations).isNotEmpty();
+    }
+}
+```
+
+> **[Infrastructure Layer Test]** Kafka, Elasticsearch 등 외부 인프라와의 연동이 올바르게 동작하는지 검증합니다. `@EmbeddedKafka` 등을 사용하여 실제와 유사한 환경에서 테스트합니다.
+
+```java
+// infrastructure/messaging/consumer/RecommendationIntegrationTest.java
+
 @SpringBootTest
 @EmbeddedKafka
-class AiIntegrationTest {
+class RecommendationIntegrationTest {
 
     @Autowired
-    private KafkaTemplate<String, ExperienceEvent> kafkaTemplate;
+    private KafkaTemplate<String, CartEvent> kafkaTemplate;
 
     @Autowired
-    private ExperienceSearchRepository repository;
+    private PersonalizedRecommendService service;
 
     @Test
-    void shouldIndexExperienceWhenEventReceived() {
-        // Given
-        ExperienceEvent event = createTestExperienceEvent();
+    void shouldUpdateRecommendationsAfterCartEvent() {
+        // Given: 카트 이벤트 발행
+        CartEvent event = createCartEvent();
+        kafkaTemplate.send("cart-events", event);
 
-        // When
-        kafkaTemplate.send("experience-events", event);
-
-        // Then
+        // When: 추천 로직이 비동기로 실행되고
         await().atMost(5, SECONDS).until(() -> {
-            Optional<ExperienceDocument> doc = repository.findById(event.getData().getExperienceId());
-            return doc.isPresent();
+            List<Long> recommendations = service.recommendForUser(event.getUserId());
+            return !recommendations.isEmpty();
         });
+
+        // Then: 추천 결과가 올바르게 업데이트되었는지 확인
+        List<Long> recommendations = service.recommendForUser(event.getUserId());
+        assertThat(recommendations).contains(event.getProductId());
     }
 }
 ```
 
-### 6. `presentation/` 패키지 - 외부 API 진입점
+### E2E 테스트 (End-to-End)
 
-**역할**: `/api/v1/recommendations/**`, `/api/v1/chatbot/**` 등 외부로 노출되는 REST API
-
-#### 6.1 RecommendationController
+> **[API E2E Test]** API 엔드포인트부터 실제 데이터베이스 연동까지 전체 흐름을 테스트합니다. 사용자 관점에서 시스템이 올바르게 동작하는지 최종적으로 검증합니다.
 
 ```java
-@RestController
-@RequestMapping("/api/v1/recommendations")
-@RequiredArgsConstructor
-public class RecommendationController {
+// infrastructure/web/RecommendationControllerTest.java
 
-    private final RecommendationFacade recommendationFacade;
+@SpringBootTest(webEnvironment = RANDOM_PORT)
+class RecommendationApiTest {
 
-    @GetMapping("/personalized/{userId}")
-    public ResponseDto<List<Long>> getPersonalizedRecommendations(
-            @PathVariable Long userId) {
+    @Autowired
+    private TestRestTemplate restTemplate;
 
-        List<Long> recommendations = recommendationFacade.recommendPersonalized(userId);
-        return ResponseDto.success(recommendations);
-    }
+    @Test
+    void shouldReturnPersonalizedRecommendations() {
+        // Given
+        Long userId = 1L;
 
-    @PostMapping("/recipes/from-cart")
-    public ResponseDto<RecipeRecommendation> recommendRecipeFromCart(
-            @RequestBody @Valid RecipeFromCartRequest request) {
+        // When: API 호출
+        ResponseEntity<RecommendationResponse> response = restTemplate
+            .getForEntity("/api/v1/recommendations/personalized/{userId}",
+                         RecommendationResponse.class, userId);
 
-        RecipeRecommendation recommendation =
-            recommendationFacade.recommendRecipeFromCart(request.getUserId());
-
-        return ResponseDto.success(recommendation);
+        // Then: 응답 검증
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().getData()).isNotEmpty();
     }
 }
 ```
 
-#### 6.2 ChatbotController
+---
 
-```java
-@RestController
-@RequestMapping("/api/v1/chatbot")
-@RequiredArgsConstructor
-public class ChatbotController {
+## 🚀 배포 및 운영
 
-    private final ChatbotService chatbotService;
-
-    @PostMapping("/ask")
-    public ResponseDto<String> askQuestion(@RequestBody @Valid ChatbotRequest request) {
-
-        String answer = chatbotService.answerQuestion(request.getQuestion());
-        return ResponseDto.success(answer);
-    }
-}
-```
-
-### 테스트 및 배포
+### Docker 구성
 
 ```yaml
 # docker-compose.yml
@@ -670,56 +618,95 @@ services:
       - "6379:6379"
 ```
 
-## 📊 모니터링 및 운영
+### 헬스체크 및 모니터링
 
-### 메트릭 수집
+```java
+@RestController
+public class HealthController {
+
+    @GetMapping("/actuator/health")
+    public ResponseEntity<HealthResponse> health() {
+        return ResponseEntity.ok(HealthResponse.builder()
+            .status("UP")
+            .components(Map.of(
+                "elasticsearch", checkElasticsearch(),
+                "redis", checkRedis(),
+                "openai", checkOpenAI()
+            ))
+            .build());
+    }
+}
+```
+
+### 로그 및 메트릭
 
 ```java
 @Configuration
-public class MetricsConfig {
+public class MonitoringConfig {
 
     @Bean
     public MeterRegistry meterRegistry() {
-        return new SimpleMeterRegistry();
+        return new CompositeMeterRegistry();
     }
 
-    @Service
-    public static class AIMetricsService {
-
-        @Autowired
-        private MeterRegistry meterRegistry;
-
-        public void recordAICall(String model, long durationMs, boolean success) {
-            meterRegistry.timer("ai.call.duration",
-                Tags.of("model", model, "success", String.valueOf(success)))
-                .record(durationMs, MILLISECONDS);
-
-            meterRegistry.counter("ai.call.total",
-                Tags.of("model", model, "success", String.valueOf(success)))
-                .increment();
-        }
+    @Bean
+    public AIMetricsService aiMetricsService(MeterRegistry registry) {
+        return new AIMetricsService(registry);
     }
 }
-```
 
-### 비용 모니터링
-
-```java
 @Service
-public class CostTracker {
+@RequiredArgsConstructor
+public class AIMetricsService {
 
-    @Autowired
-    private MeterRegistry meterRegistry;
+    private final MeterRegistry registry;
 
-    public void trackCost(String model, double cost) {
-        meterRegistry.counter("ai.cost.total", Tags.of("model", model)).increment(cost);
+    public void recordRecommendation(String type, long durationMs, boolean success) {
+        registry.timer("ai.recommendation.duration",
+            Tags.of("type", type, "success", String.valueOf(success)))
+            .record(durationMs, MILLISECONDS);
+    }
 
-        // 월별 비용 알림
-        if (getMonthlyCost() > 50) {
-            sendBudgetAlert();
-        }
+    public void recordCost(String model, double cost) {
+        registry.counter("ai.cost.total", Tags.of("model", model))
+            .increment(cost);
     }
 }
 ```
 
-이 가이드를 따라 각 기능을 구현하면 바로팜 AI 시스템의 핵심 기능을 완성할 수 있습니다! 🚀
+### 배포 파이프라인
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy AI Service
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run tests
+        run: ./gradlew test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build Docker image
+        run: docker build -t baro-ai:latest .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Kubernetes
+        run: kubectl apply -f k8s/
+```
+
+---
+
+*이 구현 가이드를 따라 baro-ai 모듈의 핵심 기능을 개발할 수 있습니다.*

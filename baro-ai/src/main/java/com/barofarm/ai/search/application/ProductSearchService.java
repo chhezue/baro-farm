@@ -4,7 +4,10 @@ import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
-import com.barofarm.ai.common.response.CustomPage;
+import co.elastic.clients.json.JsonData;
+import com.barofarm.ai.embedding.application.ProductEmbeddingService;
+import com.barofarm.ai.embedding.application.UserProfileEmbeddingService;
+import com.barofarm.ai.log.application.LogWriteService;
 import com.barofarm.ai.search.application.dto.product.ProductAutoCompleteResponse;
 import com.barofarm.ai.search.application.dto.product.ProductIndexRequest;
 import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
@@ -13,27 +16,44 @@ import com.barofarm.ai.search.domain.ProductAutocompleteDocument;
 import com.barofarm.ai.search.domain.ProductDocument;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ProductAutocompleteRepository;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ProductSearchRepository;
+import com.barofarm.dto.CustomPage;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProductSearchService {
     private final ElasticsearchOperations operations;
     private final ProductSearchRepository repository;
     private final ProductAutocompleteRepository autocompleteRepository;
+    private final LogWriteService logWriteService;
+    private final ProductEmbeddingService productEmbeddingService;
+    private final UserProfileEmbeddingService userProfileEmbeddingService;
 
     // 상품 문서를 ES에 저장 (인덱싱), updatedAt은 현재 시각으로 자동 설정
     // Kafka Consumer에서 호출됨
     public ProductDocument indexProduct(ProductIndexRequest request) {
+        float[] vector = null;
+
+        // 임베딩이 실패하더라도 인덱싱은 계속되어야 함.
+        try {
+            // 상품 이름을 기반으로 임베딩 생성
+            vector = productEmbeddingService.embedProduct(request.productName());
+        } catch (Exception e) {
+            log.error("❌ Product embedding failed. productId=" + request.productId() + ", error=" + e.getMessage(), e);
+        }
+
         ProductDocument doc =
             new ProductDocument(
                 request.productId(),
@@ -41,7 +61,8 @@ public class ProductSearchService {
                 request.productCategory(),
                 request.price(),
                 request.status(),
-                Instant.now());
+                Instant.now(),
+                vector);
 
         // 자동완성 인덱스에도 저장 (status 포함하여 필터링 가능하도록)
         ProductAutocompleteDocument autocompleteDoc =
@@ -58,7 +79,7 @@ public class ProductSearchService {
     }
 
     // 통합 검색을 위한 상품 검색 (키워드 하나만으로 검색)
-    public CustomPage<ProductSearchResponse> searchProducts(String keyword, Pageable pageable) {
+    public CustomPage<ProductSearchResponse> searchProducts(UUID userId, String keyword, Pageable pageable) {
 
         NativeQuery query =
             NativeQuery.builder()
@@ -99,11 +120,34 @@ public class ProductSearchService {
                 ))
                 .toList();
 
+        // 🔹 "product 관련" 통합 검색 로그만 남긴다.
+        // - userId가 있을 때만 개인화 추천용 로그 저장
+        // - q가 비어있으면 검색 행동으로 간주하지 않음
+        // - 로그 저장 실패가 검색 결과에는 영향을 주지 않음
+        if (userId != null && keyword != null && !keyword.isBlank()) {
+            try {
+                logWriteService.saveSearchLog(
+                    userId,
+                    keyword,
+                    null,
+                    Instant.now()
+                );
+                // 프로필 벡터 비동기 업데이트
+                updateUserProfileAsync(userId);
+            } catch (Exception e) {
+                log.warn("❌ Failed to save search log for user: " + userId + ", error: " + e.getMessage(), e);
+            }
+        }
+
         return CustomPage.of(hits.getTotalHits(), items, pageable);
     }
 
-    // 상품 단독 검색 (필터링 조건 추가)
-    public CustomPage<ProductSearchResponse> searchOnlyProducts(ProductSearchRequest request, Pageable pageable) {
+    // 상품 단독 검색 (필터링 조건 추가) + "상품 관련 사용자 행동 로그" 기록
+    public CustomPage<ProductSearchResponse> searchOnlyProducts(
+        UUID userId,
+        ProductSearchRequest request,
+        Pageable pageable
+    ) {
 
         NativeQuery query =
             NativeQuery.builder()
@@ -148,7 +192,36 @@ public class ProductSearchService {
                 ))
                 .toList();
 
-        return CustomPage.of(hits.getTotalHits(), items, pageable);
+        CustomPage<ProductSearchResponse> page =
+            CustomPage.of(hits.getTotalHits(), items, pageable);
+
+        // TODO 현재는 첫 번째 카테고리만 저장: 추후에 방안 고안
+        String category =
+            (request.categories() != null && !request.categories().isEmpty())
+                ? request.categories().getFirst()
+                : null;
+
+        // 🔹 "product 관련" 검색 로그만 남긴다.
+        // - UUID(userId)는 선택 사항: 존재할 때만 로그 저장
+        // - keyword가 없거나 공백이면 검색 행동 로깅 대상에서 제외
+        // - 로그 저장 실패가 검색 결과에는 영향을 주지 않음
+        if (userId != null && request.keyword() != null && !request.keyword().isBlank()) {
+            try {
+                logWriteService.saveSearchLog(
+                    userId,
+                    request.keyword(),
+                    category,
+                    Instant.now()
+                );
+                // 프로필 벡터 비동기 업데이트
+                updateUserProfileAsync(userId);
+            } catch (Exception e) {
+                log.warn("❌ Failed to save search log for user: " + userId +
+                    ", keyword: " + request.keyword() + ", error: " + e.getMessage(), e);
+            }
+        }
+
+        return page;
     }
 
     // 정확한 문구 검색
@@ -179,7 +252,7 @@ public class ProductSearchService {
     private void applyFuzzyMatch(BoolQuery.Builder b, String keyword) {
         b.should(m ->
             m.match(mm ->
-                mm.field("productName")
+                mm.field("productName.raw")
                   .query(keyword)
                   .fuzziness("AUTO") // ES가 자동으로 편집 거리 계산
                   .prefixLength(1)   // 앞 글자 1개는 정확히 일치해야 함
@@ -230,16 +303,16 @@ public class ProductSearchService {
         }
 
         b.filter(f ->
-            f.range(r -> r.number(n -> {
-                var numberRange = n.field("price");
+            f.range(r -> {
+                var range = r.field("price");
                 if (priceMin != null) {
-                    numberRange = numberRange.gte(priceMin.doubleValue());
+                    range = range.gte(JsonData.of(priceMin));
                 }
                 if (priceMax != null) {
-                    numberRange = numberRange.lte(priceMax.doubleValue());
+                    range = range.lte(JsonData.of(priceMax));
                 }
-                return numberRange;
-            }))
+                return range;
+            })
         );
     }
 
@@ -251,5 +324,22 @@ public class ProductSearchService {
         return autocompleteRepository.findByPrefix(query, size).stream()
             .map(document -> new ProductAutoCompleteResponse(document.getProductId(), document.getProductName()))
             .toList();
+    }
+
+    /**
+     * 사용자 프로필 벡터를 비동기로 업데이트합니다.
+     * 검색 로그 저장 후 호출되며, 검색 성능에 영향을 주지 않도록 별도 스레드에서 실행됩니다.
+     */
+    @Async("profileUpdateExecutor")
+    public void updateUserProfileAsync(UUID userId) {
+        try {
+            log.debug("🔄 [SEARCH_SERVICE] Updating user profile embedding for user: {}", userId);
+            userProfileEmbeddingService.updateUserProfileEmbedding(userId);
+            log.debug("✅ [SEARCH_SERVICE] Successfully updated user profile embedding for user: {}", userId);
+        } catch (Exception e) {
+            log.warn("⚠️ [SEARCH_SERVICE] Failed to update user profile embedding for user: {}, error: {}",
+                    userId, e.getMessage());
+            // 프로필 업데이트 실패는 검색 결과에 영향을 주지 않음
+        }
     }
 }
