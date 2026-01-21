@@ -216,6 +216,53 @@ public class ProductEmbeddingService {
 }
 ```
 
+### 상품 인덱싱 서비스
+
+> **[Application Layer]** 상품을 Elasticsearch에 인덱싱하고 임베딩을 생성하는 서비스입니다.
+
+```java
+// search/application/ProductIndexService.java
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class ProductIndexService {
+
+    private final ProductSearchRepository repository;
+    private final ProductAutocompleteRepository autocompleteRepository;
+    private final ProductEmbeddingService productEmbeddingService;
+
+    public ProductDocument indexProduct(ProductIndexRequest request) {
+        float[] vector = null;
+
+        // 임베딩이 실패하더라도 인덱싱은 계속되어야 함
+        try {
+            // 상품 이름을 기반으로 임베딩 생성
+            vector = productEmbeddingService.embedProduct(request.productName());
+        } catch (Exception e) {
+            log.error("❌ Product embedding failed. productId=" + request.productId(), e);
+        }
+
+        ProductDocument doc = new ProductDocument(
+            request.productId(),
+            request.productName(),
+            request.productCategory(),
+            request.price(),
+            request.status(),
+            Instant.now(),
+            vector
+        );
+
+        // 자동완성 인덱스에도 저장
+        ProductAutocompleteDocument autocompleteDoc =
+            new ProductAutocompleteDocument(request.productId(), request.productName(), request.status());
+        autocompleteRepository.save(autocompleteDoc);
+
+        return repository.save(doc);
+    }
+}
+```
+
 ### 레시피 추천 로직
 
 > **[Application Layer]** 장바구니 상품을 기반으로 레시피를 추천하는 서비스입니다.
@@ -368,32 +415,153 @@ public final class IngredientProcessingUtil {
 @RequiredArgsConstructor
 public class PersonalizedRecommendService {
 
-    private final UserProfileEmbeddingService embeddingService;
-    private final ProductSearchRepository productSearchRepository;
-    private final RedisTemplate<String, List<ProductRecommendResponse>> redisTemplate;
+    private final UserProfileEmbeddingRepository userProfileEmbeddingRepository;
+    private final VectorProductSearchService vectorProductSearchService;
 
     public List<ProductRecommendResponse> recommendProducts(UUID userId, int topK) {
-        String cacheKey = "recommend:user:" + userId;
-
-        // 1. 캐시 조회
-        List<ProductRecommendResponse> cached = redisTemplate.opsForList().range(cacheKey, 0, -1);
-        if (cached != null && !cached.isEmpty()) return cached;
-
-        // 2. 사용자 프로필 벡터 조회
+        // 1. 사용자 프로필 벡터 조회
         UserProfileEmbeddingDocument profile =
-            embeddingService.getUserProfileVector(userId);
-        List<Double> userVector = profile.getUserProfileVector();
+            userProfileEmbeddingRepository.findById(userId)
+                .orElse(null);
 
-        // 3. 상품 벡터와 유사도 계산하여 추천 상품 조회
-        List<ProductRecommendResponse> recommendations = findSimilarProducts(userVector, topK);
-
-        // 4. 캐시 저장
-        if (recommendations != null && !recommendations.isEmpty()) {
-            redisTemplate.opsForList().rightPushAll(cacheKey, recommendations);
-            redisTemplate.expire(cacheKey, 1, TimeUnit.HOURS);
+        if (profile == null || profile.getUserProfileVector() == null) {
+            return List.of();
         }
 
-        return recommendations;
+        // 2. 이미 경험한 상품 ID 목록 가져오기
+        List<String> experiencedProductIds = profile.getSourceProductIds() != null
+            ? profile.getSourceProductIds()
+            : List.of();
+
+        // 3. List<Double>을 float[]로 변환
+        float[] userVector = convertToFloatArray(profile.getUserProfileVector());
+
+        // 4. Elasticsearch 벡터 유사도 검색
+        List<UUID> excludeProductIds = experiencedProductIds.stream()
+            .map(UUID::fromString)
+            .toList();
+
+        return vectorProductSearchService.findSimilarProductsByVector(
+            userVector,
+            topK,
+            excludeProductIds,  // 제외할 상품 ID들
+            null,               // 자기 자신 제외하지 않음
+            true                // 중복 제거 활성화
+        );
+    }
+}
+```
+
+### 비슷한 상품 추천 로직
+
+> **[Application Layer]** 특정 상품의 벡터를 기반으로 유사한 상품을 추천합니다.
+
+```java
+// recommend/application/SimilarProductService.java
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class SimilarProductService {
+
+    private final ProductSearchRepository productSearchRepository;
+    private final VectorProductSearchService vectorProductSearchService;
+
+    public List<ProductRecommendResponse> recommendSimilarProducts(UUID productId, int topK) {
+        // 1. 기준 상품 조회 및 벡터 추출
+        ProductDocument product = productSearchRepository.findById(productId)
+            .orElseThrow(() -> {
+                log.warn("유사 상품 추천을 위한 기준 상품을 찾을 수 없습니다. productId: {}", productId);
+                return new CustomException(RecommendErrorCode.PRODUCT_NOT_FOUND);
+            });
+
+        if (product.getVector() == null) {
+            log.warn("기준 상품 '{}'의 벡터가 존재하지 않습니다. 임베딩이 필요합니다.", product.getProductName());
+            return List.of();
+        }
+
+        float[] productVector = product.getVector();
+
+        // 2. 벡터 유사도 검색 실행
+        return findSimilarProducts(productVector, productId, topK);
+    }
+
+    private List<ProductRecommendResponse> findSimilarProducts(
+        float[] vector, 
+        UUID originalProductId, 
+        int topK
+    ) {
+        // VectorProductSearchService의 메소드 사용
+        return vectorProductSearchService.findSimilarProductsByVector(
+            vector,
+            topK,
+            List.of(),          // 제외할 상품 ID 없음
+            originalProductId,  // 자기 자신 제외
+            false               // 중복 제거 비활성화
+        );
+    }
+}
+```
+
+### 벡터 유사도 검색 서비스
+
+> **[Application Layer]** Elasticsearch를 사용한 벡터 기반 유사도 검색의 공통 로직을 제공합니다.
+
+```java
+// search/application/VectorProductSearchService.java
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class VectorProductSearchService {
+
+    private final ElasticsearchOperations elasticsearchOperations;
+
+    public List<ProductRecommendResponse> findSimilarProductsByVector(
+        float[] queryVector,
+        int topK,
+        List<UUID> excludeProductIds,
+        UUID excludeSelfProductId,
+        boolean removeDuplicates
+    ) {
+        // Elasticsearch script_score 쿼리를 사용한 코사인 유사도 계산
+        NativeQuery query = NativeQuery.builder()
+            .withQuery(q -> q
+                .scriptScore(ss -> ss
+                    .query(q2 -> q2
+                        .bool(b -> b
+                            // 자기 자신 제외
+                            .mustNot(mn -> {
+                                if (excludeSelfProductId != null) {
+                                    mn.ids(i -> i.values(excludeSelfProductId.toString()));
+                                }
+                                return mn;
+                            })
+                            // 판매 중인 상품만 필터링
+                            .filter(f -> f
+                                .terms(t -> t
+                                    .field("status")
+                                    .terms(v -> v.value(
+                                        List.of(FieldValue.of("ON_SALE"), FieldValue.of("DISCOUNTED"))
+                                    ))
+                                )
+                            )
+                        )
+                    )
+                    .script(s -> s
+                        .inline(i -> i
+                            .source("cosineSimilarity(params.query_vector, 'vector') + 1.0")
+                            .params(Map.of("query_vector", JsonData.of(convertToDoubleList(queryVector))))
+                        )
+                    )
+                )
+            )
+            .withPageable(PageRequest.of(0, fetchSize))
+            .build();
+
+        // 검색 실행 및 결과 변환
+        SearchHits<ProductDocument> hits = elasticsearchOperations.search(query, ProductDocument.class);
+        // ... 결과 처리 및 필터링
     }
 }
 ```

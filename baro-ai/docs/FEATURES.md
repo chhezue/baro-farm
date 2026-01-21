@@ -5,6 +5,7 @@
 ## 📋 목차
 
 - [개인화 추천 API](#-개인화-추천-api)
+- [비슷한 상품 추천 API](#-비슷한-상품-추천-api)
 - [임베딩 서비스](#-임베딩-서비스)
 - [레시피 추천 API](#-레시피-추천-api)
 - [상품 검색 API](#-상품-검색-api)
@@ -198,6 +199,74 @@ ProductEmbeddingService.embedProduct(productName)
 #### 관련 문서
 
 - [임베딩 예시](EMBEDDING_EXAMPLE.md) - 실제 데이터 흐름 예시
+
+---
+
+## 🎯 비슷한 상품 추천 API
+
+특정 상품과 유사한 상품을 벡터 유사도 기반으로 추천하는 기능입니다.
+
+### GET /api/v1/recommendations/similar/{productId}
+
+상품 상세 페이지 등에서 사용할 수 있는 유사 상품 추천 API입니다.
+
+#### 요청 파라미터
+- `productId`: 기준 상품 ID (UUID, 필수)
+- `topK`: 추천할 상품 개수 (기본값: 3)
+
+#### 응답 형식
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "productId": "550e8400-e29b-41d4-a716-446655440002",
+      "productName": "청송사과 프리미엄 2kg",
+      "productCategory": "과일",
+      "price": 28000
+    },
+    {
+      "productId": "550e8400-e29b-41d4-a716-446655440003",
+      "productName": "부사 사과 1kg",
+      "productCategory": "과일",
+      "price": 12000
+    }
+  ]
+}
+```
+
+#### 응답 필드 설명
+- `data`: 유사 상품 목록 (기본값: 3개)
+  - `productId`: 상품 ID (UUID)
+  - `productName`: 상품명
+  - `productCategory`: 상품 카테고리
+  - `price`: 가격
+- 추천 순서는 벡터 유사도 점수 기반 내림차순
+- 기준 상품 자신은 제외됨
+- 판매 중인 상품만 추천됨 (ON_SALE, DISCOUNTED 상태)
+
+#### 동작 원리
+1. **기준 상품 조회**: Elasticsearch에서 기준 상품의 임베딩 벡터를 조회합니다.
+2. **벡터 유사도 검색**: `VectorProductSearchService`를 사용하여 코사인 유사도 기반으로 유사한 상품을 검색합니다.
+3. **필터링**: 
+   - 자기 자신 제외
+   - 판매 중인 상품만 필터링 (ON_SALE, DISCOUNTED)
+4. **결과 반환**: 유사도가 높은 순서대로 Top-K 개의 상품을 반환합니다.
+
+#### 에러 응답
+```json
+{
+  "success": false,
+  "error": {
+    "code": "PRODUCT_NOT_FOUND",
+    "message": "상품을 찾을 수 없습니다"
+  }
+}
+```
+
+#### 벡터가 없는 경우
+- 기준 상품의 임베딩 벡터가 없는 경우 빈 리스트를 반환합니다.
+- 이 경우 상품 인덱싱 시 임베딩 생성이 필요합니다.
 
 ---
 
@@ -650,11 +719,13 @@ POST /api/v1/datagen/user-profile-embedding
 
 ### 응답 시간 SLA
 - 개인화 추천: 200ms 이하 (캐시 히트 시)
+- 비슷한 상품 추천: 300ms 이하
 - 검색: 300ms 이하
 - 챗봇: 2초 이하
 
 ### 캐시 전략
 - 개인화 추천: Redis TTL 1시간
+- 비슷한 상품 추천: 캐시 미사용 (실시간 벡터 검색)
 - 검색 결과: Redis TTL 10분
 - 자동완성: Redis TTL 1시간
 
@@ -666,11 +737,17 @@ POST /api/v1/datagen/user-profile-embedding
 
 *이 문서는 API 인터페이스 명세를 중심으로 작성되었습니다. 구현 세부사항은 [구현 가이드](IMPLEMENTATION.md)를 참고해주세요.*
 
-### 기술 구현
+### 기술 구현 (개인화 추천)
 - **벡터 생성**: 사용자 행동 패턴 → 임베딩 모델 → 취향 벡터
 - **유사도 계산**: 코사인 유사도로 상품 벡터 매칭
 - **랭킹**: 유사도 점수 기반 Top-K 추출
 - **캐싱**: Redis로 실시간 응답 보장
+
+### 기술 구현 (비슷한 상품 추천)
+- **벡터 조회**: 기준 상품의 임베딩 벡터 조회
+- **유사도 계산**: Elasticsearch script_score를 사용한 코사인 유사도 계산
+- **필터링**: 자기 자신 제외 및 판매 중인 상품만 필터링
+- **랭킹**: 유사도 점수 기반 Top-K 추출
 
 ---
 
