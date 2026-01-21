@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class UnifiedSearchService {
     private final ProductSearchService productSearchService;
+    private final ProductIndexService productIndexService;
     private final ExperienceSearchService experienceSearchService;
 
     // 통합 검색
@@ -38,7 +39,7 @@ public class UnifiedSearchService {
     public UnifiedAutoCompleteResponse autocomplete(String q, int pSize, int eSize) {
         // 비동기 처리를 위해 CompletableFuture 사용 (두 개의 ES 쿼리 병렬 실행)
         CompletableFuture<List<ProductAutoCompleteResponse>> productsFuture =
-            CompletableFuture.supplyAsync(() -> productSearchService.autocomplete(q, pSize));
+            CompletableFuture.supplyAsync(() -> productIndexService.autocomplete(q, pSize));
         CompletableFuture<List<ExperienceAutoCompleteResponse>> experiencesFuture =
             CompletableFuture.supplyAsync(() -> experienceSearchService.autocomplete(q, eSize));
 

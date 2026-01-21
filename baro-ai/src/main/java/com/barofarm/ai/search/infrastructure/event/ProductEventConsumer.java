@@ -1,6 +1,6 @@
 package com.barofarm.ai.search.infrastructure.event;
 
-import com.barofarm.ai.search.application.ProductSearchService;
+import com.barofarm.ai.search.application.ProductIndexService;
 import com.barofarm.ai.search.application.dto.product.ProductIndexRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class ProductEventConsumer {
 
-    private final ProductSearchService productSearchService;
+    private final ProductIndexService productIndexService;
 
     // Product 모듈에서 상품 CRUD 시 product-events 토픽에 메세지 발행
     @KafkaListener(
@@ -32,7 +32,7 @@ public class ProductEventConsumer {
                     log.info(
                         "🆕 [CONSUMER] Processing PRODUCT_CREATED - ID: {}, Name: {}, Category: {}, Price: {}",
                         data.getProductId(), data.getProductName(), data.getProductCategory(), data.getPrice());
-                    productSearchService.indexProduct(toRequest(data));
+                    productIndexService.indexProduct(toRequest(data));
                     log.info("✅ [CONSUMER] Successfully indexed product - ID: {}, Name: {}",
                         data.getProductId(), data.getProductName());
                 }
@@ -40,13 +40,13 @@ public class ProductEventConsumer {
                     log.info(
                         "🔄 [CONSUMER] Processing PRODUCT_UPDATED - ID: {}, Name: {}, Category: {}, Price: {}",
                         data.getProductId(), data.getProductName(), data.getProductCategory(), data.getPrice());
-                    productSearchService.indexProduct(toRequest(data));
+                    productIndexService.indexProduct(toRequest(data));
                     log.info("✅ [CONSUMER] Successfully updated product - ID: {}, Name: {}",
                         data.getProductId(), data.getProductName());
                 }
                 case PRODUCT_DELETED -> {
                     log.info("🗑️ [CONSUMER] Processing PRODUCT_DELETED event - Product ID: {}", data.getProductId());
-                    productSearchService.deleteProduct(data.getProductId());
+                    productIndexService.deleteProduct(data.getProductId());
                     log.info("✅ [CONSUMER] Successfully deleted product - ID: {}", data.getProductId());
                 }
                 default -> {
