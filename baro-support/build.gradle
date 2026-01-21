@@ -57,6 +57,20 @@ dependencies {
 
     // Database
     runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly 'com.h2database:h2'
+
+    // SMTP (Spring Mail)
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+
+    // FCM (Firebase Admin SDK)
+    implementation 'com.google.firebase:firebase-admin:9.2.0'
+
+    // JSON
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    // (retry/backoff) 세밀하게 하면 사용
+    // implementation 'org.springframework.retry:spring-retry'
+    // implementation 'org.springframework:spring-aspects'
 }
 
 tasks.named('test') {
