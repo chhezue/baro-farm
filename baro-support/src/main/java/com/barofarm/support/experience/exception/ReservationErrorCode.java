@@ -1,6 +1,6 @@
 package com.barofarm.support.experience.exception;
 
-import com.barofarm.support.common.exception.BaseErrorCode;
+import com.barofarm.exception.BaseErrorCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,6 +16,7 @@ public enum ReservationErrorCode implements BaseErrorCode {
     INVALID_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "유효하지 않은 상태 변경입니다."),
     STATUS_CANNOT_BE_CHANGED(HttpStatus.BAD_REQUEST, "이미 완료 상태로 변경되어 더 이상 변경할 수 없습니다."),
     RESERVATION_CANNOT_BE_DELETED(HttpStatus.BAD_REQUEST, "해당 상태의 예약은 삭제할 수 없습니다. 취소만 가능합니다."),
+    CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "다른 사용자가 동시에 수정하여 변경에 실패했습니다. 다시 시도해주세요."),
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 예약에 대한 접근 권한이 없습니다.");
 
     private final HttpStatus status;

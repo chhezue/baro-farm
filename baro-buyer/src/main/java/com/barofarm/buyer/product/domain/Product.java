@@ -1,14 +1,16 @@
 package com.barofarm.buyer.product.domain;
 
-import com.barofarm.buyer.common.entity.BaseEntity;
-import com.barofarm.buyer.common.exception.CustomException;
 import com.barofarm.buyer.product.exception.ProductErrorCode;
+import com.barofarm.common.entity.BaseEntity;
+import com.barofarm.exception.CustomException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.ConstraintMode;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -42,7 +44,11 @@ public class Product extends BaseEntity {
   private String description;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "category_id", nullable = false)
+  @JoinColumn(
+      name = "category_id",
+      nullable = false,
+      foreignKey = @ForeignKey(value = ConstraintMode.NO_CONSTRAINT)
+  )
   private Category category;
 
   @Column(nullable = false)
@@ -51,6 +57,13 @@ public class Product extends BaseEntity {
   @Enumerated(EnumType.STRING)
   @Column(name = "product_status", nullable = false)
   private ProductStatus productStatus;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "seasonality_type")
+  private SeasonalityType seasonalityType;
+
+  @Column(name = "seasonality_value", length = 20)
+  private String seasonalityValue;
 
     @OneToMany(
         mappedBy = "product",
@@ -128,6 +141,11 @@ public class Product extends BaseEntity {
             addImage(imageUrl, order++);
         }
     }
+
+  public void updateSeasonality(SeasonalityType seasonalityType, String seasonalityValue) {
+    this.seasonalityType = seasonalityType;
+    this.seasonalityValue = seasonalityValue;
+  }
 
   public void validateOwner(UUID memberId) {
     if (!this.sellerId.equals(memberId)) {
