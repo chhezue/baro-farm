@@ -1,4 +1,4 @@
-package com.barofarm.ai.recommend.client;
+package com.barofarm.ai.recommend.infrastructure.client;
 
 import com.barofarm.ai.common.exception.CommonErrorCode;
 import com.barofarm.ai.common.exception.CustomException;

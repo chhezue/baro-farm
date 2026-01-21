@@ -1,4 +1,4 @@
-package com.barofarm.ai.recommend.client;
+package com.barofarm.ai.recommend.infrastructure.client;
 
 import feign.codec.ErrorDecoder;
 import org.springframework.context.annotation.Bean;

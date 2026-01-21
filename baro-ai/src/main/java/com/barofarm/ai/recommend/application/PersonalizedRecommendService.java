@@ -4,15 +4,10 @@ import co.elastic.clients.elasticsearch._types.FieldValue;
 import com.barofarm.ai.common.exception.CustomException;
 import com.barofarm.ai.embedding.domain.UserProfileEmbeddingDocument;
 import com.barofarm.ai.embedding.infrastructure.elasticsearch.UserProfileEmbeddingRepository;
-import com.barofarm.ai.recommend.application.dto.response.PersonalRecommendResponse;
+import com.barofarm.ai.recommend.application.dto.ProductRecommendResponse;
 import com.barofarm.ai.recommend.exception.RecommendErrorCode;
 import com.barofarm.ai.search.domain.ProductDocument;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,8 +26,8 @@ public class PersonalizedRecommendService {
     private final UserProfileEmbeddingRepository userProfileEmbeddingRepository;
     private final ElasticsearchOperations elasticsearchOperations;
 
-    // 사용자 프로필 벡터를 기반으로 개인화된 상품을 추천 (유사도 점수 및 매칭 이유 포함)
-    public List<PersonalRecommendResponse> recommendProductsWithScore(UUID userId, int topK) {
+    // 사용자 프로필 벡터를 기반으로 개인화된 상품을 추천
+    public List<ProductRecommendResponse> recommendProducts(UUID userId, int topK) {
         // 1. 사용자 프로필 벡터 조회
         UserProfileEmbeddingDocument profile =
             userProfileEmbeddingRepository.findById(userId)
@@ -54,16 +49,16 @@ public class PersonalizedRecommendService {
         // 3. List<Double>을 float[]로 변환
         float[] userVector = convertToFloatArray(profile.getUserProfileVector());
 
-        // 4. Elasticsearch 벡터 유사도 검색 (점수 포함)
-        List<PersonalRecommendResponse> results =
-            findSimilarProductsByVectorWithScore(userVector, topK, experiencedProductIds);
+        // 4. Elasticsearch 벡터 유사도 검색
+        List<ProductRecommendResponse> results =
+            findSimilarProductsByVector(userVector, topK, experiencedProductIds);
 
         return results;
     }
 
-    // Elasticsearch에서 벡터 유사도 검색을 수행 (점수 및 매칭 이유 포함)
+    // Elasticsearch에서 벡터 유사도 검색을 수행
     @SuppressWarnings("checkstyle:MethodLength")
-    private List<PersonalRecommendResponse> findSimilarProductsByVectorWithScore(
+    private List<ProductRecommendResponse> findSimilarProductsByVector(
         float[] userVector,
         int topK,
         List<String> experiencedProductIds
@@ -107,7 +102,7 @@ public class PersonalizedRecommendService {
                 .map(UUID::fromString)  // String을 UUID로 변환
                 .collect(Collectors.toSet());
 
-            List<PersonalRecommendResponse> results = new ArrayList<>();
+            List<ProductRecommendResponse> results = new ArrayList<>();
             Set<UUID> seenProductIds = new HashSet<>(); // 중복 제거용 Set
 
             for (SearchHit<ProductDocument> hit : hits.getSearchHits()) {
@@ -133,18 +128,16 @@ public class PersonalizedRecommendService {
                 }
 
                 seenProductIds.add(productId);
-                double score = hit.getScore(); // 유사도 점수 (0~2 범위)
 
-                results.add(new PersonalRecommendResponse(
+                results.add(new ProductRecommendResponse(
                     productId,
                     product.getProductName(),
                     product.getProductCategory(),
-                    product.getPrice(),
-                    score
+                    product.getPrice()
                 ));
             }
 
-            log.debug("사용자 벡터 기반 추천 결과 (점수 포함): {}개 상품 발견 (중복 제거 후)", results.size());
+            log.debug("사용자 벡터 기반 추천 결과: {}개 상품 발견 (중복 제거 후)", results.size());
             return results;
 
         } catch (Exception e) {

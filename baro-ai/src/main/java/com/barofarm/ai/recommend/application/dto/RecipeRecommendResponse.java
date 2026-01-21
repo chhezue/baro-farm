@@ -1,4 +1,4 @@
-package com.barofarm.ai.recommend.application.dto.response;
+package com.barofarm.ai.recommend.application.dto;
 
 import java.util.List;
 

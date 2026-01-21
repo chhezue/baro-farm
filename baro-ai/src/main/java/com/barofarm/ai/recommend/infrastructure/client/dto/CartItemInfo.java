@@ -1,4 +1,4 @@
-package com.barofarm.ai.recommend.client.dto;
+package com.barofarm.ai.recommend.infrastructure.client.dto;
 
 import java.util.UUID;
 

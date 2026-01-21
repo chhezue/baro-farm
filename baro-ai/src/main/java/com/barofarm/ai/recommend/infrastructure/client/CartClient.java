@@ -1,6 +1,6 @@
-package com.barofarm.ai.recommend.client;
+package com.barofarm.ai.recommend.infrastructure.client;
 
-import com.barofarm.ai.recommend.client.dto.CartInfo;
+import com.barofarm.ai.recommend.infrastructure.client.dto.CartInfo;
 import java.util.UUID;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;

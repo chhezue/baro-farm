@@ -2,22 +2,16 @@ package com.barofarm.ai.recommend.presentation;
 
 import com.barofarm.ai.recommend.application.PersonalizedRecommendService;
 import com.barofarm.ai.recommend.application.RecipeRecommendService;
-import com.barofarm.ai.recommend.application.dto.response.PersonalRecommendResponse;
-import com.barofarm.ai.recommend.application.dto.response.RecipeRecommendResponse;
-import com.barofarm.ai.recommend.client.dto.CartInfo;
+import com.barofarm.ai.recommend.application.dto.ProductRecommendResponse;
+import com.barofarm.ai.recommend.application.dto.RecipeRecommendResponse;
+import com.barofarm.ai.recommend.infrastructure.client.dto.CartInfo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "추천", description = "개인화 추천 및 레시피 추천 API")
 @RestController
@@ -33,13 +27,13 @@ public class RecommendationController {
         description = "사용자의 행동 로그를 기반으로 생성된 프로필 벡터와 상품 벡터의 유사도를 계산하여 개인화된 상품을 추천"
     )
     @GetMapping("/personalized/{userId}")
-    public List<PersonalRecommendResponse> getPersonalizedRecommendations(
+    public List<ProductRecommendResponse> getPersonalizedRecommendations(
         @Parameter(description = "사용자 ID", example = "550e8400-e29b-41d4-a716-446655440000")
         @PathVariable UUID userId,
         @Parameter(description = "추천할 상품 개수", example = "5")
         @RequestParam(required = false, defaultValue = "5") int topK
     ) {
-        return personalizedRecommendService.recommendProductsWithScore(userId, topK);
+        return personalizedRecommendService.recommendProducts(userId, topK);
     }
 
     @Operation(
