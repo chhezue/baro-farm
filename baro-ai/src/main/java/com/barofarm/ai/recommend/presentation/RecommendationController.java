@@ -2,6 +2,7 @@ package com.barofarm.ai.recommend.presentation;
 
 import com.barofarm.ai.recommend.application.PersonalizedRecommendService;
 import com.barofarm.ai.recommend.application.RecipeRecommendService;
+import com.barofarm.ai.recommend.application.SimilarProductService;
 import com.barofarm.ai.recommend.application.dto.ProductRecommendResponse;
 import com.barofarm.ai.recommend.application.dto.RecipeRecommendResponse;
 import com.barofarm.ai.recommend.infrastructure.client.dto.CartInfo;
@@ -27,6 +28,7 @@ public class RecommendationController {
 
     private final PersonalizedRecommendService personalizedRecommendService;
     private final RecipeRecommendService recipeRecommendService;
+    private final SimilarProductService similarProductService;
 
     @Operation(
         summary = "개인화 추천 상품 조회",
@@ -64,5 +66,19 @@ public class RecommendationController {
         @PathVariable UUID userId
     ) {
         return recipeRecommendService.recommendFromCartWithMissing(userId);
+    }
+
+    @Operation(
+        summary = "특정 상품과 유사한 상품 추천",
+        description = "상품 상세 페이지 등에서 사용. 상품의 임베딩 벡터를 기반으로 유사도가 높은 다른 상품들을 추천"
+    )
+    @GetMapping("/similar/{productId}")
+    public List<ProductRecommendResponse> getSimilarProducts(
+        @Parameter(description = "기준 상품 ID", example = "00a1a1a1-a1a1-1a1a-a1a1-a1a1a1a1a1a1")
+        @PathVariable UUID productId,
+        @Parameter(description = "추천할 상품 개수", example = "3")
+        @RequestParam(required = false, defaultValue = "3") int topK
+    ) {
+        return similarProductService.recommendSimilarProducts(productId, topK);
     }
 }
