@@ -7,12 +7,15 @@ import co.elastic.clients.elasticsearch._types.aggregations.FilterAggregate;
 import co.elastic.clients.elasticsearch._types.aggregations.TopHitsAggregate;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.json.JsonData;
 import com.barofarm.ai.review.domain.review.Sentiment;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 @Component
 @RequiredArgsConstructor
@@ -37,7 +40,7 @@ public class ReviewCandidateQueryRepository {
                     .sort(s1 -> s1.field(f -> f.field("imageCount").order(SortOrder.Desc)))
                     .sort(s1 -> s1.field(f -> f.field("contentLength").order(SortOrder.Desc)))
                     .sort(s1 -> s1.field(f -> f.field("occurredAt").order(SortOrder.Desc)))
-                    .source(src -> src.fetch(false))
+                    .source(src -> src.filter(f -> f.includes(List.of("content"))))
                 ))
             )
             .aggregations(AGG_NEGATIVE, a -> a
@@ -47,21 +50,21 @@ public class ReviewCandidateQueryRepository {
                     .sort(s1 -> s1.field(f -> f.field("imageCount").order(SortOrder.Desc)))
                     .sort(s1 -> s1.field(f -> f.field("contentLength").order(SortOrder.Desc)))
                     .sort(s1 -> s1.field(f -> f.field("occurredAt").order(SortOrder.Desc)))
-                    .source(src -> src.fetch(false))
+                    .source(src -> src.filter(f -> f.includes(List.of("content"))))
                 ))
             ), Void.class);
 
         FilterAggregate posAgg = requireFilter(response.aggregations().get(AGG_POSITIVE));
         FilterAggregate negAgg = requireFilter(response.aggregations().get(AGG_NEGATIVE));
 
-        List<String> positiveIds = extractIds(posAgg);
-        List<String> negativeIds = extractIds(negAgg);
+        CandidateReviews positive = extractReviews(posAgg);
+        CandidateReviews negative = extractReviews(negAgg);
 
         return new CandidateResult(
             posAgg.docCount(),
             negAgg.docCount(),
-            positiveIds,
-            negativeIds
+            positive,
+            negative
         );
     }
 
@@ -72,27 +75,52 @@ public class ReviewCandidateQueryRepository {
         return aggregate.filter();
     }
 
-    private List<String> extractIds(FilterAggregate filterAgg) {
+    private CandidateReviews extractReviews(FilterAggregate filterAgg) {
         Aggregate topAgg = filterAgg.aggregations().get(AGG_TOP);
         if (topAgg == null || topAgg.topHits() == null) {
-            return List.of();
+            return new CandidateReviews(List.of(), List.of());
         }
 
         TopHitsAggregate topHits = topAgg.topHits();
         List<String> ids = new ArrayList<>();
+        List<String> contents = new ArrayList<>();
         for (Hit<?> hit : topHits.hits().hits()) {
             if (hit.id() != null) {
                 ids.add(hit.id());
             }
+            String content = extractContent(hit);
+            if (StringUtils.hasText(content)) {
+                contents.add(content);
+            }
         }
-        return ids;
+        return new CandidateReviews(ids, contents);
+    }
+
+    private String extractContent(Hit<?> hit) {
+        Object source = hit.source();
+        if (source instanceof Map<?, ?> map) {
+            Object content = map.get("content");
+            return (content instanceof String) ? (String) content : null;
+        }
+        if (source instanceof JsonData json) {
+            Map<?, ?> map = json.to(Map.class);
+            Object content = map.get("content");
+            return (content instanceof String) ? (String) content : null;
+        }
+        return null;
     }
 
     public record CandidateResult(
         long positiveCount,
         long negativeCount,
-        List<String> positiveReviewIds,
-        List<String> negativeReviewIds
+        CandidateReviews positive,
+        CandidateReviews negative
+    ) {
+    }
+
+    public record CandidateReviews(
+        List<String> reviewIds,
+        List<String> contents
     ) {
     }
 }

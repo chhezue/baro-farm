@@ -4,7 +4,7 @@ import com.barofarm.ai.event.model.ReviewEvent;
 import com.barofarm.ai.review.application.sentiment.SentimentClassifier;
 import com.barofarm.ai.review.domain.review.ReviewDocument;
 import com.barofarm.ai.review.domain.review.Sentiment;
-import com.barofarm.ai.review.infrastructure.ReviewRepository;
+import com.barofarm.ai.review.infrastructure.review.ReviewRepository;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

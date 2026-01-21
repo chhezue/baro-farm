@@ -18,7 +18,7 @@ public class BestReviewBatchJob {
     private static final int PAGE_SIZE = 1000;
 
     private final ReviewProductIdCollector productIdCollector;
-    private final BestReviewCandidateService candidateService;
+    private final BestReviewListService listService;
 
     @Scheduled(cron = "${best-review.batch.cron:0 0 2 * * *}")
     public void run() {
@@ -33,7 +33,7 @@ public class BestReviewBatchJob {
             }
 
             for (String productId : page.productIds()) {
-                candidateService.refreshProduct(productId);
+                listService.refreshProduct(productId);
             }
 
             afterKey = page.afterKey();
