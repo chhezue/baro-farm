@@ -22,7 +22,7 @@
                                                        },
                         "support:product-reviews-read":  {
                                                              "name":  "support:product-reviews-read",
-                                                             "path":  "^/api/v1/products/[^/]+/reviews$",
+                                                             "path":  "^(/support-service)?/api/v1/products/[^/]+/reviews$",
                                                              "methods":  [
                                                                              "GET"
                                                                          ],
@@ -82,7 +82,7 @@
                                                              },
                         "support:search-product-autocomplete":  {
                                                                     "name":  "support:search-product-autocomplete",
-                                                                    "path":  "^/api/v1/search/product/autocomplete$",
+                                                                    "path":  "^(/support-service)?/api/v1/search/product/autocomplete$",
                                                                     "methods":  [
                                                                                     "GET"
                                                                                 ],

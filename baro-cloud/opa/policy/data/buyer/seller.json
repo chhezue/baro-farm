@@ -2,7 +2,7 @@
     "rules_by_id":  {
                         "buyer:products-create":  {
                                                       "name":  "buyer:products-create",
-                                                      "path":  "^/api/v1/products$",
+                                                      "path":  "^(/buyer-service)?/api/v1/products$",
                                                       "methods":  [
                                                                       "POST"
                                                                   ],
@@ -16,7 +16,7 @@
                                                   },
                         "buyer:products-update-delete":  {
                                                              "name":  "buyer:products-update-delete",
-                                                             "path":  "^/api/v1/products/[^/]+$",
+                                                             "path":  "^(/buyer-service)?/api/v1/products/[^/]+$",
                                                              "methods":  [
                                                                              "PATCH",
                                                                              "DELETE"

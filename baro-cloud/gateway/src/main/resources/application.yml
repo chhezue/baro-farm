@@ -137,7 +137,7 @@ spring:
             - id: auth-service
               uri: lb://auth-service
               predicates:
-                - Path=/auth-service/**,/api/auth/**
+                - Path=/auth-service/**
               filters:
                 - RewritePath=/auth-service/(?<segment>.*), /${segment}
 
@@ -145,7 +145,7 @@ spring:
             - id: buyer-service
               uri: lb://buyer-service
               predicates:
-                - Path=/buyer-service/**,/api/buyers/**,/api/carts/**,/api/products/**
+                - Path=/buyer-service/**
               filters:
                 - RewritePath=/buyer-service/(?<segment>.*), /${segment}
 
@@ -153,7 +153,7 @@ spring:
             - id: seller-service
               uri: lb://seller-service
               predicates:
-                - Path=/seller-service/**,/api/sellers/**,/api/farms/**
+                - Path=/seller-service/**
               filters:
                 - RewritePath=/seller-service/(?<segment>.*), /${segment}
 
@@ -161,7 +161,7 @@ spring:
             - id: order-service
               uri: lb://order-service
               predicates:
-                - Path=/order-service/**,/api/orders/**
+                - Path=/order-service/**
               filters:
                 - RewritePath=/order-service/(?<segment>.*), /${segment}
 
@@ -169,7 +169,7 @@ spring:
             - id: payment-service
               uri: lb://payment-service
               predicates:
-                - Path=/payment-service/**,/api/payments/**,/api/deposits/**
+                - Path=/payment-service/**
               filters:
                 - RewritePath=/payment-service/(?<segment>.*), /${segment}
 
@@ -177,7 +177,7 @@ spring:
             - id: support-service
               uri: lb://support-service
               predicates:
-                - Path=/support-service/**,/api/deliveries/**,/api/notifications/**,/api/experiences/**,/api/reviews/**
+                - Path=/support-service/**
               filters:
                 - RewritePath=/support-service/(?<segment>.*), /${segment}
 
@@ -185,7 +185,7 @@ spring:
             - id: settlement-service
               uri: lb://settlement-service
               predicates:
-                - Path=/settlement-service/**,/api/settlements/**
+                - Path=/settlement-service/**
               filters:
                 - RewritePath=/settlement-service/(?<segment>.*), /${segment}
 
@@ -193,7 +193,7 @@ spring:
             - id: ai-service
               uri: lb://ai-service
               predicates:
-                - Path=/ai-service/**,/api/ai/**,/api/search/**,/api/recommend/**,/api/chatbot/**,/api/season/**
+                - Path=/ai-service/**
               filters:
                 - RewritePath=/ai-service/(?<segment>.*), /${segment}
 

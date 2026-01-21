@@ -9,7 +9,7 @@ package gateway.authz
 
 default allow := false
 
-# Allow preflight CORS requests.
+# Allow preflight(사전요청, 예비요청) CORS requests.
 allow {
   upper(input.request.method) == "OPTIONS"
 }

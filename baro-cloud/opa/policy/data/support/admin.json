@@ -2,7 +2,7 @@
     "rules_by_id":  {
                         "support:admin-search-create":  {
                                                             "name":  "support:admin-search-create",
-                                                            "path":  "^/api/v1/admin/search/(products|farms|experiences)$",
+                                                            "path":  "^(/support-service)?/api/v1/admin/search/(products|farms|experiences)$",
                                                             "methods":  [
                                                                             "POST"
                                                                         ],
@@ -12,7 +12,7 @@
                                                         },
                         "support:admin-search-delete":  {
                                                             "name":  "support:admin-search-delete",
-                                                            "path":  "^/api/v1/admin/search/(products|farms|experiences)/[^/]+$",
+                                                            "path":  "^(/support-service)?/api/v1/admin/search/(products|farms|experiences)/[^/]+$",
                                                             "methods":  [
                                                                             "DELETE"
                                                                         ],

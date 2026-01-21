@@ -2,7 +2,7 @@
     "rules_by_id":  {
                         "buyer:products-list":  {
                                                     "name":  "buyer:products-list",
-                                                    "path":  "^/api/v1/products$",
+                                                    "path":  "^(/buyer-service)?/api/v1/products$",
                                                     "methods":  [
                                                                     "GET"
                                                                 ],
@@ -12,7 +12,7 @@
                                                 },
                         "buyer:products-detail":  {
                                                       "name":  "buyer:products-detail",
-                                                      "path":  "^/api/v1/products/[^/]+$",
+                                                      "path":  "^(/buyer-service)?/api/v1/products/[^/]+$",
                                                       "methods":  [
                                                                       "GET"
                                                                   ],

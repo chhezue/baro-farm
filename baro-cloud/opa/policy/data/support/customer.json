@@ -2,7 +2,7 @@
     "rules_by_id":  {
                         "support:my-reviews":  {
                                                    "name":  "support:my-reviews",
-                                                   "path":  "^/api/v1/me/reviews$",
+                                                   "path":  "^(/support-service)?/api/v1/me/reviews$",
                                                    "methods":  [
                                                                    "GET"
                                                                ],
@@ -13,7 +13,7 @@
                                                },
                         "support:product-reviews-create":  {
                                                                "name":  "support:product-reviews-create",
-                                                               "path":  "^/api/v1/products/[^/]+/reviews$",
+                                                               "path":  "^(/support-service)?/api/v1/products/[^/]+/reviews$",
                                                                "methods":  [
                                                                                "POST"
                                                                            ],
@@ -27,7 +27,7 @@
                                                            },
                         "support:reservations-list":  {
                                                           "name":  "support:reservations-list",
-                                                          "path":  "^/api/v1/reservations$",
+                                                          "path":  "^(/support-service)?/api/v1/reservations$",
                                                           "methods":  [
                                                                           "GET"
                                                                       ],
@@ -38,7 +38,7 @@
                                                       },
                         "support:reservations-create":  {
                                                             "name":  "support:reservations-create",
-                                                            "path":  "^/api/v1/reservations$",
+                                                            "path":  "^(/support-service)?/api/v1/reservations$",
                                                             "methods":  [
                                                                             "POST"
                                                                         ],
@@ -52,7 +52,7 @@
                                                         },
                         "support:reservations-detail":  {
                                                             "name":  "support:reservations-detail",
-                                                            "path":  "^/api/v1/reservations/[^/]+$",
+                                                            "path":  "^(/support-service)?/api/v1/reservations/[^/]+$",
                                                             "methods":  [
                                                                             "GET"
                                                                         ],
@@ -63,7 +63,7 @@
                                                         },
                         "support:reviews-update-delete":  {
                                                               "name":  "support:reviews-update-delete",
-                                                              "path":  "^/api/v1/reviews/[^/]+$",
+                                                              "path":  "^(/support-service)?/api/v1/reviews/[^/]+$",
                                                               "methods":  [
                                                                               "PUT",
                                                                               "DELETE"
