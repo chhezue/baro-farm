@@ -13,7 +13,6 @@ baro-farm/
 ├── baro-buyer/                   # B. 구매자 모듈
 │   ├── src/main/java/com/barofarm/buyer/
 │   │   ├── BuyerApplication.java
-│   │   ├── buyer/                # 구매자 회원 관리
 │   │   ├── cart/                 # 장바구니 관리
 │   │   ├── product/              # 상품 관리
 │   │   └── inventory/            # 재고 관리
@@ -29,31 +28,50 @@ baro-farm/
 ├── baro-order/                   # D. 주문 모듈
 │   ├── src/main/java/com/barofarm/order/
 │   │   ├── OrderApplication.java
-│   │   ├── order/                # 주문 관리
-│   │   ├── payment/              # 결제 관리
-│   │   └── deposit/              # 예치금 관리
+│   │   └── order/                # 주문 관리
 │   └── build.gradle
 │
-├── baro-support/                 # E. 지원 모듈
+├── baro-payment/                 # E. 결제 모듈
+│   ├── src/main/java/com/barofarm/payment/
+│   │   ├── PaymentApplication.java
+│   │   └── payment/              # 결제 관리
+│   └── build.gradle
+│
+├── baro-support/                 # F. 지원 모듈
 │   ├── src/main/java/com/barofarm/support/
 │   │   ├── SupportApplication.java
-│   │   ├── settlement/           # 정산 관리
 │   │   ├── delivery/             # 배송 관리
 │   │   ├── notification/         # 알림 관리
 │   │   ├── experience/           # 체험 프로그램 관리
 │   │   ├── search/               # 검색 관리
-│   │   └── review/               # 리뷰 관리
+│   │   ├── review/               # 리뷰 관리
+│   │   └── deposit/              # 예치금 관리
 │   └── build.gradle
 │
-└── baro-cloud/                   # F. 인프라 모듈
-    ├── gateway/                  # API Gateway
-    ├── config/                   # Config Server
-    └── eureka/                   # Service Registry
+├── baro-settlement/              # G. 정산 모듈
+│   ├── src/main/java/com/barofarm/settlement/
+│   │   ├── SettlementApplication.java
+│   │   └── settlement/           # 정산 관리 (DaemonSet 배포)
+│   └── build.gradle
+│
+├── baro-ai/                      # H. AI 모듈
+│   ├── src/main/java/com/barofarm/ai/
+│   │   ├── AiApplication.java
+│   │   ├── eventLog/
+│   │   ├── recommend/            # 추천 서비스
+│   │   ├── review/               # 리뷰 서비스
+│   │   └── season/               # 제철 서비스
+│   └── build.gradle
+│
+├── baro-cloud/                   # I. 인프라 모듈
+│   ├── gateway/                  # API Gateway
+│   ├── config/                   # Config Server
+│   └── eureka/                   # Service Registry
 │
 ├── config/checkstyle/            # 코드 품질 설정
 │   ├── checkstyle.xml
 │   └── suppressions.xml
-├── scripts/                      # Git Hooks
+├── scripts/                      # 스크립트 및 Git Hooks
 │   ├── pre-commit
 │   └── install-hooks.sh
 ├── build.gradle                  # Root Gradle 설정
@@ -79,8 +97,11 @@ baro-farm/
 | baro-auth | 8081 | auth |
 | baro-buyer | 8082 | buyer, cart, product |
 | baro-seller | 8085 | seller, farm |
-| baro-order | 8087 | order, payment |
-| baro-support | 8089 | settlement, delivery, notification, experience, search, review |
+| baro-order | 8087 | order |
+| baro-payment | 8088 | payment |
+| baro-support | 8089 | delivery, notification, experience, review, deposit |
+| baro-settlement | 8090 | settlement (DaemonSet 배포) |
+| baro-ai | 8092 | search, recommend, review, season |
 
 ## 🔄 통신 방식
 

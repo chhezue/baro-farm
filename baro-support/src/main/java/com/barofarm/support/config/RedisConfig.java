@@ -1,29 +1,13 @@
+// Redis 사용을 중단하면서 기존 설정 클래스를 비활성화합니다.
+// 필요 시 Git 히스토리에서 복원하여 사용할 수 있습니다.
+
 package com.barofarm.support.config;
 
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.StringRedisSerializer;
-
-/** Redis 설정 */
-@Configuration
+/**
+ * Redis 설정 (현재 미사용).
+ *
+ * Redis 의존성을 제거하고, 애플리케이션에서 Redis를 사용하지 않도록 변경했습니다.
+ * 이 파일은 향후 Redis를 다시 도입할 때를 대비해 빈 클래스로 남겨둡니다.
+ */
 public class RedisConfig {
-
-    @Bean
-    public RedisTemplate<String, String> redisTemplate(RedisConnectionFactory connectionFactory) {
-        RedisTemplate<String, String> template = new RedisTemplate<>();
-        template.setConnectionFactory(connectionFactory);
-
-        // Key: String 직렬화
-        template.setKeySerializer(new StringRedisSerializer());
-        template.setHashKeySerializer(new StringRedisSerializer());
-
-        // Value: String 직렬화 (UUID를 String으로 변환하여 저장)
-        template.setValueSerializer(new StringRedisSerializer());
-        template.setHashValueSerializer(new StringRedisSerializer());
-
-        template.afterPropertiesSet();
-        return template;
-    }
 }

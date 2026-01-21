@@ -32,33 +32,38 @@ baro-farm/
 ├── baro-order/                   # D. 주문 모듈
 │   ├── src/main/java/com/barofarm/order/
 │   │   ├── OrderApplication.java
-│   │   ├── order/                # 주문 관리
-│   │   ├── payment/              # 결제 관리
-│   │   └── deposit/              # 예치금 관리
+│   │   └── order/                # 주문 관리
 │   └── build.gradle
 │
-├── baro-support/                 # E. 지원 모듈
+├── baro-payment/                 # E. 주문 모듈
+│   ├── src/main/java/com/barofarm/payment/
+│   │   ├── PaymentApplication.java
+│   │   └── payment/              # 결제 관리
+│   └── build.gradle
+│
+├── baro-support/                 # F. 지원 모듈
 │   ├── src/main/java/com/barofarm/support/
 │   │   ├── SupportApplication.java
 │   │   ├── delivery/             # 배송 관리
 │   │   ├── notification/         # 알림 관리
 │   │   ├── experience/           # 체험 프로그램 관리
 │   │   ├── search/               # 검색 관리
-│   │   └── review/               # 리뷰 관리
+│   │   ├── review/               # 리뷰 관리
+│   │   └── deposit/              # 예치금 관리
 │   └── build.gradle
 │
-├── baro-settlement/              # F. 정산 모듈
+├── baro-settlement/              # G. 정산 모듈
 │   ├── src/main/java/com/barofarm/settlement/
 │   │   ├── SettlementApplication.java
 │   │   └── settlement/           # 정산 관리 (DaemonSet 배포)
 │   └── build.gradle
 │
-├── baro-ai/                      # G. AI 모듈
+├── baro-ai/                      # H. AI 모듈
 │   ├── src/main/java/com/barofarm/ai/
 │   │   ├── AiApplication.java
 │   │   ├── eventLog/
 │   │   ├── recommend/            # 추천 서비스
-│   │   ├── chatbot/              # 챗봇 서비스
+│   │   ├── review/               # 리뷰 서비스
 │   │   └── season/               # 제철 서비스
 │   └── build.gradle
 │
@@ -205,10 +210,10 @@ docker run -d --name baro-kafka \
 ./gradlew :baro-buyer:bootRun     # 구매자 모듈 (cart, product, inventory)
 ./gradlew :baro-seller:bootRun    # 판매자 모듈 (seller, farm)
 ./gradlew :baro-order:bootRun     # 주문 모듈 (order)
-./gradlew :baro-order:bootRun     # 결제 모듈 (payment, deposit)
-./gradlew :baro-support:bootRun   # 지원 모듈 (delivery, notification, experience, review)
+./gradlew :baro-payment:bootRun   # 결제 모듈 (payment)
+./gradlew :baro-support:bootRun   # 지원 모듈 (delivery, notification, experience, review, deposit)
 ./gradlew :baro-settlement:bootRun # 정산 모듈 (settlement)
-./gradlew :baro-ai:bootRun        # AI 모듈 (search, recommend, chatbot, season)
+./gradlew :baro-ai:bootRun        # AI 모듈 (search, recommend, season)
 ```
 
 #### JAR로 실행
@@ -225,7 +230,7 @@ java -jar baro-auth/build/libs/baro-auth-0.0.1-SNAPSHOT.jar
 java -jar baro-buyer/build/libs/baro-buyer-0.0.1-SNAPSHOT.jar
 java -jar baro-seller/build/libs/baro-seller-0.0.1-SNAPSHOT.jar
 java -jar baro-order/build/libs/baro-order-0.0.1-SNAPSHOT.jar
-java -jar baro-order/build/libs/baro-payment-0.0.1-SNAPSHOT.jar
+java -jar baro-payment/build/libs/baro-payment-0.0.1-SNAPSHOT.jar
 java -jar baro-support/build/libs/baro-support-0.0.1-SNAPSHOT.jar
 java -jar baro-settlement/build/libs/baro-settlement-0.0.1-SNAPSHOT.jar
 java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
@@ -246,10 +251,10 @@ java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
 | | baro-buyer | 8082 | buyer, cart, product |
 | | baro-seller | 8085 | seller, farm |
 | | baro-order | 8087 | order |
-| | baro-order | 8088 | payment, deposit |
-| | baro-support | 8089 | delivery, notification, experience, review |
+| | baro-order | 8088 | payment |
+| | baro-support | 8089 | delivery, notification, experience, review, deposit |
 | | baro-settlement | 8090 | settlement (DaemonSet 배포) |
-| | baro-ai | 8092 | search, recommend, chatbot, season |
+| | baro-ai | 8092 | search, recommend, review, season |
 
 ## 💾 리소스 제한 사항
 
@@ -371,30 +376,30 @@ healthcheck:
 
 | 카테고리 | 서비스 | 메모리 (최대) |
 |----------|--------|--------------|
-| **Spring Cloud** | eureka | 256MB |
-| | config | 256MB |
-| | gateway | 512MB |
-| | **소계** | **1,024MB** |
-| **비즈니스 서비스** | baro-auth | 128MB |
-| | baro-buyer | 128MB |
-| | baro-seller | 128MB |
-| | baro-order | 128MB |
-| | baro-payment | 128MB |
-| | baro-support | 128MB |
-| | baro-settlement | 128MB |
-| | baro-ai | 128MB |
-| | **소계** | **1.0GB** |
+| **Spring Cloud** | eureka | 300MB |
+| | config | 300MB |
+| | gateway | 300MB |
+| | **소계** | **900MB** |
+| **비즈니스 서비스** | baro-auth | 350MB |
+| | baro-buyer | 400MB |
+| | baro-seller | 350MB |
+| | baro-order | 400MB |
+| | baro-payment | 350MB |
+| | baro-support | 400MB |
+| | baro-settlement | 350MB |
+| | baro-ai | 350MB |
+| | **소계** | **1.95GB** |
 | **데이터 인프라** | mysql | 400MB |
 | | redis | 256MB |
 | | kafka | 256MB |
-| | elasticsearch | 384MB |
-| | **소계** | **1,296MB** |
-| **총합** | | **~3.2GB** |
+| | elasticsearch | 600MB |
+| | **소계** | **1.5GB** |
+| **총합** | | **~4.35GB** |
 
 > **참고:**
 > - **Master Node (t3.medium 4GB)**: OS 및 Docker 데몬 ~1GB, 시스템 버퍼 ~0.5GB, 실제 사용 가능 ~2.5GB
 > - **Worker Node (t3.medium 4GB)**: OS 및 Docker 데몬 ~1GB, 시스템 버퍼 ~0.5GB, 실제 사용 가능 ~2.5GB
-> - 각 노드별로 서비스가 분산 배포되어 메모리 사용량 최적화
+> - Master Node에는 MySQL, Redis, Elasticsearch, Eureka, Config, Gateway를, Worker Node에는 Kafka와 비즈니스 서비스 모듈을 배포하여 메모리 사용량을 최적화
 
 ### 리소스 모니터링
 
@@ -802,6 +807,14 @@ ghcr.io/do-develop-space/baro-auth:
 └── main-auth-20241205-143022      # 브랜치-타임스탬프
 ```
 
+#### 배포 이미지 버전
+
+- **공통 이미지 버전 환경 변수**: `IMAGE_VERSION=0.1.0`
+- **이미지 태그 규칙**:
+  - 애플리케이션: `ghcr.io/do-develop-space/{모듈}:IMAGE_VERSION` (예: `ghcr.io/do-develop-space/baro-auth:0.1.0`)
+  - 필요 시 브랜치/커밋 SHA와 조합: `IMAGE_VERSION-main-auth-abc123d`
+  - k8s 배포 시 `kustomization.yaml` 또는 배포 스크립트(`scripts/deploy-k8s.sh`)에서 `IMAGE_VERSION`을 기준으로 태그를 치환
+
 #### 롤백 방법
 
 ```bash
@@ -833,7 +846,6 @@ curl http://localhost:8081/actuator/health
 
 **📚 상세 가이드:**
 - [CI/CD 설정 가이드](docs/CICD_GUIDE.md) - 전체 설정 및 트러블슈팅
-- [버전 관리 가이드](docs/VERSION_MANAGEMENT.md) - 롤백 및 버전 관리
 
 ## 📝 라이선스
 

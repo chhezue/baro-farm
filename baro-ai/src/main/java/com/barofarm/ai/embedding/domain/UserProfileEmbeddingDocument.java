@@ -25,4 +25,18 @@ public class UserProfileEmbeddingDocument {
 
     @Field(type = FieldType.Date)
     private Instant lastUpdatedAt;
+
+    // 임베딩 생성에 사용한 로그들의 ID (동일성/재현성 확보)
+    @Field(type = FieldType.Keyword)
+    private List<String> sourceSearchLogIds;  // 최대 5개
+
+    @Field(type = FieldType.Keyword)
+    private List<String> sourceCartLogIds;    // 최대 5개
+
+    @Field(type = FieldType.Keyword)
+    private List<String> sourceOrderLogIds;   // 최대 5개
+
+    // 빠른 상품 제외를 위한 productId 목록 (cart+order에서 추출, UUID 문자열)
+    @Field(type = FieldType.Keyword)
+    private List<String> sourceProductIds;    // 최대 10개 (중복 제거)
 }

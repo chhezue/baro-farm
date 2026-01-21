@@ -7,7 +7,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-/** Farm 이벤트를 구독하여 Redis 캐시를 업데이트하는 Consumer */
+/**
+ * Farm 이벤트를 구독하여 {@link FarmCacheService} 에 알리는 Consumer.
+ *
+ * 현재 구현에서는 FarmCacheService 쪽에서 Redis를 사용하지 않고,
+ * 이벤트 수신 후 필요한 후처리 훅(hook)만 제공하는 용도로 사용합니다.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -24,11 +29,11 @@ public class FarmCacheEventConsumer {
         try {
             switch (event.getType()) {
                 case FARM_CREATED, FARM_UPDATED -> {
-                    // Redis 캐시 업데이트 (Set에 farmId 추가)
+                    // Farm 생성/수정 시 캐시/권한 관련 후처리 훅 호출 (현재는 Redis 미사용)
                     farmCacheService.updateCache(data.getSellerId(), data.getFarmId());
                 }
                 case FARM_DELETED -> {
-                    // Redis 캐시에서 특정 farmId 제거
+                    // Farm 삭제 시 캐시/권한 관련 후처리 훅 호출 (현재는 Redis 미사용)
                     farmCacheService.deleteCache(data.getSellerId(), data.getFarmId());
                 }
                 default -> {

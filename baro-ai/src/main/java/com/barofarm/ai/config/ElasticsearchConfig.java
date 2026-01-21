@@ -1,5 +1,6 @@
 package com.barofarm.ai.config;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -9,7 +10,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.elasticsearch.client.ClientConfiguration;
-import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfiguration;
 import org.springframework.data.elasticsearch.repository.config.EnableElasticsearchRepositories;
 
 /**
@@ -25,16 +25,51 @@ import org.springframework.data.elasticsearch.repository.config.EnableElasticsea
  */
 @Configuration
 @EnableElasticsearchRepositories(basePackageClasses = com.barofarm.ai.AiApplication.class)
-public class ElasticsearchConfig extends ElasticsearchConfiguration {
+public class ElasticsearchConfig {
 
     @Value("${spring.elasticsearch.uris:http://localhost:9200}")
-    private String elasticsearchUri;
+    private String elasticsearchUris;
 
-    @Override
-    public ClientConfiguration clientConfiguration() {
-        // "http://elasticsearch:9200" -> "elasticsearch:9200"
-        // "http://localhost:9200" -> "localhost:9200"
-        String hostAndPort = elasticsearchUri
+    /**
+     * Elasticsearch RestClient 생성
+     * @return RestClient 인스턴스
+     */
+    @Bean
+    public RestClient elasticsearchRestClient() {
+        String[] uris = elasticsearchUris.split(",");
+        HttpHost[] hosts = new HttpHost[uris.length];
+
+        for (int i = 0; i < uris.length; i++) {
+            String uri = uris[i].trim();
+            String scheme = "http";
+            if (uri.startsWith("http://")) {
+                uri = uri.substring(7);
+            } else if (uri.startsWith("https://")) {
+                uri = uri.substring(8);
+                scheme = "https";
+            }
+
+            String[] parts = uri.split(":");
+            String host = parts[0];
+            int port = parts.length > 1 ? Integer.parseInt(parts[1]) : 9200;
+
+            hosts[i] = new HttpHost(host, port, scheme);
+        }
+
+        return RestClient.builder(hosts).build();
+    }
+
+    /**
+     * ClientConfiguration Bean 생성
+     * Spring Boot가 이를 사용하여 ElasticsearchOperations를 자동 생성합니다.
+     *
+     * @return ClientConfiguration 인스턴스
+     */
+    @Bean
+    public ClientConfiguration elasticsearchClientConfiguration() {
+        String[] uris = elasticsearchUris.split(",");
+        String firstUri = uris[0].trim();
+        String hostAndPort = firstUri
             .replace("http://", "")
             .replace("https://", "");
 
