@@ -11,6 +11,7 @@ spring:
     import:
       - ${SPRING_CONFIG_IMPORT:optional:configserver:http://config:8888}
       - classpath:review-sentiment.yml
+      - classpath:review-negative-keywords.yml
   main:
     allow-bean-definition-overriding: true
   autoconfigure:
