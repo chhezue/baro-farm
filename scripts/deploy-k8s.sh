@@ -110,40 +110,34 @@ log_info "k8s 디렉토리: $K8S_BASE_DIR"
 log_step "🔍 Checking kubectl..."
 KUBECTL_CMD=""
 
-# 1. kubectl이 있는지 확인하고 실제로 동작하는지 테스트
-if command -v kubectl &> /dev/null; then
+# k3s가 설치되어 있으면 우선적으로 sudo k3s kubectl 사용 (권한 문제 방지)
+if command -v k3s &> /dev/null; then
+    if sudo k3s kubectl get nodes &> /dev/null 2>&1; then
+        KUBECTL_CMD="sudo k3s kubectl"
+        log_info "✅ sudo k3s kubectl 사용 (k3s 환경 감지)"
+    fi
+fi
+
+# k3s가 없거나 sudo k3s kubectl이 실패하면 일반 kubectl 시도
+if [ -z "$KUBECTL_CMD" ] && command -v kubectl &> /dev/null; then
     # kubectl이 실제로 클러스터에 접근할 수 있는지 테스트
     if kubectl get nodes &> /dev/null 2>&1; then
         KUBECTL_CMD="kubectl"
         log_info "✅ 일반 kubectl 사용 가능 (클러스터 접근 성공)"
-    elif command -v k3s &> /dev/null; then
-        # kubectl이 있지만 클러스터에 접근 실패, sudo k3s kubectl 시도
-        if sudo k3s kubectl get nodes &> /dev/null 2>&1; then
-            KUBECTL_CMD="sudo k3s kubectl"
-            log_info "✅ sudo k3s kubectl 사용 (일반 kubectl은 permission 문제)"
-        fi
     fi
 fi
 
-# 2. kubectl이 없거나 동작하지 않으면 sudo k3s kubectl 시도
-if [ -z "$KUBECTL_CMD" ] && command -v k3s &> /dev/null; then
-    if sudo k3s kubectl get nodes &> /dev/null 2>&1; then
-        KUBECTL_CMD="sudo k3s kubectl"
-        log_info "✅ sudo k3s kubectl 사용"
-    fi
-fi
-
-# 3. 최종 확인
+# 최종 확인
 if [ -z "$KUBECTL_CMD" ]; then
     log_error "kubectl 또는 k3s가 설치되어 있지 않거나 클러스터에 연결할 수 없습니다."
     echo "디버깅 정보:"
-    if command -v kubectl &> /dev/null; then
-        echo "kubectl get nodes 결과:"
-        kubectl get nodes 2>&1 || true
-    fi
     if command -v k3s &> /dev/null; then
         echo "sudo k3s kubectl get nodes 결과:"
         sudo k3s kubectl get nodes 2>&1 || true
+    fi
+    if command -v kubectl &> /dev/null; then
+        echo "kubectl get nodes 결과:"
+        kubectl get nodes 2>&1 || true
     fi
     exit 1
 fi
