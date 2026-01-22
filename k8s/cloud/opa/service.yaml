@@ -13,9 +13,5 @@ spec:
       targetPort: 8181
       protocol: TCP
       name: http
-    - port: 8095
-      targetPort: 8095
-      protocol: TCP
-      name: bundle
   selector:
     app: opa
