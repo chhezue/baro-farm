@@ -213,7 +213,7 @@ case "$MODULE_NAME" in
         DEPLOY_PATH=""
         APP_NAME="cloud"
         ;;
-    eureka|config|gateway)
+    eureka|config|gateway|opa)
         DEPLOY_PATH="$K8S_BASE_DIR/cloud/$MODULE_NAME"
         APP_NAME="$MODULE_NAME"
         ;;
@@ -657,34 +657,69 @@ else
 fi
 
 # ===================================
-# Deployment 이름 추출 (selector 충돌 처리에 필요)
+# Deployment/DaemonSet 이름 추출 (selector 충돌 처리에 필요)
 # ===================================
 DEPLOYMENT_NAME=""
-if [ -f "$DEPLOYMENT_FILE" ]; then
+DAEMONSET_NAME=""
+RESOURCE_TYPE=""
+
+# DaemonSet 확인 (우선순위)
+if [ -f "$DAEMONSET_FILE" ]; then
+    RESOURCE_TYPE="DaemonSet"
+    # daemonset.yaml에서 metadata.name 추출
+    DAEMONSET_NAME=$(grep -E "^  name:" "$DAEMONSET_FILE" | head -1 | awk '{print $2}' 2>/dev/null)
+    
+    if [ -z "$DAEMONSET_NAME" ]; then
+        DAEMONSET_NAME=$(grep -E "^\s+name:" "$DAEMONSET_FILE" | grep -v "namespace:" | head -1 | awk '{print $2}' 2>/dev/null)
+    fi
+    
+    if [ -z "$DAEMONSET_NAME" ]; then
+        DAEMONSET_NAME=$(sed -n '/^metadata:/,/^spec:/p' "$DAEMONSET_FILE" | grep "name:" | head -1 | awk '{print $2}' 2>/dev/null)
+    fi
+    
+    if [ -z "$DAEMONSET_NAME" ] && [ -n "$APP_NAME" ]; then
+        DAEMONSET_NAME="$APP_NAME"
+        log_info "💡 DAEMONSET_NAME을 APP_NAME으로 설정: $DAEMONSET_NAME"
+    fi
+# Deployment 확인
+elif [ -f "$DEPLOYMENT_FILE" ]; then
+    RESOURCE_TYPE="Deployment"
     # deployment.yaml에서 metadata.name 추출 (여러 방법 시도)
-    # 방법 1: 일반적인 패턴 (들여쓰기 2칸)
     DEPLOYMENT_NAME=$(grep -E "^  name:" "$DEPLOYMENT_FILE" | head -1 | awk '{print $2}' 2>/dev/null)
     
-    # 방법 2: 다른 들여쓰기 패턴
     if [ -z "$DEPLOYMENT_NAME" ]; then
         DEPLOYMENT_NAME=$(grep -E "^\s+name:" "$DEPLOYMENT_FILE" | grep -v "namespace:" | head -1 | awk '{print $2}' 2>/dev/null)
     fi
     
-    # 방법 3: metadata 섹션 내의 name 찾기
     if [ -z "$DEPLOYMENT_NAME" ]; then
         DEPLOYMENT_NAME=$(sed -n '/^metadata:/,/^spec:/p' "$DEPLOYMENT_FILE" | grep "name:" | head -1 | awk '{print $2}' 2>/dev/null)
     fi
+    
+    if [ -z "$DEPLOYMENT_NAME" ] && [ -n "$APP_NAME" ]; then
+        DEPLOYMENT_NAME="$APP_NAME"
+        log_info "💡 DEPLOYMENT_NAME을 APP_NAME으로 설정: $DEPLOYMENT_NAME"
+    fi
 fi
 
-# 여전히 없으면 APP_NAME 사용 (fallback)
-if [ -z "$DEPLOYMENT_NAME" ] && [ -n "$APP_NAME" ]; then
-    DEPLOYMENT_NAME="$APP_NAME"
-    log_info "💡 DEPLOYMENT_NAME을 APP_NAME으로 설정: $DEPLOYMENT_NAME"
+# 최종 확인
+if [ -z "$DAEMONSET_NAME" ] && [ -z "$DEPLOYMENT_NAME" ]; then
+    log_warn "⚠️  리소스 이름을 추출할 수 없습니다. APP_NAME: $APP_NAME"
 fi
 
-# 최종 확인: DEPLOYMENT_NAME이 설정되었는지
-if [ -z "$DEPLOYMENT_NAME" ]; then
-    log_warn "⚠️  DEPLOYMENT_NAME을 추출할 수 없습니다. APP_NAME: $APP_NAME"
+if [ -n "$RESOURCE_TYPE" ]; then
+    log_info "📋 리소스 타입: $RESOURCE_TYPE"
+fi
+
+# ===================================
+# opa 배포 전 Eureka 확인
+# ===================================
+if [ "$MODULE_NAME" = "opa" ]; then
+    log_step "⏳ OPA 배포 전 Eureka 준비 상태 확인 중..."
+    if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=eureka -n baro-prod --timeout=60s 2>&1; then
+        log_warn "⚠️ Eureka Pod가 Ready 상태가 아닙니다. OPA 배포를 계속 진행하지만, initContainer에서 대기합니다."
+    else
+        log_info "✅ Eureka Pod가 Ready 상태입니다."
+    fi
 fi
 
 # ===================================
@@ -710,39 +745,72 @@ if [ $APPLY_EXIT_CODE -ne 0 ]; then
     echo "$APPLY_OUTPUT"
     # selector immutable 에러 확인
     if echo "$APPLY_OUTPUT" | grep -q "selector.*immutable\|field is immutable"; then
-        log_warn "⚠️  Deployment selector 충돌 감지. 기존 Deployment를 삭제하고 재생성합니다..."
-        
-        # DEPLOYMENT_NAME이 없으면 APP_NAME으로 시도
-        if [ -z "$DEPLOYMENT_NAME" ] && [ -n "$APP_NAME" ]; then
-            DEPLOYMENT_NAME="$APP_NAME"
-        fi
-        
-        if [ -n "$DEPLOYMENT_NAME" ]; then
-            log_info "기존 Deployment 삭제: $DEPLOYMENT_NAME"
-            $KUBECTL_CMD delete deployment "$DEPLOYMENT_NAME" -n baro-prod --ignore-not-found=true
-            sleep 2
-            log_info "Deployment 재생성 중..."
+        if [ "$RESOURCE_TYPE" = "DaemonSet" ]; then
+            log_warn "⚠️  DaemonSet selector 충돌 감지. 기존 DaemonSet을 삭제하고 재생성합니다..."
             
-            # 재생성 시도 (에러 캡처)
-            set +e
-            RECREATE_OUTPUT=$($KUBECTL_CMD apply -k "$DEPLOY_PATH" 2>&1)
-            RECREATE_EXIT_CODE=$?
-            set -e
+            if [ -z "$DAEMONSET_NAME" ] && [ -n "$APP_NAME" ]; then
+                DAEMONSET_NAME="$APP_NAME"
+            fi
             
-            if [ $RECREATE_EXIT_CODE -eq 0 ]; then
-                log_info "✅ Deployment 재생성 완료"
-                echo "$RECREATE_OUTPUT"
+            if [ -n "$DAEMONSET_NAME" ]; then
+                log_info "기존 DaemonSet 삭제: $DAEMONSET_NAME"
+                $KUBECTL_CMD delete daemonset "$DAEMONSET_NAME" -n baro-prod --ignore-not-found=true
+                sleep 2
+                log_info "DaemonSet 재생성 중..."
+                
+                set +e
+                RECREATE_OUTPUT=$($KUBECTL_CMD apply -k "$DEPLOY_PATH" 2>&1)
+                RECREATE_EXIT_CODE=$?
+                set -e
+                
+                if [ $RECREATE_EXIT_CODE -eq 0 ]; then
+                    log_info "✅ DaemonSet 재생성 완료"
+                    echo "$RECREATE_OUTPUT"
+                else
+                    log_error "❌ DaemonSet 재생성 실패 (exit code: $RECREATE_EXIT_CODE)"
+                    echo "$RECREATE_OUTPUT"
+                    exit 1
+                fi
             else
-                log_error "❌ Deployment 재생성 실패 (exit code: $RECREATE_EXIT_CODE)"
-                echo "$RECREATE_OUTPUT"
+                log_error "❌ DaemonSet 이름을 찾을 수 없습니다. (APP_NAME: $APP_NAME)"
+                log_error "수동으로 다음 명령어를 실행하세요:"
+                log_error "  kubectl delete daemonset <daemonset-name> -n baro-prod"
+                log_error "  kubectl apply -k $DEPLOY_PATH"
                 exit 1
             fi
         else
-            log_error "❌ Deployment 이름을 찾을 수 없습니다. (APP_NAME: $APP_NAME)"
-            log_error "수동으로 다음 명령어를 실행하세요:"
-            log_error "  kubectl delete deployment <deployment-name> -n baro-prod"
-            log_error "  kubectl apply -k $DEPLOY_PATH"
-            exit 1
+            log_warn "⚠️  Deployment selector 충돌 감지. 기존 Deployment를 삭제하고 재생성합니다..."
+            
+            if [ -z "$DEPLOYMENT_NAME" ] && [ -n "$APP_NAME" ]; then
+                DEPLOYMENT_NAME="$APP_NAME"
+            fi
+            
+            if [ -n "$DEPLOYMENT_NAME" ]; then
+                log_info "기존 Deployment 삭제: $DEPLOYMENT_NAME"
+                $KUBECTL_CMD delete deployment "$DEPLOYMENT_NAME" -n baro-prod --ignore-not-found=true
+                sleep 2
+                log_info "Deployment 재생성 중..."
+                
+                set +e
+                RECREATE_OUTPUT=$($KUBECTL_CMD apply -k "$DEPLOY_PATH" 2>&1)
+                RECREATE_EXIT_CODE=$?
+                set -e
+                
+                if [ $RECREATE_EXIT_CODE -eq 0 ]; then
+                    log_info "✅ Deployment 재생성 완료"
+                    echo "$RECREATE_OUTPUT"
+                else
+                    log_error "❌ Deployment 재생성 실패 (exit code: $RECREATE_EXIT_CODE)"
+                    echo "$RECREATE_OUTPUT"
+                    exit 1
+                fi
+            else
+                log_error "❌ Deployment 이름을 찾을 수 없습니다. (APP_NAME: $APP_NAME)"
+                log_error "수동으로 다음 명령어를 실행하세요:"
+                log_error "  kubectl delete deployment <deployment-name> -n baro-prod"
+                log_error "  kubectl apply -k $DEPLOY_PATH"
+                exit 1
+            fi
         fi
     else
         # 다른 종류의 에러
@@ -800,7 +868,12 @@ fi
 # ===================================
 # 1. IMAGE_TAG가 latest일 때
 # 2. 또는 deployment.yaml이 수정되었는데 unchanged가 나왔을 때
-if [ -n "$DEPLOYMENT_NAME" ]; then
+if [ -n "$DAEMONSET_NAME" ]; then
+    if [ "$IMAGE_TAG" = "latest" ]; then
+        log_info "🔄 latest 태그 사용 중이므로 Pod 재시작 (rollout restart)..."
+        $KUBECTL_CMD rollout restart daemonset/"$DAEMONSET_NAME" -n baro-prod || true
+    fi
+elif [ -n "$DEPLOYMENT_NAME" ]; then
     if [ "$IMAGE_TAG" = "latest" ]; then
         log_info "🔄 latest 태그 사용 중이므로 Pod 재시작 (rollout restart)..."
         $KUBECTL_CMD rollout restart deployment/"$DEPLOYMENT_NAME" -n baro-prod || true
@@ -813,7 +886,38 @@ fi
 # ===================================
 # 배포 상태 확인
 # ===================================
-if [ -f "$DEPLOYMENT_FILE" ]; then
+if [ -f "$DAEMONSET_FILE" ]; then
+    if [ -n "$DAEMONSET_NAME" ]; then
+        log_step "⏳ Pod가 Ready 상태가 될 때까지 대기 중..."
+        if ! $KUBECTL_CMD wait --for=condition=ready pod -l app="$APP_NAME" -n baro-prod --timeout=300s 2>&1; then
+            log_warn "⚠️ $APP_NAME Pod가 Ready 상태가 되지 않았습니다. 상태 확인 중..."
+            echo ""
+            echo "📊 $APP_NAME Pod 상태:"
+            $KUBECTL_CMD get pods -n baro-prod -l app="$APP_NAME" 2>&1 || true
+            echo ""
+            echo "📋 $APP_NAME DaemonSet 상태:"
+            $KUBECTL_CMD get daemonset "$DAEMONSET_NAME" -n baro-prod 2>&1 || true
+            echo ""
+            echo "📝 $APP_NAME Pod 이벤트:"
+            LATEST_POD=$($KUBECTL_CMD get pods -n baro-prod -l app="$APP_NAME" --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null || echo "")
+            if [ -n "$LATEST_POD" ]; then
+                $KUBECTL_CMD describe pod "$LATEST_POD" -n baro-prod 2>&1 | grep -A 30 "Events:" || true
+                echo ""
+                echo "📄 $APP_NAME Pod 로그 (마지막 50줄):"
+                $KUBECTL_CMD logs "$LATEST_POD" -n baro-prod --tail=50 2>&1 || true
+            fi
+            log_warn "⚠️ $APP_NAME 배포는 계속 진행하지만, Pod가 준비되지 않았을 수 있습니다."
+            log_warn "💡 로그 확인 명령어: kubectl logs -n baro-prod -l app=$APP_NAME --tail=100"
+        else
+            log_info "✅ $APP_NAME Pod가 Ready 상태입니다."
+        fi
+        
+        log_info "✅ 배포 완료: $MODULE_NAME"
+        $KUBECTL_CMD get pods -n baro-prod -l app="$APP_NAME"
+    else
+        log_info "✅ 리소스 적용 완료: $MODULE_NAME"
+    fi
+elif [ -f "$DEPLOYMENT_FILE" ]; then
     DEPLOYMENT_NAME=$(grep -E "^  name:" "$DEPLOYMENT_FILE" | head -1 | awk '{print $2}' || echo "")
     if [ -n "$DEPLOYMENT_NAME" ]; then
         log_step "⏳ Pod가 Ready 상태가 될 때까지 대기 중..."
