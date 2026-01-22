@@ -7,7 +7,6 @@ import com.barofarm.auth.application.usecase.TokenResult;
 import com.barofarm.auth.infrastructure.config.AuthCookieProperties;
 import com.barofarm.auth.infrastructure.security.AuthUserPrincipal;
 import com.barofarm.auth.infrastructure.security.JwtTokenProvider;
-import com.barofarm.auth.presentation.api.OAuthSwaggerApi;
 import com.barofarm.auth.presentation.dto.oauth.OAuthCallbackRequest;
 import com.barofarm.auth.presentation.dto.oauth.OAuthLinkCallbackRequest;
 import com.barofarm.auth.presentation.dto.token.AuthTokenResponse;
@@ -25,7 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
-public class OAuthController implements OAuthSwaggerApi {
+//public class OAuthController implements OAuthSwaggerApi {
+public class OAuthController {
 
     private final AuthService authService;
     private final JwtTokenProvider jwtTokenProvider;

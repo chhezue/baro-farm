@@ -34,7 +34,8 @@ dependencies {
     implementation project(':baro-common')
 
     // Swagger(OpenAPI)
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
+    // Swagger/OpenAPI 비활성화를 위해 임시 주석 처리.
+    // implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
 
     // ========= 테스트 =========
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
