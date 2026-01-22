@@ -110,6 +110,7 @@ log_info "k8s 디렉토리: $K8S_BASE_DIR"
 log_step "🔍 Checking kubectl..."
 
 # kubectl 명령어를 결정하는 함수 (재사용 가능)
+# 주의: 이 함수는 stdout에만 명령어를 출력하고, 로그는 출력하지 않음
 determine_kubectl_cmd() {
     local cmd=""
     
@@ -117,8 +118,7 @@ determine_kubectl_cmd() {
     if command -v k3s &> /dev/null; then
         if sudo k3s kubectl get nodes &> /dev/null 2>&1; then
             cmd="sudo k3s kubectl"
-            log_info "✅ sudo k3s kubectl 사용 (k3s 환경 감지)"
-            echo "$cmd"
+            echo "$cmd"      # stdout으로만 반환 (로그 없음)
             return 0
         fi
     fi
@@ -128,8 +128,7 @@ determine_kubectl_cmd() {
         # kubectl이 실제로 클러스터에 접근할 수 있는지 테스트
         if kubectl get nodes &> /dev/null 2>&1; then
             cmd="kubectl"
-            log_info "✅ 일반 kubectl 사용 가능 (클러스터 접근 성공)"
-            echo "$cmd"
+            echo "$cmd"      # stdout으로만 반환 (로그 없음)
             return 0
         fi
     fi
@@ -140,7 +139,7 @@ determine_kubectl_cmd() {
 # kubectl 명령어 결정
 KUBECTL_CMD=$(determine_kubectl_cmd)
 
-# 최종 확인
+# 최종 확인 및 로그 출력
 if [ -z "$KUBECTL_CMD" ]; then
     log_error "kubectl 또는 k3s가 설치되어 있지 않거나 클러스터에 연결할 수 없습니다."
     echo "디버깅 정보:"
@@ -155,6 +154,12 @@ if [ -z "$KUBECTL_CMD" ]; then
     exit 1
 fi
 
+# kubectl 명령어 타입에 따라 로그 출력
+if [[ "$KUBECTL_CMD" == "sudo k3s kubectl" ]]; then
+    log_info "✅ sudo k3s kubectl 사용 (k3s 환경 감지)"
+elif [[ "$KUBECTL_CMD" == "kubectl" ]]; then
+    log_info "✅ 일반 kubectl 사용 가능 (클러스터 접근 성공)"
+fi
 log_info "📦 사용할 kubectl 명령어: $KUBECTL_CMD"
 
 # kubectl 명령어 검증 함수 (실행 전 확인용)
