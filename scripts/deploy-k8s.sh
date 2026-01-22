@@ -110,40 +110,34 @@ log_info "k8s 디렉토리: $K8S_BASE_DIR"
 log_step "🔍 Checking kubectl..."
 KUBECTL_CMD=""
 
-# 1. kubectl이 있는지 확인하고 실제로 동작하는지 테스트
-if command -v kubectl &> /dev/null; then
+# k3s가 설치되어 있으면 우선적으로 sudo k3s kubectl 사용 (권한 문제 방지)
+if command -v k3s &> /dev/null; then
+    if sudo k3s kubectl get nodes &> /dev/null 2>&1; then
+        KUBECTL_CMD="sudo k3s kubectl"
+        log_info "✅ sudo k3s kubectl 사용 (k3s 환경 감지)"
+    fi
+fi
+
+# k3s가 없거나 sudo k3s kubectl이 실패하면 일반 kubectl 시도
+if [ -z "$KUBECTL_CMD" ] && command -v kubectl &> /dev/null; then
     # kubectl이 실제로 클러스터에 접근할 수 있는지 테스트
     if kubectl get nodes &> /dev/null 2>&1; then
         KUBECTL_CMD="kubectl"
         log_info "✅ 일반 kubectl 사용 가능 (클러스터 접근 성공)"
-    elif command -v k3s &> /dev/null; then
-        # kubectl이 있지만 클러스터에 접근 실패, sudo k3s kubectl 시도
-        if sudo k3s kubectl get nodes &> /dev/null 2>&1; then
-            KUBECTL_CMD="sudo k3s kubectl"
-            log_info "✅ sudo k3s kubectl 사용 (일반 kubectl은 permission 문제)"
-        fi
     fi
 fi
 
-# 2. kubectl이 없거나 동작하지 않으면 sudo k3s kubectl 시도
-if [ -z "$KUBECTL_CMD" ] && command -v k3s &> /dev/null; then
-    if sudo k3s kubectl get nodes &> /dev/null 2>&1; then
-        KUBECTL_CMD="sudo k3s kubectl"
-        log_info "✅ sudo k3s kubectl 사용"
-    fi
-fi
-
-# 3. 최종 확인
+# 최종 확인
 if [ -z "$KUBECTL_CMD" ]; then
     log_error "kubectl 또는 k3s가 설치되어 있지 않거나 클러스터에 연결할 수 없습니다."
     echo "디버깅 정보:"
-    if command -v kubectl &> /dev/null; then
-        echo "kubectl get nodes 결과:"
-        kubectl get nodes 2>&1 || true
-    fi
     if command -v k3s &> /dev/null; then
         echo "sudo k3s kubectl get nodes 결과:"
         sudo k3s kubectl get nodes 2>&1 || true
+    fi
+    if command -v kubectl &> /dev/null; then
+        echo "kubectl get nodes 결과:"
+        kubectl get nodes 2>&1 || true
     fi
     exit 1
 fi
@@ -404,6 +398,55 @@ if [ "$MODULE_NAME" = "cloud" ]; then
         log_warn "⚠️ Gateway 배포는 계속 진행하지만, Pod가 준비되지 않았을 수 있습니다."
     else
         log_info "✅ Gateway Pod가 Ready 상태입니다."
+    fi
+    
+    log_step "4️⃣ OPA 배포 중..."
+    # kustomization.yaml에서 이미지 태그 업데이트
+    KUSTOMIZATION_FILE="$K8S_BASE_DIR/cloud/opa/kustomization.yaml"
+    if [ -f "$KUSTOMIZATION_FILE" ] && [ "$IMAGE_TAG" != "latest" ]; then
+        log_info "🏷️  OPA 이미지 태그 업데이트: $IMAGE_TAG"
+        sed -i.bak "s|newTag: latest|newTag: ${IMAGE_TAG}|g" "$KUSTOMIZATION_FILE" 2>/dev/null || \
+        sed -i "s|newTag: latest|newTag: ${IMAGE_TAG}|g" "$KUSTOMIZATION_FILE" 2>/dev/null || true
+        rm -f "${KUSTOMIZATION_FILE}.bak" 2>/dev/null || true
+    fi
+    
+    # OPA 배포 전 Eureka 확인
+    log_step "⏳ OPA 배포 전 Eureka 준비 상태 확인 중..."
+    if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=eureka -n baro-prod --timeout=60s 2>&1; then
+        log_warn "⚠️ Eureka Pod가 Ready 상태가 아닙니다. OPA 배포를 계속 진행하지만, initContainer에서 대기합니다."
+    else
+        log_info "✅ Eureka Pod가 Ready 상태입니다."
+    fi
+    
+    $KUBECTL_CMD apply -k "$K8S_BASE_DIR/cloud/opa/"
+    
+    # IMAGE_TAG가 latest일 때는 DaemonSet spec이 변경되지 않으므로 rollout restart로 Pod 재시작
+    if [ "$IMAGE_TAG" = "latest" ]; then
+        log_info "🔄 latest 태그 사용 중이므로 Pod 재시작 (rollout restart)..."
+        $KUBECTL_CMD rollout restart daemonset/opa -n baro-prod || true
+    fi
+    
+    # Pod가 Ready 상태가 될 때까지 대기 (타임아웃: 300초)
+    if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=opa -n baro-prod --timeout=300s 2>&1; then
+        log_warn "⚠️ OPA Pod가 Ready 상태가 되지 않았습니다. 상태 확인 중..."
+        echo ""
+        echo "📊 OPA Pod 상태:"
+        $KUBECTL_CMD get pods -n baro-prod -l app=opa 2>&1 || true
+        echo ""
+        echo "📋 OPA DaemonSet 상태:"
+        $KUBECTL_CMD get daemonset opa -n baro-prod 2>&1 || true
+        echo ""
+        echo "📝 OPA Pod 이벤트:"
+        OPA_POD=$($KUBECTL_CMD get pods -n baro-prod -l app=opa -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+        if [ -n "$OPA_POD" ]; then
+            $KUBECTL_CMD describe pod "$OPA_POD" -n baro-prod 2>&1 | grep -A 30 "Events:" || true
+            echo ""
+            echo "📄 OPA Pod 로그 (마지막 50줄):"
+            $KUBECTL_CMD logs "$OPA_POD" -n baro-prod --tail=50 2>&1 || true
+        fi
+        log_warn "⚠️ OPA 배포는 계속 진행하지만, Pod가 준비되지 않았을 수 있습니다."
+    else
+        log_info "✅ OPA Pod가 Ready 상태입니다."
     fi
     
     log_info "✅ Cloud 모듈 배포 완료"

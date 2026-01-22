@@ -280,11 +280,11 @@ jobs:
       needs.determine-service.outputs.service != '' &&
       needs.determine-service.outputs.service != 'data'
     
-    # cloud 모듈일 때는 eureka, gateway, config를 각각 빌드
+    # cloud 모듈일 때는 eureka, gateway, config, opa를 각각 빌드
     # opa 모듈일 때는 opa만 빌드 (opa-bundle JAR 포함)
     strategy:
       matrix:
-        service: ${{ needs.determine-service.outputs.service == 'cloud' && fromJSON('["eureka", "gateway", "config"]') || needs.determine-service.outputs.service == 'opa' && fromJSON('["opa"]') || fromJSON(format('["{0}"]', needs.determine-service.outputs.service)) }}
+        service: ${{ needs.determine-service.outputs.service == 'cloud' && fromJSON('["eureka", "gateway", "config", "opa"]') || needs.determine-service.outputs.service == 'opa' && fromJSON('["opa"]') || fromJSON(format('["{0}"]', needs.determine-service.outputs.service)) }}
       fail-fast: false
     
     steps:
