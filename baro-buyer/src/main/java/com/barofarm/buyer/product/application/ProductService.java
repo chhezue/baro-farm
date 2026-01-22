@@ -3,6 +3,7 @@ package com.barofarm.buyer.product.application;
 import com.barofarm.buyer.inventory.application.InventoryService;
 import com.barofarm.buyer.product.application.dto.ProductCreateCommand;
 import com.barofarm.buyer.product.application.dto.ProductDetailInfo;
+import com.barofarm.buyer.product.application.dto.ProductImageUpdateMode;
 import com.barofarm.buyer.product.application.dto.ProductUpdateCommand;
 import com.barofarm.buyer.product.application.event.ProductTransactionEvent;
 import com.barofarm.buyer.product.domain.Category;
@@ -27,6 +28,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @Service
@@ -38,6 +40,7 @@ public class ProductService {
     private final InventoryService inventoryService;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final ReviewSummaryRepository reviewSummaryRepository;
+    private final ProductImageService productImageService;
 
     @Transactional(readOnly = true)
     public ProductDetailInfo getProductDetail(UUID id) {
@@ -75,7 +78,7 @@ public class ProductService {
     }
 
     @Transactional
-    public ProductDetailInfo createProduct(ProductCreateCommand command) {
+    public ProductDetailInfo createProduct(ProductCreateCommand command, List<MultipartFile> images) {
         // user의 역할이 isSeller가 아니라면 에러 호출
         validateSeller(command.role());
 
@@ -88,7 +91,9 @@ public class ProductService {
             command.price(),
             ProductStatus.ON_SALE);
 
-        // To-do 이미지 저장
+        if (images != null && !images.isEmpty()) {
+            productImageService.createProductImagesSafely(product, images);
+        }
 
         // 상품 저장 및 재고 저장
         Product savedProduct = saveProductAndInventory(product, command.stockQuantity());
@@ -111,7 +116,12 @@ public class ProductService {
     }
 
     @Transactional
-    public ProductDetailInfo updateProduct(UUID id, ProductUpdateCommand command) {
+    public ProductDetailInfo updateProduct(
+        UUID id,
+        ProductUpdateCommand command,
+        List<MultipartFile> images,
+        ProductImageUpdateMode imageUpdateMode
+    ) {
         // user의 역할이 isSeller가 아니라면 에러 호출
         validateSeller(command.role());
 
@@ -129,7 +139,9 @@ public class ProductService {
             command.price(),
             command.productStatus());
 
-        // TO-DO 이미지 업데이트
+        if (imageUpdateMode != null) {
+            productImageService.updateProductImagesSafely(product, images, imageUpdateMode);
+        }
 
         Product savedProduct = updateProductAndInventory(product, command.stockQuantity());
 
