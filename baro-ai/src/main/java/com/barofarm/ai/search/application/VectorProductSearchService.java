@@ -124,7 +124,7 @@ public class VectorProductSearchService {
                 results.add(new ProductRecommendResponse(
                     productId,
                     product.getProductName(),
-                    product.getProductCategory(),
+                    product.getProductCategoryName(),
                     product.getPrice()
                 ));
             }

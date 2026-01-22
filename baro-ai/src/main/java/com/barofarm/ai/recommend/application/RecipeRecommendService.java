@@ -160,7 +160,7 @@ public class RecipeRecommendService {
                 .map(product -> new ProductRecommendResponse(
                     product.productId(),
                     product.productName(),
-                    product.productCategory(),
+                    product.productCategoryName(),
                     product.price()
                 ))
                 .limit(size)
