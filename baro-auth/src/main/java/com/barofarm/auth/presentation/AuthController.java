@@ -4,10 +4,13 @@ import com.barofarm.auth.application.AuthService;
 import com.barofarm.auth.application.usecase.LoginResult;
 import com.barofarm.auth.application.usecase.SignUpResult;
 import com.barofarm.auth.application.usecase.TokenResult;
+import com.barofarm.auth.domain.user.User;
 import com.barofarm.auth.exception.AuthErrorCode;
 import com.barofarm.auth.infrastructure.security.AuthUserPrincipal;
 import com.barofarm.auth.infrastructure.security.JwtTokenProvider;
 import com.barofarm.auth.presentation.api.AuthSwaggerApi;
+import com.barofarm.auth.presentation.dto.admin.AdminUserSummaryResponse;
+import com.barofarm.auth.presentation.dto.admin.UpdateSellerStatusRequest;
 import com.barofarm.auth.presentation.dto.admin.UpdateUserStateRequest;
 import com.barofarm.auth.presentation.dto.login.LoginRequest;
 import com.barofarm.auth.presentation.dto.password.PasswordChangeRequest;
@@ -23,6 +26,8 @@ import com.barofarm.exception.CustomException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +38,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -144,6 +150,28 @@ public class AuthController implements AuthSwaggerApi {
     public ResponseEntity<Void> grantSeller(@PathVariable UUID userId) {
         authService.grantSeller(userId);
         return ResponseEntity.ok().build();
+    }
+
+    // ==== Admin-only seller status updates
+    @PostMapping("/sellers/{userId}/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> updateSellerStatus(
+        @PathVariable UUID userId,
+        @RequestBody UpdateSellerStatusRequest request
+    ) {
+        authService.updateSellerStatus(userId, request.sellerStatus(), request.reason());
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/admin/users")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<AdminUserSummaryResponse>> getAdminUsers(
+        @RequestParam(required = false) User.UserType type,
+        @RequestParam(required = false) User.UserState state,
+        Pageable pageable
+    ) {
+        Page<AdminUserSummaryResponse> response = authService.getAdminUsers(type, state, pageable);
+        return ResponseEntity.ok(response);
     }
 
     // ==== Admin-only account state updates

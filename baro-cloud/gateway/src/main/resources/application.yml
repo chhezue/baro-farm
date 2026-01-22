@@ -141,6 +141,8 @@ spring:
                 - Path=/auth-service/**
               filters:
                 - RewritePath=/auth-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Buyer Service
             - id: buyer-service
@@ -149,6 +151,8 @@ spring:
                 - Path=/buyer-service/**
               filters:
                 - RewritePath=/buyer-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Seller Service
             - id: seller-service
@@ -157,6 +161,8 @@ spring:
                 - Path=/seller-service/**
               filters:
                 - RewritePath=/seller-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Order Service (주문만)
             - id: order-service
@@ -165,6 +171,8 @@ spring:
                 - Path=/order-service/**
               filters:
                 - RewritePath=/order-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Payment Service (결제, 예치금 분리)
             - id: payment-service
@@ -173,6 +181,8 @@ spring:
                 - Path=/payment-service/**
               filters:
                 - RewritePath=/payment-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Support Service
             - id: support-service
@@ -181,6 +191,8 @@ spring:
                 - Path=/support-service/**
               filters:
                 - RewritePath=/support-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
             # Settlement Service
             - id: settlement-service
@@ -189,6 +201,8 @@ spring:
                 - Path=/settlement-service/**
               filters:
                 - RewritePath=/settlement-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
             # DaemonSet 배포 서비스는 Gateway에서 제공하지 않음
             # - id: settlement-service
             #   uri: lb://settlement-service
@@ -204,6 +218,8 @@ spring:
                 - Path=/ai-service/**
               filters:
                 - RewritePath=/ai-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
 
 eureka:
   client:

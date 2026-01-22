@@ -11,6 +11,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
@@ -26,15 +28,16 @@ import reactor.core.publisher.Mono;
 
 
 /*
- *   OpaAuthorizationGatewayFilterFactory는 인가(Authorization) 담당
- *     - 하는 일: 위에서 만든 헤더 + 요청 정보(method/path) + 라우트 정보(service)를 OPA로 보내서 허용/차단 결정 받음
- *     - 결과: OPA가 true면 통과, false면 403, 오류면 503
- *     - 즉 “이 사용자가 이 요청을 해도 되는지 판단” 단계
+ *   OpaAuthorizationGatewayFilterFactory???멸?(Authorization) ?대떦
+ *     - ?섎뒗 ?? ?꾩뿉??留뚮뱺 ?ㅻ뜑 + ?붿껌 ?뺣낫(method/path) + ?쇱슦???뺣낫(service)瑜?OPA濡?蹂대궡???덉슜/李⑤떒 寃곗젙 諛쏆쓬
+ *     - 寃곌낵: OPA媛 true硫??듦낵, false硫?403, ?ㅻ쪟硫?503
+ *     - 利??쒖씠 ?ъ슜?먭? ???붿껌???대룄 ?섎뒗吏 ?먮떒???④퀎
  */
 @Component
 public class OpaAuthorizationGatewayFilterFactory
     extends AbstractGatewayFilterFactory<OpaAuthorizationGatewayFilterFactory.Config> {
 
+    private static final Logger LOG = LoggerFactory.getLogger(OpaAuthorizationGatewayFilterFactory.class);
     private static final String HEADER_USER_STATUS = "X-User-Status";
     private static final String HEADER_SELLER_STATUS = "X-Seller-Status";
     private static final String HEADER_USER_FLAGS = "X-User-Flags";
@@ -65,8 +68,11 @@ public class OpaAuthorizationGatewayFilterFactory
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
             Map<String, Object> input = buildInput(exchange);
-            // OPA 입력을 확인하고 싶을 때 사용하는 디버그 포인트.
-            // 필요한 경우 로깅 코드(예: log.debug("OPA input: {}", input))를 활성화하세요.
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("OPA input: {}", input);
+            }
+            // OPA ?낅젰???뺤씤?섍퀬 ?띠쓣 ???ъ슜?섎뒗 ?붾쾭洹??ъ씤??
+            // ?꾩슂??寃쎌슦 濡쒓퉭 肄붾뱶(?? LOG.debug("OPA input: {}", input))瑜??쒖꽦?뷀븯?몄슂.
             Mono<OpaResponse> responseMono = webClient.post()
                 .uri(authzUrl)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -80,11 +86,20 @@ public class OpaAuthorizationGatewayFilterFactory
                 .timeout(timeout)
                 .flatMap((OpaResponse response) -> {
                     boolean allowed = response != null && Boolean.TRUE.equals(response.getResult());
+                    LOG.debug("============OPA decision[寃곗젙]: allowed={}, method={}, path={}, subjectId={}, roles={}",
+                        allowed,
+                        ((Map<?, ?>) input.get("request")).get("method"),
+                        ((Map<?, ?>) input.get("request")).get("path"),
+                        ((Map<?, ?>) input.get("subject")).get("id"),
+                        ((Map<?, ?>) input.get("subject")).get("roles"));
                     return allowed
                         ? chain.filter(exchange)
                         : deny(exchange, HttpStatus.FORBIDDEN);
                 })
-                .onErrorResume(ex -> deny(exchange, HttpStatus.SERVICE_UNAVAILABLE));
+                .onErrorResume(ex -> {
+                    LOG.warn("OPA error[?먮윭!]: {}", ex.getMessage(), ex);
+                    return deny(exchange, HttpStatus.SERVICE_UNAVAILABLE);
+                });
         };
     }
 

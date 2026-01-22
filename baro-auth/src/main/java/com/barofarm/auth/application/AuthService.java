@@ -21,6 +21,7 @@ import com.barofarm.auth.domain.credential.AuthCredential;
 import com.barofarm.auth.domain.oauth.OAuthAccount;
 import com.barofarm.auth.domain.oauth.OAuthUserInfo;
 import com.barofarm.auth.domain.token.RefreshToken;
+import com.barofarm.auth.domain.user.SellerStatus;
 import com.barofarm.auth.domain.user.User;
 import com.barofarm.auth.exception.AuthErrorCode;
 import com.barofarm.auth.infrastructure.jpa.AuthCredentialJpaRepository;
@@ -28,6 +29,7 @@ import com.barofarm.auth.infrastructure.jpa.RefreshTokenJpaRepository;
 import com.barofarm.auth.infrastructure.jpa.UserJpaRepository;
 import com.barofarm.auth.infrastructure.outbox.OutboxEventService;
 import com.barofarm.auth.infrastructure.security.JwtTokenProvider;
+import com.barofarm.auth.presentation.dto.admin.AdminUserSummaryResponse;
 import com.barofarm.exception.CustomException;
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -40,6 +42,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -269,6 +273,9 @@ public class AuthService {
         }
 
         user.changeToSeller();
+        userRepository.save(user);
+        // [1] 판매자 승인 상태를 hotlist에 반영해 토큰 갱신 전에도 SELLER 권한이 적용되도록 한다.
+        publishSellerStatusEvent(user.getId(), SellerStatus.APPROVED, "SELLER_APPROVED");
 
     }
 
@@ -285,6 +292,21 @@ public class AuthService {
         }
 
         publishUserStateEvent(user, userState, reason);
+    }
+
+    // Admin-controlled seller status updates (APPROVED/REJECTED/SUSPENDED).
+    public void updateSellerStatus(UUID sellerId, SellerStatus status, String reason) {
+        User user = userRepository.findById(sellerId)
+            .orElseThrow(() -> new CustomException(AuthErrorCode.USER_NOT_FOUND));
+
+        // [1] 승인 시에는 SELLER 권한 부여(토큰 갱신 없이도 hotlist로 권한 인정).
+        if (status == SellerStatus.APPROVED && user.getUserType() != User.UserType.SELLER) {
+            user.changeToSeller();
+            userRepository.save(user);
+        }
+
+        // [2] OPA hotlist 반영을 위해 seller 상태 이벤트 발행.
+        publishSellerStatusEvent(user.getId(), status, reason);
     }
 
     public void withdrawUser(UUID userId, WithdrawCommand command) {
@@ -357,6 +379,30 @@ public class AuthService {
         event.setStatus(userState.name());
         event.setFlags(List.of());
         event.setReason(reason);
+        event.setUpdatedAt(Instant.now().toString());
+        hotlistEventPublisher.publish(event);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AdminUserSummaryResponse> getAdminUsers(
+        User.UserType type,
+        User.UserState state,
+        Pageable pageable
+    ) {
+        return userRepository.findAdminUsers(type, state, pageable)
+            .map(AdminUserSummaryResponse::from);
+    }
+
+    private void publishSellerStatusEvent(UUID sellerId, SellerStatus status, String reason) {
+        HotlistEventMessage event = new HotlistEventMessage();
+        event.setEventId(UUID.randomUUID().toString());
+        event.setSubjectType("seller");
+        event.setSubjectId(sellerId.toString());
+        // [1] seller 상태 자체가 필요하므로 active=true로 유지한다.
+        event.setActive(true);
+        event.setStatus(status.name());
+        event.setFlags(List.of());
+        event.setReason(reason == null || reason.isBlank() ? "SELLER_STATUS_UPDATE" : reason.trim());
         event.setUpdatedAt(Instant.now().toString());
         hotlistEventPublisher.publish(event);
     }
