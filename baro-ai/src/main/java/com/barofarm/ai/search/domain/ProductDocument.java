@@ -9,6 +9,8 @@ import org.springframework.data.elasticsearch.annotations.DateFormat;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
+import org.springframework.data.elasticsearch.annotations.InnerField;
+import org.springframework.data.elasticsearch.annotations.MultiField;
 
 @Getter
 @Document(indexName = "product")
@@ -16,7 +18,17 @@ public class ProductDocument {
     @Id
     private UUID productId; // 검색 결과 식별용
 
-    @Field(type = FieldType.Text, analyzer = "nori")
+    // productName: nori analyzer로 토큰화 (일반 검색용)
+    // productName.raw: keyword 타입으로 원본 텍스트 저장 (fuzzy search용)
+    @MultiField(
+        mainField = @Field(type = FieldType.Text, analyzer = "nori"),
+        otherFields = {
+            @InnerField(
+                suffix = "raw",
+                type = FieldType.Keyword
+            )
+        }
+    )
     private String productName; // 검색 대상
 
     @Field(type = FieldType.Keyword)
@@ -32,6 +44,9 @@ public class ProductDocument {
     @JsonFormat(pattern = "uuuu-MM-dd'T'HH:mm:ssX", timezone = "UTC")
     private Instant updatedAt; // 검색 결과 반환 로직 내에서 최신순으로 정렬
 
+    @Field(type = FieldType.Dense_Vector, dims = 1536)
+    private float[] vector; // OpenAI 임베딩 벡터 (1536차원)
+
     public ProductDocument() {
     }
 
@@ -41,12 +56,14 @@ public class ProductDocument {
         String productCategory,
         Long price,
         String status,
-        Instant updatedAt) {
+        Instant updatedAt,
+        float[] vector) {
         this.productId = productId;
         this.productName = productName;
         this.productCategory = productCategory;
         this.price = price;
         this.status = status;
         this.updatedAt = updatedAt;
+        this.vector = vector;
     }
 }

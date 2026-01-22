@@ -140,4 +140,10 @@ public class InventoryService {
 
         inventoryRepository.delete(inventory);
     }
+
+    @Transactional(readOnly = true)
+    public Inventory getInventory(UUID inventoryId) {
+        return inventoryRepository.findById(inventoryId)
+            .orElseThrow(() -> new CustomException(INVENTORY_NOT_FOUND));
+    }
 }

@@ -7,10 +7,12 @@ import com.barofarm.dto.ResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,11 +27,14 @@ public class UnifiedSearchController {
     @Operation(summary = "통합 검색", description = "키워드로 상품, 체험을 통합 검색")
     @GetMapping
     public ResponseDto<UnifiedSearchResponse> search(
+        // UUID는 선택 사항: 존재하는 경우에만 "상품 관련 통합 검색" 행동 로그를 남긴다.
+        @RequestHeader(value = "X-User-Id", required = false) UUID userId,
         @Parameter(description = "검색어", example = "토마토") @RequestParam String q,
         @RequestParam(defaultValue = "0") int page,
-        @RequestParam(defaultValue = "10") int size) {
+        @RequestParam(defaultValue = "10") int size
+    ) {
         Pageable pageable = PageRequest.of(page, size);
-        UnifiedSearchResponse response = unifiedSearchService.search(q, pageable);
+        UnifiedSearchResponse response = unifiedSearchService.search(userId, q, pageable);
         return ResponseDto.ok(response);
     }
 
@@ -39,6 +44,7 @@ public class UnifiedSearchController {
         @Parameter(description = "자동완성 검색어", example = "토마") @RequestParam String q,
         @Parameter(description = "제품 자동완성 값 개수") @RequestParam(required = false, defaultValue = "5") int pSize,
         @Parameter(description = "체험 자동완성 값 개수") @RequestParam(required = false, defaultValue = "5") int eSize) {
+        // 자동완성은 행동 로그 대상에서 제외 (검색 실행만 로그)
         UnifiedAutoCompleteResponse response = unifiedSearchService.autocomplete(q, pSize, eSize);
         return ResponseDto.ok(response);
     }

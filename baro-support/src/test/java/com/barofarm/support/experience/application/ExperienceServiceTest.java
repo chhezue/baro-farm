@@ -14,6 +14,9 @@ class ExperienceServiceTest {
     @Mock
     private FarmCacheService farmCacheService;
 
+    @Mock
+    private ApplicationEventPublisher applicationEventPublisher;
+
     @InjectMocks
     private ExperienceService experienceService;
 

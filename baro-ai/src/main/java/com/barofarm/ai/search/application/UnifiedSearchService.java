@@ -8,6 +8,7 @@ import com.barofarm.ai.search.application.dto.product.ProductAutoCompleteRespons
 import com.barofarm.ai.search.application.dto.product.ProductSearchResponse;
 import com.barofarm.dto.CustomPage;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -17,13 +18,14 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class UnifiedSearchService {
     private final ProductSearchService productSearchService;
+    private final ProductIndexService productIndexService;
     private final ExperienceSearchService experienceSearchService;
 
     // 통합 검색
-    public UnifiedSearchResponse search(String q, Pageable pageable) {
+    public UnifiedSearchResponse search(UUID userId, String q, Pageable pageable) {
         // 비동기 처리를 위해 CompletableFuture 사용 (두 개의 ES 쿼리 병렬 실행)
         CompletableFuture<CustomPage<ProductSearchResponse>> productsFuture =
-            CompletableFuture.supplyAsync(() -> productSearchService.searchProducts(q, pageable));
+            CompletableFuture.supplyAsync(() -> productSearchService.searchProducts(userId, q, pageable));
         CompletableFuture<CustomPage<ExperienceSearchResponse>> experiencesFuture =
             CompletableFuture.supplyAsync(() -> experienceSearchService.searchExperiences(q, pageable));
 
@@ -37,7 +39,7 @@ public class UnifiedSearchService {
     public UnifiedAutoCompleteResponse autocomplete(String q, int pSize, int eSize) {
         // 비동기 처리를 위해 CompletableFuture 사용 (두 개의 ES 쿼리 병렬 실행)
         CompletableFuture<List<ProductAutoCompleteResponse>> productsFuture =
-            CompletableFuture.supplyAsync(() -> productSearchService.autocomplete(q, pSize));
+            CompletableFuture.supplyAsync(() -> productIndexService.autocomplete(q, pSize));
         CompletableFuture<List<ExperienceAutoCompleteResponse>> experiencesFuture =
             CompletableFuture.supplyAsync(() -> experienceSearchService.autocomplete(q, eSize));
 

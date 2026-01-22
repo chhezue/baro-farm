@@ -8,7 +8,10 @@ spring:
   application:
     name: ai-service
   config:
-    import: ${SPRING_CONFIG_IMPORT:optional:configserver:http://config:8888}
+    import:
+      - ${SPRING_CONFIG_IMPORT:optional:configserver:http://config:8888}
+      - classpath:review-sentiment.yml
+      - classpath:review-negative-keywords.yml
   main:
     allow-bean-definition-overriding: true
   autoconfigure:
@@ -41,6 +44,9 @@ spring:
         options:
           model: ${SPRING_AI_OPENAI_MODEL:gpt-4o-mini}
           temperature: 0.7
+      embedding:
+        options:
+          model: ${SPRING_AI_OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
     ollama:
       base-url: ${SPRING_AI_OLLAMA_BASE_URL:http://localhost:11434}
       chat:

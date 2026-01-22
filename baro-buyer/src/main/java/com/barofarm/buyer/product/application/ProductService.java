@@ -66,6 +66,7 @@ public class ProductService {
         return null;
     }
 
+    @Transactional
     public ProductDetailInfo createProduct(ProductCreateCommand command) {
         // user의 역할이 isSeller가 아니라면 에러 호출
         validateSeller(command.role());
@@ -87,7 +88,6 @@ public class ProductService {
         return ProductDetailInfo.from(savedProduct, command.stockQuantity());
     }
 
-    @Transactional
     public Product saveProductAndInventory(Product product, Integer stockQuantity) {
         Product savedProduct = productRepository.save(product);
 
@@ -102,6 +102,7 @@ public class ProductService {
         return savedProduct;
     }
 
+    @Transactional
     public ProductDetailInfo updateProduct(UUID id, ProductUpdateCommand command) {
         // user의 역할이 isSeller가 아니라면 에러 호출
         validateSeller(command.role());
@@ -127,7 +128,6 @@ public class ProductService {
         return ProductDetailInfo.from(savedProduct, command.stockQuantity());
     }
 
-    @Transactional
     public Product updateProductAndInventory(Product product, Integer stockQuantity) {
         Product updatedProduct = productRepository.save(product);
 

@@ -1,7 +1,7 @@
 package com.barofarm.buyer.cart.domain;
 
 import com.barofarm.buyer.cart.exception.CartErrorCode;
-import com.barofarm.common.entity.BaseEntity;
+import com.barofarm.entity.BaseEntity;
 import com.barofarm.exception.CustomException;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.Column;
@@ -42,16 +42,16 @@ public class CartItem extends BaseEntity {
   @Column(name = "unit_price", nullable = false)
   private Long unitPrice;
 
-  @Schema(description = "장바구니 항목의 옵션 정보를 JSON 형태로 저장")
-  @Column(name = "option_info_json")
-  private String optionInfoJson;
+  @Schema(description = "옵션/재고 참조를 위한 재고 ID")
+  @Column(name = "inventory_id", nullable = false)
+  private UUID inventoryId;
 
   public CartItem() {}
 
   /* ====== 정적 팩토리 메소드 ====== */
 
   /** 새 장바구니 항목 생성 */
-  public static CartItem create(UUID productId, Integer quantity, Long unitPrice, String optionInfoJson) {
+  public static CartItem create(UUID productId, Integer quantity, Long unitPrice, UUID inventoryId) {
       if (productId == null) {
           throw new CustomException(CartErrorCode.PRODUCT_ID_NULL);
       }
@@ -67,7 +67,7 @@ public class CartItem extends BaseEntity {
       item.productId = productId;
       item.quantity = quantity;
       item.unitPrice = unitPrice;
-      item.optionInfoJson = optionInfoJson;
+      item.inventoryId = inventoryId;
       return item;
   }
 
@@ -92,8 +92,8 @@ public class CartItem extends BaseEntity {
   }
 
   /** 옵션 변경 */
-  public void changeOption(String optionInfoJson) {
-    this.optionInfoJson = optionInfoJson;
+  public void changeOption(UUID inventoryId) {
+    this.inventoryId = inventoryId;
     touch();
   }
 
@@ -105,7 +105,7 @@ public class CartItem extends BaseEntity {
   /** 상품 UUID + 옵션 JSON이 동일한지 비교 */
   public boolean isSameProductAndOption(CartItem other) {
     return this.productId.equals(other.productId)
-        && Objects.equals(this.optionInfoJson, other.optionInfoJson);
+        && Objects.equals(this.inventoryId, other.inventoryId);
   }
 
   /* ====== Cart와의 연관관계 관리 ====== */

@@ -86,6 +86,49 @@ services:
       retries: 3
       start_period: 40s
 
+  # ===================================
+  # OPA Bundle Service
+  # ===================================
+  opa-bundle:
+    image: ${DOCKER_REGISTRY:-ghcr.io/do-develop-space}/opa-bundle:${IMAGE_TAG:-latest}
+    container_name: baro-opa-bundle
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:8761/eureka/
+      - JAVA_TOOL_OPTIONS=-Xms32m -Xmx96m -XX:MaxMetaspaceSize=96m -XX:MaxDirectMemorySize=64m -XX:ReservedCodeCacheSize=64m -XX:+UseSerialGC
+      - OPA_POLICY_DIR=/app/policy
+    mem_limit: 200m
+    volumes:
+      - /mnt/s3:/mnt/s3:rw
+    depends_on:
+      eureka:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - baro-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8095/actuator/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ===================================
+  # OPA Server
+  # ===================================
+  opa:
+    image: ${DOCKER_REGISTRY:-ghcr.io/do-develop-space}/opa:${IMAGE_TAG:-latest}
+    container_name: baro-opa
+    ports:
+      - "8181:8181"
+    mem_limit: 64m
+    depends_on:
+      opa-bundle:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - baro-network
+
 networks:
   baro-network:
     name: be_baro-network  # 네트워크 이름 명시적으로 지정
