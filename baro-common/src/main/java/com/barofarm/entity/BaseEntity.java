@@ -25,4 +25,8 @@ public abstract class BaseEntity {
     protected void updateTimestamp() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    protected void updateTimestamp(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt == null ? LocalDateTime.now() : updatedAt;
+    }
 }

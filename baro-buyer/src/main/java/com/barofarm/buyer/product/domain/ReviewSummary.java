@@ -2,6 +2,7 @@ package com.barofarm.buyer.product.domain;
 
 import com.barofarm.entity.BaseEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -10,6 +11,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -36,20 +39,26 @@ public class ReviewSummary extends BaseEntity {
     private ReviewSummarySentiment sentiment;
 
     @Column(name = "summary_text", nullable = false, columnDefinition = "TEXT")
-    private String summaryText;
+    @Convert(converter = ReviewSummaryLinesConverter.class)
+    private List<String> summaryText;
 
-    private ReviewSummary(UUID productId, ReviewSummarySentiment sentiment, String summaryText) {
+    private ReviewSummary(UUID productId, ReviewSummarySentiment sentiment, List<String> summaryText) {
         this.productId = productId;
         this.sentiment = sentiment;
         this.summaryText = summaryText;
     }
 
-    public static ReviewSummary create(UUID productId, ReviewSummarySentiment sentiment, String summaryText) {
+    public static ReviewSummary create(UUID productId, ReviewSummarySentiment sentiment, List<String> summaryText) {
         return new ReviewSummary(productId, sentiment, summaryText);
     }
 
-    public void updateSummary(String summaryText) {
+    public void updateSummary(List<String> summaryText) {
         this.summaryText = summaryText;
         updateTimestamp();
+    }
+
+    public void updateSummary(List<String> summaryText, LocalDateTime updatedAt) {
+        this.summaryText = summaryText;
+        updateTimestamp(updatedAt);
     }
 }
