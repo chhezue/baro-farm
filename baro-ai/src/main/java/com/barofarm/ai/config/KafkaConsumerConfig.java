@@ -2,6 +2,7 @@ package com.barofarm.ai.config;
 
 import com.barofarm.ai.event.model.CartLogEvent;
 import com.barofarm.ai.event.model.OrderLogEvent;
+import com.barofarm.ai.event.model.ReviewEvent;
 import com.barofarm.ai.search.infrastructure.event.ExperienceEvent;
 import com.barofarm.ai.search.infrastructure.event.ProductEvent;
 import java.util.HashMap;
@@ -131,6 +132,29 @@ public class KafkaConsumerConfig {
         ConcurrentKafkaListenerContainerFactory<String, OrderLogEvent> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(orderEventConsumerFactory());
+        return factory;
+    }
+
+    @Bean
+    public ConsumerFactory<String, ReviewEvent> reviewEventConsumerFactory() {
+        Map<String, Object> config = new HashMap<>();
+        config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId + "-review"); // 별도 그룹으로 분리
+        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); // 개인화 데이터는 처음부터 수집
+
+        JsonDeserializer<ReviewEvent> deserializer = new JsonDeserializer<>(ReviewEvent.class);
+        deserializer.setRemoveTypeHeaders(true);  // 타입 헤더 제거 (다른 모듈의 클래스 정보 무시)
+        deserializer.setUseTypeHeaders(false);     // 타입 헤더 사용 안 함
+        deserializer.addTrustedPackages("*");
+
+        return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, ReviewEvent> reviewEventListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, ReviewEvent> factory =
+            new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(reviewEventConsumerFactory());
         return factory;
     }
 }

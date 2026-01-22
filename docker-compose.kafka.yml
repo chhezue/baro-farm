@@ -17,7 +17,7 @@ services:
       # 새로 초기화하려면 .env에서 다른 값으로 설정
       KAFKA_CLUSTER_ID: ${KAFKA_CLUSTER_ID:-}
       CLUSTER_ID: ${KAFKA_CLUSTER_ID:-}
-      
+
       # Listeners 설정
       # KAFKA_ADVERTISED_LISTENERS: 클라이언트가 Kafka에 연결할 때 사용하는 주소
       # - Public EC2에 배포 시: Public EC2의 IP 사용 (다른 EC2에서 접근 가능)
@@ -28,13 +28,13 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      
+
       # 토픽 설정
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      
+
       # 로그 설정
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       # 메모리 제한
