@@ -126,7 +126,11 @@ public class Product extends BaseEntity {
   }
 
     public void addImage(String imageUrl, int order) {
-        this.images.add(ProductImage.create(this, imageUrl, order));
+        this.images.add(ProductImage.create(this, imageUrl, null, order));
+    }
+
+    public void addImage(String imageUrl, String s3Key, int order) {
+        this.images.add(ProductImage.create(this, imageUrl, s3Key, order));
     }
 
     public void clearImages() {

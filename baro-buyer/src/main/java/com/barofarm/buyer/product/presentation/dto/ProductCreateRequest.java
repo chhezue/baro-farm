@@ -7,7 +7,6 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import java.util.List;
 import java.util.UUID;
 
 public record ProductCreateRequest(
@@ -30,9 +29,7 @@ public record ProductCreateRequest(
     Integer stockQuantity,
 
     @NotNull(message = "상품 상태는 필수입니다.")
-    ProductStatus productStatus,
-
-    List<String> imageUrls) {
+    ProductStatus productStatus) {
   public ProductCreateCommand toCommand(UUID memberId, UserType role) {
     return new ProductCreateCommand(
         memberId,
@@ -41,7 +38,6 @@ public record ProductCreateRequest(
         description,
         categoryId,
         price,
-        stockQuantity,
-        imageUrls);
+        stockQuantity);
   }
 }

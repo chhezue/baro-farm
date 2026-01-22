@@ -2,7 +2,6 @@ package com.barofarm.buyer.product.application.dto;
 
 import com.barofarm.buyer.product.domain.ProductStatus;
 import com.barofarm.buyer.product.domain.UserType;
-import java.util.List;
 import java.util.UUID;
 
 public record ProductUpdateCommand(
@@ -13,5 +12,4 @@ public record ProductUpdateCommand(
     UUID categoryId,
     Long price,
     Integer stockQuantity,
-    ProductStatus productStatus,
-    List<String> imageUrls) {}
+    ProductStatus productStatus) {}
