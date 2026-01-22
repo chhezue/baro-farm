@@ -90,11 +90,7 @@ spec:
               # value: "http://localhost:9200"  # Elasticsearch는 같은 Private EC2에 docker-compose로 실행됨
             # Redis 설정
             - name: SPRING_DATA_REDIS_HOST
-            # value: "CHANGE_ME_TO_EC2_IP"
-              valueFrom:
-                secretKeyRef:
-                  name: baro-secrets
-                  key: REDIS_URL
+              value: "CHANGE_ME_TO_EC2_IP"
             - name: SPRING_DATA_REDIS_PORT
               value: "6379"
             - name: SPRING_DATA_REDIS_PASSWORD
