@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class SimilarProductService {
+public class SimilarProductRecommendService {
 
     private final ProductSearchRepository productSearchRepository;
     private final VectorProductSearchService vectorProductSearchService;
@@ -37,20 +37,31 @@ public class SimilarProductService {
         }
 
         float[] productVector = product.getVector();
+        String productCategory = product.getProductCategoryName();
 
-        // 2. 벡터 유사도 검색 실행
-        return findSimilarProducts(productVector, productId, topK);
+        // 2. 벡터 유사도 검색 실행 (같은 카테고리 보너스 적용)
+        return findSimilarProducts(productVector, productId, topK, productCategory);
     }
 
     // 특정 벡터와 유사한 상품들을 Elasticsearch에서 검색
-    private List<ProductRecommendResponse> findSimilarProducts(float[] vector, UUID originalProductId, int topK) {
-        // VectorProductSearchService의 메소드 사용
+    private List<ProductRecommendResponse> findSimilarProducts(
+        float[] vector,
+        UUID originalProductId,
+        int topK,
+        String originalCategory
+    ) {
+        // 같은 카테고리 보너스 점수 설정 (0.3 = 30% 보너스)
+        Double categoryMatchBonus = originalCategory != null ? 0.3 : null;
+
+        // VectorProductSearchService의 메소드 사용 (카테고리 가중치 적용)
         return vectorProductSearchService.findSimilarProductsByVector(
             vector,
             topK,
             List.of(),          // 제외할 상품 ID 없음
             originalProductId,  // 자기 자신 제외
-            false               // 중복 제거 비활성화
+            false,              // 중복 제거 비활성화
+            originalCategory,   // 기준 상품의 카테고리
+            categoryMatchBonus  // 카테고리 일치 보너스
         );
     }
 }

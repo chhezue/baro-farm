@@ -72,7 +72,9 @@ public class PersonalizedRecommendService {
             topK,
             excludeProductIds,  // 제외할 상품 ID들
             null,               // 자기 자신 제외하지 않음
-            true                // 중복 제거 활성화
+            true,               // 중복 제거 활성화
+            null,               // 카테고리 가중치 없음
+            null                // 카테고리 보너스 없음
         );
     }
 
