@@ -1,5 +1,6 @@
 package com.barofarm.ai.search.presentation;
 
+import com.barofarm.ai.search.application.ProductIndexService;
 import com.barofarm.ai.search.application.ProductSearchService;
 import com.barofarm.ai.search.application.dto.product.ProductAutoCompleteResponse;
 import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
@@ -26,7 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class ProductSearchController {
 
-    private final ProductSearchService service;
+    private final ProductSearchService searchService;
+    private final ProductIndexService indexService;
 
     @Operation(summary = "상품 검색", description = "키워드로 상품을 검색 (상품만)")
     @GetMapping
@@ -38,7 +40,7 @@ public class ProductSearchController {
         @Parameter(description = "페이지 번호") @RequestParam(defaultValue = "0") int page,
         @Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, size);
-        return service.searchOnlyProducts(userId, request, pageable);
+        return searchService.searchOnlyProducts(userId, request, pageable);
     }
 
     @Operation(summary = "상품 자동완성", description = "키워드로 상품명 자동완성 (상품만)")
@@ -48,6 +50,6 @@ public class ProductSearchController {
         @Parameter(description = "자동완성 값 개수") @RequestParam(required = false, defaultValue = "5") int size
     ) {
         // 자동완성 호출은 "상품 검색 행동" 로그 대상이 아닌 것으로 간주 (간단히 유지)
-        return service.autocomplete(query, size);
+        return indexService.autocomplete(query, size);
     }
 }

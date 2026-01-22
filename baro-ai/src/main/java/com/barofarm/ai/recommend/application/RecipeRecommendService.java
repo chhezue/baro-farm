@@ -37,8 +37,14 @@ public class RecipeRecommendService {
     private final RecommendProperties recommendProperties;
 
     public RecipeRecommendResponse recommendFromCartWithMissing(UUID userId) {
-        CartInfo cart = cartClient.getCart(userId);
-        return recommendFromCart(cart, userId != null ? userId.toString() : "null");
+        try {
+            CartInfo cart = cartClient.getCart(userId);
+            return recommendFromCart(cart, userId != null ? userId.toString() : "null");
+        } catch (Exception e) {
+            // AI 서비스는 필수가 아니므로 장바구니 조회 실패 시 빈 응답 반환
+            log.warn("장바구니 조회 실패로 레시피 추천을 건너뜁니다. userId: {}, error: {}", userId, e.getMessage());
+            return new RecipeRecommendResponse("", List.of(), List.of(), List.of(), "");
+        }
     }
 
     public RecipeRecommendResponse testRecommendFromCartWithMissing(CartInfo cart) {
