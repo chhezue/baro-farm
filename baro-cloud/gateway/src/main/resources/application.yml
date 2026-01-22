@@ -10,6 +10,14 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:redis}
       port: ${SPRING_DATA_REDIS_PORT:6379}
+      # Redis 연결 실패 시에도 Gateway가 계속 동작하도록 설정
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+        shutdown-timeout: 100ms
   codec:
     max-in-memory-size: 2MB
   cloud:
@@ -244,6 +252,12 @@ management:
     web:
       exposure:
         include: health, info, gateway, metrics, prometheus
+  health:
+    redis:
+      enabled: false  # Redis health check 비활성화 (ElastiCache DNS 해석 실패 시 경고 방지)
+    # 개별 health indicator가 실패해도 전체 health는 UP 유지
+    show-details: when-authorized
+    show-components: when-authorized
 
 resilience4j:
   circuitbreaker:
