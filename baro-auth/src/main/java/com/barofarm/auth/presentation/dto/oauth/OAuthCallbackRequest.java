@@ -4,12 +4,15 @@ import com.barofarm.auth.application.usecase.OAuthCallbackCommand;
 import com.barofarm.auth.domain.oauth.OAuthProvider;
 import com.barofarm.auth.exception.AuthErrorCode;
 import com.barofarm.exception.CustomException;
-import io.swagger.v3.oas.annotations.media.Schema;
+// import io.swagger.v3.oas.annotations.media.Schema;
 
 public record OAuthCallbackRequest(
-    @Schema(description = "OAuth 공급자", example = "naver") String provider,
-    @Schema(description = "Authorization code") String code,
-    @Schema(description = "OAuth state") String state
+//     @Schema(description = "OAuth 공급자", example = "naver")
+     String provider,
+//     @Schema(description = "Authorization code")
+     String code,
+//     @Schema(description = "OAuth state")
+     String state
 ) {
 
     public OAuthCallbackCommand toServiceRequest() {

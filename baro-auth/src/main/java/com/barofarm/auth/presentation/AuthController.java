@@ -8,7 +8,6 @@ import com.barofarm.auth.domain.user.User;
 import com.barofarm.auth.exception.AuthErrorCode;
 import com.barofarm.auth.infrastructure.security.AuthUserPrincipal;
 import com.barofarm.auth.infrastructure.security.JwtTokenProvider;
-import com.barofarm.auth.presentation.api.AuthSwaggerApi;
 import com.barofarm.auth.presentation.dto.admin.AdminUserSummaryResponse;
 import com.barofarm.auth.presentation.dto.admin.UpdateSellerStatusRequest;
 import com.barofarm.auth.presentation.dto.admin.UpdateUserStateRequest;
@@ -46,7 +45,8 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
-public class AuthController implements AuthSwaggerApi {
+//public class AuthController implements AuthSwaggerApi {
+public class AuthController {
 
     private final AuthService authService;
     private final JwtTokenProvider jwtTokenProvider;
