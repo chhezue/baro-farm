@@ -10,11 +10,15 @@ import com.barofarm.buyer.product.domain.CategoryRepository;
 import com.barofarm.buyer.product.domain.Product;
 import com.barofarm.buyer.product.domain.ProductRepository;
 import com.barofarm.buyer.product.domain.ProductStatus;
+import com.barofarm.buyer.product.domain.ReviewSummary;
+import com.barofarm.buyer.product.domain.ReviewSummaryRepository;
+import com.barofarm.buyer.product.domain.ReviewSummarySentiment;
 import com.barofarm.buyer.product.domain.UserType;
 import com.barofarm.buyer.product.exception.ProductErrorCode;
 import com.barofarm.dto.CustomPage;
 import com.barofarm.exception.CustomException;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +37,7 @@ public class ProductService {
     private final CategoryRepository categoryRepository;
     private final InventoryService inventoryService;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final ReviewSummaryRepository reviewSummaryRepository;
 
     @Transactional(readOnly = true)
     public ProductDetailInfo getProductDetail(UUID id) {
@@ -44,7 +49,10 @@ public class ProductService {
         // int stock = inventoryService.getInventory(id);
         int stock = 0;
 
-        return ProductDetailInfo.from(product, stock);
+        List<String> positiveSummary = fetchSummaryLines(id, ReviewSummarySentiment.POSITIVE);
+        List<String> negativeSummary = fetchSummaryLines(id, ReviewSummarySentiment.NEGATIVE);
+
+        return ProductDetailInfo.from(product, stock, positiveSummary, negativeSummary);
     }
 
     @Transactional(readOnly = true)
@@ -169,5 +177,13 @@ public class ProductService {
     private Category getCategory(UUID categoryId) {
         return categoryRepository.findById(categoryId)
             .orElseThrow(() -> new CustomException(ProductErrorCode.CATEGORY_NOT_FOUND));
+    }
+
+    private List<String> fetchSummaryLines(UUID productId, ReviewSummarySentiment sentiment) {
+        Optional<ReviewSummary> summary =
+            reviewSummaryRepository.findByProductIdAndSentiment(productId, sentiment);
+        return summary
+            .map(ReviewSummary::getSummaryText)
+            .orElse(List.of());
     }
 }

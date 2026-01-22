@@ -143,9 +143,9 @@ public class KafkaConsumerConfig {
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); // 개인화 데이터는 처음부터 수집
 
         JsonDeserializer<ReviewEvent> deserializer = new JsonDeserializer<>(ReviewEvent.class);
-        deserializer.setRemoveTypeHeaders(false);
-        deserializer.addTrustedPackages("com.barofarm.ai.event.model");
-        deserializer.setUseTypeMapperForKey(false);
+        deserializer.setRemoveTypeHeaders(true);  // 타입 헤더 제거 (다른 모듈의 클래스 정보 무시)
+        deserializer.setUseTypeHeaders(false);     // 타입 헤더 사용 안 함
+        deserializer.addTrustedPackages("*");
 
         return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
     }
