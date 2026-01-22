@@ -28,6 +28,11 @@ dependencyManagement {
     imports {
         mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
     }
+    // Elasticsearch Java client 8.13.3과 호환되는 Spring Data 버전으로 고정
+    dependencies {
+        dependency 'org.springframework.data:spring-data-elasticsearch:5.3.6'
+        dependency 'org.springframework.data:spring-data-commons:3.3.6'
+    }
 }
 
 configurations.all {

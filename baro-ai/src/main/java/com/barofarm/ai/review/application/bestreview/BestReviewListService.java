@@ -8,11 +8,13 @@ import com.barofarm.ai.review.infrastructure.bestreview.ReviewCandidateQueryRepo
 import com.barofarm.ai.review.infrastructure.bestreview.ReviewCandidateQueryRepository.CandidateResult;
 import com.barofarm.ai.review.infrastructure.bestreview.ReviewCandidateQueryRepository.CandidateReviews;
 import java.io.IOException;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+import org.springframework.data.elasticsearch.core.IndexOperations;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -27,8 +29,10 @@ public class BestReviewListService {
     private final BestReviewListRepository listRepository;
     private final BestReviewReplacementPolicy replacementPolicy;
     private final ReviewSummaryService summaryService;
+    private final ElasticsearchOperations elasticsearchOperations;
 
     public void refreshProduct(String productId) {
+        ensureBestReviewIndex();
         CandidateResult result;
         try {
             result = queryRepository.fetchCandidates(productId, CANDIDATE_SIZE);   // productId의 후보 생성
@@ -52,6 +56,7 @@ public class BestReviewListService {
     }
 
     private void refreshBySentiment(String productId, Sentiment sentiment, long count, CandidateReviews reviews) {
+        ensureBestReviewIndex();
         if (count < CANDIDATE_SIZE) {
             return;
         }
@@ -67,8 +72,15 @@ public class BestReviewListService {
         }
 
         BestReviewListDocument updated =
-            new BestReviewListDocument(productId, sentiment, newIds, LocalDateTime.now());
+            new BestReviewListDocument(productId, sentiment, newIds, Instant.now());
         listRepository.save(updated);
         summaryService.summarizeFromContents(productId, sentiment, reviews.contents());
+    }
+
+    private void ensureBestReviewIndex() {
+        IndexOperations indexOps = elasticsearchOperations.indexOps(BestReviewListDocument.class);
+        if (!indexOps.exists()) {
+            indexOps.createWithMapping();
+        }
     }
 }

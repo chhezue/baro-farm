@@ -5,7 +5,7 @@ import com.barofarm.ai.review.domain.review.Sentiment;
 import com.barofarm.ai.review.domain.summary.ReviewSummaryDocument;
 import com.barofarm.ai.review.infrastructure.kafka.ReviewSummaryEventProducer;
 import com.barofarm.ai.review.infrastructure.summary.ReviewSummaryRepository;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -26,19 +26,19 @@ public class ReviewSummaryService {
 
     public void summarizeFromContents(String productId, Sentiment sentiment, List<String> contents) {
         if (contents == null || contents.isEmpty()) {
-            return;
-        }
+        return;
+    }
 
-        String summary = requestSummary(productId, sentiment, contents);
-        if (!StringUtils.hasText(summary)) {
+        List<String> summaryLines = requestSummary(productId, sentiment, contents);
+        if (summaryLines == null || summaryLines.isEmpty()) {
             return;
         }
 
         ReviewSummaryDocument document = new ReviewSummaryDocument(
             productId,
             sentiment,
-            summary.trim(),
-            LocalDateTime.now()
+            summaryLines,
+            Instant.now()
         );
         summaryRepository.save(document);
         UUID productUuid = parseProductId(productId);
@@ -46,22 +46,31 @@ public class ReviewSummaryService {
             eventProducer.send(new ReviewSummaryEvent(
                 productUuid,
                 sentiment.name(),
-                document.getSummaryText(),
+                summaryLines,
                 document.getUpdatedAt()
             ));
         }
     }
 
-    private String requestSummary(String productId, Sentiment sentiment, List<String> contents) {
+    private List<String> requestSummary(String productId, Sentiment sentiment, List<String> contents) {
         String prompt = buildPrompt(productId, sentiment, contents);
         try {
-            return chatClient.prompt()
+            SummaryResponse response = chatClient.prompt()
                 .user(u -> u.text(prompt))
                 .call()
-                .entity(String.class);
+                .entity(SummaryResponse.class);
+            if (response == null || response.summary() == null || response.summary().isEmpty()) {
+                return List.of();
+            }
+            return response.summary()
+                .stream()
+                .map(String::valueOf)
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .toList();
         } catch (Exception e) {
             log.warn("요약에 실패했습니다. productId={} sentiment={}", productId, sentiment, e);
-            return "";
+            return List.of();
         }
     }
 
@@ -77,27 +86,24 @@ public class ReviewSummaryService {
         "%s" 감정(POSITIVE 또는 NEGATIVE)에 해당하는 리뷰들이다.
 
         작업 목표:
-        - 리뷰들을 하나하나 다시 쓰지 말고,
-          여러 리뷰에서 반복적으로 나타나는 핵심 특징만 요약하라.
-        - 이 상품의 장점/단점을 처음 보는 사람도 바로 이해할 수 있도록 작성하라.
+        - 리뷰 요약 느낌이 나도록, 핵심만 간단히 정리해 주세요.
+        - 여러 리뷰에서 반복적으로 나타나는 특징만 뽑아 주세요.
+        - 말투는 "~요" 체로 부드럽게 작성해 주세요.
 
         요약 기준:
-        - 최대 3줄까지만 작성한다.
-        - 의미 있는 내용이 부족하면 1~2줄만 작성해도 된다.
-        - 각 줄은 한 문장으로, 짧고 명확하게 작성한다.
-        - "리뷰에 따르면", "사용자들은" 같은 표현은 사용하지 않는다.
-        - 감정(%s)에 맞는 내용만 포함한다.
+        - 최대 3줄까지만 작성해 주세요.
+        - 의미 있는 내용이 부족하면 1~2줄만 작성해도 돼요.
+        - 각 줄은 한 문장으로, 짧고 명확하게 작성해 주세요.
+        - "리뷰에 따르면", "사용자들은" 같은 표현은 사용하지 마세요.
+        - 감정(%s)에 맞는 내용만 포함해 주세요.
 
         ProductId: %s
 
         리뷰 목록:
         %s
 
-        출력 형식:
-        - 반드시 한국어로 작성한다.
-        - 요약 문장 1
-        - 요약 문장 2
-        - 요약 문장 3
+        출력 형식(JSON):
+        {{"summary":["요약 문장 1","요약 문장 2","요약 문장 3"]}}
         """.formatted(
             sentiment.name(),
             sentiment.name(),
@@ -105,6 +111,8 @@ public class ReviewSummaryService {
             joined
         );
     }
+
+    private record SummaryResponse(List<String> summary) {}
 
     private java.util.UUID parseProductId(String productId) {
         try {
