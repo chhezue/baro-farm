@@ -108,24 +108,37 @@ log_info "k8s 디렉토리: $K8S_BASE_DIR"
 # kubectl 확인 및 테스트
 # ===================================
 log_step "🔍 Checking kubectl..."
-KUBECTL_CMD=""
 
-# k3s가 설치되어 있으면 우선적으로 sudo k3s kubectl 사용 (권한 문제 방지)
-if command -v k3s &> /dev/null; then
-    if sudo k3s kubectl get nodes &> /dev/null 2>&1; then
-        KUBECTL_CMD="sudo k3s kubectl"
-        log_info "✅ sudo k3s kubectl 사용 (k3s 환경 감지)"
+# kubectl 명령어를 결정하는 함수 (재사용 가능)
+determine_kubectl_cmd() {
+    local cmd=""
+    
+    # k3s가 설치되어 있으면 우선적으로 sudo k3s kubectl 사용 (권한 문제 방지)
+    if command -v k3s &> /dev/null; then
+        if sudo k3s kubectl get nodes &> /dev/null 2>&1; then
+            cmd="sudo k3s kubectl"
+            log_info "✅ sudo k3s kubectl 사용 (k3s 환경 감지)"
+            echo "$cmd"
+            return 0
+        fi
     fi
-fi
+    
+    # k3s가 없거나 sudo k3s kubectl이 실패하면 일반 kubectl 시도
+    if command -v kubectl &> /dev/null; then
+        # kubectl이 실제로 클러스터에 접근할 수 있는지 테스트
+        if kubectl get nodes &> /dev/null 2>&1; then
+            cmd="kubectl"
+            log_info "✅ 일반 kubectl 사용 가능 (클러스터 접근 성공)"
+            echo "$cmd"
+            return 0
+        fi
+    fi
+    
+    return 1
+}
 
-# k3s가 없거나 sudo k3s kubectl이 실패하면 일반 kubectl 시도
-if [ -z "$KUBECTL_CMD" ] && command -v kubectl &> /dev/null; then
-    # kubectl이 실제로 클러스터에 접근할 수 있는지 테스트
-    if kubectl get nodes &> /dev/null 2>&1; then
-        KUBECTL_CMD="kubectl"
-        log_info "✅ 일반 kubectl 사용 가능 (클러스터 접근 성공)"
-    fi
-fi
+# kubectl 명령어 결정
+KUBECTL_CMD=$(determine_kubectl_cmd)
 
 # 최종 확인
 if [ -z "$KUBECTL_CMD" ]; then
@@ -143,6 +156,20 @@ if [ -z "$KUBECTL_CMD" ]; then
 fi
 
 log_info "📦 사용할 kubectl 명령어: $KUBECTL_CMD"
+
+# kubectl 명령어 검증 함수 (실행 전 확인용)
+verify_kubectl() {
+    if ! $KUBECTL_CMD get nodes &> /dev/null 2>&1; then
+        log_warn "⚠️ kubectl 명령어가 작동하지 않습니다. 재확인 중..."
+        KUBECTL_CMD=$(determine_kubectl_cmd)
+        if [ -z "$KUBECTL_CMD" ]; then
+            log_error "❌ kubectl 명령어를 재확인할 수 없습니다."
+            return 1
+        fi
+        log_info "✅ kubectl 명령어 재확인 완료: $KUBECTL_CMD"
+    fi
+    return 0
+}
 
 # ===================================
 # Data EC2 Private IP 설정
@@ -425,10 +452,12 @@ if [ "$MODULE_NAME" = "cloud" ]; then
     # IMAGE_TAG가 latest일 때는 Deployment spec이 변경되지 않으므로 rollout restart로 Pod 재시작
     if [ "$IMAGE_TAG" = "latest" ]; then
         log_info "🔄 latest 태그 사용 중이므로 Pod 재시작 (rollout restart)..."
+        verify_kubectl || exit 1
         $KUBECTL_CMD rollout restart deployment/opa-bundle -n baro-prod || true
     fi
     
     # Pod가 Ready 상태가 될 때까지 대기 (타임아웃: 300초)
+    verify_kubectl || exit 1
     if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=opa-bundle -n baro-prod --timeout=300s 2>&1; then
         log_warn "⚠️ OPA Bundle Pod가 Ready 상태가 되지 않았습니다. 상태 확인 중..."
         echo ""
@@ -451,6 +480,14 @@ if [ "$MODULE_NAME" = "cloud" ]; then
         log_info "✅ OPA Bundle Pod가 Ready 상태입니다."
     fi
     
+    # OPA 배포 전 OPA Bundle Ready 상태 재확인
+    log_step "⏳ OPA 배포 전 OPA Bundle Ready 상태 확인 중..."
+    if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=opa-bundle -n baro-prod --timeout=30s 2>&1; then
+        log_warn "⚠️ OPA Bundle Pod가 Ready 상태가 아닙니다. OPA 배포를 계속 진행하지만, OPA가 번들을 가져올 수 없을 수 있습니다."
+    else
+        log_info "✅ OPA Bundle Pod가 Ready 상태입니다. OPA 배포를 진행합니다."
+    fi
+    
     # OPA 배포 (DaemonSet)
     log_step "📦 OPA 배포 중..."
     $KUBECTL_CMD apply -k "$K8S_BASE_DIR/cloud/opa/"
@@ -458,10 +495,12 @@ if [ "$MODULE_NAME" = "cloud" ]; then
     # IMAGE_TAG가 latest일 때는 DaemonSet spec이 변경되지 않으므로 rollout restart로 Pod 재시작
     if [ "$IMAGE_TAG" = "latest" ]; then
         log_info "🔄 latest 태그 사용 중이므로 Pod 재시작 (rollout restart)..."
+        verify_kubectl || exit 1
         $KUBECTL_CMD rollout restart daemonset/opa -n baro-prod || true
     fi
     
     # Pod가 Ready 상태가 될 때까지 대기 (타임아웃: 300초)
+    verify_kubectl || exit 1
     if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=opa -n baro-prod --timeout=300s 2>&1; then
         log_warn "⚠️ OPA Pod가 Ready 상태가 되지 않았습니다. 상태 확인 중..."
         echo ""
@@ -789,7 +828,7 @@ if [ -n "$RESOURCE_TYPE" ]; then
 fi
 
 # ===================================
-# opa 배포 전 Eureka 확인
+# opa 배포 전 Eureka 및 OPA Bundle 확인
 # ===================================
 if [ "$MODULE_NAME" = "opa" ]; then
     log_step "⏳ OPA 배포 전 Eureka 준비 상태 확인 중..."
@@ -797,6 +836,13 @@ if [ "$MODULE_NAME" = "opa" ]; then
         log_warn "⚠️ Eureka Pod가 Ready 상태가 아닙니다. OPA 배포를 계속 진행하지만, initContainer에서 대기합니다."
     else
         log_info "✅ Eureka Pod가 Ready 상태입니다."
+    fi
+    
+    log_step "⏳ OPA 배포 전 OPA Bundle 준비 상태 확인 중..."
+    if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=opa-bundle -n baro-prod --timeout=60s 2>&1; then
+        log_warn "⚠️ OPA Bundle Pod가 Ready 상태가 아닙니다. OPA 배포를 계속 진행하지만, OPA가 번들을 가져올 수 없을 수 있습니다."
+    else
+        log_info "✅ OPA Bundle Pod가 Ready 상태입니다."
     fi
 fi
 
