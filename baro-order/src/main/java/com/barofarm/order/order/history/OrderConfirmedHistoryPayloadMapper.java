@@ -50,8 +50,9 @@ public class OrderConfirmedHistoryPayloadMapper implements HistoryPayloadMapper 
             items = order.getOrderItems().stream()
                 .map(item -> OrderItemData.builder()
                     .productId(item.getProductId())
-                    .productName(resolveProductName(item))
+                    .productName(item.getProductName())
                     .quantity(Math.toIntExact(item.getQuantity()))
+                    .categoryName(item.getCategoryName())
                     .build())
                 .toList();
         }
@@ -60,16 +61,5 @@ public class OrderConfirmedHistoryPayloadMapper implements HistoryPayloadMapper 
             .orderId(order != null ? order.getId() : orderId)
             .orderItems(items)
             .build();
-    }
-
-    private String resolveProductName(Object item) {
-        // TODO: remove reflection once OrderItem has getProductName()
-        try {
-            Method method = item.getClass().getMethod("getProductName");
-            Object value = method.invoke(item);
-            return value != null ? value.toString() : null;
-        } catch (Exception e) {
-            return null;
-        }
     }
 }

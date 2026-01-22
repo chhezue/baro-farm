@@ -50,8 +50,9 @@ public class OrderCancelledHistoryPayloadMapper implements HistoryPayloadMapper 
             items = order.getOrderItems().stream()
                 .map(item -> OrderItemData.builder()
                     .productId(item.getProductId())
-                    .productName(resolveProductName(item))
+                    .productName(orderItemProductName(item))
                     .quantity(Math.toIntExact(item.getQuantity()))
+                    .categoryName(item.getCategoryName())
                     .build())
                 .toList();
         }
@@ -62,14 +63,7 @@ public class OrderCancelledHistoryPayloadMapper implements HistoryPayloadMapper 
             .build();
     }
 
-    private String resolveProductName(Object item) {
-        // TODO: remove reflection once OrderItem has getProductName()
-        try {
-            Method method = item.getClass().getMethod("getProductName");
-            Object value = method.invoke(item);
-            return value != null ? value.toString() : null;
-        } catch (Exception e) {
-            return null;
-        }
+    private String orderItemProductName(com.barofarm.order.order.domain.OrderItem item) {
+        return item.getProductName();
     }
 }
