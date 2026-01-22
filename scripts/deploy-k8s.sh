@@ -552,6 +552,32 @@ fi
 # ===================================
 if [ ! -d "$DEPLOY_PATH" ]; then
     log_error "배포 경로를 찾을 수 없습니다: $DEPLOY_PATH"
+    log_error "디버깅 정보:"
+    log_error "  - K8S_BASE_DIR: $K8S_BASE_DIR"
+    log_error "  - MODULE_NAME: $MODULE_NAME"
+    log_error "  - 예상 경로: $K8S_BASE_DIR/apps/baro-$MODULE_NAME 또는 $K8S_BASE_DIR/cloud/$MODULE_NAME"
+    
+    # 가능한 경로 확인
+    log_error "가능한 경로 확인:"
+    if [ -d "$K8S_BASE_DIR/apps" ]; then
+        log_error "  - apps 디렉토리 내용:"
+        ls -la "$K8S_BASE_DIR/apps" 2>&1 | head -10 || true
+    fi
+    if [ -d "$K8S_BASE_DIR/cloud" ]; then
+        log_error "  - cloud 디렉토리 내용:"
+        ls -la "$K8S_BASE_DIR/cloud" 2>&1 | head -10 || true
+    fi
+    exit 1
+fi
+
+# 배포 경로에 deployment.yaml 또는 daemonset.yaml이 있는지 확인
+if [ ! -f "$DEPLOY_PATH/deployment.yaml" ] && [ ! -f "$DEPLOY_PATH/daemonset.yaml" ]; then
+    log_error "배포 파일을 찾을 수 없습니다: $DEPLOY_PATH"
+    log_error "다음 파일 중 하나가 필요합니다:"
+    log_error "  - $DEPLOY_PATH/deployment.yaml"
+    log_error "  - $DEPLOY_PATH/daemonset.yaml"
+    log_error "디렉토리 내용:"
+    ls -la "$DEPLOY_PATH" 2>&1 || true
     exit 1
 fi
 
@@ -573,17 +599,41 @@ if [ -f "$KUSTOMIZATION_FILE" ] && [ "$IMAGE_TAG" != "latest" ]; then
 fi
 
 # ===================================
-# Deployment 파일에 EC2 IP 설정 (임시 파일 사용)
+# Deployment/DaemonSet 파일에 EC2 IP 설정 (임시 파일 사용)
 # ===================================
 DEPLOYMENT_FILE="$DEPLOY_PATH/deployment.yaml"
+DAEMONSET_FILE="$DEPLOY_PATH/daemonset.yaml"
 TEMP_DEPLOYMENT=""
 
-log_info "🔍 Deployment 파일 확인: $DEPLOYMENT_FILE"
+# Deployment 또는 DaemonSet 파일 확인
 if [ -f "$DEPLOYMENT_FILE" ]; then
-    log_info "✅ Deployment 파일 존재 확인됨"
+    DEPLOYMENT_FILE_TO_USE="$DEPLOYMENT_FILE"
+    log_info "🔍 Deployment 파일 확인: $DEPLOYMENT_FILE"
+elif [ -f "$DAEMONSET_FILE" ]; then
+    DEPLOYMENT_FILE_TO_USE="$DAEMONSET_FILE"
+    log_info "🔍 DaemonSet 파일 확인: $DAEMONSET_FILE"
+else
+    log_error "❌ Deployment 또는 DaemonSet 파일을 찾을 수 없습니다"
+    log_error "디버깅 정보:"
+    log_error "  - DEPLOY_PATH: $DEPLOY_PATH"
+    log_error "  - K8S_BASE_DIR: $K8S_BASE_DIR"
+    log_error "  - MODULE_NAME: $MODULE_NAME"
+    
+    # 디렉토리 내용 확인
+    if [ -d "$DEPLOY_PATH" ]; then
+        log_error "  - 디렉토리 내용:"
+        ls -la "$DEPLOY_PATH" 2>&1 | head -20 || true
+    else
+        log_error "  - 디렉토리도 존재하지 않습니다: $DEPLOY_PATH"
+    fi
+    exit 1
+fi
+
+if [ -f "$DEPLOYMENT_FILE_TO_USE" ]; then
+    log_info "✅ 파일 존재 확인됨: $DEPLOYMENT_FILE_TO_USE"
     # 임시 파일 생성 (원본 파일 보존)
     TEMP_DEPLOYMENT=$(mktemp)
-    cp "$DEPLOYMENT_FILE" "$TEMP_DEPLOYMENT"
+    cp "$DEPLOYMENT_FILE_TO_USE" "$TEMP_DEPLOYMENT"
     
     log_step "🔧 Deployment 파일 설정 중..."
     
@@ -788,16 +838,16 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
         fi
     fi
     
-    # 임시 deployment.yaml을 원본 위치에 복사 (kustomize가 읽을 수 있도록)
+    # 임시 파일을 원본 위치에 복사 (kustomize가 읽을 수 있도록)
     # 매 배포마다 GitHub Actions가 최신 k8s 디렉토리를 복사하므로, 수정된 파일을 그대로 사용
-    cp "$TEMP_DEPLOYMENT" "$DEPLOYMENT_FILE"
+    cp "$TEMP_DEPLOYMENT" "$DEPLOYMENT_FILE_TO_USE"
     rm -f "$TEMP_DEPLOYMENT"
-    log_info "✅ Deployment 파일 업데이트 완료 (수정된 파일로 배포 예정)"
-    log_info "📝 수정된 deployment.yaml 내용 확인:"
-    grep -A 2 "SPRING_KAFKA_BOOTSTRAP_SERVERS\|SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE" || true
-else
-    log_error "Deployment 파일을 찾을 수 없습니다: $DEPLOYMENT_FILE"
-    exit 1
+    log_info "✅ 파일 업데이트 완료 (수정된 파일로 배포 예정): $DEPLOYMENT_FILE_TO_USE"
+    log_info "📝 수정된 내용 확인:"
+    grep -A 2 "SPRING_KAFKA_BOOTSTRAP_SERVERS\|SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE_TO_USE" || true
+    
+    # Deployment 또는 DaemonSet 파일 변수 설정 (나중에 사용)
+    DEPLOYMENT_FILE="$DEPLOYMENT_FILE_TO_USE"
 fi
 
 # ===================================
