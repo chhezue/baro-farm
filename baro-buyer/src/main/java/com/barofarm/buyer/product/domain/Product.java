@@ -1,7 +1,7 @@
 package com.barofarm.buyer.product.domain;
 
 import com.barofarm.buyer.product.exception.ProductErrorCode;
-import com.barofarm.common.entity.BaseEntity;
+import com.barofarm.entity.BaseEntity;
 import com.barofarm.exception.CustomException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
