@@ -672,14 +672,22 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
         fi
         
         # Kafka Bootstrap Servers 처리
+        # apps 모듈(buyer, seller 등)은 Public EC2에서 실행되므로 항상 DATA_EC2_IP 사용
         # DEPLOY_KAFKA=true일 때: Public EC2에 배포되므로 DATA_EC2_IP 사용
-        # DEPLOY_KAFKA=false일 때: Private EC2에 배포되거나 미배포이므로 localhost 사용
+        # DEPLOY_KAFKA=false일 때: apps 모듈은 항상 DATA_EC2_IP 사용, cloud 모듈만 localhost 사용
         if grep -q "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT"; then
             log_info "🔍 Kafka Bootstrap Servers 치환 전 확인:"
             grep -A 1 "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT" || true
             
-            if [ "${DEPLOY_KAFKA:-false}" = "true" ]; then
-                log_info "📦 DEPLOY_KAFKA=true: Kafka는 Public EC2에 배포되므로 $DATA_EC2_IP:29092 사용"
+            # apps 모듈인지 확인 (buyer, seller, order 등)
+            IS_APP_MODULE=false
+            if [[ "$DEPLOY_PATH" == *"/apps/"* ]]; then
+                IS_APP_MODULE=true
+                log_info "📦 Apps 모듈 감지: Public EC2에서 실행되므로 항상 $DATA_EC2_IP:29092 사용"
+            fi
+            
+            if [ "${DEPLOY_KAFKA:-false}" = "true" ] || [ "$IS_APP_MODULE" = "true" ]; then
+                log_info "📦 Kafka는 Data EC2에 배포되므로 $DATA_EC2_IP:29092 사용"
                 # 127.0.0.1:29092 패턴을 Data EC2 IP로 변경
                 sed "s|127\.0\.0\.1:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
                 mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
@@ -691,11 +699,11 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
                 mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
                 # CHANGE_ME_TO_EC2_IP:29092는 이미 전역 치환으로 DATA_EC2_IP:29092로 변경됨
                 if grep -q "$DATA_EC2_IP:29092" "$TEMP_DEPLOYMENT"; then
-                    log_info "✅ SPRING_KAFKA_BOOTSTRAP_SERVERS: $DATA_EC2_IP:29092 사용 (Public EC2에서 실행 중)"
+                    log_info "✅ SPRING_KAFKA_BOOTSTRAP_SERVERS: $DATA_EC2_IP:29092 사용"
                 fi
             else
                 log_info "📦 DEPLOY_KAFKA=false: Kafka는 Private EC2에 배포되거나 미배포이므로 localhost:29092 유지"
-                # CHANGE_ME_TO_EC2_IP:29092를 localhost:29092로 변경
+                # CHANGE_ME_TO_EC2_IP:29092를 localhost:29092로 변경 (cloud 모듈만)
                 sed "s|$DATA_EC2_IP:29092|localhost:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
                 mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
                 # localhost:29092가 이미 설정되어 있으면 유지
