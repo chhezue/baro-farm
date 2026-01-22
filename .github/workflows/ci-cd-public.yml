@@ -19,6 +19,8 @@ on:
       - main-eureka
       - main-gateway
       - main-config
+      - main-opa
+      - main-opa-bundle
   pull_request:
     branches:
       - main-data
@@ -26,6 +28,8 @@ on:
       - main-eureka
       - main-gateway
       - main-config
+      - main-opa
+      - main-opa-bundle
     types: [opened, synchronize, reopened]
 
 # GITHUB_TOKEN에 패키지 쓰기 권한 부여
@@ -50,12 +54,16 @@ jobs:
        (startsWith(github.ref, 'refs/heads/main-cloud') ||
         startsWith(github.ref, 'refs/heads/main-eureka') ||
         startsWith(github.ref, 'refs/heads/main-gateway') ||
-        startsWith(github.ref, 'refs/heads/main-config'))) ||
+        startsWith(github.ref, 'refs/heads/main-config') ||
+        startsWith(github.ref, 'refs/heads/main-opa') ||
+        startsWith(github.ref, 'refs/heads/main-opa-bundle'))) ||
       (github.event_name == 'pull_request' && 
        (startsWith(github.base_ref, 'main-cloud') ||
         startsWith(github.base_ref, 'main-eureka') ||
         startsWith(github.base_ref, 'main-gateway') ||
-        startsWith(github.base_ref, 'main-config')))
+        startsWith(github.base_ref, 'main-config') ||
+        startsWith(github.base_ref, 'main-opa') ||
+        startsWith(github.base_ref, 'main-opa-bundle')))
     
     steps:
       - name: Checkout code
@@ -70,12 +78,14 @@ jobs:
             MODULE=""
           fi
           
-          # 빌드할 모듈 결정 (Public EC2용: cloud, eureka, gateway, config)
+          # 빌드할 모듈 결정 (Public EC2용: cloud, eureka, gateway, config, opa, opa-bundle)
           case "$MODULE" in
-            cloud) BUILD_MODULE=":baro-cloud:eureka,:baro-cloud:gateway,:baro-cloud:config" ;;
+            cloud) BUILD_MODULE=":baro-cloud:eureka,:baro-cloud:gateway,:baro-cloud:config,:baro-cloud:opa-bundle" ;;
             eureka) BUILD_MODULE=":baro-cloud:eureka" ;;
             gateway) BUILD_MODULE=":baro-cloud:gateway" ;;
             config) BUILD_MODULE=":baro-cloud:config" ;;
+            opa) BUILD_MODULE=":baro-cloud:opa-bundle" ;;  # opa는 opa-bundle JAR 필요
+            opa-bundle) BUILD_MODULE=":baro-cloud:opa-bundle" ;;
             *) BUILD_MODULE="" ;;
           esac
           
@@ -207,13 +217,17 @@ jobs:
         startsWith(github.ref, 'refs/heads/main-cloud') ||
         startsWith(github.ref, 'refs/heads/main-eureka') ||
         startsWith(github.ref, 'refs/heads/main-gateway') ||
-        startsWith(github.ref, 'refs/heads/main-config'))) ||
+        startsWith(github.ref, 'refs/heads/main-config') ||
+        startsWith(github.ref, 'refs/heads/main-opa') ||
+        startsWith(github.ref, 'refs/heads/main-opa-bundle'))) ||
       (github.event_name == 'pull_request' && 
        (startsWith(github.base_ref, 'main-data') ||
         startsWith(github.base_ref, 'main-cloud') ||
         startsWith(github.base_ref, 'main-eureka') ||
         startsWith(github.base_ref, 'main-gateway') ||
-        startsWith(github.base_ref, 'main-config')))
+        startsWith(github.base_ref, 'main-config') ||
+        startsWith(github.base_ref, 'main-opa') ||
+        startsWith(github.base_ref, 'main-opa-bundle')))
     outputs:
       service: ${{ steps.module.outputs.service }}
       module: ${{ steps.module.outputs.module }}
@@ -228,13 +242,15 @@ jobs:
             MODULE=""
           fi
           
-          # 모듈명을 서비스명으로 변환 (Public EC2용: data, cloud, eureka, gateway, config)
+          # 모듈명을 서비스명으로 변환 (Public EC2용: data, cloud, eureka, gateway, config, opa, opa-bundle)
           case "$MODULE" in
             data) SERVICE="data" ;;  # data는 빌드 없이 배포만
             cloud) SERVICE="cloud" ;;  # cloud는 빌드 필요 (eureka, gateway, config)
             eureka) SERVICE="eureka" ;;
             gateway) SERVICE="gateway" ;;
             config) SERVICE="config" ;;
+            opa) SERVICE="opa" ;;  # opa는 opa-bundle JAR 포함
+            opa-bundle) SERVICE="opa" ;;  # opa-bundle은 opa 이미지에 포함
             *) SERVICE="" ;;
           esac
           
@@ -265,9 +281,10 @@ jobs:
       needs.determine-service.outputs.service != 'data'
     
     # cloud 모듈일 때는 eureka, gateway, config를 각각 빌드
+    # opa 모듈일 때는 opa만 빌드 (opa-bundle JAR 포함)
     strategy:
       matrix:
-        service: ${{ needs.determine-service.outputs.service == 'cloud' && fromJSON('["eureka", "gateway", "config"]') || fromJSON(format('["{0}"]', needs.determine-service.outputs.service)) }}
+        service: ${{ needs.determine-service.outputs.service == 'cloud' && fromJSON('["eureka", "gateway", "config"]') || needs.determine-service.outputs.service == 'opa' && fromJSON('["opa"]') || fromJSON(format('["{0}"]', needs.determine-service.outputs.service)) }}
       fail-fast: false
     
     steps:
@@ -308,6 +325,10 @@ jobs:
             eureka) MODULE_PATH="baro-cloud/eureka" ;;
             gateway) MODULE_PATH="baro-cloud/gateway" ;;
             config) MODULE_PATH="baro-cloud/config" ;;
+            opa) 
+              MODULE_PATH="baro-cloud/opa-bundle"  # opa는 opa-bundle JAR 필요
+              echo "Building opa-bundle JAR for opa image..."
+              ;;
             *) MODULE_PATH="" ;;
           esac
           
@@ -361,6 +382,9 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:buildcache,mode=max
+          # opa 이미지 빌드 시 opa-bundle JAR 포함
+          build-args: |
+            ${{ matrix.service == 'opa' && '--build-arg OPA_BUNDLE_JAR=baro-cloud/opa-bundle/build/libs/opa-bundle-*.jar' || '' }}
       
       - name: Make package public
         if: success()
