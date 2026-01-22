@@ -410,14 +410,49 @@ if [ "$MODULE_NAME" = "cloud" ]; then
         rm -f "${KUSTOMIZATION_FILE}.bak" 2>/dev/null || true
     fi
     
-    # OPA 배포 전 Eureka 확인
-    log_step "⏳ OPA 배포 전 Eureka 준비 상태 확인 중..."
+    # OPA Bundle 배포 전 Eureka 확인
+    log_step "⏳ OPA Bundle 배포 전 Eureka 준비 상태 확인 중..."
     if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=eureka -n baro-prod --timeout=60s 2>&1; then
-        log_warn "⚠️ Eureka Pod가 Ready 상태가 아닙니다. OPA 배포를 계속 진행하지만, initContainer에서 대기합니다."
+        log_warn "⚠️ Eureka Pod가 Ready 상태가 아닙니다. OPA Bundle 배포를 계속 진행하지만, initContainer에서 대기합니다."
     else
         log_info "✅ Eureka Pod가 Ready 상태입니다."
     fi
     
+    # OPA Bundle 배포 (Deployment)
+    log_step "📦 OPA Bundle 배포 중..."
+    $KUBECTL_CMD apply -k "$K8S_BASE_DIR/cloud/opa-bundle/"
+    
+    # IMAGE_TAG가 latest일 때는 Deployment spec이 변경되지 않으므로 rollout restart로 Pod 재시작
+    if [ "$IMAGE_TAG" = "latest" ]; then
+        log_info "🔄 latest 태그 사용 중이므로 Pod 재시작 (rollout restart)..."
+        $KUBECTL_CMD rollout restart deployment/opa-bundle -n baro-prod || true
+    fi
+    
+    # Pod가 Ready 상태가 될 때까지 대기 (타임아웃: 300초)
+    if ! $KUBECTL_CMD wait --for=condition=ready pod -l app=opa-bundle -n baro-prod --timeout=300s 2>&1; then
+        log_warn "⚠️ OPA Bundle Pod가 Ready 상태가 되지 않았습니다. 상태 확인 중..."
+        echo ""
+        echo "📊 OPA Bundle Pod 상태:"
+        $KUBECTL_CMD get pods -n baro-prod -l app=opa-bundle 2>&1 || true
+        echo ""
+        echo "📋 OPA Bundle Deployment 상태:"
+        $KUBECTL_CMD get deployment opa-bundle -n baro-prod 2>&1 || true
+        echo ""
+        echo "📝 OPA Bundle Pod 이벤트:"
+        OPA_BUNDLE_POD=$($KUBECTL_CMD get pods -n baro-prod -l app=opa-bundle -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+        if [ -n "$OPA_BUNDLE_POD" ]; then
+            $KUBECTL_CMD describe pod "$OPA_BUNDLE_POD" -n baro-prod 2>&1 | grep -A 30 "Events:" || true
+            echo ""
+            echo "📄 OPA Bundle Pod 로그 (마지막 50줄):"
+            $KUBECTL_CMD logs "$OPA_BUNDLE_POD" -n baro-prod --tail=50 2>&1 || true
+        fi
+        log_warn "⚠️ OPA Bundle 배포는 계속 진행하지만, Pod가 준비되지 않았을 수 있습니다."
+    else
+        log_info "✅ OPA Bundle Pod가 Ready 상태입니다."
+    fi
+    
+    # OPA 배포 (DaemonSet)
+    log_step "📦 OPA 배포 중..."
     $KUBECTL_CMD apply -k "$K8S_BASE_DIR/cloud/opa/"
     
     # IMAGE_TAG가 latest일 때는 DaemonSet spec이 변경되지 않으므로 rollout restart로 Pod 재시작
