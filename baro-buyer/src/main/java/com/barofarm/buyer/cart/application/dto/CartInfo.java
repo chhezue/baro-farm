@@ -26,9 +26,10 @@ public record CartInfo(
         );
     }
 
-    // 실시간 상품명, 카테고리명, 재고 단위로 CartInfo 생성
+    // 실시간 상품명, 카테고리 ID/명, 재고 단위로 CartInfo 생성
     public static CartInfo from(Cart cart,
                                Map<UUID, String> productNameMap,
+                               Map<UUID, UUID> productCategoryIdMap,
                                Map<UUID, String> productCategoryNameMap,
                                Map<UUID, Integer> inventoryUnitMap) {
         return new CartInfo(
@@ -37,9 +38,10 @@ public record CartInfo(
             cart.getItems().stream()
                 .map(item -> {
                     String realTimeName = productNameMap.get(item.getProductId());
+                    UUID categoryId = productCategoryIdMap.get(item.getProductId());
                     String categoryName = productCategoryNameMap.get(item.getProductId());
                     Integer unit = inventoryUnitMap.get(item.getInventoryId());
-                    return CartItemInfo.from(item, realTimeName, categoryName, unit);  // 실시간 상품명, 카테고리명과 단위 사용
+                    return CartItemInfo.from(item, realTimeName, categoryId, categoryName, unit);
                 })
                 .toList(),
             cart.calculateTotalPrice(),

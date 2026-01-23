@@ -28,7 +28,7 @@ public class OrderLogDocument {
     private String productName;
 
     @Field(type = FieldType.Keyword)
-    private String categoryName;
+    private UUID categoryId;
 
     @Field(type = FieldType.Keyword)
     private String eventType;
@@ -43,14 +43,14 @@ public class OrderLogDocument {
     public OrderLogDocument(UUID userId,
                             UUID productId,
                             String productName,
-                            String categoryName,
+                            UUID categoryId,
                             String eventType,
                             Integer quantity,
                             Instant occurredAt) {
         this.userId = userId;
         this.productId = productId;
         this.productName = productName;
-        this.categoryName = categoryName;
+        this.categoryId = categoryId;
         this.eventType = eventType;
         this.quantity = quantity;
         this.occurredAt = occurredAt;

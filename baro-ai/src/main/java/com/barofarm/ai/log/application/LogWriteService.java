@@ -24,6 +24,7 @@ public class LogWriteService {
     public void saveCartEventLog(UUID userId,
                                  UUID productId,
                                  String productName,
+                                 UUID categoryId,
                                  String categoryName,
                                  String eventType,
                                  Integer quantity,
@@ -32,6 +33,7 @@ public class LogWriteService {
             .userId(userId)
             .productId(productId)
             .productName(productName)
+            .categoryId(categoryId)
             .categoryName(categoryName)
             .eventType(eventType)
             .quantity(quantity)
@@ -39,14 +41,14 @@ public class LogWriteService {
             .build();
 
         CartLogDocument saved = cartLogRepository.save(document);
-        log.info("[LOG_WRITE] Saved cart event log - ID: {}, User: {}, Product: {}, Category: {}",
-            saved.getId(), userId, productName, categoryName);
+        log.info("[LOG_WRITE] Saved cart event log - ID: {}, User: {}, Product: {}, CategoryId: {}, CategoryName: {}",
+            saved.getId(), userId, productName, categoryId, categoryName);
     }
 
     public void saveOrderEventLog(UUID userId,
                                   UUID productId,
                                   String productName,
-                                  String categoryName,
+                                  UUID categoryId,
                                   String eventType,
                                   Integer quantity,
                                   Instant occurredAt) {
@@ -54,15 +56,15 @@ public class LogWriteService {
             .userId(userId)
             .productId(productId)
             .productName(productName)
-            .categoryName(categoryName)
+            .categoryId(categoryId)
             .eventType(eventType)
             .quantity(quantity)
             .occurredAt(occurredAt)
             .build();
 
         OrderLogDocument saved = orderLogRepository.save(document);
-        log.info("[LOG_WRITE] Saved order event log - ID: {}, User: {}, Product: {}, Category: {}",
-            saved.getId(), userId, productName, categoryName);
+        log.info("[LOG_WRITE] Saved order event log - ID: {}, User: {}, Product: {}, CategoryId: {}",
+            saved.getId(), userId, productName, categoryId);
     }
 
     public void saveSearchLog(UUID userId,

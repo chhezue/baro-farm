@@ -67,7 +67,7 @@ public class OrderCancelledHistoryPayloadMapper implements HistoryPayloadMapper 
                     .productId(item.getProductId())
                     .productName(item.getProductName())
                     .quantity(Math.toIntExact(item.getQuantity()))
-                    .categoryName(item.getCategoryName())
+                    .categoryId(item.getCategoryId())
                     .build())
                 .toList();
         }

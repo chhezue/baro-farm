@@ -59,7 +59,7 @@ public class CartQuantityUpdateHistoryPayloadMapper implements HistoryPayloadMap
             productRepository.findById(productId).ifPresent(product -> {
                 builder.productName(product.getProductName());
                 if (product.getCategory() != null) {
-                    builder.categoryName(product.getCategory().getName());
+                    builder.categoryId(product.getCategory().getId());
                 }
             });
         }

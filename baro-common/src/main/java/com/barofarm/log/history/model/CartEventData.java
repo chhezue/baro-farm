@@ -15,6 +15,7 @@ public class CartEventData {
     private UUID cartItemId;
     private UUID productId;
     private String productName;
+    private UUID categoryId;
     private String categoryName;
     private Integer quantity;
 }

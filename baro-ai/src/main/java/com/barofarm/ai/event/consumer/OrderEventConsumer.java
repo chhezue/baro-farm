@@ -57,7 +57,7 @@ public class OrderEventConsumer {
                     event.userId(),
                     item.productId(),
                     item.productName(),
-                    item.categoryName(),
+                    item.categoryId(),
                     "ORDER_CONFIRMED",
                     item.quantity(),
                     convertToInstant(event.ts())
@@ -82,7 +82,7 @@ public class OrderEventConsumer {
                     event.userId(),
                     item.productId(),
                     item.productName(),
-                    item.categoryName(),
+                    item.categoryId(),
                     "ORDER_CANCELLED",
                     item.quantity(),
                     convertToInstant(event.ts())

@@ -28,6 +28,9 @@ public class CartLogDocument {
     private String productName;
 
     @Field(type = FieldType.Keyword)
+    private UUID categoryId;
+
+    @Field(type = FieldType.Keyword)
     private String categoryName;
 
     @Field(type = FieldType.Keyword)
@@ -43,6 +46,7 @@ public class CartLogDocument {
     public CartLogDocument(UUID userId,
                            UUID productId,
                            String productName,
+                           UUID categoryId,
                            String categoryName,
                            String eventType,
                            Integer quantity,
@@ -50,6 +54,7 @@ public class CartLogDocument {
         this.userId = userId;
         this.productId = productId;
         this.productName = productName;
+        this.categoryId = categoryId;
         this.categoryName = categoryName;
         this.eventType = eventType;
         this.quantity = quantity;

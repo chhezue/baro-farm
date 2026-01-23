@@ -33,8 +33,8 @@ public class OrderItem extends BaseEntity {
     @Column(name = "email", nullable = false)
     private String productName;
 
-    @Column(name = "category_name")
-    private String categoryName;
+    @Column(name = "category_id", columnDefinition = "BINARY(16)")
+    private UUID categoryId;
 
     @Column(name = "seller_id", columnDefinition = "BINARY(16)", nullable = false)
     private UUID sellerId;
@@ -55,7 +55,7 @@ public class OrderItem extends BaseEntity {
                       Order order,
                       UUID productId,
                       String productName,
-                      String categoryName,
+                      UUID categoryId,
                       UUID sellerId,
                       Long quantity,
                       Long unitPrice,
@@ -64,7 +64,7 @@ public class OrderItem extends BaseEntity {
         this.order = order;
         this.productId = productId;
         this.productName = productName;
-        this.categoryName = categoryName;
+        this.categoryId = categoryId;
         this.sellerId = sellerId;
         this.quantity = quantity;
         this.unitPrice = unitPrice;
@@ -75,7 +75,7 @@ public class OrderItem extends BaseEntity {
     public static OrderItem of(Order order,
                                UUID productId,
                                String productName,
-                               String categoryName,
+                               UUID categoryId,
                                UUID sellerId,
                                Long quantity,
                                Long unitPrice,
@@ -85,7 +85,7 @@ public class OrderItem extends BaseEntity {
             order,
             productId,
             productName,
-            categoryName,
+            categoryId,
             sellerId,
             quantity,
             unitPrice,
