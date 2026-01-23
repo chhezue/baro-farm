@@ -6,7 +6,7 @@ import com.barofarm.log.history.model.OrderEventData;
 import com.barofarm.log.history.model.OrderItemData;
 import com.barofarm.order.order.domain.Order;
 import com.barofarm.order.order.domain.OrderRepository;
-import java.lang.reflect.Method;
+import com.barofarm.order.order.infrastructure.kafka.consumer.dto.InventoryCanceledEvent;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -37,11 +37,26 @@ public class OrderCancelledHistoryPayloadMapper implements HistoryPayloadMapper 
         return build(orderId, order);
     }
 
-    private UUID resolveOrderId(Object[] args) {
-        if (args == null || args.length < 2) {
+    @Override
+    public UUID resolveUserId(Object[] args, Object returnValue) {
+        UUID orderId = resolveOrderId(args);
+        if (orderId == null) {
             return null;
         }
-        return args[1] instanceof UUID id ? id : null;
+        return orderRepository.findById(orderId)
+            .map(Order::getUserId)
+            .orElse(null);
+    }
+
+    private UUID resolveOrderId(Object[] args) {
+        if (args == null || args.length < 1) {
+            return null;
+        }
+        Object first = args[0];
+        if (first instanceof InventoryCanceledEvent event) {
+            return event.orderId();
+        }
+        return null;
     }
 
     private OrderEventData build(UUID orderId, Order order) {
@@ -50,7 +65,7 @@ public class OrderCancelledHistoryPayloadMapper implements HistoryPayloadMapper 
             items = order.getOrderItems().stream()
                 .map(item -> OrderItemData.builder()
                     .productId(item.getProductId())
-                    .productName(orderItemProductName(item))
+                    .productName(item.getProductName())
                     .quantity(Math.toIntExact(item.getQuantity()))
                     .categoryName(item.getCategoryName())
                     .build())
@@ -61,9 +76,5 @@ public class OrderCancelledHistoryPayloadMapper implements HistoryPayloadMapper 
             .orderId(order != null ? order.getId() : orderId)
             .orderItems(items)
             .build();
-    }
-
-    private String orderItemProductName(com.barofarm.order.order.domain.OrderItem item) {
-        return item.getProductName();
     }
 }
