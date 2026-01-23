@@ -1,5 +1,6 @@
 package com.barofarm.ai.event.model;
 
+import com.barofarm.log.history.model.HistoryEventType;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 

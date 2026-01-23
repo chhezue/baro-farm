@@ -226,7 +226,7 @@ public class RecipePromptService {
 
         log.info("레시피 후보 생성 완료. 후보 개수: {}", enhancedResult.candidates().size());
         enhancedResult.candidates().forEach(candidate ->
-            log.info("  - 후보: {} (\"/\"/{}/{}), core: {}, extra: {}, used: {}, missing: {}",
+            log.info("  - 후보: {} ({}/{}/{}), core: {}, extra: {}, used: {}, missing: {}",
                 candidate.getRecipeName(),
                 candidate.getCookingMethod(),
                 candidate.getDifficulty(),
