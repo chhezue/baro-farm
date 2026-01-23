@@ -4,7 +4,6 @@ import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,7 +27,7 @@ import org.springframework.kafka.listener.ContainerProperties;
  * - "AckMode", "ErrorHandler" 같은 핵심 운영 옵션은 Java Config로 명시하는 게 좋다.
  */
 @Configuration
-@Profile("!mock & !local-mail")
+@Profile("!local & !mock & !local-mail")
 public class NotificationKafkaConsumerConfig {
 
     @Bean
@@ -48,7 +47,7 @@ public class NotificationKafkaConsumerConfig {
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(
         ConsumerFactory<String, String> consumerFactory,
-        @Qualifier("defaultErrorHandler") CommonErrorHandler errorHandler
+        CommonErrorHandler errorHandler
     ) {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
             new ConcurrentKafkaListenerContainerFactory<>();

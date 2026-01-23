@@ -28,10 +28,10 @@ import reactor.core.publisher.Mono;
 
 
 /*
- *   OpaAuthorizationGatewayFilterFactory???멸?(Authorization) ?대떦
- *     - ?섎뒗 ?? ?꾩뿉??留뚮뱺 ?ㅻ뜑 + ?붿껌 ?뺣낫(method/path) + ?쇱슦???뺣낫(service)瑜?OPA濡?蹂대궡???덉슜/李⑤떒 寃곗젙 諛쏆쓬
- *     - 寃곌낵: OPA媛 true硫??듦낵, false硫?403, ?ㅻ쪟硫?503
- *     - 利??쒖씠 ?ъ슜?먭? ???붿껌???대룄 ?섎뒗吏 ?먮떒???④퀎
+ * OpaAuthorizationGatewayFilterFactory: 인가(Authorization) 담당.
+ * - 요청 메서드/경로 + 사용자 속성 + 라우트 서비스 정보를 OPA로 전달한다.
+ * - OPA가 true면 통과, false면 403, 오류면 503으로 차단한다.
+ * - 정책 판단을 위해 필요한 최소 정보만 input으로 구성한다.
  */
 @Component
 public class OpaAuthorizationGatewayFilterFactory
@@ -72,7 +72,7 @@ public class OpaAuthorizationGatewayFilterFactory
                 LOG.debug("OPA input: {}", input);
             }
             // OPA ?낅젰???뺤씤?섍퀬 ?띠쓣 ???ъ슜?섎뒗 ?붾쾭洹??ъ씤??
-            // ?꾩슂??寃쎌슦 濡쒓퉭 肄붾뱶(?? LOG.debug("OPA input: {}", input))瑜??쒖꽦?뷀븯?몄슂.
+            // OPA 입력을 JSON으로 전송하고 결과를 받아온다.
             Mono<OpaResponse> responseMono = webClient.post()
                 .uri(authzUrl)
                 .contentType(MediaType.APPLICATION_JSON)
