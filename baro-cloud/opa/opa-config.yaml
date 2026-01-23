@@ -1,6 +1,6 @@
 services:
   opa-bundle:
-    url: http://localhost:8095  # opa-bundle이 opa 이미지에 포함되어 localhost로 접근
+    url: http://opa-bundle:8095  # opa-bundle이 opa 이미지에 포함되어 localhost로 접근
 
 bundles:
   baro:
