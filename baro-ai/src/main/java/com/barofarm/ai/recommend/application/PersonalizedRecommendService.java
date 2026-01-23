@@ -48,9 +48,12 @@ public class PersonalizedRecommendService {
 
         float[] userVector = convertToFloatArray(userProfileVector);
 
-        // 4. Elasticsearch 벡터 유사도 검색
+        // 4. 사용자 선호 카테고리 ID 가져오기
+        UUID preferredCategoryId = profile.getPreferredCategoryId();
+
+        // 5. Elasticsearch 벡터 유사도 검색 (카테고리 보너스 적용)
         List<ProductRecommendResponse> results =
-            findSimilarProductsByVector(userVector, topK, experiencedProductIds);
+            findSimilarProductsByVector(userVector, topK, experiencedProductIds, preferredCategoryId);
 
         return results;
     }
@@ -59,22 +62,25 @@ public class PersonalizedRecommendService {
     private List<ProductRecommendResponse> findSimilarProductsByVector(
         float[] userVector,
         int topK,
-        List<String> experiencedProductIds
+        List<String> experiencedProductIds,
+        UUID preferredCategoryId
     ) {
         // String을 UUID로 변환
         List<UUID> excludeProductIds = experiencedProductIds.stream()
             .map(UUID::fromString)
             .toList();
 
-        // VectorProductSearchService의 메소드 사용
+        // 같은 카테고리 보너스 점수 설정 (0.3 = 30% 보너스, SimilarProductRecommendService와 동일)
+        Double categoryMatchBonus = preferredCategoryId != null ? 0.3 : null;
+
+        // VectorProductSearchService의 메소드 사용 (카테고리 가중치 적용)
         return vectorProductSearchService.findSimilarProductsByVector(
             userVector,
             topK,
-            excludeProductIds,  // 제외할 상품 ID들
-            null,               // 자기 자신 제외하지 않음
-            true,               // 중복 제거 활성화
-            null,               // 카테고리 가중치 없음
-            null                // 카테고리 보너스 없음
+            excludeProductIds,     // 제외할 상품 ID들 (이미 경험한 상품들)
+            true,                  // 중복 제거 활성화
+            preferredCategoryId,   // 사용자 선호 카테고리 ID
+            categoryMatchBonus     // 카테고리 일치 보너스
         );
     }
 

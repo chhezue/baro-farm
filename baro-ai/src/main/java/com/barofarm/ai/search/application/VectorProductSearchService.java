@@ -35,10 +35,9 @@ public class VectorProductSearchService {
      *
      * @param queryVector 검색할 벡터
      * @param topK 반환할 최대 상품 수
-     * @param excludeProductIds 제외할 상품 ID 목록 (이미 주문/장바구니에 담은 상품들)
-     * @param excludeSelfProductId 자기 자신을 제외할 상품 ID (유사 상품 검색 시 사용)
+     * @param excludeProductIds 제외할 상품 ID 목록 (이미 주문/장바구니에 담은 상품들 또는 자기 자신 포함)
      * @param removeDuplicates 중복 제거 여부 (true일 경우 topK * 2개를 가져와 필터링)
-     * @param targetCategory 특정 카테고리와 일치 시 보너스 (SimilarProductService용, null 가능)
+     * @param targetCategoryId 특정 카테고리 ID와 일치 시 보너스 (SimilarProductService용, null 가능)
      * @param categoryMatchBonus 카테고리 일치 시 보너스 점수 (0.0 ~ 1.0, 기본값 0.2)
      * @return 유사 상품 목록
      */
@@ -46,19 +45,18 @@ public class VectorProductSearchService {
         float[] queryVector,
         int topK,
         List<UUID> excludeProductIds,
-        UUID excludeSelfProductId,
         boolean removeDuplicates,
-        String targetCategory,
+        UUID targetCategoryId,
         Double categoryMatchBonus
     ) {
         try {
             int fetchSize = removeDuplicates ? topK * 2 : topK;
             double bonus = categoryMatchBonus != null ? categoryMatchBonus : 0.2;
-            boolean hasTargetCategory = targetCategory != null && !targetCategory.isEmpty();
+            boolean hasTargetCategory = targetCategoryId != null;
 
             NativeQuery query = buildVectorSearchQuery(
-                queryVector, excludeProductIds, excludeSelfProductId,
-                targetCategory, bonus, hasTargetCategory, fetchSize);
+                queryVector, excludeProductIds,
+                targetCategoryId, bonus, hasTargetCategory, fetchSize);
 
             SearchHits<ProductDocument> hits = elasticsearchOperations.search(query, ProductDocument.class);
             List<ProductRecommendResponse> results = processSearchResults(
@@ -76,8 +74,7 @@ public class VectorProductSearchService {
     private NativeQuery buildVectorSearchQuery(
         float[] queryVector,
         List<UUID> excludeProductIds,
-        UUID excludeSelfProductId,
-        String targetCategory,
+        UUID targetCategoryId,
         double bonus,
         boolean hasTargetCategory,
         int fetchSize
@@ -87,13 +84,13 @@ public class VectorProductSearchService {
             : "cosineSimilarity(params.query_vector, 'vector') + 1.0";
 
         Map<String, Object> scriptParams = buildScriptParams(
-            queryVector, targetCategory, bonus, hasTargetCategory);
+            queryVector, targetCategoryId, bonus, hasTargetCategory);
 
         return NativeQuery.builder()
             .withQuery(q -> q
                 .scriptScore(ss -> ss
                     .query(q2 -> q2
-                        .bool(b -> buildBoolQuery(b, excludeProductIds, excludeSelfProductId))
+                        .bool(b -> buildBoolQuery(b, excludeProductIds))
                     )
                     .script(s -> s
                         .inline(i -> i
@@ -114,12 +111,9 @@ public class VectorProductSearchService {
     // Bool 쿼리 빌드
     private co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery.Builder buildBoolQuery(
         co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery.Builder b,
-        List<UUID> excludeProductIds,
-        UUID excludeSelfProductId
+        List<UUID> excludeProductIds
     ) {
-        if (excludeSelfProductId != null) {
-            b.mustNot(mn -> mn.ids(i -> i.values(excludeSelfProductId.toString())));
-        }
+        // 제외할 상품 ID가 있으면 mustNot으로 필터링
         if (excludeProductIds != null && !excludeProductIds.isEmpty()) {
             b.mustNot(mn -> mn.ids(i -> i.values(
                 excludeProductIds.stream()
@@ -144,14 +138,14 @@ public class VectorProductSearchService {
     // 스크립트 파라미터 빌드
     private Map<String, Object> buildScriptParams(
         float[] queryVector,
-        String targetCategory,
+        UUID targetCategoryId,
         double bonus,
         boolean hasTargetCategory
     ) {
         Map<String, Object> scriptParams = new java.util.HashMap<>();
         scriptParams.put("query_vector", convertToDoubleList(queryVector));
         if (hasTargetCategory) {
-            scriptParams.put("target_category", targetCategory);
+            scriptParams.put("target_category_id", targetCategoryId.toString());
             scriptParams.put("category_bonus", bonus);
         }
         return scriptParams;
@@ -200,13 +194,13 @@ public class VectorProductSearchService {
     }
 
     // 카테고리 가중치를 포함한 Elasticsearch script 생성
-    // targetCategory와 일치하는 카테고리면 보너스 점수를 추가합니다.
+    // targetCategoryId와 일치하는 카테고리면 보너스 점수를 추가합니다.
     private String buildCategoryWeightedScript(double bonus) {
         return "double baseScore = cosineSimilarity(params.query_vector, 'vector') + 1.0; " +
                "double categoryBoost = 0.0; " +
-               "if (doc['productCategoryName'].size() > 0) { " +
-               "  String category = doc['productCategoryName'].value; " +
-               "  if (category == params.target_category) { " +
+               "if (doc['productCategoryId'].size() > 0) { " +
+               "  String categoryId = doc['productCategoryId'].value; " +
+               "  if (categoryId == params.target_category_id) { " +
                "    categoryBoost = params.category_bonus; " +
                "  } " +
                "} " +
