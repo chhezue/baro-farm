@@ -28,7 +28,7 @@ import org.springframework.kafka.listener.ContainerProperties;
  * - "AckMode", "ErrorHandler" 같은 핵심 운영 옵션은 Java Config로 명시하는 게 좋다.
  */
 @Configuration
-@Profile("!mock & !local-mail")
+@Profile("!local & !mock & !local-mail")
 public class KafkaConsumerConfig {
 
     @Bean
