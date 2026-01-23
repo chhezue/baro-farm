@@ -39,7 +39,7 @@ public class CartEventConsumer {
                     log.info("➕ [CART_CONSUMER] Processing CART_ITEM_ADDED - User: {}, Product: {}, Qty: {}",
                         event.userId(), data.productName(), data.quantity());
                     logWriteService.saveCartEventLog(event.userId(), data.productId(),
-                        data.productName(), "ADD", data.quantity(), convertToInstant(event.ts()));
+                        data.productName(), data.categoryName(), "ADD", data.quantity(), convertToInstant(event.ts()));
                     log.info("✅ [CART_CONSUMER] Successfully saved cart add event - User: {}, Product: {}",
                         event.userId(), data.productName());
                     // 프로필 벡터 비동기 업데이트
@@ -49,7 +49,7 @@ public class CartEventConsumer {
                     log.info("➖ [CART_CONSUMER] Processing CART_ITEM_REMOVED - User: {}, Product: {}, Qty: {}",
                         event.userId(), data.productName(), data.quantity());
                     logWriteService.saveCartEventLog(event.userId(), data.productId(),
-                        data.productName(), "REMOVE", data.quantity(), convertToInstant(event.ts()));
+                        data.productName(), data.categoryName(), "REMOVE", data.quantity(), convertToInstant(event.ts()));
                     log.info("✅ [CART_CONSUMER] Successfully saved cart remove event - User: {}, Product: {}",
                         event.userId(), data.productName());
                     // 프로필 벡터 비동기 업데이트
@@ -59,7 +59,7 @@ public class CartEventConsumer {
                     log.info("🔄 [CART_CONSUMER] Processing CART_QUANTITY_UPDATED - User: {}, Product: {}, Qty: {}",
                         event.userId(), data.productName(), data.quantity());
                     logWriteService.saveCartEventLog(event.userId(), data.productId(),
-                        data.productName(), "UPDATE", data.quantity(), convertToInstant(event.ts()));
+                        data.productName(), data.categoryName(), "UPDATE", data.quantity(), convertToInstant(event.ts()));
                     log.info("✅ [CART_CONSUMER] Successfully saved cart update event - User: {}, Product: {}",
                         event.userId(), data.productName());
                     // 프로필 벡터 비동기 업데이트
