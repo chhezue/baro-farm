@@ -33,6 +33,9 @@ public class OrderItem extends BaseEntity {
     @Column(name = "email", nullable = false)
     private String productName;
 
+    @Column(name = "category_id", columnDefinition = "BINARY(16)")
+    private UUID categoryId;
+
     @Column(name = "seller_id", columnDefinition = "BINARY(16)", nullable = false)
     private UUID sellerId;
 
@@ -48,26 +51,39 @@ public class OrderItem extends BaseEntity {
     @Column(name = "inventory_id", columnDefinition = "BINARY(16)", nullable = false)
     private UUID inventoryId;
 
-    private OrderItem(UUID id, Order order, UUID productId, String productName,
-                      UUID sellerId, Long quantity, Long unitPrice, UUID inventoryId) {
-        this.id = id;
+    private OrderItem(Order order,
+                      UUID productId,
+                      String productName,
+                      UUID categoryId,
+                      UUID sellerId,
+                      Long quantity,
+                      Long unitPrice,
+                      UUID inventoryId) {
+        this.id = UUID.randomUUID();
         this.order = order;
         this.productId = productId;
         this.productName = productName;
+        this.categoryId = categoryId;
         this.sellerId = sellerId;
         this.quantity = quantity;
         this.unitPrice = unitPrice;
-        this.totalPrice = unitPrice*quantity;
+        this.totalPrice = unitPrice * quantity;
         this.inventoryId = inventoryId;
     }
 
-    public static OrderItem of(Order order, UUID productId, String productName,
-                               UUID sellerId, Long quantity, Long unitPrice, UUID inventoryId) {
+    public static OrderItem of(Order order,
+                               UUID productId,
+                               String productName,
+                               UUID categoryId,
+                               UUID sellerId,
+                               Long quantity,
+                               Long unitPrice,
+                               UUID inventoryId) {
         return new OrderItem(
-            UUID.randomUUID(),
             order,
             productId,
             productName,
+            categoryId,
             sellerId,
             quantity,
             unitPrice,
