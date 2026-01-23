@@ -31,9 +31,6 @@ public class CartLogDocument {
     private UUID categoryId;
 
     @Field(type = FieldType.Keyword)
-    private String categoryName;
-
-    @Field(type = FieldType.Keyword)
     private String eventType;
 
     @Field(type = FieldType.Integer)
@@ -47,7 +44,6 @@ public class CartLogDocument {
                            UUID productId,
                            String productName,
                            UUID categoryId,
-                           String categoryName,
                            String eventType,
                            Integer quantity,
                            Instant occurredAt) {
@@ -55,7 +51,6 @@ public class CartLogDocument {
         this.productId = productId;
         this.productName = productName;
         this.categoryId = categoryId;
-        this.categoryName = categoryName;
         this.eventType = eventType;
         this.quantity = quantity;
         this.occurredAt = occurredAt;

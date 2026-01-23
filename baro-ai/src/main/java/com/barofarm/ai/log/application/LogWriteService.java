@@ -25,7 +25,6 @@ public class LogWriteService {
                                  UUID productId,
                                  String productName,
                                  UUID categoryId,
-                                 String categoryName,
                                  String eventType,
                                  Integer quantity,
                                  Instant occurredAt) {
@@ -34,15 +33,14 @@ public class LogWriteService {
             .productId(productId)
             .productName(productName)
             .categoryId(categoryId)
-            .categoryName(categoryName)
             .eventType(eventType)
             .quantity(quantity)
             .occurredAt(occurredAt)
             .build();
 
         CartLogDocument saved = cartLogRepository.save(document);
-        log.info("[LOG_WRITE] Saved cart event log - ID: {}, User: {}, Product: {}, CategoryId: {}, CategoryName: {}",
-            saved.getId(), userId, productName, categoryId, categoryName);
+        log.info("[LOG_WRITE] Saved cart event log - ID: {}, User: {}, Product: {}, CategoryId: {}",
+            saved.getId(), userId, productName, categoryId);
     }
 
     public void saveOrderEventLog(UUID userId,
