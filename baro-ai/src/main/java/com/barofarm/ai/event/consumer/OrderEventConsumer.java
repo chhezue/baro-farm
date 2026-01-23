@@ -10,6 +10,11 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+
+/**
+ * Order 이벤트 Kafka Consumer
+ * 개인화 추천을 위한 주문 행동 로그 수집
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -51,6 +56,7 @@ public class OrderEventConsumer {
             "[ORDER_CONSUMER] Processing ORDER_CONFIRMED - User: {}, Order: {}",
             event.userId(), data.orderId());
 
+        // 주문 생성 시 각 상품별로 로그 저장
         if (data.orderItems() != null) {
             for (OrderLogEvent.OrderEventData.OrderItemData item : data.orderItems()) {
                 logWriteService.saveOrderEventLog(
@@ -68,6 +74,7 @@ public class OrderEventConsumer {
         log.info(
             "[ORDER_CONSUMER] Successfully saved order confirmed logs - User: {}, Items: {}",
             event.userId(), data.orderItems() != null ? data.orderItems().size() : 0);
+        // 프로필 벡터 비동기 업데이트
         updateUserProfileAsync(event.userId());
     }
 
@@ -76,6 +83,7 @@ public class OrderEventConsumer {
             "[ORDER_CONSUMER] Processing ORDER_CANCELLED - User: {}, Order: {}",
             event.userId(), data.orderId());
 
+        // 주문 취소 시 각 상품별로 로그 저장
         if (data.orderItems() != null) {
             for (OrderLogEvent.OrderEventData.OrderItemData item : data.orderItems()) {
                 logWriteService.saveOrderEventLog(
@@ -93,6 +101,7 @@ public class OrderEventConsumer {
         log.info(
             "[ORDER_CONSUMER] Successfully saved order cancelled logs - User: {}, Items: {}",
             event.userId(), data.orderItems() != null ? data.orderItems().size() : 0);
+        // 프로필 벡터 비동기 업데이트
         updateUserProfileAsync(event.userId());
     }
 
@@ -100,6 +109,10 @@ public class OrderEventConsumer {
         return offsetDateTime.toInstant();
     }
 
+    /**
+     * 사용자 프로필 벡터를 비동기로 업데이트합니다.
+     * 이벤트 처리 속도에 영향을 주지 않도록 별도 스레드에서 실행됩니다.
+     */
     @Async("profileUpdateExecutor")
     public void updateUserProfileAsync(java.util.UUID userId) {
         try {
@@ -110,6 +123,7 @@ public class OrderEventConsumer {
             log.warn(
                 "[ORDER_CONSUMER] Failed to update user profile embedding for user: {}, error: {}",
                 userId, e.getMessage());
+            // 프로필 업데이트 실패는 이벤트 처리에 영향을 주지 않음
         }
     }
 }

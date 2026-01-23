@@ -10,6 +10,10 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+/**
+ * Cart 이벤트 Kafka Consumer
+ * 개인화 추천을 위한 장바구니 행동 로그 수집
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -45,6 +49,7 @@ public class CartEventConsumer {
                     );
                     log.info("[CART_CONSUMER] Successfully saved cart add event - User: {}, Product: {}",
                         event.userId(), data.productName());
+                    // 프로필 벡터 비동기 업데이트
                     updateUserProfileAsync(event.userId());
                 }
                 case CART_ITEM_REMOVED -> {
@@ -61,6 +66,7 @@ public class CartEventConsumer {
                     );
                     log.info("[CART_CONSUMER] Successfully saved cart remove event - User: {}, Product: {}",
                         event.userId(), data.productName());
+                    // 프로필 벡터 비동기 업데이트
                     updateUserProfileAsync(event.userId());
                 }
                 case CART_QUANTITY_UPDATED -> {
@@ -77,6 +83,7 @@ public class CartEventConsumer {
                     );
                     log.info("[CART_CONSUMER] Successfully saved cart update event - User: {}, Product: {}",
                         event.userId(), data.productName());
+                    // 프로필 벡터 비동기 업데이트
                     updateUserProfileAsync(event.userId());
                 }
                 default ->
@@ -86,7 +93,7 @@ public class CartEventConsumer {
         } catch (Exception e) {
             log.error("[CART_CONSUMER] Failed to process cart event - Type: {}, User: {}, Product: {}, Error: {}",
                 event.event(), event.userId(), data.productName(), e.getMessage(), e);
-            throw e;
+            throw e; // 예외를 다시 던져서 Kafka가 재시도하도록 함
         }
     }
 
@@ -94,6 +101,10 @@ public class CartEventConsumer {
         return offsetDateTime.toInstant();
     }
 
+    /**
+     * 사용자 프로필 벡터를 비동기로 업데이트합니다.
+     * 이벤트 처리 속도에 영향을 주지 않도록 별도 스레드에서 실행됩니다.
+     */
     @Async("profileUpdateExecutor")
     public void updateUserProfileAsync(java.util.UUID userId) {
         try {
@@ -103,6 +114,7 @@ public class CartEventConsumer {
         } catch (Exception e) {
             log.warn("[CART_CONSUMER] Failed to update user profile embedding for user: {}, error: {}",
                 userId, e.getMessage());
+            // 프로필 업데이트 실패는 이벤트 처리에 영향을 주지 않음
         }
     }
 }

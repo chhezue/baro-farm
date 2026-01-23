@@ -12,6 +12,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+/**
+ * 개인화 추천을 위한 로그 쓰기 서비스
+ * Kafka Consumer에서 호출되어 사용자 행동 로그를 Elasticsearch에 저장
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -21,6 +25,9 @@ public class LogWriteService {
     private final OrderLogRepository orderLogRepository;
     private final SearchLogRepository searchLogRepository;
 
+    /**
+     * 장바구니 이벤트 로그 저장
+     */
     public void saveCartEventLog(UUID userId,
                                  UUID productId,
                                  String productName,
@@ -43,6 +50,9 @@ public class LogWriteService {
             saved.getId(), userId, productName, categoryId);
     }
 
+    /**
+     * 주문 이벤트 로그 저장
+     */
     public void saveOrderEventLog(UUID userId,
                                   UUID productId,
                                   String productName,
@@ -65,6 +75,9 @@ public class LogWriteService {
             saved.getId(), userId, productName, categoryId);
     }
 
+    /**
+     * 검색 로그 저장
+     */
     public void saveSearchLog(UUID userId,
                               String searchQuery,
                               String category,
