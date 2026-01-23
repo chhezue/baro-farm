@@ -9,8 +9,6 @@ import static com.barofarm.order.order.exception.OrderErrorCode.OUTBOX_SERIALIZA
 import com.barofarm.dto.CustomPage;
 import com.barofarm.dto.ResponseDto;
 import com.barofarm.exception.CustomException;
-import com.barofarm.log.history.annotation.TrackHistory;
-import com.barofarm.log.history.model.HistoryEventType;
 import com.barofarm.order.order.application.dto.request.OrderCreateCommand;
 import com.barofarm.order.order.application.dto.response.OrderCancelInfo;
 import com.barofarm.order.order.application.dto.response.OrderCreateInfo;

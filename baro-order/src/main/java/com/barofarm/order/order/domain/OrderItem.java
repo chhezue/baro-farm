@@ -51,8 +51,7 @@ public class OrderItem extends BaseEntity {
     @Column(name = "inventory_id", columnDefinition = "BINARY(16)", nullable = false)
     private UUID inventoryId;
 
-    private OrderItem(UUID id,
-                      Order order,
+    private OrderItem(Order order,
                       UUID productId,
                       String productName,
                       UUID categoryId,
@@ -60,7 +59,7 @@ public class OrderItem extends BaseEntity {
                       Long quantity,
                       Long unitPrice,
                       UUID inventoryId) {
-        this.id = id;
+        this.id = UUID.randomUUID();
         this.order = order;
         this.productId = productId;
         this.productName = productName;
@@ -81,7 +80,6 @@ public class OrderItem extends BaseEntity {
                                Long unitPrice,
                                UUID inventoryId) {
         return new OrderItem(
-            UUID.randomUUID(),
             order,
             productId,
             productName,

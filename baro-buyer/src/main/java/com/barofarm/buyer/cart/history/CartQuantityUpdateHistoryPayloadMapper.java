@@ -3,7 +3,6 @@ package com.barofarm.buyer.cart.history;
 import com.barofarm.buyer.cart.domain.Cart;
 import com.barofarm.buyer.cart.domain.CartItem;
 import com.barofarm.buyer.cart.domain.CartRepository;
-import com.barofarm.buyer.product.domain.Product;
 import com.barofarm.buyer.product.domain.ProductRepository;
 import com.barofarm.log.history.mapper.HistoryPayloadMapper;
 import com.barofarm.log.history.model.CartEventData;

@@ -56,4 +56,3 @@ public class CartLogDocument {
         this.occurredAt = occurredAt;
     }
 }
-

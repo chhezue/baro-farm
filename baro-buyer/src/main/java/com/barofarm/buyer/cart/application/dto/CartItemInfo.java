@@ -18,7 +18,8 @@ public record CartItemInfo(
 ) {
 
     // 실시간 상품명, 카테고리명과 재고 단위로 CartInfo 생성
-    public static CartItemInfo from(CartItem item, String productName, UUID categoryId, String categoryName, Integer unit) {
+    public static CartItemInfo from(CartItem item, String productName, UUID categoryId,
+                                    String categoryName, Integer unit) {
         return new CartItemInfo(
             item.getId(),
             item.getProductId(),

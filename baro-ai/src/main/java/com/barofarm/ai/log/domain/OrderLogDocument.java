@@ -56,4 +56,3 @@ public class OrderLogDocument {
         this.occurredAt = occurredAt;
     }
 }
-
