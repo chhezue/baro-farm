@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -48,7 +48,7 @@ public class NotificationKafkaConsumerConfig {
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(
         ConsumerFactory<String, String> consumerFactory,
-        ObjectProvider<CommonErrorHandler> errorHandlerProvider
+        @Qualifier("defaultErrorHandler") CommonErrorHandler errorHandler
     ) {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
@@ -58,11 +58,8 @@ public class NotificationKafkaConsumerConfig {
         // 수동 Ack 모드: 성공 시에만 커밋됨
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
 
-        // 공통 에러 핸들러(재시도/DLQ). 있으면 장착
-        CommonErrorHandler errorHandler = errorHandlerProvider.getIfAvailable();
-        if (errorHandler != null) {
-            factory.setCommonErrorHandler(errorHandler);
-        }
+        // 알림 전용 에러 핸들러(재시도/DLQ): KafkaErrorHandlerConfig.defaultErrorHandler
+        factory.setCommonErrorHandler(errorHandler);
 
         // concurrency는 파티션 수에 맞춰 조절
         // factory.setConcurrency(2);
