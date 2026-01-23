@@ -32,6 +32,11 @@ spring:
     scheduling:
       cron:
         settlement: "0 0 0 1 * *"
+
+# Deployment + CronJob 사용 시 false (CronJob이 배치 실행). 로컬/기존 동작은 true.
+settlement:
+  scheduler:
+    enabled: ${SETTLEMENT_SCHEDULER_ENABLED:true}
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     consumer:
