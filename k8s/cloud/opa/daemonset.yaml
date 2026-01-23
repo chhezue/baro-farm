@@ -32,11 +32,19 @@ spec:
           args:
             - |
               echo "Waiting for Eureka to be ready..."
-              until wget -qO- http://localhost:8761/actuator/health 2>/dev/null | grep -q '"status":"UP"' || wget -qO- http://localhost:8761/actuator/health 2>/dev/null | grep -q 'UP'; do
-                echo "Eureka is not ready yet. Waiting..."
+              TIMEOUT=300
+              ELAPSED=0
+              while [ $ELAPSED -lt $TIMEOUT ]; do
+                if wget -qO- --timeout=3 http://localhost:8761/actuator/health 2>/dev/null | grep -qE '"status":"UP"|"status":"UP"|UP'; then
+                  echo "Eureka is ready!"
+                  exit 0
+                fi
+                echo "Eureka is not ready yet. Waiting... (${ELAPSED}s/${TIMEOUT}s)"
                 sleep 5
+                ELAPSED=$((ELAPSED + 5))
               done
-              echo "Eureka is ready!"
+              echo "Timeout waiting for Eureka after ${TIMEOUT} seconds"
+              exit 1
       containers:
         - name: opa
           image: ghcr.io/do-develop-space/opa:latest
