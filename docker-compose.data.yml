@@ -48,45 +48,45 @@ services:
   # ===================================
   # Database
   # ===================================
-  mysql:
-    image: mysql:8.0
-    container_name: baro-mysql
-    ports:
-      - "3306:3306"
-    deploy:
-      resources:
-        limits:
-          memory: 320M
-        reservations:
-          memory: 160M
-    command: --innodb-buffer-pool-size=96M --max-connections=70 --performance-schema=OFF --lower-case-table-names=1
-    environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-barofarm}
-      - MYSQL_USER=${MYSQL_USER:-barouser}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-baropassword}
-      # 모듈별 데이터베이스 환경 변수 (선택사항, 스크립트에서 자동 생성)
-      # MYSQL_DATABASE_AUTH=baroauth
-      # MYSQL_DATABASE_SELLER=baroseller
-      # MYSQL_DATABASE_BUYER=barobuyer
-      # MYSQL_DATABASE_ORDER=baroorder
-      # MYSQL_DATABASE_SUPPORT=barosupport
-    volumes:
-      - mysql-data:/var/lib/mysql
-      # 초기화 스크립트 디렉토리 마운트
-      # - 01-create-databases.sql: 최초 배포 시 자동 실행 (데이터 디렉토리가 비어있을 때만)
-      # - always-create-databases.sh: 수동 실행용 (일부 데이터베이스만 있는 경우 사용)
-      # 자세한 사용법: scripts/init-db/README.md 참조
-      - ./scripts/init-db:/docker-entrypoint-initdb.d
-      - /mnt/s3:/mnt/s3:rw
-    restart: unless-stopped
-    networks:
-      - baro-network
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u${MYSQL_USER:-barouser}", "-p${MYSQL_PASSWORD:-baropassword}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: baro-mysql
+  #   ports:
+  #     - "3306:3306"
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 320M
+  #       reservations:
+  #         memory: 160M
+  #   command: --innodb-buffer-pool-size=96M --max-connections=70 --performance-schema=OFF --lower-case-table-names=1
+  #   environment:
+  #     - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpassword}
+  #     - MYSQL_DATABASE=${MYSQL_DATABASE:-barofarm}
+  #     - MYSQL_USER=${MYSQL_USER:-barouser}
+  #     - MYSQL_PASSWORD=${MYSQL_PASSWORD:-baropassword}
+  #     # 모듈별 데이터베이스 환경 변수 (선택사항, 스크립트에서 자동 생성)
+  #     # MYSQL_DATABASE_AUTH=baroauth
+  #     # MYSQL_DATABASE_SELLER=baroseller
+  #     # MYSQL_DATABASE_BUYER=barobuyer
+  #     # MYSQL_DATABASE_ORDER=baroorder
+  #     # MYSQL_DATABASE_SUPPORT=barosupport
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql
+  #     # 초기화 스크립트 디렉토리 마운트
+  #     # - 01-create-databases.sql: 최초 배포 시 자동 실행 (데이터 디렉토리가 비어있을 때만)
+  #     # - always-create-databases.sh: 수동 실행용 (일부 데이터베이스만 있는 경우 사용)
+  #     # 자세한 사용법: scripts/init-db/README.md 참조
+  #     - ./scripts/init-db:/docker-entrypoint-initdb.d
+  #     - /mnt/s3:/mnt/s3:rw
+  #   restart: unless-stopped
+  #   networks:
+  #     - baro-network
+  #   healthcheck:
+  #     test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u${MYSQL_USER:-barouser}", "-p${MYSQL_PASSWORD:-baropassword}"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
   # ===================================
   # Message Queue (Kafka KRaft Mode)
@@ -205,6 +205,49 @@ services:
   #     interval: 30s
   #     timeout: 5s
   #     retries: 12
+
+  # ===================================
+  # OPA Bundle Service
+  # ===================================
+  opa-bundle:
+    image: ${DOCKER_REGISTRY:-ghcr.io/do-develop-space}/opa-bundle:${IMAGE_TAG:-latest}
+    container_name: baro-opa-bundle
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      # eureka가 k8s Pod로 실행되는 경우 (hostNetwork: true 사용)
+      # 같은 EC2 호스트에서 실행되면 localhost:8761로 접근 가능
+      # 다른 EC2에서 실행되면 EC2 IP로 변경 필요 (예: http://10.0.5.208:8761/eureka/)
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://localhost:8761/eureka/}
+      - JAVA_TOOL_OPTIONS=-Xms32m -Xmx96m -XX:MaxMetaspaceSize=96m -XX:MaxDirectMemorySize=64m -XX:ReservedCodeCacheSize=64m -XX:+UseSerialGC
+      - OPA_POLICY_DIR=/app/policy
+    mem_limit: 200m
+    volumes:
+      - /mnt/s3:/mnt/s3:rw
+    restart: unless-stopped
+    networks:
+      - baro-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8095/actuator/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ===================================
+  # OPA Server
+  # ===================================
+  opa:
+    image: ${DOCKER_REGISTRY:-ghcr.io/do-develop-space}/opa:${IMAGE_TAG:-latest}
+    container_name: baro-opa
+    ports:
+      - "8181:8181"
+    mem_limit: 64m
+    depends_on:
+      opa-bundle:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - baro-network
 
 volumes:
   redis-data:
