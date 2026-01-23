@@ -606,10 +606,8 @@ jobs:
           fi
           
           # deploy-k8s.sh 스크립트 복사 (기존 파일 백업)
+          # settlement도 이제 deploy-k8s.sh 사용 (Deployment + CronJob)
           DEPLOY_SCRIPT="scripts/deploy-k8s.sh"
-          if [ "${MODULE_NAME}" = "settlement" ] && [ -f "scripts/deploy-daemonset.sh" ]; then
-            DEPLOY_SCRIPT="scripts/deploy-daemonset.sh"
-          fi
           
           if [ -f "$DEPLOY_SCRIPT" ]; then
             ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} "mkdir -p /home/ubuntu/apps/BE/scripts && if [ -f /home/ubuntu/apps/BE/$DEPLOY_SCRIPT ]; then cp /home/ubuntu/apps/BE/$DEPLOY_SCRIPT /home/ubuntu/apps/BE/$DEPLOY_SCRIPT.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true; fi"
