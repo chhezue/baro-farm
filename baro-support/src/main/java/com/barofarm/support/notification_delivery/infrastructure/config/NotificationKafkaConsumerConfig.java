@@ -29,7 +29,7 @@ import org.springframework.kafka.listener.ContainerProperties;
  */
 @Configuration
 @Profile("!mock & !local-mail")
-public class KafkaConsumerConfig {
+public class NotificationKafkaConsumerConfig {
 
     @Bean
     public ConsumerFactory<String, String> consumerFactory(KafkaProperties props) {
