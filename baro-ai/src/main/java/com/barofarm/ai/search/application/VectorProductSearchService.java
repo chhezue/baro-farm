@@ -70,6 +70,68 @@ public class VectorProductSearchService {
         }
     }
 
+    /**
+     * 메도이드 알고리즘 등 후처리를 위해, 벡터 정보를 포함한 후보 상품 목록을 반환합니다.
+     * 기존 findSimilarProductsByVector는 바로 DTO로 변환하지만,
+     * 이 메서드는 ProductDocument 자체를 반환하여 벡터 연산에 활용할 수 있게 합니다.
+     *
+     * @param queryVector      검색할 벡터
+     * @param candidateSize    가져올 후보 상품 개수 (예: topK * 3)
+     * @param excludeProductIds 제외할 상품 ID 목록
+     * @param targetCategoryId  특정 카테고리 ID와 일치 시 보너스 (null 가능)
+     * @param categoryMatchBonus 카테고리 일치 시 보너스 점수 (0.0 ~ 1.0, 기본값 0.2)
+     * @return 벡터 정보를 포함한 후보 ProductDocument 목록
+     */
+    public List<ProductDocument> findSimilarProductDocumentsByVector(
+        float[] queryVector,
+        int candidateSize,
+        List<UUID> excludeProductIds,
+        UUID targetCategoryId,
+        Double categoryMatchBonus
+    ) {
+        if (candidateSize <= 0) {
+            return List.of();
+        }
+
+        try {
+            double bonus = categoryMatchBonus != null ? categoryMatchBonus : 0.2;
+            boolean hasTargetCategory = targetCategoryId != null;
+
+            NativeQuery query = buildVectorSearchQuery(
+                queryVector,
+                excludeProductIds,
+                targetCategoryId,
+                bonus,
+                hasTargetCategory,
+                candidateSize
+            );
+
+            SearchHits<ProductDocument> hits =
+                elasticsearchOperations.search(query, ProductDocument.class);
+
+            List<ProductDocument> results = new ArrayList<>();
+            for (SearchHit<ProductDocument> hit : hits.getSearchHits()) {
+                ProductDocument product = hit.getContent();
+                if (product != null) {
+                    results.add(product);
+                }
+                if (results.size() >= candidateSize) {
+                    break;
+                }
+            }
+
+            int excludedCount = excludeProductIds != null ? excludeProductIds.size() : 0;
+            log.debug("벡터 유사도 후보 검색 결과: {}개 상품 발견 (요청 후보 수: {}, 제외 상품: {}, 카테고리 가중치: {})",
+                results.size(), candidateSize, excludedCount, hasTargetCategory);
+
+            return results;
+
+        } catch (Exception e) {
+            log.error("벡터 유사도 후보 검색 실패: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
+
     // 벡터 검색 쿼리 빌드
     private NativeQuery buildVectorSearchQuery(
         float[] queryVector,

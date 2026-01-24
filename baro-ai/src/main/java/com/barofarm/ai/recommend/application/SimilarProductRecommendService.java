@@ -18,6 +18,7 @@ public class SimilarProductRecommendService {
 
     private final ProductSearchRepository productSearchRepository;
     private final VectorProductSearchService vectorProductSearchService;
+    private final MedoidDiversityService medoidDiversityService;
 
     public List<ProductRecommendResponse> recommendSimilarProducts(UUID productId, int topK) {
         // 1. 기준 상품 조회 및 벡터 추출
@@ -39,11 +40,12 @@ public class SimilarProductRecommendService {
         float[] productVector = product.getVector();
         UUID productCategoryId = product.getProductCategoryId();
 
-        // 2. 벡터 유사도 검색 실행 (같은 카테고리 보너스 적용)
+        // 2. 벡터 유사도 검색 실행 (같은 카테고리 보너스 적용) + 메도이드 다양성 적용
         return findSimilarProducts(productVector, productId, topK, productCategoryId);
     }
 
-    // 특정 벡터와 유사한 상품들을 Elasticsearch에서 검색
+    // 특정 벡터와 유사한 상품들을 Elasticsearch에서 검색한 뒤,
+    // 메도이드 알고리즘을 적용해 다양성을 확보한 최종 추천 결과를 생성합니다.
     private List<ProductRecommendResponse> findSimilarProducts(
         float[] vector,
         UUID originalProductId,
@@ -58,14 +60,33 @@ public class SimilarProductRecommendService {
             ? List.of(originalProductId)
             : List.of();
 
-        // VectorProductSearchService의 메소드 사용 (카테고리 가중치 적용)
-        return vectorProductSearchService.findSimilarProductsByVector(
+        // 메도이드 적용을 위해 topK보다 넉넉한 후보를 가져온다.
+        int candidateSize = Math.min(topK * 3, 100);
+
+        List<ProductDocument> candidates = vectorProductSearchService.findSimilarProductDocumentsByVector(
             vector,
-            topK,
-            excludeProductIds,    // 자기 자신 제외
-            false,                // 중복 제거 비활성화
-            originalCategoryId,   // 기준 상품의 카테고리 ID
-            categoryMatchBonus    // 카테고리 일치 보너스
+            candidateSize,
+            excludeProductIds,   // 자기 자신 제외
+            originalCategoryId,  // 기준 상품의 카테고리 ID
+            categoryMatchBonus   // 카테고리 일치 보너스
         );
+
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+
+        // 메도이드 알고리즘으로 다양성을 확보한 대표 상품 선택
+        List<ProductDocument> medoids =
+            medoidDiversityService.selectDiverseMedoids(vector, candidates, topK);
+
+        // 최종 추천 응답 DTO로 변환
+        return medoids.stream()
+            .map(product -> new ProductRecommendResponse(
+                product.getProductId(),
+                product.getProductName(),
+                product.getProductCategoryName(),
+                product.getPrice()
+            ))
+            .toList();
     }
 }
