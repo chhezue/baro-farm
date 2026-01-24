@@ -131,13 +131,13 @@ spec:
           volumeMounts:
             - name: log-volume
               mountPath: /mnt/s3/logs/buyer
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "384Mi"
-            limits:
-              cpu: "500m"
-              memory: "512Mi"  # 힙(128MB) + Metaspace(144MB) + CodeCache(24MB) + DirectMemory(32MB) + 기타오버헤드(~184MB)
+          # resources:
+          #   requests:
+          #     cpu: "100m"
+          #     memory: "384Mi"
+          #   limits:
+          #     cpu: "500m"
+          #     memory: "512Mi"  # 힙(128MB) + Metaspace(144MB) + CodeCache(24MB) + DirectMemory(32MB) + 기타오버헤드(~184MB)
           livenessProbe:
             httpGet:
               path: /actuator/health
