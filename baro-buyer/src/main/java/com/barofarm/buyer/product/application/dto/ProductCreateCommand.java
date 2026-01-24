@@ -1,6 +1,7 @@
 package com.barofarm.buyer.product.application.dto;
 
 import com.barofarm.buyer.product.domain.UserType;
+import java.util.List;
 import java.util.UUID;
 
 public record ProductCreateCommand(
@@ -10,4 +11,4 @@ public record ProductCreateCommand(
     String description,
     UUID categoryId,
     Long price,
-    Integer stockQuantity) {}
+    List<ProductInventoryOptionCommand> inventoryOptions) {}

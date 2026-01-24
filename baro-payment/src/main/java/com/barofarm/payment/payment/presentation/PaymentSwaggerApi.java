@@ -2,9 +2,7 @@ package com.barofarm.payment.payment.presentation;
 
 import com.barofarm.dto.ResponseDto;
 import com.barofarm.payment.payment.application.dto.response.TossPaymentConfirmInfo;
-import com.barofarm.payment.payment.application.dto.response.TossPaymentRefundInfo;
 import com.barofarm.payment.payment.presentation.dto.TossPaymentConfirmRequest;
-import com.barofarm.payment.payment.presentation.dto.TossPaymentRefundRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -52,7 +50,7 @@ public interface PaymentSwaggerApi {
         @RequestHeader("X-User-Id") UUID userId,
         @Valid @RequestBody TossPaymentConfirmRequest confirmRequest
     );
-    
+
 
     @Operation(
         summary = "Toss 예치금 충전 결제 승인",
