@@ -52,7 +52,7 @@ public interface PaymentSwaggerApi {
         @RequestHeader("X-User-Id") UUID userId,
         @Valid @RequestBody TossPaymentConfirmRequest confirmRequest
     );
-    
+
 
     @Operation(
         summary = "Toss 예치금 충전 결제 승인",
