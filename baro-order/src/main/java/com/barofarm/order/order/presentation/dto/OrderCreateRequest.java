@@ -43,7 +43,7 @@ public record OrderCreateRequest(
             .map(i -> new OrderCreateCommand.OrderItemCreateCommand(
                 i.productId(),
                 i.productName(),
-                i.categoryId(),
+                i.categoryCode(),
                 i.inventoryId(),
                 i.sellerId(),
                 i.quantity(),
@@ -70,7 +70,7 @@ public record OrderCreateRequest(
         @NotBlank(message = "상품 이름은 필수입니다.")
         String productName,
 
-        UUID categoryId,
+        String categoryCode,
 
         @Positive(message = "수량은 1개 이상이어야 합니다.")
         Long quantity,

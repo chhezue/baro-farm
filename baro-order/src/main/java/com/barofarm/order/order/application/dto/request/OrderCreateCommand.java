@@ -16,7 +16,7 @@ public record OrderCreateCommand(
     public record OrderItemCreateCommand(
         UUID productId,
         String productName,
-        UUID categoryId,
+        String categoryCode,
         UUID inventoryId,
         UUID sellerId,
         Long quantity,

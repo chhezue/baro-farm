@@ -55,7 +55,7 @@ public class OrderService {
             order.addOrderItem(
                 item.productId(),
                 item.productName(),
-                item.categoryId(),
+                item.categoryCode(),
                 item.sellerId(),
                 item.quantity(),
                 item.unitPrice(),

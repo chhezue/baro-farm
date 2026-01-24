@@ -71,7 +71,7 @@ public class Order extends BaseEntity {
 
     public void addOrderItem(UUID productId,
                              String productName,
-                             UUID categoryId,
+                             String categoryCode,
                              UUID sellerId,
                              Long quantity,
                              Long unitPrice,
@@ -80,7 +80,7 @@ public class Order extends BaseEntity {
             this,
             productId,
             productName,
-            categoryId,
+            categoryCode,
             sellerId,
             quantity,
             unitPrice,

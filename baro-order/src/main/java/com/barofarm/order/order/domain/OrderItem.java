@@ -30,11 +30,11 @@ public class OrderItem extends BaseEntity {
     @Column(name = "product_id", columnDefinition = "BINARY(16)", nullable = false)
     private UUID productId;
 
-    @Column(name = "email", nullable = false)
+    @Column(name = "product_name", nullable = false)
     private String productName;
 
-    @Column(name = "category_id", columnDefinition = "BINARY(16)")
-    private UUID categoryId;
+    @Column(name = "category_code", length = 50)
+    private String categoryCode;
 
     @Column(name = "seller_id", columnDefinition = "BINARY(16)", nullable = false)
     private UUID sellerId;
@@ -54,7 +54,7 @@ public class OrderItem extends BaseEntity {
     private OrderItem(Order order,
                       UUID productId,
                       String productName,
-                      UUID categoryId,
+                      String categoryCode,
                       UUID sellerId,
                       Long quantity,
                       Long unitPrice,
@@ -63,7 +63,7 @@ public class OrderItem extends BaseEntity {
         this.order = order;
         this.productId = productId;
         this.productName = productName;
-        this.categoryId = categoryId;
+        this.categoryCode = categoryCode;
         this.sellerId = sellerId;
         this.quantity = quantity;
         this.unitPrice = unitPrice;
@@ -74,7 +74,7 @@ public class OrderItem extends BaseEntity {
     public static OrderItem of(Order order,
                                UUID productId,
                                String productName,
-                               UUID categoryId,
+                               String categoryCode,
                                UUID sellerId,
                                Long quantity,
                                Long unitPrice,
@@ -83,7 +83,7 @@ public class OrderItem extends BaseEntity {
             order,
             productId,
             productName,
-            categoryId,
+            categoryCode,
             sellerId,
             quantity,
             unitPrice,
