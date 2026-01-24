@@ -17,19 +17,24 @@ public record ProductDetailInfo(
     String categoryCode,
     String categoryName,
     Long price,
-    Integer stockQuantity,
     ProductStatus productStatus,
     LocalDateTime createdAt,
     LocalDateTime updatedAt,
     List<String> imageUrls,
+    List<ProductInventoryOptionInfo> inventoryOptions,
     List<String> positiveReviewSummary,
     List<String> negativeReviewSummary) {
 
-  public static ProductDetailInfo from(Product product, int stock) {
-      return from(product, stock, List.of(), List.of());
+  public static ProductDetailInfo from(
+      Product product,
+      List<ProductInventoryOptionInfo> inventoryOptions
+  ) {
+      return from(product, inventoryOptions, List.of(), List.of());
   }
 
-  public static ProductDetailInfo from(Product product, int stock,
+  public static ProductDetailInfo from(
+      Product product,
+      List<ProductInventoryOptionInfo> inventoryOptions,
                                        List<String> positiveReviewSummary,
                                        List<String> negativeReviewSummary) {
       Category category = product.getCategory();
@@ -54,13 +59,13 @@ public record ProductDetailInfo(
           categoryCode,
           categoryName,
           product.getPrice(),
-          stock,
           product.getProductStatus(),
           product.getCreatedAt(),
           product.getUpdatedAt(),
           product.getImages().stream()
               .map(ProductImage::getImageUrl)
               .toList(),
+          inventoryOptions == null ? List.of() : inventoryOptions,
           positiveReviewSummary,
           negativeReviewSummary
       );

@@ -53,7 +53,7 @@ services:
       - SPRING_PROFILES_ACTIVE=local
       - SPRING_CONFIG_IMPORT=
       - BPL_JVM_THREAD_COUNT=50
-      - SPRING_KAFKA_BOOTSTRAP_SERVERS=baro-kafka:29092
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=baro-kafka:9092
       - OPA_BUNDLE_DIR=/tmp/opa-bundle
       - OPA_POLICY_DIR=/app/policy
   opa:
