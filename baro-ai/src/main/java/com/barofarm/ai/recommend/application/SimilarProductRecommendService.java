@@ -38,10 +38,10 @@ public class SimilarProductRecommendService {
         }
 
         float[] productVector = product.getVector();
-        UUID productCategoryId = product.getProductCategoryId();
+        String productCategoryCode = product.getProductCategoryCode();
 
         // 2. 벡터 유사도 검색 실행 (같은 카테고리 보너스 적용) + 메도이드 다양성 적용
-        return findSimilarProducts(productVector, productId, topK, productCategoryId);
+        return findSimilarProducts(productVector, productId, topK, productCategoryCode);
     }
 
     // 특정 벡터와 유사한 상품들을 Elasticsearch에서 검색한 뒤,
@@ -50,10 +50,10 @@ public class SimilarProductRecommendService {
         float[] vector,
         UUID originalProductId,
         int topK,
-        UUID originalCategoryId
+        String originalCategoryCode
     ) {
         // 같은 카테고리 보너스 점수 설정 (0.3 = 30% 보너스)
-        Double categoryMatchBonus = originalCategoryId != null ? 0.3 : null;
+        Double categoryMatchBonus = originalCategoryCode != null ? 0.3 : null;
 
         // 제외할 상품 ID 리스트 생성 (자기 자신 포함)
         List<UUID> excludeProductIds = originalProductId != null
@@ -67,7 +67,7 @@ public class SimilarProductRecommendService {
             vector,
             candidateSize,
             excludeProductIds,   // 자기 자신 제외
-            originalCategoryId,  // 기준 상품의 카테고리 ID
+            originalCategoryCode,  // 기준 상품의 카테고리 코드
             categoryMatchBonus   // 카테고리 일치 보너스
         );
 

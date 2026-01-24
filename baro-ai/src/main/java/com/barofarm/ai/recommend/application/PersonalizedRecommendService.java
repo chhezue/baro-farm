@@ -50,11 +50,11 @@ public class PersonalizedRecommendService {
 
         float[] userVector = convertToFloatArray(userProfileVector);
 
-        // 4. 사용자 선호 카테고리 ID 가져오기
-        UUID preferredCategoryId = profile.getPreferredCategoryId();
+        // 4. 사용자 선호 카테고리 코드 가져오기
+        String preferredCategoryCode = profile.getPreferredCategoryCode();
 
         // 5. Elasticsearch 벡터 유사도 검색 + 메도이드 다양성 적용
-        return findSimilarProductsByVector(userVector, topK, experiencedProductIds, preferredCategoryId);
+        return findSimilarProductsByVector(userVector, topK, experiencedProductIds, preferredCategoryCode);
     }
 
     // Elasticsearch에서 벡터 유사도 검색을 수행하고,
@@ -63,7 +63,7 @@ public class PersonalizedRecommendService {
         float[] userVector,
         int topK,
         List<String> experiencedProductIds,
-        UUID preferredCategoryId
+        String preferredCategoryCode
     ) {
         // String을 UUID로 변환
         List<UUID> excludeProductIds = experiencedProductIds.stream()
@@ -71,7 +71,7 @@ public class PersonalizedRecommendService {
             .toList();
 
         // 같은 카테고리 보너스 점수 설정 (0.3 = 30% 보너스, SimilarProductRecommendService와 동일)
-        Double categoryMatchBonus = preferredCategoryId != null ? 0.3 : null;
+        Double categoryMatchBonus = preferredCategoryCode != null ? 0.3 : null;
 
         // 메도이드 적용을 위해 topK보다 넉넉한 후보를 가져온다.
         int candidateSize = Math.min(topK * 3, 100);
@@ -80,7 +80,7 @@ public class PersonalizedRecommendService {
             userVector,
             candidateSize,
             excludeProductIds,   // 제외할 상품 ID들 (이미 경험한 상품들)
-            preferredCategoryId, // 사용자 선호 카테고리 ID
+            preferredCategoryCode, // 사용자 선호 카테고리 코드
             categoryMatchBonus   // 카테고리 일치 보너스
         );
 

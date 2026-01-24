@@ -31,7 +31,7 @@ public class OrderLogDocument {
     private String productName;
 
     @Field(type = FieldType.Keyword)
-    private UUID categoryId;
+    private String categoryCode;
 
     // 이벤트 타입: ORDER_CREATED, ORDER_CANCELLED
     @Field(type = FieldType.Keyword)
@@ -49,14 +49,14 @@ public class OrderLogDocument {
     public OrderLogDocument(UUID userId,
                             UUID productId,
                             String productName,
-                            UUID categoryId,
+                            String categoryCode,
                             String eventType,
                             Integer quantity,
                             Instant occurredAt) {
         this.userId = userId;
         this.productId = productId;
         this.productName = productName;
-        this.categoryId = categoryId;
+        this.categoryCode = categoryCode;
         this.eventType = eventType;
         this.quantity = quantity;
         this.occurredAt = occurredAt;

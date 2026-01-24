@@ -20,7 +20,7 @@ public record OrderLogEvent(
             UUID productId,
             String productName,
             Integer quantity,
-            UUID categoryId
+            String categoryCode
         ) { }
     }
 }

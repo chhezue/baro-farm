@@ -42,7 +42,7 @@ public class CartEventConsumer {
                         event.userId(),
                         data.productId(),
                         data.productName(),
-                        data.categoryId(),
+                        data.categoryCode(),
                         "ADD",
                         data.quantity(),
                         convertToInstant(event.ts())
@@ -59,7 +59,7 @@ public class CartEventConsumer {
                         event.userId(),
                         data.productId(),
                         data.productName(),
-                        data.categoryId(),
+                        data.categoryCode(),
                         "REMOVE",
                         data.quantity(),
                         convertToInstant(event.ts())
@@ -76,7 +76,7 @@ public class CartEventConsumer {
                         event.userId(),
                         data.productId(),
                         data.productName(),
-                        data.categoryId(),
+                        data.categoryCode(),
                         "UPDATE",
                         data.quantity(),
                         convertToInstant(event.ts())

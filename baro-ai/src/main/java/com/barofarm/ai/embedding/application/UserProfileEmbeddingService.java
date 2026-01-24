@@ -120,8 +120,8 @@ public class UserProfileEmbeddingService {
             return;
         }
 
-        // 3.5. 선호 카테고리 ID 계산 (cart/order 로그에서 가중치 적용하여 최빈값 도출)
-        UUID preferredCategoryId = calculatePreferredCategoryId(cartLogs, orderLogs);
+        // 3.5. 선호 카테고리 코드 계산 (cart/order 로그에서 가중치 적용하여 최빈값 도출)
+        String preferredCategoryCode = calculatePreferredCategoryCode(cartLogs, orderLogs);
 
         // 4. 생성된 벡터로 UserProfileEmbeddingDocument를 만들어 저장
         UserProfileEmbeddingDocument embeddingDocument = UserProfileEmbeddingDocument.builder()
@@ -134,8 +134,8 @@ public class UserProfileEmbeddingService {
             .sourceOrderLogIds(sourceOrderLogIds)
             // 빠른 상품 제외를 위한 productId 목록
             .sourceProductIds(sourceProductIds)
-            // 사용자 선호 카테고리 ID
-            .preferredCategoryId(preferredCategoryId)
+            // 사용자 선호 카테고리 코드
+            .preferredCategoryCode(preferredCategoryCode)
             .build();
 
         userProfileEmbeddingRepository.save(embeddingDocument);
@@ -237,19 +237,19 @@ public class UserProfileEmbeddingService {
         return Math.min(timeWeight, 3.0); // 최대 3배 제한
     }
 
-    // cart/order 로그에서 선호 카테고리 ID 계산 (이벤트 가중치 적용)
+    // cart/order 로그에서 선호 카테고리 코드 계산 (이벤트 가중치 적용)
     // 사용자의 장바구니 및 주문 로그를 분석하여 가장 선호하는 카테고리 1개를 도출합니다.
-    private UUID calculatePreferredCategoryId(
+    private String calculatePreferredCategoryCode(
         List<CartLogDocument> cartLogs,
         List<OrderLogDocument> orderLogs
     ) {
         // 카테고리별 가중치 합계를 계산
-        Map<UUID, Double> categoryWeights = new java.util.HashMap<>();
+        Map<String, Double> categoryWeights = new java.util.HashMap<>();
 
         // Cart 로그 처리
         for (CartLogDocument cartLog : cartLogs) {
-            UUID categoryId = cartLog.getCategoryId();
-            if (categoryId == null) {
+            String categoryCode = cartLog.getCategoryCode();
+            if (categoryCode == null) {
                 continue;
             }
 
@@ -258,13 +258,13 @@ public class UserProfileEmbeddingService {
             double timeWeight = calculateTimeWeight(cartLog.getOccurredAt());
 
             double totalWeight = eventWeight * quantityWeight * timeWeight;
-            categoryWeights.merge(categoryId, totalWeight, Double::sum);
+            categoryWeights.merge(categoryCode, totalWeight, Double::sum);
         }
 
         // Order 로그 처리
         for (OrderLogDocument orderLog : orderLogs) {
-            UUID categoryId = orderLog.getCategoryId();
-            if (categoryId == null) {
+            String categoryCode = orderLog.getCategoryCode();
+            if (categoryCode == null) {
                 continue;
             }
 
@@ -273,10 +273,10 @@ public class UserProfileEmbeddingService {
             double timeWeight = calculateTimeWeight(orderLog.getOccurredAt());
 
             double totalWeight = eventWeight * quantityWeight * timeWeight;
-            categoryWeights.merge(categoryId, totalWeight, Double::sum);
+            categoryWeights.merge(categoryCode, totalWeight, Double::sum);
         }
 
-        // 가중치가 가장 큰 카테고리 ID 선택
+        // 가중치가 가장 큰 카테고리 코드 선택
         return categoryWeights.entrySet().stream()
             .max(Comparator.comparingDouble(Map.Entry::getValue))
             .map(Map.Entry::getKey)

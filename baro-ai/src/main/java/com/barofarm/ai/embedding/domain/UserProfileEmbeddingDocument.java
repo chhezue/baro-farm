@@ -42,5 +42,5 @@ public class UserProfileEmbeddingDocument {
 
     // 사용자 선호 카테고리 ID (cart/order 로그에서 도출한 최빈 카테고리)
     @Field(type = FieldType.Keyword)
-    private UUID preferredCategoryId;
+    private String preferredCategoryCode;
 }

@@ -16,7 +16,7 @@ public record CartLogEvent(
         UUID cartItemId,
         UUID productId,
         String productName,
-        UUID categoryId,
+        String categoryCode,
         Integer quantity
     ) { }
 }
