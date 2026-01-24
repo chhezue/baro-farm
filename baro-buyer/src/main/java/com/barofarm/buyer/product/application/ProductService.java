@@ -1,9 +1,13 @@
 package com.barofarm.buyer.product.application;
 
 import com.barofarm.buyer.inventory.application.InventoryService;
+import com.barofarm.buyer.inventory.application.dto.request.InventoryCreateCommand;
+import com.barofarm.buyer.inventory.domain.Inventory;
 import com.barofarm.buyer.product.application.dto.ProductCreateCommand;
 import com.barofarm.buyer.product.application.dto.ProductDetailInfo;
 import com.barofarm.buyer.product.application.dto.ProductImageUpdateMode;
+import com.barofarm.buyer.product.application.dto.ProductInventoryOptionCommand;
+import com.barofarm.buyer.product.application.dto.ProductInventoryOptionInfo;
 import com.barofarm.buyer.product.application.dto.ProductUpdateCommand;
 import com.barofarm.buyer.product.application.event.ProductTransactionEvent;
 import com.barofarm.buyer.product.domain.Category;
@@ -18,6 +22,7 @@ import com.barofarm.buyer.product.domain.UserType;
 import com.barofarm.buyer.product.exception.ProductErrorCode;
 import com.barofarm.dto.CustomPage;
 import com.barofarm.exception.CustomException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -48,14 +53,13 @@ public class ProductService {
             productRepository.findById(id)
             .orElseThrow(() -> new CustomException(ProductErrorCode.PRODUCT_NOT_FOUND));
 
-        // TO-DO
-        // int stock = inventoryService.getInventory(id);
-        int stock = 0;
+        List<Inventory> inventories = inventoryService.getInventoriesByProductId(id);
+        List<ProductInventoryOptionInfo> inventoryOptions = toInventoryOptionInfos(inventories);
 
         List<String> positiveSummary = fetchSummaryLines(id, ReviewSummarySentiment.POSITIVE);
         List<String> negativeSummary = fetchSummaryLines(id, ReviewSummarySentiment.NEGATIVE);
 
-        return ProductDetailInfo.from(product, stock, positiveSummary, negativeSummary);
+        return ProductDetailInfo.from(product, inventoryOptions, positiveSummary, negativeSummary);
     }
 
     @Transactional(readOnly = true)
@@ -66,14 +70,6 @@ public class ProductService {
             .map(Product::getId)
             .toList();
 
-//        TO-DO 재고 찾기
-//        Map<UUID, Integer> stockMap = inventoryService.getStocksByProductIds(productIds);
-//
-//        Page<ProductDetailInfo> infos = products.map(p ->
-//            ProductDetailInfo.from(p, stockMap.getOrDefault(p.getId(), 0))
-//        );
-//
-//        return CustomPage.from(infos);
         return null;
     }
 
@@ -96,16 +92,29 @@ public class ProductService {
         }
 
         // 상품 저장 및 재고 저장
-        Product savedProduct = saveProductAndInventory(product, command.stockQuantity());
+        Product savedProduct = saveProductAndInventory(product, command.inventoryOptions());
 
-        return ProductDetailInfo.from(savedProduct, command.stockQuantity());
+        List<ProductInventoryOptionInfo> inventoryOptions =
+            toInventoryOptionInfos(inventoryService.getInventoriesByProductId(savedProduct.getId()));
+        return ProductDetailInfo.from(savedProduct, inventoryOptions);
     }
 
-    public Product saveProductAndInventory(Product product, Integer stockQuantity) {
+    public Product saveProductAndInventory(
+        Product product,
+        List<ProductInventoryOptionCommand> inventoryOptions
+    ) {
         Product savedProduct = productRepository.save(product);
 
-        //재고 생성 로직
-        //inventoryService.create(UUID productId, command.stockQuantity);
+        //재고 생성
+        for (ProductInventoryOptionCommand option : safeInventoryOptions(inventoryOptions)) {
+            inventoryService.createInventory(
+                new InventoryCreateCommand(
+                    savedProduct.getId(),
+                    option.quantity(),
+                    option.unit()
+                )
+            );
+        }
 
         // 트랜잭션 이벤트 발행 (트랜잭션 성공 시에만 카프카 이벤트 발행됨)
         ProductTransactionEvent event = new ProductTransactionEvent(savedProduct,
@@ -143,16 +152,23 @@ public class ProductService {
             productImageService.updateProductImagesSafely(product, images, imageUpdateMode);
         }
 
-        Product savedProduct = updateProductAndInventory(product, command.stockQuantity());
-
-        return ProductDetailInfo.from(savedProduct, command.stockQuantity());
+        Product savedProduct = updateProductAndInventory(product, command.inventoryOptions());
+        List<ProductInventoryOptionInfo> inventoryOptions =
+            toInventoryOptionInfos(inventoryService.getInventoriesByProductId(savedProduct.getId()));
+        return ProductDetailInfo.from(savedProduct, inventoryOptions);
     }
 
-    public Product updateProductAndInventory(Product product, Integer stockQuantity) {
+    public Product updateProductAndInventory(
+        Product product,
+        List<ProductInventoryOptionCommand> inventoryOptions
+    ) {
         Product updatedProduct = productRepository.save(product);
 
         //재고 업데이트 로직
-        //inventoryService.update(UUID productId, command.stockQuantity);
+        inventoryService.replaceInventories(
+            updatedProduct.getId(),
+            toInventoryCreateCommands(updatedProduct.getId(), inventoryOptions)
+        );
 
         // 트랜잭션 이벤트 발행 (트랜잭션 성공 시에만 카프카 이벤트 발행됨)
         ProductTransactionEvent event = new ProductTransactionEvent(updatedProduct,
@@ -172,6 +188,7 @@ public class ProductService {
 
         product.validateOwner(memberId);
 
+        inventoryService.deleteInventoriesByProductId(id);
         productRepository.deleteById(id);
 
         // 트랜잭션 이벤트 발행 (트랜잭션 성공 시에만 카프카 이벤트 발행됨)
@@ -197,5 +214,36 @@ public class ProductService {
         return summary
             .map(ReviewSummary::getSummaryText)
             .orElse(List.of());
+    }
+
+    private List<ProductInventoryOptionCommand> safeInventoryOptions(
+        List<ProductInventoryOptionCommand> inventoryOptions
+    ) {
+        return inventoryOptions == null ? Collections.emptyList() : inventoryOptions;
+    }
+
+    private List<ProductInventoryOptionInfo> toInventoryOptionInfos(List<Inventory> inventories) {
+        return inventories == null
+            ? List.of()
+            : inventories.stream()
+                .map(inventory -> new ProductInventoryOptionInfo(
+                    inventory.getId(),
+                    inventory.getQuantity(),
+                    inventory.getUnit()
+                ))
+                .toList();
+    }
+
+    private List<InventoryCreateCommand> toInventoryCreateCommands(
+        UUID productId,
+        List<ProductInventoryOptionCommand> inventoryOptions
+    ) {
+        return safeInventoryOptions(inventoryOptions).stream()
+            .map(option -> new InventoryCreateCommand(
+                productId,
+                option.quantity(),
+                option.unit()
+            ))
+            .toList();
     }
 }
