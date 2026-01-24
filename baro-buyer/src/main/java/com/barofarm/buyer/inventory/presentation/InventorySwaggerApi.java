@@ -50,4 +50,3 @@ public interface InventorySwaggerApi {
         @RequestParam @NotNull UUID productId
     );
 }
-
