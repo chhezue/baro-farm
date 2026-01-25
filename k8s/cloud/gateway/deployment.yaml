@@ -23,6 +23,7 @@ spec:
         component: cloud
     spec:
       hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       nodeSelector:
         kubernetes.io/hostname: ip-10-0-5-208  # 마스터 노드에 고정 배치
       tolerations:
