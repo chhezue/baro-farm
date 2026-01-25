@@ -1,6 +1,6 @@
 # 데이터 인프라 서비스 (기본)
 # Redis, MySQL 등 기본 데이터 저장소
-# 
+#
 # Kafka는 docker-compose.kafka.yml로 분리되어 있습니다.
 # Elasticsearch는 docker-compose.elasticsearch.yml로 분리되어 있습니다.
 #
@@ -28,7 +28,7 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-      - /mnt/s3:/mnt/s3:rw
+      - ${S3_MOUNT_PATH:-/mnt/s3}:/mnt/s3:rw
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123} --maxmemory 128mb --maxmemory-policy allkeys-lru
     deploy:
       resources:
@@ -78,7 +78,7 @@ services:
   #     # - always-create-databases.sh: 수동 실행용 (일부 데이터베이스만 있는 경우 사용)
   #     # 자세한 사용법: scripts/init-db/README.md 참조
   #     - ./scripts/init-db:/docker-entrypoint-initdb.d
-  #     - /mnt/s3:/mnt/s3:rw
+  #     - ${S3_MOUNT_PATH:-/mnt/s3}:/mnt/s3:rw
   #   restart: unless-stopped
   #   networks:
   #     - baro-network
@@ -111,7 +111,7 @@ services:
   #     # 새로 초기화하려면 .env에서 다른 값으로 설정
   #     KAFKA_CLUSTER_ID: ${KAFKA_CLUSTER_ID:-}
   #     CLUSTER_ID: ${KAFKA_CLUSTER_ID:-}
-  #     
+  #
   #     # Listeners 설정
   #     # hostNetwork: true를 사용하는 Kubernetes Pod에서 접근하므로 127.0.0.1로 advertised
   #     # 컨테이너 내부에서 0.0.0.0으로 리스닝하여 호스트에서 접근 가능하도록 설정
@@ -120,13 +120,13 @@ services:
   #     KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
   #     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
   #     KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-  #     
+  #
   #     # 토픽 설정
   #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
   #     KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
   #     KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
   #     KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-  #     
+  #
   #     # 로그 설정
   #     KAFKA_LOG_DIRS: /var/lib/kafka/data
   #     # 메모리 제한
@@ -139,7 +139,7 @@ services:
   #   #       memory: 256M
   #   volumes:
   #     - kafka-data:/var/lib/kafka/data
-  #     - /mnt/s3:/mnt/s3:rw
+  #     - ${S3_MOUNT_PATH:-/mnt/s3}:/mnt/s3:rw
   #   restart: unless-stopped
   #   networks:
   #     - baro-network
@@ -193,7 +193,7 @@ services:
   #     - "9200:9200"
   #   volumes:
   #     - elasticsearch-data:/usr/share/elasticsearch/data
-  #     - /mnt/s3:/mnt/s3:rw
+  #     - ${S3_MOUNT_PATH:-/mnt/s3}:/mnt/s3:rw
   #   restart: unless-stopped
   #   networks:
   #     - baro-network
@@ -206,48 +206,6 @@ services:
   #     timeout: 5s
   #     retries: 12
 
-  # ===================================
-  # OPA Bundle Service
-  # ===================================
-  opa-bundle:
-    image: ${DOCKER_REGISTRY:-ghcr.io/do-develop-space}/opa-bundle:${IMAGE_TAG:-latest}
-    container_name: baro-opa-bundle
-    environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      # eureka가 k8s Pod로 실행되는 경우 (hostNetwork: true 사용)
-      # 같은 EC2 호스트에서 실행되면 localhost:8761로 접근 가능
-      # 다른 EC2에서 실행되면 EC2 IP로 변경 필요 (예: http://10.0.5.208:8761/eureka/)
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://localhost:8761/eureka/}
-      - JAVA_TOOL_OPTIONS=-Xms32m -Xmx96m -XX:MaxMetaspaceSize=96m -XX:MaxDirectMemorySize=64m -XX:ReservedCodeCacheSize=64m -XX:+UseSerialGC
-      - OPA_POLICY_DIR=/app/policy
-    mem_limit: 200m
-    volumes:
-      - /mnt/s3:/mnt/s3:rw
-    restart: unless-stopped
-    networks:
-      - baro-network
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8095/actuator/health"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # ===================================
-  # OPA Server
-  # ===================================
-  opa:
-    image: ${DOCKER_REGISTRY:-ghcr.io/do-develop-space}/opa:${IMAGE_TAG:-latest}
-    container_name: baro-opa
-    ports:
-      - "8181:8181"
-    mem_limit: 64m
-    depends_on:
-      opa-bundle:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - baro-network
 
 volumes:
   redis-data:

@@ -61,6 +61,7 @@ if [ -z "$MODULE_NAME" ]; then
     echo "  - order      (주문 모듈)"
     echo "  - payment    (결제 모듈)"
     echo "  - support    (지원 모듈)"
+    echo "  - settlement (정산 모듈, Deployment + CronJob)"
     echo "  - ai         (AI 모듈)"
     echo "  - redis      (Redis 캐시)"
     echo "  - data       (데이터 인프라: MySQL, Kafka, Elasticsearch - docker-compose로 배포)"
@@ -285,6 +286,10 @@ case "$MODULE_NAME" in
         DEPLOY_PATH="$K8S_BASE_DIR/apps/baro-support"
         APP_NAME="baro-support"
         ;;
+    settlement|baro-settlement)
+        DEPLOY_PATH="$K8S_BASE_DIR/apps/baro-settlement"
+        APP_NAME="baro-settlement"
+        ;;
     ai|baro-ai)
         DEPLOY_PATH="$K8S_BASE_DIR/apps/baro-ai"
         APP_NAME="baro-ai"
@@ -314,8 +319,7 @@ case "$MODULE_NAME" in
         ;;
     *)
         log_error "알 수 없는 모듈: $MODULE_NAME"
-        log_info "사용 가능한 모듈: cloud, eureka, config, gateway, redis, auth, buyer, seller, order, payment, support, ai, data"
-        log_info "💡 DaemonSet 배포는 deploy-daemonset.sh를 사용하세요."
+        log_info "사용 가능한 모듈: cloud, eureka, config, gateway, redis, auth, buyer, seller, order, payment, support, settlement, ai, data"
         exit 1
         ;;
 esac
@@ -552,6 +556,32 @@ fi
 # ===================================
 if [ ! -d "$DEPLOY_PATH" ]; then
     log_error "배포 경로를 찾을 수 없습니다: $DEPLOY_PATH"
+    log_error "디버깅 정보:"
+    log_error "  - K8S_BASE_DIR: $K8S_BASE_DIR"
+    log_error "  - MODULE_NAME: $MODULE_NAME"
+    log_error "  - 예상 경로: $K8S_BASE_DIR/apps/baro-$MODULE_NAME 또는 $K8S_BASE_DIR/cloud/$MODULE_NAME"
+    
+    # 가능한 경로 확인
+    log_error "가능한 경로 확인:"
+    if [ -d "$K8S_BASE_DIR/apps" ]; then
+        log_error "  - apps 디렉토리 내용:"
+        ls -la "$K8S_BASE_DIR/apps" 2>&1 | head -10 || true
+    fi
+    if [ -d "$K8S_BASE_DIR/cloud" ]; then
+        log_error "  - cloud 디렉토리 내용:"
+        ls -la "$K8S_BASE_DIR/cloud" 2>&1 | head -10 || true
+    fi
+    exit 1
+fi
+
+# 배포 경로에 deployment.yaml 또는 daemonset.yaml이 있는지 확인
+if [ ! -f "$DEPLOY_PATH/deployment.yaml" ] && [ ! -f "$DEPLOY_PATH/daemonset.yaml" ]; then
+    log_error "배포 파일을 찾을 수 없습니다: $DEPLOY_PATH"
+    log_error "다음 파일 중 하나가 필요합니다:"
+    log_error "  - $DEPLOY_PATH/deployment.yaml"
+    log_error "  - $DEPLOY_PATH/daemonset.yaml"
+    log_error "디렉토리 내용:"
+    ls -la "$DEPLOY_PATH" 2>&1 || true
     exit 1
 fi
 
@@ -573,17 +603,41 @@ if [ -f "$KUSTOMIZATION_FILE" ] && [ "$IMAGE_TAG" != "latest" ]; then
 fi
 
 # ===================================
-# Deployment 파일에 EC2 IP 설정 (임시 파일 사용)
+# Deployment/DaemonSet 파일에 EC2 IP 설정 (임시 파일 사용)
 # ===================================
 DEPLOYMENT_FILE="$DEPLOY_PATH/deployment.yaml"
+DAEMONSET_FILE="$DEPLOY_PATH/daemonset.yaml"
 TEMP_DEPLOYMENT=""
 
-log_info "🔍 Deployment 파일 확인: $DEPLOYMENT_FILE"
+# Deployment 또는 DaemonSet 파일 확인
 if [ -f "$DEPLOYMENT_FILE" ]; then
-    log_info "✅ Deployment 파일 존재 확인됨"
+    DEPLOYMENT_FILE_TO_USE="$DEPLOYMENT_FILE"
+    log_info "🔍 Deployment 파일 확인: $DEPLOYMENT_FILE"
+elif [ -f "$DAEMONSET_FILE" ]; then
+    DEPLOYMENT_FILE_TO_USE="$DAEMONSET_FILE"
+    log_info "🔍 DaemonSet 파일 확인: $DAEMONSET_FILE"
+else
+    log_error "❌ Deployment 또는 DaemonSet 파일을 찾을 수 없습니다"
+    log_error "디버깅 정보:"
+    log_error "  - DEPLOY_PATH: $DEPLOY_PATH"
+    log_error "  - K8S_BASE_DIR: $K8S_BASE_DIR"
+    log_error "  - MODULE_NAME: $MODULE_NAME"
+    
+    # 디렉토리 내용 확인
+    if [ -d "$DEPLOY_PATH" ]; then
+        log_error "  - 디렉토리 내용:"
+        ls -la "$DEPLOY_PATH" 2>&1 | head -20 || true
+    else
+        log_error "  - 디렉토리도 존재하지 않습니다: $DEPLOY_PATH"
+    fi
+    exit 1
+fi
+
+if [ -f "$DEPLOYMENT_FILE_TO_USE" ]; then
+    log_info "✅ 파일 존재 확인됨: $DEPLOYMENT_FILE_TO_USE"
     # 임시 파일 생성 (원본 파일 보존)
     TEMP_DEPLOYMENT=$(mktemp)
-    cp "$DEPLOYMENT_FILE" "$TEMP_DEPLOYMENT"
+    cp "$DEPLOYMENT_FILE_TO_USE" "$TEMP_DEPLOYMENT"
     
     log_step "🔧 Deployment 파일 설정 중..."
     
@@ -672,36 +726,31 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
         fi
         
         # Kafka Bootstrap Servers 처리
-        # DEPLOY_KAFKA=true일 때: Public EC2에 배포되므로 DATA_EC2_IP 사용
-        # DEPLOY_KAFKA=false일 때: Private EC2에 배포되거나 미배포이므로 localhost 사용
+        # Kafka가 Public EC2에서 실행 중이므로 모든 모듈이 Public EC2 IP 사용
+        # DEPLOY_KAFKA=true일 때: Kafka는 Public EC2에 배포되므로 Public EC2 IP 사용
+        # DEPLOY_KAFKA=false일 때: Kafka가 Public EC2에 있다면 Public EC2 IP 사용, Private EC2에 있다면 localhost 사용
         if grep -q "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT"; then
             log_info "🔍 Kafka Bootstrap Servers 치환 전 확인:"
             grep -A 1 "SPRING_KAFKA_BOOTSTRAP_SERVERS" "$TEMP_DEPLOYMENT" || true
             
-            if [ "${DEPLOY_KAFKA:-false}" = "true" ]; then
-                log_info "📦 DEPLOY_KAFKA=true: Kafka는 Public EC2에 배포되므로 $DATA_EC2_IP:29092 사용"
-                # 127.0.0.1:29092 패턴을 Data EC2 IP로 변경
-                sed "s|127\.0\.0\.1:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-                # localhost:29092 패턴도 Data EC2 IP로 변경
-                sed "s|localhost:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-                # http://localhost:29092 패턴도 처리
-                sed "s|http://localhost:29092|$DATA_EC2_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-                # CHANGE_ME_TO_EC2_IP:29092는 이미 전역 치환으로 DATA_EC2_IP:29092로 변경됨
-                if grep -q "$DATA_EC2_IP:29092" "$TEMP_DEPLOYMENT"; then
-                    log_info "✅ SPRING_KAFKA_BOOTSTRAP_SERVERS: $DATA_EC2_IP:29092 사용 (Public EC2에서 실행 중)"
-                fi
-            else
-                log_info "📦 DEPLOY_KAFKA=false: Kafka는 Private EC2에 배포되거나 미배포이므로 localhost:29092 유지"
-                # CHANGE_ME_TO_EC2_IP:29092를 localhost:29092로 변경
-                sed "s|$DATA_EC2_IP:29092|localhost:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
-                mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
-                # localhost:29092가 이미 설정되어 있으면 유지
-                if grep -q "localhost:29092\|127\.0\.0\.1:29092" "$TEMP_DEPLOYMENT"; then
-                    log_info "✅ SPRING_KAFKA_BOOTSTRAP_SERVERS: localhost:29092 사용 (Private EC2에서 실행 중 또는 미배포)"
-                fi
+            # Kafka 위치 확인: Public EC2에서 실행 중이므로 항상 Public EC2 IP 사용
+            # DATA_EC2_IP는 Public EC2 IP를 의미 (Kafka가 실행되는 EC2)
+            KAFKA_IP="$DATA_EC2_IP"
+            log_info "📦 Kafka는 Public EC2($KAFKA_IP)에서 실행 중이므로 모든 모듈이 $KAFKA_IP:29092 사용"
+            
+            # 모든 모듈(Public/Private EC2 모두)이 Public EC2 IP 사용
+            # 127.0.0.1:29092 패턴을 Public EC2 IP로 변경
+            sed "s|127\.0\.0\.1:29092|$KAFKA_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+            # localhost:29092 패턴도 Public EC2 IP로 변경
+            sed "s|localhost:29092|$KAFKA_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+            # http://localhost:29092 패턴도 처리
+            sed "s|http://localhost:29092|$KAFKA_IP:29092|g" "$TEMP_DEPLOYMENT" > "${TEMP_DEPLOYMENT}.tmp"
+            mv "${TEMP_DEPLOYMENT}.tmp" "$TEMP_DEPLOYMENT"
+            # CHANGE_ME_TO_EC2_IP:29092는 이미 전역 치환으로 Public EC2 IP:29092로 변경됨
+            if grep -q "$KAFKA_IP:29092" "$TEMP_DEPLOYMENT"; then
+                log_info "✅ SPRING_KAFKA_BOOTSTRAP_SERVERS: $KAFKA_IP:29092 사용 (Kafka는 Public EC2에서 실행 중)"
             fi
             
             log_info "🔍 Kafka Bootstrap Servers 치환 후 확인:"
@@ -780,16 +829,35 @@ if [ -f "$DEPLOYMENT_FILE" ]; then
         fi
     fi
     
-    # 임시 deployment.yaml을 원본 위치에 복사 (kustomize가 읽을 수 있도록)
+    # 임시 파일을 원본 위치에 복사 (kustomize가 읽을 수 있도록)
     # 매 배포마다 GitHub Actions가 최신 k8s 디렉토리를 복사하므로, 수정된 파일을 그대로 사용
-    cp "$TEMP_DEPLOYMENT" "$DEPLOYMENT_FILE"
+    cp "$TEMP_DEPLOYMENT" "$DEPLOYMENT_FILE_TO_USE"
     rm -f "$TEMP_DEPLOYMENT"
-    log_info "✅ Deployment 파일 업데이트 완료 (수정된 파일로 배포 예정)"
-    log_info "📝 수정된 deployment.yaml 내용 확인:"
-    grep -A 2 "SPRING_KAFKA_BOOTSTRAP_SERVERS\|SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE" || true
-else
-    log_error "Deployment 파일을 찾을 수 없습니다: $DEPLOYMENT_FILE"
-    exit 1
+    log_info "✅ 파일 업데이트 완료 (수정된 파일로 배포 예정): $DEPLOYMENT_FILE_TO_USE"
+    log_info "📝 수정된 내용 확인:"
+    grep -A 2 "SPRING_KAFKA_BOOTSTRAP_SERVERS\|SPRING_ELASTICSEARCH_URIS" "$DEPLOYMENT_FILE_TO_USE" || true
+    
+    # Deployment 또는 DaemonSet 파일 변수 설정 (나중에 사용)
+    DEPLOYMENT_FILE="$DEPLOYMENT_FILE_TO_USE"
+fi
+
+# ===================================
+# Settlement CronJob 패치 (baro-settlement 모듈만)
+# ===================================
+CRONJOB_FILE="$DEPLOY_PATH/cronjob.yaml"
+if [[ "$DEPLOY_PATH" == *"baro-settlement"* ]] && [ -f "$CRONJOB_FILE" ]; then
+    log_step "🔧 CronJob 파일 패치 중: $CRONJOB_FILE"
+    TEMP_CRONJOB=$(mktemp)
+    cp "$CRONJOB_FILE" "$TEMP_CRONJOB"
+    if grep -q "CHANGE_ME_TO_EC2_IP" "$TEMP_CRONJOB"; then
+        sed "s/CHANGE_ME_TO_EC2_IP/$DATA_EC2_IP/g" "$TEMP_CRONJOB" > "${TEMP_CRONJOB}.tmp"
+        mv "${TEMP_CRONJOB}.tmp" "$TEMP_CRONJOB"
+        cp "$TEMP_CRONJOB" "$CRONJOB_FILE"
+        rm -f "$TEMP_CRONJOB"
+        log_info "✅ CronJob IP 치환 완료: $DATA_EC2_IP"
+    else
+        rm -f "$TEMP_CRONJOB"
+    fi
 fi
 
 # ===================================

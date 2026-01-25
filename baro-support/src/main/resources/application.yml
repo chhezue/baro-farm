@@ -99,6 +99,12 @@ history:
   log:
     enabled: false
 
+notification:
+  delivery:
+    fcm:
+      enabled: false
+      # credential-path: /mnt/s3/firebase/serviceAccount.json
+
 # Actuator 설정
 management:
   endpoints:
