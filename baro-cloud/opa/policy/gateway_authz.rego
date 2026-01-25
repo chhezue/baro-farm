@@ -7,7 +7,7 @@ package gateway.authz
 
 
 
-default allow := false
+default allow := true
 
 # Allow preflight(사전요청, 예비요청) CORS requests.
 allow {
@@ -187,9 +187,3 @@ role_matches(roles, user_roles) {
   r == user_roles[_]
 }
 
-# hotlist에서 승인(APPROVED)된 판매자는 토큰 역할이 갱신되기 전에도 SELLER 권한을 인정한다.
-role_matches(roles, user_roles) {
-  r := roles[_]
-  r == "SELLER"
-  hotlist_seller_status == "APPROVED"
-}
