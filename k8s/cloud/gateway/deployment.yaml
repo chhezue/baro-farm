@@ -76,7 +76,7 @@ spec:
               value: "false"
             # Redis 설정
             - name: SPRING_DATA_REDIS_HOST
-              value: "CHANGE_ME_TO_EC2_IP"
+              value: "127.0.0.1"
             - name: SPRING_DATA_REDIS_PORT
               value: "6379"
             - name: SPRING_DATA_REDIS_PASSWORD
