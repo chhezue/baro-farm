@@ -124,6 +124,9 @@ spec:
             # 로그 디렉토리 설정
             - name: LOG_DIR
               value: "/mnt/s3/logs/auth"
+            # Auth Cookie 설정
+            - name: AUTH_COOKIE_SECURE
+              value: "false"
           volumeMounts:
             - name: log-volume
               mountPath: /mnt/s3/logs/auth
