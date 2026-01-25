@@ -7,6 +7,7 @@ metadata:
     app: gateway
     component: cloud
 spec:
+  type: ClusterIP  # hostNetwork: true를 사용하므로 직접 노드 IP:8080로 접근
   ports:
     - port: 8080
       targetPort: 8080

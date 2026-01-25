@@ -22,6 +22,7 @@ spec:
         app: opa-bundle
         component: cloud
     spec:
+      hostNetwork: true
       nodeSelector:
         kubernetes.io/hostname: ip-10-0-5-208  # 마스터 노드에 고정 배치
       tolerations:
@@ -40,7 +41,7 @@ spec:
               TIMEOUT=300
               ELAPSED=0
               while [ $ELAPSED -lt $TIMEOUT ]; do
-                if wget -qO- --timeout=3 http://eureka:8761/actuator/health 2>/dev/null | grep -qE '"status":"UP"|"status":"UP"|UP'; then
+                if wget -qO- --timeout=3 http://localhost:8761/actuator/health 2>/dev/null | grep -qE '"status":"UP"|"status":"UP"|UP'; then
                   echo "Eureka is ready!"
                   exit 0
                 fi
@@ -64,7 +65,9 @@ spec:
             - name: SERVER_PORT
               value: "8095"
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: "http://localhost:8761/eureka/"  # hostNetwork: true 사용 시 localhost
             - name: SPRING_CONFIG_IMPORT
+              value: "optional:configserver:http://localhost:8888"  # hostNetwork: true 사용 시 localhost
             - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
               valueFrom:
                 secretKeyRef:
