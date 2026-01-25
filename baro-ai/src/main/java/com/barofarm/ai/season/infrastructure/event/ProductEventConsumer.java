@@ -25,7 +25,8 @@ public class ProductEventConsumer {
      */
     @KafkaListener(
         topics = "product-events",
-        groupId = "ai-service-seasonality"
+        groupId = "ai-service-seasonality",
+        containerFactory = "productEventListenerContainerFactory"
     )
     public void handleProductEvent(ProductEvent event) {
         log.debug("상품 이벤트 수신: type={}, productId={}",
