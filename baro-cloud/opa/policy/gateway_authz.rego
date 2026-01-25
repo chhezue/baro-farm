@@ -81,8 +81,14 @@ service_data(service) := data.auth {
   service == "seller"
 } else := data.order {
   service == "order"
+} else := data.payment {
+  service == "payment"
+} else := data.ai {
+  service == "ai"
 } else := data.support {
   service == "support"
+} else := data.settlement {
+  service == "settlement"
 } else := null
 
 
