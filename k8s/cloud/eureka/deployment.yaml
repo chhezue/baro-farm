@@ -22,7 +22,6 @@ spec:
         app: eureka
         component: cloud
     spec:
-      hostNetwork: true
       nodeSelector:
         kubernetes.io/hostname: ip-10-0-5-208  # 마스터 노드에 고정 배치
       tolerations:
@@ -44,9 +43,8 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
-            # hostNetwork: true 사용 시 localhost로 설정 (k8s Service DNS 미사용)
             - name: EUREKA_INSTANCE_HOSTNAME
-              value: "localhost"
+              value: "eureka"
             - name: JAVA_TOOL_OPTIONS
               value: "-Djava.net.preferIPv4Stack=true -Xms64m -Xmx128m -XX:MaxMetaspaceSize=128m -XX:CompressedClassSpaceSize=64m -XX:MaxDirectMemorySize=32m -XX:NativeMemoryTracking=summary"
             - name: SERVER_ADDRESS

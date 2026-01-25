@@ -22,7 +22,6 @@ spec:
         app: config
         component: cloud
     spec:
-      hostNetwork: true
       nodeSelector:
         kubernetes.io/hostname: ip-10-0-5-208  # 마스터 노드에 고정 배치
       tolerations:
@@ -46,9 +45,7 @@ spec:
               value: "git"  # Git 모드 사용 (application.yml에 git 설정이 있으므로 필요)
             # 로컬 개발 시에만 SPRING_PROFILES_ACTIVE=local로 설정하여 application-local.yml 사용
             - name: SERVER_ADDRESS
-              value: "0.0.0.0"  # hostNetwork: true 사용 시 모든 네트워크 인터페이스에 바인딩
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-              value: "http://localhost:8761/eureka/"  # hostNetwork: true 사용 시 localhost
             - name: JAVA_OPTS
               value: "-Xms64m -Xmx128m -Djava.net.preferIPv4Stack=true"
             - name: JAVA_TOOL_OPTIONS

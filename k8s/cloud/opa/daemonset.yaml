@@ -16,7 +16,6 @@ spec:
         app: opa
         component: cloud
     spec:
-      hostNetwork: true
       nodeSelector:
         kubernetes.io/hostname: ip-10-0-5-208  # 마스터 노드에 고정 배치
       tolerations:
@@ -35,7 +34,7 @@ spec:
               TIMEOUT=300
               ELAPSED=0
               while [ $ELAPSED -lt $TIMEOUT ]; do
-                if wget -qO- --timeout=3 http://localhost:8761/actuator/health 2>/dev/null | grep -qE '"status":"UP"|"status":"UP"|UP'; then
+                if wget -qO- --timeout=3 http://eureka:8761/actuator/health 2>/dev/null | grep -qE '"status":"UP"|"status":"UP"|UP'; then
                   echo "Eureka is ready!"
                   exit 0
                 fi

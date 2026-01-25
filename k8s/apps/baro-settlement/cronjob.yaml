@@ -24,7 +24,6 @@ spec:
             app: baro-settlement-batch
             component: app
         spec:
-          hostNetwork: true
           restartPolicy: OnFailure
           tolerations:
             - key: dedicated
