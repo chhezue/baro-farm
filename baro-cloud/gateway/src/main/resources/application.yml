@@ -1,4 +1,4 @@
-﻿server:
+server:
   port: ${SERVER_PORT:8080}  # 환경 변수로 오버라이드 가능 (Config Server 설정 덮어쓰기 방지)
 
 spring:
@@ -125,13 +125,12 @@ spring:
               filters:
                 - RewritePath=/openapi/support/(?<segment>.*), /${segment}
 
-            # DaemonSet 배포 서비스는 Gateway에서 제공하지 않음
-            # - id: settlement-service-openapi
-            #   uri: lb://settlement-service
-            #   predicates:
-            #     - Path=/openapi/settlement/v3/api-docs, /openapi/settlement/v3/api-docs/**
-            #   filters:
-            #     - RewritePath=/openapi/settlement/(?<segment>.*), /${segment}
+            - id: settlement-service-openapi
+              uri: lb://settlement-service
+              predicates:
+                - Path=/openapi/settlement/v3/api-docs, /openapi/settlement/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/settlement/(?<segment>.*), /${segment}
 
             - id: ai-service-openapi
               uri: lb://ai-service
@@ -221,19 +220,12 @@ spring:
                 - RewritePath=/settlement-service/(?<segment>.*), /${segment}
                 - Authentication
                 - OpaAuthorization
-            # DaemonSet 배포 서비스는 Gateway에서 제공하지 않음
-            # - id: settlement-service
-            #   uri: lb://settlement-service
-            #   predicates:
-            #     - Path=/settlement-service/**,/api/settlements/**
-            #   filters:
-            #     - RewritePath=/settlement-service/(?<segment>.*), /${segment}
 
             # AI Service - Public (검색 API는 인증 불필요)
             - id: ai-service-public
               uri: lb://ai-service
               predicates:
-                - Path=/ai-service/api/v1/search/**, /ai-service/api/v1/search/product/**, /ai-service/api/v1/search/experience/**
+                - Path=/ai-service/api/v1/search/**
               filters:
                 - RewritePath=/ai-service/(?<segment>.*), /${segment}
 
@@ -323,8 +315,8 @@ springdoc:
         url: /openapi/payment/v3/api-docs
       - name: Support Service
         url: /openapi/support/v3/api-docs
-      # - name: Settlement Service
-      #   url: /openapi/settlement/v3/api-docs
+      - name: Settlement Service
+        url: /openapi/settlement/v3/api-docs
       - name: AI Service
         url: /openapi/ai/v3/api-docs
   api-docs:
