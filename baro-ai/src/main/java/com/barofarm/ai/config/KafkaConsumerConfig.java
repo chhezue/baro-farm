@@ -50,7 +50,15 @@ public class KafkaConsumerConfig {
         JsonDeserializer<ProductEvent> jsonDeserializer = new JsonDeserializer<>(ProductEvent.class);
         jsonDeserializer.setRemoveTypeHeaders(true);  // 타입 헤더 제거 (다른 모듈의 클래스 정보 무시)
         jsonDeserializer.setUseTypeHeaders(false);     // 타입 헤더 사용 안 함
-        jsonDeserializer.addTrustedPackages("*");
+        
+        // buyer 모듈의 ProductEvent 클래스를 신뢰된 패키지에 추가 (메시지 본문의 @class 필드 처리용)
+        // 와일드카드(*)가 작동하지 않을 수 있으므로 명시적으로 패키지 추가
+        jsonDeserializer.addTrustedPackages(
+            "*",
+            "com.barofarm.buyer.product.event",
+            "com.barofarm.buyer",
+            "com.barofarm"
+        );
 
         // ErrorHandlingDeserializer로 감싸서 역직렬화 실패 시 에러를 무시하고 계속 진행
         // (오래된 메시지의 타입 정보로 인한 ClassNotFoundException 무시)
