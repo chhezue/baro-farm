@@ -12,6 +12,7 @@ import com.barofarm.ai.recommend.infrastructure.client.CartClient;
 import com.barofarm.ai.recommend.infrastructure.client.dto.CartInfo;
 import com.barofarm.ai.recommend.infrastructure.llm.RecipePromptService;
 import com.barofarm.ai.search.application.ProductSearchService;
+import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -159,7 +160,7 @@ public class RecipeRecommendService {
 
         try {
             Pageable pageable = PageRequest.of(0, size);
-            var searchResult = productSearchService.searchProducts(null, ingredientName, pageable);
+            var searchResult = productSearchService.search(null, new ProductSearchRequest(ingredientName, null, null, null), pageable);
 
             return searchResult.content().stream()
                 .map(product -> new ProductRecommendResponse(

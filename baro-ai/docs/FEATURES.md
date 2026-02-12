@@ -343,161 +343,26 @@ ProductEmbeddingService.embedProduct(productName)
 
 ---
 
-## 🔍 상품 검색 API
+## 🔍 검색 API
 
-의미 기반 상품 검색 및 자동완성을 제공합니다.
+상품 검색 및 자동완성을 제공합니다. 검색어(q)만 필수이고, 카테고리/가격 필터·페이지는 선택입니다.
 
-### GET /api/v1/search/product
+### GET /api/v1/search
 
 상품을 키워드로 검색합니다.
 
 #### 쿼리 파라미터
 ```text
-GET /api/v1/search/product?q=사과&category=과일&page=0&size=20
+GET /api/v1/search?q=사과&categories=과일&priceMin=1000&priceMax=50000&page=0&size=10
 ```
 
 #### 요청 파라미터
 - `q`: 검색 키워드 (필수)
-- `category`: 카테고리 필터 (선택)
-- `minPrice`: 최소 가격 (선택)
-- `maxPrice`: 최대 가격 (선택)
+- `categories`: 카테고리 필터, 복수 가능 (선택)
+- `priceMin`: 최소 가격 (선택)
+- `priceMax`: 최대 가격 (선택)
 - `page`: 페이지 번호 (기본값: 0)
-- `size`: 페이지 크기 (기본값: 20)
-
-#### 요청 헤더
-- `X-User-Id` (선택): 사용자 ID. 존재하는 경우에만 검색 행동 로그를 남깁니다.
-
-#### 응답 형식
-```json
-{
-  "success": true,
-  "data": {
-    "content": [
-      {
-        "productId": "550e8400-e29b-41d4-a716-446655440001",
-        "productName": "GAP 인증 사과 1kg",
-        "category": "과일",
-        "price": 12000
-      }
-    ],
-    "pageable": {
-      "pageNumber": 0,
-      "pageSize": 20
-    },
-    "totalElements": 45
-  }
-}
-```
-
-### GET /api/v1/search/product/autocomplete
-
-상품명 자동완성 제안 목록을 조회합니다.
-
-#### 쿼리 파라미터
-```text
-GET /api/v1/search/product/autocomplete?q=사과&size=5
-```
-
-#### 응답 형식
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "productId": "550e8400-e29b-41d4-a716-446655440001",
-      "productName": "사과"
-    },
-    {
-      "productId": "550e8400-e29b-41d4-a716-446655440002",
-      "productName": "사과즙"
-    }
-  ]
-}
-```
-
----
-
-## 🎪 체험 검색 API
-
-체험 상품 검색 및 자동완성을 제공합니다.
-
-### GET /api/v1/search/experience
-
-체험 상품을 검색합니다.
-
-#### 쿼리 파라미터
-```text
-GET /api/v1/search/experience?q=농장체험&region=경기도&page=0&size=10
-```
-
-#### 요청 파라미터
-- `q`: 검색 키워드 (필수)
-- `region`: 지역 필터 (선택)
-- `minPrice`: 최소 가격 (선택)
-- `maxPrice`: 최대 가격 (선택)
-- `startDate`: 시작 날짜 (선택)
-- `endDate`: 종료 날짜 (선택)
-
-#### 응답 형식
-```json
-{
-  "success": true,
-  "data": {
-    "content": [
-      {
-        "experienceId": "550e8400-e29b-41d4-a716-446655440003",
-        "experienceName": "전통 농장 체험",
-        "region": "경기도 가평",
-        "pricePerPerson": 35000,
-        "capacity": 20,
-        "durationMinutes": 180
-      }
-    ],
-    "pageable": {
-      "pageNumber": 0,
-      "pageSize": 10
-    },
-    "totalElements": 5
-  }
-}
-```
-
-### GET /api/v1/search/experience/autocomplete
-
-체험명 자동완성 제안 목록을 조회합니다.
-
-#### 쿼리 파라미터
-```text
-GET /api/v1/search/experience/autocomplete?q=농&size=5
-```
-
-#### 응답 형식
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "experienceId": 3001,
-      "experienceName": "전통 농장 체험"
-    }
-  ]
-}
-```
-
----
-
-## 🔎 통합 검색 API
-
-상품과 체험을 동시에 검색합니다.
-
-### GET /api/v1/search
-
-통합 검색 결과를 조회합니다.
-
-#### 쿼리 파라미터
-```text
-GET /api/v1/search?q=사과&page=0&size=10
-```
+- `size`: 페이지 크기 (기본값: 10)
 
 #### 요청 헤더
 - `X-User-Id` (선택): 사용자 ID. 존재하는 경우에만 검색 행동 로그를 남깁니다.
@@ -510,28 +375,17 @@ GET /api/v1/search?q=사과&page=0&size=10
     "products": {
       "content": [
         {
-          "productId": 1001,
+          "productId": "550e8400-e29b-41d4-a716-446655440001",
           "productName": "GAP 인증 사과 1kg",
-          "category": "과일",
+          "productCategoryName": "과일",
           "price": 12000
         }
       ],
-      "totalElements": 25,
-      "pageNumber": 0,
-      "pageSize": 10
-    },
-    "experiences": {
-      "content": [
-        {
-          "experienceId": 3001,
-          "experienceName": "전통 농장 체험",
-          "region": "경기도 가평",
-          "pricePerPerson": 35000
-        }
-      ],
-      "totalElements": 5,
-      "pageNumber": 0,
-      "pageSize": 10
+      "totalElements": 45,
+      "pageable": {
+        "pageNumber": 0,
+        "pageSize": 10
+      }
     }
   }
 }
@@ -539,17 +393,16 @@ GET /api/v1/search?q=사과&page=0&size=10
 
 ### GET /api/v1/search/autocomplete
 
-통합 자동완성 결과를 조회합니다.
+상품명 자동완성 제안 목록을 조회합니다.
 
 #### 쿼리 파라미터
 ```text
-GET /api/v1/search/autocomplete?q=토마&pSize=5&eSize=5
+GET /api/v1/search/autocomplete?q=사과&size=5
 ```
 
 #### 요청 파라미터
 - `q`: 검색 키워드 (필수)
-- `pSize`: 상품 자동완성 개수 (기본값: 5)
-- `eSize`: 체험 자동완성 개수 (기본값: 5)
+- `size`: 자동완성 개수 (기본값: 5)
 
 #### 응답 형식
 ```json
@@ -558,14 +411,12 @@ GET /api/v1/search/autocomplete?q=토마&pSize=5&eSize=5
   "data": {
     "products": [
       {
-        "productId": 1001,
-        "productName": "토마토"
-      }
-    ],
-    "experiences": [
+        "productId": "550e8400-e29b-41d4-a716-446655440001",
+        "productName": "사과"
+      },
       {
-        "experienceId": 3001,
-        "experienceName": "토마토 수확 체험"
+        "productId": "550e8400-e29b-41d4-a716-446655440002",
+        "productName": "사과즙"
       }
     ]
   }

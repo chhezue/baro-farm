@@ -80,12 +80,10 @@ public class LogWriteService {
      */
     public void saveSearchLog(UUID userId,
                               String searchQuery,
-                              String category,
                               Instant searchedAt) {
         SearchLogDocument document = SearchLogDocument.builder()
             .userId(userId)
             .searchQuery(searchQuery)
-            .category(category)
             .searchedAt(searchedAt)
             .build();
 
