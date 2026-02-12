@@ -5,7 +5,7 @@ services:
 bundles:
   baro:
     service: opa-bundle
-    resource: /opa/bundle
+    resource: /baro-opa/bundle
     polling:
       min_delay_seconds: 10
       max_delay_seconds: 60
