@@ -24,7 +24,7 @@ opa:
   kafka:
     topic: ${OPA_HOTLIST_TOPIC:opa-hotlist-events}
   bundle:
-    policy-dir: ${OPA_POLICY_DIR:../opa/policy}
+    policy-dir: ${OPA_POLICY_DIR:../baro-opa/policy}
     output-dir: ${OPA_BUNDLE_DIR:./build/opa-bundle}
     bundle-file-name: ${OPA_BUNDLE_FILE:bundle.tar.gz}
     data-file-name: ${OPA_DATA_FILE:data.json}

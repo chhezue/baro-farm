@@ -86,7 +86,7 @@ public class OpaAuthorizationGatewayFilterFactory
                 .timeout(timeout)
                 .flatMap((OpaResponse response) -> {
                     boolean allowed = response != null && Boolean.TRUE.equals(response.getResult());
-                    LOG.debug("============OPA decision[寃곗젙]: allowed={}, method={}, path={}, subjectId={}, roles={}",
+                    LOG.debug("============OPA decision[결정]: allowed={}, method={}, path={}, subjectId={}, roles={}",
                         allowed,
                         ((Map<?, ?>) input.get("request")).get("method"),
                         ((Map<?, ?>) input.get("request")).get("path"),

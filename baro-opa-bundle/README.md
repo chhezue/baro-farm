@@ -28,7 +28,7 @@ opa:
 
 ## OPA pull configuration
 
-Example OPA config to pull the bundle (see `baro-cloud/opa/opa-config.yaml`):
+Example OPA config to pull the bundle (see `baro-cloud/baro-opa/opa-config.yaml`):
 
 ```
 services:
@@ -40,7 +40,7 @@ services:
 bundles:
   baro:
     service: opa-bundle
-    resource: /opa/bundle
+    resource: /baro-opa/bundle
     polling:
       min_delay_seconds: 10
       max_delay_seconds: 60
@@ -66,8 +66,8 @@ bundles:
 Static hotlist files can seed initial entries and are merged into the generated
 `data.json` when the bundle is built:
 
-- `baro-cloud/opa/policy/data/hotlist/users.json`
-- `baro-cloud/opa/policy/data/hotlist/sellers.json`
+- `baro-cloud/baro-opa/policy/data/hotlist/users.json`
+- `baro-cloud/baro-opa/policy/data/hotlist/sellers.json`
 
 Format (top-level key must match the filename):
 
