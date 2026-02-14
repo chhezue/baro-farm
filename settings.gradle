@@ -5,7 +5,7 @@ plugins {
 rootProject.name = 'baro-farm'
 
 // ============================================
-// 비즈니스 모듈 (모듈러 모놀리스)
+// 비즈니스 모듈 (멀티 모듈 MSA)
 // ============================================
 include 'baro-auth'      // A. 인증 모듈 (auth, buyer)
 include 'baro-buyer'     // B. 구매자 모듈 (cart, product, inventory)
@@ -16,6 +16,7 @@ include 'baro-payment'   // E. 결제 모듈 (payment, deposit)
 include 'baro-support'   // F. 지원 모듈 (delivery, notification, experience, review)
 include 'baro-settlement' // G. 정산 모듈 (settlement)
 include 'baro-ai'        // H. AI 모듈 (search, recommend, chatbot, season)
+include 'baro-sample'    // Sample Order Application (배포 테스트용 - 헬스 체크 API)
 
 // ============================================
 // 인프라 모듈 (개별 배포)

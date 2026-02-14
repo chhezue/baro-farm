@@ -1,0 +1,84 @@
+name: baro-sample Deploy (ECR + k3s)
+
+on:
+  push:
+    branches:
+      - feature/issue-86-deploy-sample
+    paths:
+      - 'baro-sample/**'
+      - 'docker/baro-sample/**'
+      - 'k8s/apps/baro-sample/**'
+      - '.github/workflows/baro-sample-deploy.yml'
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REGISTRY: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com
+  ECR_REPOSITORY: baro-prod/baro-sample
+  K8S_NAMESPACE: default
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build JAR
+        run: ./gradlew :baro-sample:bootJar --no-daemon
+
+      - name: Set image tag
+        id: image-tag
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        env:
+          IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ steps.image-tag.outputs.tag }}
+        run: |
+          docker build -f docker/baro-sample/Dockerfile -t $IMAGE_URI -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest .
+          docker push $IMAGE_URI
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28'
+
+      - name: Set up kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+          echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+
+      - name: Deploy to k3s
+        env:
+          IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
+          FULL_IMAGE: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ steps.image-tag.outputs.tag }}
+        run: |
+          kubectl apply -f k8s/apps/baro-sample/ -n ${{ env.K8S_NAMESPACE }}
+          kubectl set image deployment/baro-sample baro-sample=$FULL_IMAGE -n ${{ env.K8S_NAMESPACE }}
+          kubectl rollout status deployment/baro-sample -n ${{ env.K8S_NAMESPACE }} --timeout=120s
