@@ -7,8 +7,8 @@ rootProject.name = 'baro-farm'
 // ============================================
 // 비즈니스 모듈 (모듈러 모놀리스)
 // ============================================
-include 'baro-auth'      // A. 인증 모듈 (auth, buyer)
-include 'baro-buyer'     // B. 구매자 모듈 (cart, product, inventory)
+include 'baro-auth'      // A. 인증 모듈 (auth, shopping)
+include 'baro-shopping'  // B. 쇼핑 모듈 (cart, product, inventory)
 include 'baro-seller'    // C. 판매자 모듈 (seller, farm)
 include 'baro-order'     // D. 주문 모듈 (order)
 

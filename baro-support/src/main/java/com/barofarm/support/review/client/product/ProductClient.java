@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
 @FeignClient(
-    name = "buyer-service",
+    name = "shopping-service",
     configuration = ProductFeignConfig.class
 )
 public interface ProductClient {
