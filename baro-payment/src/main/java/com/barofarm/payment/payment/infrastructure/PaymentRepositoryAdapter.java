@@ -2,10 +2,11 @@ package com.barofarm.payment.payment.infrastructure;
 
 import com.barofarm.payment.payment.domain.Payment;
 import com.barofarm.payment.payment.domain.PaymentRepository;
-import java.util.Optional;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor

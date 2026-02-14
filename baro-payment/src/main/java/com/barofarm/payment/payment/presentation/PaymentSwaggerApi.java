@@ -1,6 +1,8 @@
 package com.barofarm.payment.payment.presentation;
 
 import com.barofarm.dto.ResponseDto;
+import com.barofarm.payment.deposit.application.dto.response.DepositPaymentInfo;
+import com.barofarm.payment.deposit.presentation.dto.DepositPaymentRequest;
 import com.barofarm.payment.payment.application.dto.response.TossPaymentConfirmInfo;
 import com.barofarm.payment.payment.presentation.dto.TossPaymentConfirmRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -9,14 +11,15 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import java.util.UUID;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 
+import java.util.UUID;
+
 @Tag(name = "Payment", description = "결제 관련 API")
-@RequestMapping("${api.v1}/payments/toss")
+@RequestMapping("${api.v1}/payments")
 public interface PaymentSwaggerApi {
 
     @Operation(
@@ -45,7 +48,7 @@ public interface PaymentSwaggerApi {
             content = @Content(mediaType = "application/json")
         )
     })
-    @PostMapping("/confirm")
+    @PostMapping("/toss/confirm")
     ResponseDto<TossPaymentConfirmInfo> confirmPayment(
         @RequestHeader("X-User-Id") UUID userId,
         @Valid @RequestBody TossPaymentConfirmRequest confirmRequest
@@ -88,9 +91,36 @@ public interface PaymentSwaggerApi {
             content = @Content(mediaType = "application/json")
         )
     })
-    @PostMapping("/confirm/deposit")
+    @PostMapping("/toss/confirm/deposit")
     ResponseDto<TossPaymentConfirmInfo> confirmDeposit(
         @RequestHeader("X-User-Id") UUID userId,
         @Valid @RequestBody TossPaymentConfirmRequest request
+    );
+
+    @Operation(
+        summary = "예치금으로 주문 결제",
+        description = "예치금 잔액을 차감하여 주문을 결제합니다. 예치금 부족 시 실패합니다."
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "예치금 결제 성공",
+            content = @Content(mediaType = "application/json")
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "예치금 부족 (INSUFFICIENT_DEPOSIT_BALANCE)",
+            content = @Content(mediaType = "application/json")
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "예치금 계정을 찾을 수 없음 (DEPOSIT_NOT_FOUND)",
+            content = @Content(mediaType = "application/json")
+        )
+    })
+    @PostMapping("/pay/deposit")
+    ResponseDto<DepositPaymentInfo> payWithDeposit(
+        @RequestHeader("X-User-Id") UUID userId,
+        @Valid @RequestBody DepositPaymentRequest request
     );
 }
