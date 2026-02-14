@@ -1,7 +1,7 @@
 package com.barofarm.shopping.inventory.presentation;
 
-import com.barofarm.shopping.inventory.presentation.dto.InventoryInfo;
 import com.barofarm.dto.ResponseDto;
+import com.barofarm.shopping.inventory.presentation.dto.InventoryInfo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

@@ -1,5 +1,7 @@
 package com.barofarm.payment.deposit.application;
 
+import static com.barofarm.payment.deposit.exception.DepositErrorCode.DEPOSIT_ALREADY_EXISTS;
+
 import com.barofarm.dto.ResponseDto;
 import com.barofarm.exception.CustomException;
 import com.barofarm.payment.deposit.application.dto.request.DepositChargeCreateCommand;
@@ -14,14 +16,11 @@ import com.barofarm.payment.deposit.domain.DepositChargeRepository;
 import com.barofarm.payment.deposit.domain.DepositRepository;
 import com.barofarm.payment.deposit.exception.DepositErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.UUID;
-
-import static com.barofarm.payment.deposit.exception.DepositErrorCode.DEPOSIT_ALREADY_EXISTS;
 
 @Service
 @RequiredArgsConstructor

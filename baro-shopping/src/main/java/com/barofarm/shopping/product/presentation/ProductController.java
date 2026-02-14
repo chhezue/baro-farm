@@ -1,12 +1,12 @@
 package com.barofarm.shopping.product.presentation;
 
+import com.barofarm.dto.CustomPage;
+import com.barofarm.dto.ResponseDto;
 import com.barofarm.shopping.product.application.ProductService;
 import com.barofarm.shopping.product.application.dto.ProductDetailInfo;
 import com.barofarm.shopping.product.domain.UserType;
 import com.barofarm.shopping.product.presentation.dto.ProductCreateRequest;
 import com.barofarm.shopping.product.presentation.dto.ProductUpdateRequest;
-import com.barofarm.dto.CustomPage;
-import com.barofarm.dto.ResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;

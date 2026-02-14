@@ -1,7 +1,6 @@
 package com.barofarm.payment.deposit.application.dto.response;
 
 import com.barofarm.payment.deposit.domain.Deposit;
-
 import java.util.UUID;
 
 public record DepositCreateInfo(

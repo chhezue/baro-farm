@@ -2,7 +2,6 @@ package com.barofarm.payment.payment.application.dto.response;
 
 import com.barofarm.payment.payment.domain.Payment;
 import com.barofarm.payment.payment.domain.PaymentStatus;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
 

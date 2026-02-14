@@ -1,10 +1,10 @@
 package com.barofarm.shopping.product.application;
 
+import com.barofarm.exception.CustomException;
 import com.barofarm.shopping.product.application.dto.CategoryListItem;
 import com.barofarm.shopping.product.domain.Category;
 import com.barofarm.shopping.product.domain.CategoryRepository;
 import com.barofarm.shopping.product.exception.ProductErrorCode;
-import com.barofarm.exception.CustomException;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;

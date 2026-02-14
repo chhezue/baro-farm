@@ -7,10 +7,9 @@ import com.barofarm.payment.payment.application.PaymentService;
 import com.barofarm.payment.payment.application.dto.response.TossPaymentConfirmInfo;
 import com.barofarm.payment.payment.presentation.dto.TossPaymentConfirmRequest;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.UUID;
 
 @RestController
 @RequestMapping("${api.v1}/payments")

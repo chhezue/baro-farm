@@ -3,7 +3,6 @@ package com.barofarm.payment.deposit.presentation.dto;
 import com.barofarm.payment.deposit.application.dto.request.DepositPaymentCommand;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-
 import java.util.UUID;
 
 public record DepositPaymentRequest(

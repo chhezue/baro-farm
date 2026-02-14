@@ -1,5 +1,6 @@
 package com.barofarm.shopping.inventory.infrastructure.kafka.consumer;
 
+import com.barofarm.exception.CustomException;
 import com.barofarm.shopping.inventory.application.InventoryFacadeService;
 import com.barofarm.shopping.inventory.application.dto.request.InventoryCancelCommand;
 import com.barofarm.shopping.inventory.domain.InventoryOutboxEvent;
@@ -7,7 +8,6 @@ import com.barofarm.shopping.inventory.domain.InventoryOutboxEventRepository;
 import com.barofarm.shopping.inventory.exception.InventoryErrorCode;
 import com.barofarm.shopping.inventory.infrastructure.kafka.consumer.dto.PaymentCanceledEvent;
 import com.barofarm.shopping.inventory.infrastructure.kafka.producer.dto.InventoryCanceledEvent;
-import com.barofarm.exception.CustomException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

@@ -1,5 +1,7 @@
 package com.barofarm.payment.payment.infrastructure.kafka.consumer;
 
+import static com.barofarm.payment.payment.exception.PaymentErrorCode.PAYMENT_NOT_FOUND;
+
 import com.barofarm.exception.CustomException;
 import com.barofarm.payment.deposit.application.DepositService;
 import com.barofarm.payment.deposit.application.dto.request.DepositRefundCommand;
@@ -15,8 +17,6 @@ import org.springframework.kafka.annotation.RetryableTopic;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import static com.barofarm.payment.payment.exception.PaymentErrorCode.PAYMENT_NOT_FOUND;
 
 @Component
 @RequiredArgsConstructor

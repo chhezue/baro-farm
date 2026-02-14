@@ -6,10 +6,9 @@ import com.barofarm.payment.deposit.application.dto.response.DepositChargeCreate
 import com.barofarm.payment.deposit.application.dto.response.DepositInfo;
 import com.barofarm.payment.deposit.presentation.dto.DepositChargeCreateRequest;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.UUID;
 
 @RestController
 @RequestMapping("${api.v1}/deposits")

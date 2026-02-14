@@ -1,8 +1,8 @@
 package com.barofarm.shopping.product.presentation;
 
+import com.barofarm.dto.ResponseDto;
 import com.barofarm.shopping.product.application.CategoryQueryService;
 import com.barofarm.shopping.product.application.dto.CategoryListItem;
-import com.barofarm.dto.ResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import java.util.List;
 import java.util.UUID;

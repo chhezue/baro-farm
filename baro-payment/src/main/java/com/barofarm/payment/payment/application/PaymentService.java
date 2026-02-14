@@ -1,5 +1,8 @@
 package com.barofarm.payment.payment.application;
 
+import static com.barofarm.payment.payment.domain.Purpose.DEPOSIT_CHARGE;
+import static com.barofarm.payment.payment.domain.Purpose.ORDER_PAYMENT;
+
 import com.barofarm.dto.ResponseDto;
 import com.barofarm.exception.CustomException;
 import com.barofarm.payment.deposit.application.DepositService;
@@ -17,15 +20,11 @@ import com.barofarm.payment.payment.infrastructure.rest.TossPaymentClient;
 import com.barofarm.payment.payment.infrastructure.rest.dto.TossPaymentResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.UUID;
-
-import static com.barofarm.payment.payment.domain.Purpose.DEPOSIT_CHARGE;
-import static com.barofarm.payment.payment.domain.Purpose.ORDER_PAYMENT;
 
 @Service
 @RequiredArgsConstructor

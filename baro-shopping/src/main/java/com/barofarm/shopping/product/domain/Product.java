@@ -1,8 +1,8 @@
 package com.barofarm.shopping.product.domain;
 
-import com.barofarm.shopping.product.exception.ProductErrorCode;
 import com.barofarm.entity.BaseEntity;
 import com.barofarm.exception.CustomException;
+import com.barofarm.shopping.product.exception.ProductErrorCode;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.ConstraintMode;

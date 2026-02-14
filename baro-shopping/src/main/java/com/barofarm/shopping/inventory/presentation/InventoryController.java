@@ -1,8 +1,8 @@
 package com.barofarm.shopping.inventory.presentation;
 
+import com.barofarm.dto.ResponseDto;
 import com.barofarm.shopping.inventory.application.InventoryService;
 import com.barofarm.shopping.inventory.presentation.dto.InventoryInfo;
-import com.barofarm.dto.ResponseDto;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.UUID;

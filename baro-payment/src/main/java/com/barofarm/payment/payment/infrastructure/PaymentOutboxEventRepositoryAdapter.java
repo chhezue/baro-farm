@@ -3,10 +3,9 @@ package com.barofarm.payment.payment.infrastructure;
 import com.barofarm.payment.payment.domain.PaymentOutboxEvent;
 import com.barofarm.payment.payment.domain.PaymentOutboxEventRepository;
 import com.barofarm.payment.payment.domain.PaymentOutboxStatus;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
-
-import java.util.List;
 
 @Repository
 @RequiredArgsConstructor
