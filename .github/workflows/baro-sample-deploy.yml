@@ -77,6 +77,6 @@ jobs:
           IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
           FULL_IMAGE: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ steps.image-tag.outputs.tag }}
         run: |
-          kubectl apply -f k8s/apps/baro-sample/ -n ${{ env.K8S_NAMESPACE }}
-          kubectl set image deployment/baro-sample baro-sample=$FULL_IMAGE -n ${{ env.K8S_NAMESPACE }}
-          kubectl rollout status deployment/baro-sample -n ${{ env.K8S_NAMESPACE }} --timeout=120s
+          kubectl --insecure-skip-tls-verify apply -f k8s/apps/baro-sample/ -n ${{ env.K8S_NAMESPACE }}
+          kubectl --insecure-skip-tls-verify set image deployment/baro-sample baro-sample=$FULL_IMAGE -n ${{ env.K8S_NAMESPACE }}
+          kubectl --insecure-skip-tls-verify rollout status deployment/baro-sample -n ${{ env.K8S_NAMESPACE }} --timeout=120s
