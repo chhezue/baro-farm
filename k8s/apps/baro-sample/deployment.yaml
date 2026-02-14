@@ -14,6 +14,8 @@ spec:
       labels:
         app: baro-sample
     spec:
+      imagePullSecrets:
+        - name: ecr-registry
       containers:
         - name: baro-sample
           image: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/baro-sample:latest

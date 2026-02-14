@@ -72,6 +72,15 @@ jobs:
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
           echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
 
+      - name: Create ECR image pull secret
+        run: |
+          kubectl --insecure-skip-tls-verify create secret docker-registry ecr-registry \
+            --docker-server=${{ env.ECR_REGISTRY }} \
+            --docker-username=AWS \
+            --docker-password="$(aws ecr get-login-password --region ${{ env.AWS_REGION }})" \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
+
       - name: Deploy to k3s
         env:
           IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
