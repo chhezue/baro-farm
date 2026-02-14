@@ -1,5 +1,6 @@
-server:
-  port: ${SERVER_PORT:8080}  # ??띻펾 癰궰??롮쨮 ??살쒔??깆뵠??揶쎛??(Config Server ??쇱젟 ??堉?怨뚮┛ 獄쎻뫗?)
+﻿server:
+  # 로컬에서는 SERVER_PORT 환경변수로 포트를 덮어쓸 수 있습니다.
+  port: ${SERVER_PORT:8080}
 
 spring:
   application:
@@ -10,7 +11,7 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:redis}
       port: ${SPRING_DATA_REDIS_PORT:6379}
-      # Redis ?怨뚭퍙 ??쎈솭 ??뽯퓠??Gateway揶쎛 ?④쑴????덉삂??롫즲嚥???쇱젟
+      # Redis 응답 지연 시 무한 대기를 피하기 위한 타임아웃
       timeout: 2000ms
       lettuce:
         pool:
@@ -65,22 +66,22 @@ spring:
                 fallbackUri: forward:/fallback
           globalcors:
             corsConfigurations:
-              '[/**]': # 筌뤴뫀諭?野껋럥以??????CORS ??됱뒠
+              # 전역 CORS 설정
+              '[/**]':
                 allowedOrigins:
                   - ${GATEWAY_ALLOWED_ORIGIN_0:http://localhost:3000}
                   - ${GATEWAY_ALLOWED_ORIGIN_1:http://3.34.14.73:3000}
-                allowedMethods: "*"   # ??됱뒠 HTTP 筌롫뗄苑??(GET/POST/PUT/DELETE ??
-                allowedHeaders: "*"   # ??됱뒠 ?遺욧퍕 ??삳쐭 (Authorization ??
-                allowCredentials: true # ?묒쥚沅??紐꾩쵄 ??삳쐭 ?袁⑤뼎 ??됱뒠 ??true
-                maxAge: 3600          # ?袁ⓥ봺???뵬??꾨뱜(OPTIONS) 野껉퀗?든몴?筌?Ŋ?????볦퍢(??
+                allowedMethods: "*"
+                allowedHeaders: "*"
+                allowCredentials: true
+                maxAge: 3600
           discovery:
             locator:
               enabled: true
-              lower-case-service-id: true  # ???????뺥돩??ID ????
+              # Eureka 서비스 ID를 소문자로 매핑
+              lower-case-service-id: true
           routes:
-            # ============================================
-            # OpenAPI ?얜챷苑??袁⑥쨯??
-            # ============================================
+            # OpenAPI 문서 라우팅
             - id: auth-service-openapi
               uri: lb://user-service
               predicates:
@@ -146,10 +147,10 @@ spring:
               filters:
                 - RewritePath=/openapi/ai/(?<segment>.*), /${segment}
 
-            # ============================================
-            # ??곗뺘 API ??뺥돩????깆뒭??
-            # ============================================
-            # Auth Service
+
+
+
+
             - id: auth-public
               uri: lb://user-service
               predicates:
@@ -168,7 +169,7 @@ spring:
                 - Authentication
                 - OpaAuthorization
 
-            # Buyer Service
+
             - id: buyer-service
               uri: lb://buyer-service
               predicates:
@@ -178,7 +179,7 @@ spring:
                 - Authentication
                 - OpaAuthorization
 
-            # Seller Service
+
             - id: seller-service
               uri: lb://user-service
               predicates:
@@ -188,7 +189,7 @@ spring:
                 - Authentication
                 - OpaAuthorization
 
-            # Order Service (雅뚯눖揆筌?
+
             - id: order-service
               uri: lb://order-service
               predicates:
@@ -198,7 +199,7 @@ spring:
                 - Authentication
                 - OpaAuthorization
 
-            # Payment Service (野껉퀣?? ??됲뒄疫??브쑬??
+
             - id: payment-service
               uri: lb://payment-service
               predicates:
@@ -208,7 +209,7 @@ spring:
                 - Authentication
                 - OpaAuthorization
 
-            # Support Service
+
             - id: support-service
               uri: lb://support-service
               predicates:
@@ -219,7 +220,7 @@ spring:
                 - OpaAuthorization
 
 
-            # Notification Service
+
             - id: notification-service
               uri: lb://notification-service
               predicates:
@@ -228,7 +229,7 @@ spring:
                 - RewritePath=/notification-service/(?<segment>.*), /${segment}
                 - Authentication
                 - OpaAuthorization
-            # Settlement Service
+
             - id: settlement-service
               uri: lb://settlement-service
               predicates:
@@ -238,7 +239,7 @@ spring:
                 - Authentication
                 - OpaAuthorization
 
-            # AI Service - Public (野꺜??API???紐꾩쵄 ?븍뜇釉??
+
             - id: ai-service-public
               uri: lb://ai-service
               predicates:
@@ -246,7 +247,7 @@ spring:
               filters:
                 - RewritePath=/ai-service/(?<segment>.*), /${segment}
 
-            # AI Service - Protected (?곕뗄荑? ??뽰퓢 ?癒?뼊 ?源? ?紐꾩쵄 ?袁⑹뒄)
+
             - id: ai-service
               uri: lb://ai-service
               predicates:
@@ -258,18 +259,19 @@ spring:
 
 eureka:
   client:
-    # Eureka ??뺤쒔???源낆쨯 (Config Server??eureka-server ??쇱젟???겸뫖猷?獄쎻뫗?)
+
     register-with-eureka: true
     fetch-registry: true
     service-url:
-      # Docker ??띻펾?癒?퐣????뺥돩????已?eureka) ???? 嚥≪뮇類?癒?퐣??localhost ????
-      # ??띻펾 癰궰??EUREKA_CLIENT_SERVICEURL_DEFAULTZONE??곗쨮 ??살쒔??깆뵠??揶쎛??
+
+
       defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka:8761/eureka/}
   instance:
     prefer-ip-address: true
 
 jwt:
-  secret: "??댭?筌욁룂?_???_??뺣쑁_??쀪쾿???얜챷???筌ㅼ뮇??2獄쏅뗄?????륁㉦??env嚥???留??됱젟"
+  # 운영에서는 반드시 JWT_SECRET 환경변수로 주입하세요.
+  secret: ${JWT_SECRET:change_me_to_a_secure_secret_at_least_32_chars}
 
 management:
   metrics:
@@ -281,8 +283,8 @@ management:
         include: health, info, gateway, metrics, prometheus
   health:
     redis:
-      enabled: false  # Redis health check ??쑵??源딆넅 (ElastiCache DNS ??곴퐤 ??쎈솭 ??野껋럡??獄쎻뫗?)
-    # 揶쏆뮆??health indicator揶쎛 ??쎈솭??猷??袁⑷퍥 health??UP ?醫?
+      enabled: false
+
     show-details: when-authorized
     show-components: when-authorized
 
@@ -314,11 +316,11 @@ resilience4j:
         maxWaitDuration: 0
 
 
-# ???봔????륁젟
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
-    use-root-path: false  # ??由경에???猷?
+    # Swagger UI를 루트 경로로 노출하지 않음
+    use-root-path: false
     urls:
       - name: User Service
         url: /openapi/auth/v3/api-docs
@@ -344,13 +346,14 @@ springdoc:
 
 logging:
   level:
-    # ?遺얠쒔繹먮굞?? ?紐꾩쵄/OPA ?袁り숲 ??덉삂 獄???깆뒭???癒?カ ?類ㅼ뵥
+    # 커스텀 게이트웨이 필터 로그
     com.barofarm.gateway.filter: DEBUG
-    # ?遺얠쒔繹먮굞?? 野껊슣??紐꾩띃????깆뒭???袁り숲 筌ｋ똻??嚥≪뮄??
+    # Spring Cloud Gateway 라우팅 로그
     org.springframework.cloud.gateway: DEBUG
-    # ?遺얠쒔繹먮굞?? Netty ??덇볼 ?遺욧퍕/?臾먮뼗 ?紐껋쟿??곷뮞
+    # Netty 서버/클라이언트 로그
     reactor.netty: INFO
     reactor.netty.http.server: INFO
     reactor.netty.http.client: INFO
     reactor.netty.http.server.HttpServer: INFO
     reactor.netty.http.server.HttpServerOperations: INFO
+

@@ -1,18 +1,16 @@
-package com.barofarm.notification.notification.domain;
+﻿package com.barofarm.notification.notification.domain;
 
 /**
- * Notification ID ?앹꽦? "湲곗닠 ?섏〈"?????섎룄
- * -> Domain??吏곸젒 uuid/ulid ?쇱씠釉뚮윭由?紐⑤Ⅴ?꾨줉 ?ы듃濡?遺꾨━
- *
- * Application Service媛 ???명꽣?섏씠???섏〈
- * 援ы쁽 : infrastrucre?먯꽌
- * */
+ * 알림 ID 생성 포트.
+ * 도메인이 ID 생성 기술(UUID/ULID)에 직접 의존하지 않도록 분리한다.
+ */
 public interface NotificationIdGenerator {
 
-    /***
-     * @return ?앹꽦??Notification ID (String)
+    /**
+     * @return 생성된 Notification ID 문자열
      */
 
     String generate();
 
 }
+

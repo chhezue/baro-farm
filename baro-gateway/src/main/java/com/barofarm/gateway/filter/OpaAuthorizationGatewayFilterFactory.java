@@ -1,4 +1,4 @@
-package com.barofarm.gateway.filter;
+﻿package com.barofarm.gateway.filter;
 
 import io.github.resilience4j.bulkhead.Bulkhead;
 import io.github.resilience4j.bulkhead.BulkheadRegistry;
@@ -28,10 +28,8 @@ import reactor.core.publisher.Mono;
 
 
 /*
- * OpaAuthorizationGatewayFilterFactory: 인가(Authorization) 담당.
- * - 요청 메서드/경로 + 사용자 속성 + 라우트 서비스 정보를 OPA로 전달한다.
- * - OPA가 true면 통과, false면 403, 오류면 503으로 차단한다.
- * - 정책 판단을 위해 필요한 최소 정보만 input으로 구성한다.
+ * 인가(Authorization) 전용 게이트웨이 필터.
+ * 요청 메서드/경로/주체 정보를 OPA로 전달해 허용 여부를 판정한다.
  */
 @Component
 public class OpaAuthorizationGatewayFilterFactory
@@ -71,8 +69,6 @@ public class OpaAuthorizationGatewayFilterFactory
             if (LOG.isDebugEnabled()) {
                 LOG.debug("OPA input: {}", input);
             }
-            // OPA ?낅젰???뺤씤?섍퀬 ?띠쓣 ???ъ슜?섎뒗 ?붾쾭洹??ъ씤??
-            // OPA 입력을 JSON으로 전송하고 결과를 받아온다.
             Mono<OpaResponse> responseMono = webClient.post()
                 .uri(authzUrl)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -86,7 +82,7 @@ public class OpaAuthorizationGatewayFilterFactory
                 .timeout(timeout)
                 .flatMap((OpaResponse response) -> {
                     boolean allowed = response != null && Boolean.TRUE.equals(response.getResult());
-                    LOG.debug("============OPA decision[결정]: allowed={}, method={}, path={}, subjectId={}, roles={}",
+                    LOG.debug("============OPA decision[decision]: allowed={}, method={}, path={}, subjectId={}, roles={}",
                         allowed,
                         ((Map<?, ?>) input.get("request")).get("method"),
                         ((Map<?, ?>) input.get("request")).get("path"),
@@ -97,7 +93,7 @@ public class OpaAuthorizationGatewayFilterFactory
                         : deny(exchange, HttpStatus.FORBIDDEN);
                 })
                 .onErrorResume(ex -> {
-                    LOG.warn("OPA error[?먮윭!]: {}", ex.getMessage(), ex);
+                    LOG.warn("OPA error: {}", ex.getMessage(), ex);
                     return deny(exchange, HttpStatus.SERVICE_UNAVAILABLE);
                 });
         };

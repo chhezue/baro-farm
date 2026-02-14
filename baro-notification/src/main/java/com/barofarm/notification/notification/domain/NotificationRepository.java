@@ -1,11 +1,9 @@
-package com.barofarm.notification.notification.domain;
+﻿package com.barofarm.notification.notification.domain;
 
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
-// ?꾨찓???ы듃 : 異붿긽??遺遺?(Interface)
-// 援ы쁽? infrastructure/jpa ?덉뿉
 public interface NotificationRepository {
 
     Notification save(Notification notification);

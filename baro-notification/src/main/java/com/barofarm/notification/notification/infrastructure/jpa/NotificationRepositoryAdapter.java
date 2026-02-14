@@ -1,4 +1,4 @@
-package com.barofarm.notification.notification.infrastructure.jpa;
+﻿package com.barofarm.notification.notification.infrastructure.jpa;
 
 import com.barofarm.notification.notification.domain.Notification;
 import com.barofarm.notification.notification.domain.NotificationRepository;
@@ -61,7 +61,6 @@ public class NotificationRepositoryAdapter implements NotificationRepository {
     }
 
     private Notification mapToDomain(NotificationJpaEntity e) {
-        // Domain ?앹꽦 洹쒖튃???ㅼ떆 ?쒖슦湲곕낫?? DB 濡쒕뵫? "蹂듭썝" ?깃꺽?대?濡?蹂꾨룄 ?앹꽦 濡쒖쭅??媛??
         return Notification.create(
             e.getId(),
             e.getUserId(),

@@ -1,15 +1,12 @@
-package com.barofarm.notification.notification.infrastructure.id;
+﻿package com.barofarm.notification.notification.infrastructure.id;
 
 import com.barofarm.notification.notification.domain.NotificationIdGenerator;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
- * Domain Port(NotificationIdGenerator)??援ы쁽泥?
- * 媛???⑥닚??UUID 湲곕컲 ID 諛쒓툒
- *
- * ?ㅻТ?먯꽌??ULID(?쒓컙 ?뺣젹)
- * */
+ * NotificationIdGenerator의 UUID 기반 구현체.
+ */
 @Component
 public class UuidNotificationIdGenerator implements NotificationIdGenerator {
 
@@ -18,3 +15,4 @@ public class UuidNotificationIdGenerator implements NotificationIdGenerator {
         return UUID.randomUUID().toString();
     }
 }
+

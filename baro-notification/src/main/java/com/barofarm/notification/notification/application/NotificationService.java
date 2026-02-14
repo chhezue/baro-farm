@@ -1,4 +1,4 @@
-package com.barofarm.notification.notification.application;
+﻿package com.barofarm.notification.notification.application;
 
 import com.barofarm.notification.notification.domain.Notification;
 import com.barofarm.notification.notification.domain.NotificationIdGenerator;
@@ -13,9 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * [Application Service]
- * - ?좎뒪耳?댁뒪瑜?orchestration ?⑸땲??
- * - Domain 洹쒖튃 + Infra 湲곗닠??議고빀?섎뒗 怨꾩링
+ * 알림 생성/조회/읽음 처리와 SSE 전송을 오케스트레이션하는 애플리케이션 서비스.
  */
 @Service
 @RequiredArgsConstructor
@@ -35,7 +33,6 @@ public class NotificationService {
     ) {
         OffsetDateTime now = OffsetDateTime.now();
 
-        // 1) ?꾨찓??媛앹껜 ?앹꽦(洹쒖튃 泥댄겕)
         Notification notification = Notification.create(
             idGenerator.generate(),
             userId,
@@ -46,10 +43,8 @@ public class NotificationService {
             now
         );
 
-        // 2) DB ????곸냽??
         Notification saved = repository.save(notification);
 
-        // 3) SSE ?곌껐??議댁옱?섎㈃ ?쒖텛媛濡쒋??ㅼ떆媛??꾩넚
         sseRepo.findByUserId(userId).ifPresent(emitter -> safeSend(emitter, saved));
 
         return saved;
@@ -71,21 +66,18 @@ public class NotificationService {
     }
 
     /**
-     * SSE 援щ룆(?곌껐)??留뚮뱾?댁꽌 ???
-     * - ?댄썑 server?먯꽌 ?대깽??諛쒖깮?섎㈃ emitter.send濡?push 媛??
+     * SSE 구독 연결을 생성하고 저장한다.
+     * 연결 종료/오류/타임아웃 시 저장소에서 정리한다.
      */
     public SseEmitter subscribe(String userId) {
-        // 1?쒓컙 ?좎? (?덉떆)
         SseEmitter emitter = new SseEmitter(60L * 60 * 1000);
 
         sseRepo.save(userId, emitter);
 
-        // ?곌껐 醫낅즺/?ㅻ쪟/??꾩븘????硫붾え由??뺣━
         emitter.onCompletion(() -> sseRepo.remove(userId));
         emitter.onTimeout(() -> sseRepo.remove(userId));
         emitter.onError(e -> sseRepo.remove(userId));
 
-        // 理쒖큹 connect ?대깽??(?대씪?댁뼵?멸? ?곌껐 ?깃났 ?뺤씤??
         safeSend(emitter, "connected");
 
         return emitter;
@@ -97,8 +89,6 @@ public class NotificationService {
                 .name("notification")
                 .data(data));
         } catch (Exception e) {
-            // ?꾩넚 ?ㅽ뙣???곌껐???딄릿 寃껋씪 媛?μ꽦???믪쑝誘濡??쒓굅
-            // (硫???몄뒪?댁뒪硫??ш린 濡쒖쭅留뚯쑝濡쒕뒗 ?꾩쟾 蹂댁옣 遺덇?)
         }
     }
 }

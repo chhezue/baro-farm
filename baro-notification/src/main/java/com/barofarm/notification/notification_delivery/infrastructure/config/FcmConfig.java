@@ -1,4 +1,4 @@
-package com.barofarm.notification.notification_delivery.infrastructure.config;
+﻿package com.barofarm.notification.notification_delivery.infrastructure.config;
 
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
@@ -9,11 +9,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * firebase Admin SDK 珥덇린??
- *
- * - NOTE : serviceAccount.json? ?덈? Git?????щ━寃?二쇱쓽
- * - /mnt/s3 ?먮뒗 Secret Manager 湲곕컲 寃쎈줈濡?二쇱엯 (?덉쟾??怨좊젮)
- * */
+ * Firebase Admin SDK 초기화 설정.
+ * serviceAccount 키를 읽어 앱 초기화를 1회만 수행한다.
+ */
 
 @Configuration
 public class FcmConfig {
@@ -30,7 +28,6 @@ public class FcmConfig {
             return;
         }
 
-        // ?대? 珥덇린?붾맂 寃쎌슦 ?ъ큹湲고솕 諛⑹?
         if (!FirebaseApp.getApps().isEmpty()) {
             return;
         }
@@ -44,3 +41,4 @@ public class FcmConfig {
         }
     }
 }
+

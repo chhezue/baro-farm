@@ -1,4 +1,4 @@
-package com.barofarm.notification.notification.domain;
+﻿package com.barofarm.notification.notification.domain;
 
 import java.time.OffsetDateTime;
 import java.util.Objects;

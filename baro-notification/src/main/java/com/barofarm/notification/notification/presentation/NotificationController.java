@@ -1,4 +1,4 @@
-package com.barofarm.notification.notification.presentation;
+﻿package com.barofarm.notification.notification.presentation;
 
 import com.barofarm.notification.notification.application.NotificationService;
 import com.barofarm.notification.notification.domain.Notification;
@@ -40,9 +40,8 @@ public class NotificationController {
     }
 
     /**
-     * SSE 援щ룆 ?붾뱶?ъ씤??
-     * - 釉뚮씪?곗??먯꽌??EventSource濡??곌껐
-     * - Spring??SseEmitter??SSE 援ы쁽 ?꾧뎄?낅땲?? :contentReference[oaicite:6]{index=6}
+     * SSE 구독 엔드포인트.
+     * 클라이언트(EventSource) 연결을 유지하며 이벤트를 푸시한다.
      */
     @GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter subscribe(@RequestHeader("X-User-Id") String userId) {
@@ -50,8 +49,8 @@ public class NotificationController {
     }
 
     /**
-     * (?뚯뒪?몄슜) ?뚮┝ 媛뺤젣 ?앹꽦 API
-     * - ?ㅼ젣 ?댁쁺?먯꽌??Kafka consumer媛 createAndDispatch瑜??몄텧?섎뒗 ?뺥깭媛 留롮뒿?덈떎.
+     * 테스트용 알림 생성 API.
+     * 운영 환경에서는 이벤트 소비 로직에서 호출하는 경로를 사용한다.
      */
     @PostMapping("/test")
     public Notification createTest(
