@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification.infrastructure.id;
+package com.barofarm.notification.notification.infrastructure.id;
 
 import com.barofarm.notification.notification.domain.NotificationIdGenerator;
 import java.util.UUID;
@@ -15,4 +15,3 @@ public class UuidNotificationIdGenerator implements NotificationIdGenerator {
         return UUID.randomUUID().toString();
     }
 }
-

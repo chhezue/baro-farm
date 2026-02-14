@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification_delivery.infrastructure.config;
+package com.barofarm.notification.notification_delivery.infrastructure.config;
 
 import java.util.Properties;
 import org.springframework.context.annotation.Bean;
@@ -9,6 +9,17 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
 /**
  * 메일 발송용 JavaMailSender 설정.
  * 타임아웃/SSL 등 SMTP 옵션을 명시적으로 제어한다.
+ *
+ * SMTP 설정
+ *
+ * Spring Boot starter-mail이 있어도 application.yml로 설정하면 자동 구성됨
+ * 다만 아래처럼 Bean을 명시하면:
+ * - 운영에서 튜닝(타임아웃/인코딩) 통제가 쉬워진다.
+ *
+ * 주의:
+ * - 이미 spring.mail.* 설정을 쓰고 있다면
+ *   이 Bean을 굳이 만들지 않아도 된다.
+ * - "커스텀 튜닝이 필요하면" 사용하는 용도다.
  */
 @Configuration
 public class MailConfig {
@@ -46,4 +57,3 @@ public class MailConfig {
         return sender;
     }
 }
-

@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification_delivery.domain.model;
+package com.barofarm.notification.notification_delivery.domain.model;
 
 import java.time.Instant;
 import java.util.Set;
@@ -16,4 +16,3 @@ public record DeliveryRequest(
     String deepLink,
     Instant occurredAt
 ) {}
-

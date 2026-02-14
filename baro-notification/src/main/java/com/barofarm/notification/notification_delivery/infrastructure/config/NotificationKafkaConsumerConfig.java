@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification_delivery.infrastructure.config;
+package com.barofarm.notification.notification_delivery.infrastructure.config;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -15,6 +15,17 @@ import org.springframework.kafka.listener.CommonErrorHandler;
 import org.springframework.kafka.listener.ContainerProperties;
 
 /**
+ * Kafka Consumer 설정
+ *
+ * 목표:
+ * - enable-auto-commit=false
+ * - 메시지 처리 성공 시만 ack.acknowledge()
+ * - 실패 시 ErrorHandler가 재시도 후 DLQ
+ *
+ * 주의:
+ * - spring.kafka.* 속성으로도 대부분 설정 가능하지만
+ * - "AckMode", "ErrorHandler" 같은 핵심 운영 옵션은 Java Config로 명시하는 게 좋다.
+ *
  * 알림 전달 Consumer 전용 Kafka 설정.
  * 수동 ack, 재시도, DLQ 처리 정책을 명시한다.
  */
@@ -53,4 +64,3 @@ public class NotificationKafkaConsumerConfig {
         return factory;
     }
 }
-

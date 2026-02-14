@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification.infrastructure.jpa;
+package com.barofarm.notification.notification.infrastructure.jpa;
 
 import com.barofarm.notification.notification.domain.Notification;
 import com.barofarm.notification.notification.domain.NotificationRepository;

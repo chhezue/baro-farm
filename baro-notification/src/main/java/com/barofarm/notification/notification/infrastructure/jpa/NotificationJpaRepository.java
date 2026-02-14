@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification.infrastructure.jpa;
+package com.barofarm.notification.notification.infrastructure.jpa;
 
 import java.time.OffsetDateTime;
 import java.util.List;

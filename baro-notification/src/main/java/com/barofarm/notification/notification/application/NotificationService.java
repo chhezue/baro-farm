@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification.application;
+package com.barofarm.notification.notification.application;
 
 import com.barofarm.notification.notification.domain.Notification;
 import com.barofarm.notification.notification.domain.NotificationIdGenerator;
@@ -14,6 +14,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
  * 알림 생성/조회/읽음 처리와 SSE 전송을 오케스트레이션하는 애플리케이션 서비스.
+ * [Application Service]
+ * - 유스케이스를 orchestration 합니다.
+ * - Domain 규칙 + Infra 기술을 조합하는 계층
  */
 @Service
 @RequiredArgsConstructor

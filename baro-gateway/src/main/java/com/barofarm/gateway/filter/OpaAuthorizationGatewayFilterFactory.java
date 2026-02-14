@@ -1,4 +1,4 @@
-﻿package com.barofarm.gateway.filter;
+package com.barofarm.gateway.filter;
 
 import io.github.resilience4j.bulkhead.Bulkhead;
 import io.github.resilience4j.bulkhead.BulkheadRegistry;
@@ -82,7 +82,9 @@ public class OpaAuthorizationGatewayFilterFactory
                 .timeout(timeout)
                 .flatMap((OpaResponse response) -> {
                     boolean allowed = response != null && Boolean.TRUE.equals(response.getResult());
-                    LOG.debug("============OPA decision[decision]: allowed={}, method={}, path={}, subjectId={}, roles={}",
+                    LOG.debug(
+                        "============OPA decision[decision]: allowed={}, method={}, path={}, "
+                            + "subjectId={}, roles={}",
                         allowed,
                         ((Map<?, ?>) input.get("request")).get("method"),
                         ((Map<?, ?>) input.get("request")).get("path"),

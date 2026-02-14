@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification;
+package com.barofarm.notification;
 
 import java.time.Clock;
 import org.springframework.boot.SpringApplication;

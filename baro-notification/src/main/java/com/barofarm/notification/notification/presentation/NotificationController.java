@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification.presentation;
+package com.barofarm.notification.notification.presentation;
 
 import com.barofarm.notification.notification.application.NotificationService;
 import com.barofarm.notification.notification.domain.Notification;

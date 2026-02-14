@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification_delivery.application.service;
+package com.barofarm.notification.notification_delivery.application.service;
 
 import com.barofarm.notification.notification_delivery.application.port.EmailSenderPort;
 import com.barofarm.notification.notification_delivery.application.port.PushSenderPort;
@@ -16,6 +16,11 @@ import org.springframework.stereotype.Service;
 /**
  * 알림 전달 유스케이스의 핵심 서비스.
  * 이벤트를 기준으로 채널(EMAIL/PUSH)을 결정하고 실제 발송을 수행한다.
+ *
+ * [기본 설명]
+ * - Producer(notification 도메인)는 인앱 저장을 담당한다.
+ * - DeliveryService는 외부 채널 발송만 담당한다.
+ *
  */
 
 @Service

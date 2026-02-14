@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification.domain;
+package com.barofarm.notification.notification.domain;
 
 public enum NotificationType {
     ORDER_CREATED,

@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification.domain;
+package com.barofarm.notification.notification.domain;
 
 /**
  * 알림 ID 생성 포트.
@@ -13,4 +13,3 @@ public interface NotificationIdGenerator {
     String generate();
 
 }
-

@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification_delivery.adapter.in.kafka;
+package com.barofarm.notification.notification_delivery.adapter.in.kafka;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
@@ -7,6 +7,17 @@ import org.apache.kafka.common.header.Headers;
 /**
  * Kafka Header 조회 유틸.
  * 헤더 키를 안전하게 조회하고 문자열로 변환한다.
+ *
+ * Kafka Header 읽기 유틸
+ *
+ * 왜 필요한가?
+ * - 실무에서는 payload JSON만큼이나 header에 중요한 정보가 들어간다.
+ *   예) eventId, traceId, producer 서비스명, schemaVersion 등
+ *
+ * 예시 헤더 규약(추천):
+ * - X-Event-Id: UUID
+ * - X-Trace-Id: distributed tracing
+ * - X-Schema-Version: 1
  */
 public final class KafkaHeadersUtil {
 
@@ -27,4 +38,3 @@ public final class KafkaHeadersUtil {
         return getStringHeader(headers, key).orElse(null);
     }
 }
-

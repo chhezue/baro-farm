@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification_delivery.infrastructure.config;
+package com.barofarm.notification.notification_delivery.infrastructure.config;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,6 +12,15 @@ import org.springframework.util.backoff.FixedBackOff;
 
 /**
  * Kafka 처리 실패 시 재시도 후 DLQ로 보내는 에러 핸들러 설정.
+ *
+ * Kafka 처리 실패 시
+ * - 3회 재시도 후
+ * - DLQ 토픽으로 보냄
+ *
+ * 이유:
+ * 메일 / 푸시는 외부 시스템이라 실패 가능성이 있음
+ * 실패한 이벤트를 DLQ로 보내서 재처리
+ *
  */
 @Configuration
 @Profile("!mock & !local-mail")
@@ -31,4 +40,3 @@ public class KafkaErrorHandlerConfig {
         return handler;
     }
 }
-

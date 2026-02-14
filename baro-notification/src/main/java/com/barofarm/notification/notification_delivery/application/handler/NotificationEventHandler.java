@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification_delivery.application.handler;
+package com.barofarm.notification.notification_delivery.application.handler;
 
 import com.barofarm.notification.notification_delivery.application.service.NotificationDeliveryService;
 import com.barofarm.notification.notification_delivery.domain.event.NotificationEventPayload;
@@ -21,4 +21,3 @@ public class NotificationEventHandler {
         deliveryService.deliver(payload);
     }
 }
-

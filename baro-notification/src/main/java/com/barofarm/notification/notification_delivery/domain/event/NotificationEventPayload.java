@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification_delivery.domain.event;
+package com.barofarm.notification.notification_delivery.domain.event;
 
 import java.time.Instant;
 import java.util.List;
@@ -18,4 +18,3 @@ public record NotificationEventPayload(
     String deepLink,
     Instant occurredAt
 ) {}
-

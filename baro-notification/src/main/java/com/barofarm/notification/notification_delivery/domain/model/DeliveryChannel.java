@@ -1,4 +1,4 @@
-﻿package com.barofarm.notification.notification_delivery.domain.model;
+package com.barofarm.notification.notification_delivery.domain.model;
 
 /**
  * 알림 전달 채널 타입.
@@ -10,4 +10,3 @@ public enum DeliveryChannel {
     EMAIL,
     PUSH
 }
-
