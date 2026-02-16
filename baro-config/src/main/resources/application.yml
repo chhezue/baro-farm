@@ -1,0 +1,47 @@
+﻿server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+  cloud:
+    config:
+      server:
+        git:
+          uri: ${CONFIG_GIT_URI:https://github.com/prgrms-be-adv-devcourse/beadv2_2_dogs_BE}
+          default-label: ${CONFIG_GIT_BRANCH:main}
+          basedir: /tmp/config-repo
+          force-pull: true
+          clone-on-start: false
+          search-paths:
+            - 'baro-user/src/main/resources'
+            - 'baro-buyer/src/main/resources'
+            - 'baro-order/src/main/resources'
+            - 'baro-payment/src/main/resources'
+            - 'baro-support/src/main/resources'
+            - 'baro-notification/src/main/resources'
+            - 'baro-settlement/src/main/resources'
+            - 'baro-ai/src/main/resources'
+            - 'baro-gateway/src/main/resources'
+            - 'baro-eureka/src/main/resources'
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: info,health,env
+  info:
+    git:
+      enabled: true
+      mode: full
+    env:
+      enabled: true

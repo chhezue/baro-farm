@@ -1,8 +1,0 @@
-package com.barofarm.seller.farm.infrastructure;
-
-import com.barofarm.seller.farm.domain.FarmImage;
-import java.util.UUID;
-import org.springframework.data.jpa.repository.JpaRepository;
-
-public interface FarmImageJpaRepository extends JpaRepository<FarmImage, UUID> {
-}
