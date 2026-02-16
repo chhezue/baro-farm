@@ -45,3 +45,5 @@ spec:
                 secretKeyRef:
                   name: redis-credentials
                   key: password
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: my-kafka.kafka.svc.cluster.local:9092

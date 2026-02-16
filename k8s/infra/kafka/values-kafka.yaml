@@ -1,0 +1,33 @@
+replicaCount: 1
+
+image:
+  registry: public.ecr.aws
+  repository: bitnami/kafka
+  tag: 3.7.0
+
+listeners:
+  client:
+    protocol: PLAINTEXT
+  interBroker:
+    protocol: PLAINTEXT
+  external:
+    enabled: false
+
+auth:
+  clientProtocol: plaintext
+  interBrokerProtocol: plaintext
+  sasl:
+    enabledMechanisms: []
+
+persistence:
+  enabled: true
+  storageClass: gp3-ebs
+  size: 2Gi
+
+zookeeper:
+  enabled: true
+  replicaCount: 1
+  persistence:
+    enabled: true
+    storageClass: gp3-ebs
+    size: 1Gi
