@@ -86,6 +86,13 @@ jobs:
           IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
           FULL_IMAGE: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ steps.image-tag.outputs.tag }}
         run: |
+          # MySQL 애플리케이션 계정 Secret 생성/업데이트 (default namespace)
+          kubectl --insecure-skip-tls-verify create secret generic mysql-credentials \
+            --from-literal=username=baro_user \
+            --from-literal=password=${{ secrets.MYSQL_APP_PASSWORD }} \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
+
           kubectl --insecure-skip-tls-verify apply -f k8s/apps/baro-sample/ -n ${{ env.K8S_NAMESPACE }}
           kubectl --insecure-skip-tls-verify set image deployment/baro-sample baro-sample=$FULL_IMAGE -n ${{ env.K8S_NAMESPACE }}
           kubectl --insecure-skip-tls-verify rollout status deployment/baro-sample -n ${{ env.K8S_NAMESPACE }} --timeout=120s

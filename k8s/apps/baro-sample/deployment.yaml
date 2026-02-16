@@ -23,3 +23,16 @@ spec:
           ports:
             - containerPort: 8090
               name: http
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:mysql://my-mysql.db.svc.cluster.local:3306/baro_db
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: password
