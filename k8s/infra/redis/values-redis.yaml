@@ -1,0 +1,15 @@
+architecture: standalone
+
+auth:
+  enabled: true
+  # password: "baro_redis_password" # 실제 비밀번호는 GitHub Actions에서 --set으로 주입
+
+master:
+  persistence:
+    enabled: false
+
+image:
+  registry: public.ecr.aws
+  repository: bitnami/redis
+  tag: 7.4.0
+

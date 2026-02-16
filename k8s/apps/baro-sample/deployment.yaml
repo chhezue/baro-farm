@@ -36,3 +36,12 @@ spec:
                 secretKeyRef:
                   name: mysql-credentials
                   key: password
+            - name: REDIS_HOST
+              value: my-redis-master.cache.svc.cluster.local
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-credentials
+                  key: password

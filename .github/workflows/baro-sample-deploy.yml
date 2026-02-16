@@ -94,6 +94,11 @@ jobs:
             -n ${{ env.K8S_NAMESPACE }} \
             --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
 
+          kubectl --insecure-skip-tls-verify create secret generic redis-credentials \
+            --from-literal=password=${{ secrets.REDIS_PASSWORD }} \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
+
           kubectl --insecure-skip-tls-verify apply -f k8s/apps/baro-sample/ -n ${{ env.K8S_NAMESPACE }}
           kubectl --insecure-skip-tls-verify set image deployment/baro-sample baro-sample=$FULL_IMAGE -n ${{ env.K8S_NAMESPACE }}
           kubectl --insecure-skip-tls-verify rollout status deployment/baro-sample -n ${{ env.K8S_NAMESPACE }} --timeout=120s
