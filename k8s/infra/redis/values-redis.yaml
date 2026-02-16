@@ -11,5 +11,4 @@ master:
 image:
   registry: public.ecr.aws
   repository: bitnami/redis
-  tag: 7.4.0
-
+  tag: 8.6.0
