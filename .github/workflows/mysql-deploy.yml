@@ -65,5 +65,5 @@ jobs:
             -n ${{ env.K8S_NAMESPACE }} \
             -f k8s/infra/mysql/values-mysql.yaml \
             --set auth.rootPassword=$MYSQL_ROOT_PASSWORD \
-            --set auth.password=$MYSQL_APP_PASSWORD
-
+            --set auth.password=$MYSQL_APP_PASSWORD \
+            --set global.security.allowInsecureImages=true
