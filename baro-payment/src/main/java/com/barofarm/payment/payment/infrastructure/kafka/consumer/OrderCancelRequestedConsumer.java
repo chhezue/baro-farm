@@ -1,17 +1,14 @@
 package com.barofarm.payment.payment.infrastructure.kafka.consumer;
 
 import com.barofarm.exception.CustomException;
+import com.barofarm.payment.deposit.application.DepositService;
+import com.barofarm.payment.deposit.application.dto.request.DepositRefundCommand;
 import com.barofarm.payment.payment.application.dto.request.TossPaymentRefundCommand;
-import com.barofarm.payment.payment.domain.Payment;
-import com.barofarm.payment.payment.domain.PaymentOutboxEvent;
-import com.barofarm.payment.payment.domain.PaymentOutboxEventRepository;
-import com.barofarm.payment.payment.domain.PaymentRepository;
-import com.barofarm.payment.payment.domain.PaymentStatus;
+import com.barofarm.payment.payment.domain.*;
 import com.barofarm.payment.payment.exception.PaymentErrorCode;
 import com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.OrderCancelRequestedEvent;
 import com.barofarm.payment.payment.infrastructure.kafka.producer.dto.PaymentCancelFailedEvent;
 import com.barofarm.payment.payment.infrastructure.kafka.producer.dto.PaymentCanceledEvent;
-import com.barofarm.payment.payment.infrastructure.rest.DepositClient;
 import com.barofarm.payment.payment.infrastructure.rest.TossPaymentClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,7 +29,7 @@ OrderCancelRequestedConsumer {
     private final TossPaymentClient tossPaymentClient;
     private final PaymentOutboxEventRepository paymentOutboxEventRepository;
     private final ObjectMapper objectMapper;
-    private final DepositClient depositClient;
+    private final DepositService depositService;
 
     @KafkaListener(
         topics = "order-cancel-requested",
@@ -65,10 +62,9 @@ OrderCancelRequestedConsumer {
 
         try {
             if ("DEPOSIT".equals(payment.getMethod())) {
-                depositClient.refundDeposit(
+                depositService.refundDeposit(
                     payment.getUserId(),
-                    event.orderId(),
-                    payment.getAmount()
+                    new DepositRefundCommand(event.orderId(), payment.getAmount())
                 );
             } else {
                 TossPaymentRefundCommand command = new TossPaymentRefundCommand(

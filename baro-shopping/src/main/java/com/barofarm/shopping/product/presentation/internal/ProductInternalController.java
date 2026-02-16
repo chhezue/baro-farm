@@ -1,0 +1,33 @@
+package com.barofarm.shopping.product.presentation.internal;
+
+import com.barofarm.shopping.product.application.ProductInternalService;
+import com.barofarm.shopping.product.application.dto.internal.ReviewProductInfo;
+import com.barofarm.shopping.product.presentation.dto.SeasonalityUpdateRequest;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/internal/products")
+@RequiredArgsConstructor
+public class ProductInternalController {
+
+    private final ProductInternalService productInternalService;
+
+    @GetMapping("/{id}")
+    public ReviewProductInfo getInternalProductDetail(@PathVariable UUID id) {
+        return productInternalService.getInternalProductDetail(id);
+    }
+
+    @PutMapping("/{id}/seasonality")
+    public void updateSeasonality(
+            @PathVariable UUID id,
+            @RequestBody SeasonalityUpdateRequest request) {
+        productInternalService.updateSeasonality(id, request.seasonalityType(), request.seasonalityValue());
+    }
+}

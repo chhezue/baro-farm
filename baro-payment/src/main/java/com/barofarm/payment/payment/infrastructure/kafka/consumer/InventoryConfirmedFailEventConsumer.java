@@ -3,12 +3,13 @@ package com.barofarm.payment.payment.infrastructure.kafka.consumer;
 import static com.barofarm.payment.payment.exception.PaymentErrorCode.PAYMENT_NOT_FOUND;
 
 import com.barofarm.exception.CustomException;
+import com.barofarm.payment.deposit.application.DepositService;
+import com.barofarm.payment.deposit.application.dto.request.DepositRefundCommand;
 import com.barofarm.payment.payment.application.dto.request.TossPaymentRefundCommand;
 import com.barofarm.payment.payment.domain.Payment;
 import com.barofarm.payment.payment.domain.PaymentRepository;
 import com.barofarm.payment.payment.domain.PaymentStatus;
 import com.barofarm.payment.payment.infrastructure.kafka.consumer.dto.InventoryConfirmedFailEvent;
-import com.barofarm.payment.payment.infrastructure.rest.DepositClient;
 import com.barofarm.payment.payment.infrastructure.rest.TossPaymentClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -23,7 +24,7 @@ public class InventoryConfirmedFailEventConsumer {
 
     private final PaymentRepository paymentRepository;
     private final TossPaymentClient tossPaymentClient;
-    private final DepositClient depositClient;
+    private final DepositService depositService;
 
     @KafkaListener(
         topics = "inventory-confirmed-fail",
@@ -50,10 +51,9 @@ public class InventoryConfirmedFailEventConsumer {
 
         if ("DEPOSIT".equals(payment.getMethod())) {
             // 예치금 결제 보상: 예치금 환불
-            depositClient.refundDeposit(
+            depositService.refundDeposit(
                 payment.getUserId(),
-                payment.getOrderId(),
-                payment.getAmount()
+                new DepositRefundCommand(payment.getOrderId(), payment.getAmount())
             );
         } else {
             // PG 결제 보상: Toss 환불

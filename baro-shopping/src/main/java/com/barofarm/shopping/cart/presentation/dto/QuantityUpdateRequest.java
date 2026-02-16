@@ -1,0 +1,4 @@
+package com.barofarm.shopping.cart.presentation.dto;
+
+// 장바구니 항목 수량 변경 요청 DTO
+public record QuantityUpdateRequest(Integer quantity) {}

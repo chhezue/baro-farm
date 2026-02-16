@@ -1,0 +1,37 @@
+package com.barofarm.shopping.inventory.presentation;
+
+import com.barofarm.dto.ResponseDto;
+import com.barofarm.shopping.inventory.application.InventoryFacadeService;
+import com.barofarm.shopping.inventory.application.InventoryService;
+import com.barofarm.shopping.inventory.presentation.dto.InventoryCancelRequest;
+import com.barofarm.shopping.inventory.presentation.dto.InventoryReserveRequest;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/internal/inventories")
+@RequiredArgsConstructor
+@Slf4j
+public class InventoryInternalController {
+
+    private final InventoryFacadeService inventoryFacadeService;
+    private final InventoryService inventoryService;
+
+    @PostMapping("/reserve")
+    public ResponseDto<Void> reserveInventory(@Valid @RequestBody InventoryReserveRequest request) {
+        log.info("createOrder called: {}", request);
+        inventoryFacadeService.reserveInventory(request.toCommand());
+        return ResponseDto.ok(null);
+    }
+
+    @PostMapping("/cancel")
+    public ResponseDto<Void> cancelInventory(@Valid @RequestBody InventoryCancelRequest request) {
+        inventoryFacadeService.cancelInventory(request.toCommand());
+        return ResponseDto.ok(null);
+    }
+}

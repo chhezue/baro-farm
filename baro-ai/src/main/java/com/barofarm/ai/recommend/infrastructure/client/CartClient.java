@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 
 @FeignClient(
-    name = "buyer-service",
+    name = "shopping-service",
     path = "/api/v1/carts",
     configuration = CartFeignConfig.class
 )

@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 /**
  * Buyer 서비스의 상품 제철 정보 업데이트를 위한 Feign Client
  */
-@FeignClient(name = "buyer-service")
+@FeignClient(name = "shopping-service")
 public interface ProductUpdateFeignClient {
 
     /**
