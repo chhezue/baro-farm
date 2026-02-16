@@ -29,72 +29,11 @@ public class ProductSearchService {
     private final LogWriteService logWriteService;
     private final ProductIndexService productIndexService;
 
-    // 통합 검색을 위한 상품 검색 (키워드 하나만으로 검색)
-    public CustomPage<ProductSearchResponse> searchProducts(UUID userId, String keyword, Pageable pageable) {
-
-        NativeQuery query =
-            NativeQuery.builder()
-                .withQuery(q -> q.bool(b -> {
-
-                    // 키워드가 있는 경우에만 검색 조건을 추가
-                    if (keyword != null && !keyword.isBlank()) {
-                        applyExactMatch(b, keyword);
-                        applyNormalMatch(b, keyword);
-
-                        // 3글자 이상인 경우에만 오탈자 검색 허용
-                        if (keyword.length() >= 3) {
-                            applyFuzzyMatch(b, keyword);
-                        }
-
-                        // should 조건 중 최소 하나는 만족해야 검색 결과에 포함
-                        b.minimumShouldMatch("1");
-                    }
-                    applyStatusFilter(b);
-
-                    return b;
-                }))
-                .withSort(s -> s.score(sc -> sc.order(SortOrder.Desc)))
-                .withSort(s -> s.field(f -> f.field("updatedAt").order(SortOrder.Desc)))
-                .withPageable(pageable)
-                .build();
-
-        SearchHits<ProductDocument> hits = operations.search(query, ProductDocument.class);
-
-        List<ProductSearchResponse> items =
-            hits.getSearchHits().stream()
-                .map(h -> h.getContent())
-                .map(d -> new ProductSearchResponse(
-                    d.getProductId(),
-                    d.getProductName(),
-                    d.getProductCategoryName(),
-                    d.getPrice()
-                ))
-                .toList();
-
-        // 🔹 "product 관련" 통합 검색 로그만 남긴다.
-        // - userId가 있을 때만 개인화 추천용 로그 저장
-        // - q가 비어있으면 검색 행동으로 간주하지 않음
-        // - 로그 저장 실패가 검색 결과에는 영향을 주지 않음
-        if (userId != null && keyword != null && !keyword.isBlank()) {
-            try {
-                logWriteService.saveSearchLog(
-                    userId,
-                    keyword,
-                    null,
-                    Instant.now()
-                );
-                // 프로필 벡터 비동기 업데이트
-                productIndexService.updateUserProfileAsync(userId);
-            } catch (Exception e) {
-                log.warn("❌ Failed to save search log for user: " + userId + ", error: " + e.getMessage(), e);
-            }
-        }
-
-        return CustomPage.of(hits.getTotalHits(), items, pageable);
-    }
-
-    // 상품 단독 검색 (필터링 조건 추가) + "상품 관련 사용자 행동 로그" 기록
-    public CustomPage<ProductSearchResponse> searchOnlyProducts(
+    /**
+     * 상품 검색. 키워드(q) 필수, 카테고리/가격 필터는 선택.
+     * userId가 있으면 검색 로그 저장 및 프로필 벡터 비동기 업데이트.
+     */
+    public CustomPage<ProductSearchResponse> search(
         UUID userId,
         ProductSearchRequest request,
         Pageable pageable
@@ -120,7 +59,7 @@ public class ProductSearchService {
                         b.minimumShouldMatch("1");
                     }
                     applyStatusFilter(b);
-                    applyCategoryFilter(b, request.categories());
+                    applyCategoryFilter(b, request.categoryCodes());
                     applyPriceFilter(b, request.priceMin(), request.priceMax());
 
                     return b;
@@ -146,22 +85,14 @@ public class ProductSearchService {
         CustomPage<ProductSearchResponse> page =
             CustomPage.of(hits.getTotalHits(), items, pageable);
 
-        // TODO 현재는 첫 번째 카테고리만 저장: 추후에 방안 고안
-        String category =
-            (request.categories() != null && !request.categories().isEmpty())
-                ? request.categories().getFirst()
-                : null;
-
         // 🔹 "product 관련" 검색 로그만 남긴다.
-        // - UUID(userId)는 선택 사항: 존재할 때만 로그 저장
-        // - keyword가 없거나 공백이면 검색 행동 로깅 대상에서 제외
+        // - userId, keyword가 있을 때만 로그 저장
         // - 로그 저장 실패가 검색 결과에는 영향을 주지 않음
         if (userId != null && request.keyword() != null && !request.keyword().isBlank()) {
             try {
                 logWriteService.saveSearchLog(
                     userId,
                     request.keyword(),
-                    category,
                     Instant.now()
                 );
                 // 프로필 벡터 비동기 업데이트
@@ -227,32 +158,24 @@ public class ProductSearchService {
         );
     }
 
-    // 카테고리 필터
-    private void applyCategoryFilter(BoolQuery.Builder b, List<String> categories) {
-        if (categories == null || categories.isEmpty()) {
+    // 카테고리 필터 (카테고리 코드 기준)
+    private void applyCategoryFilter(BoolQuery.Builder b, List<String> categoryCodes) {
+        if (categoryCodes == null || categoryCodes.isEmpty()) {
             return; // 카테고리 필터 없음
         }
 
         b.filter(f ->
             f.terms(t ->
-                t.field("productCategoryId")
+                t.field("productCategoryCode")
                     .terms(v ->
                         v.value(
-                            categories.stream()
-                                .map(this::categoryCodeToUuid)
+                            categoryCodes.stream()
                                 .map(FieldValue::of)
                                 .toList()
                         )
                     )
             )
         );
-    }
-
-    // 카테고리 코드를 UUID로 변환 (실제로는 DB 조회나 캐시에서 가져와야 함)
-    private String categoryCodeToUuid(String categoryCode) {
-        // 임시로 코드 그대로 반환 (실제로는 코드->UUID 매핑 필요)
-        // TODO: 카테고리 코드에서 UUID로 변환하는 로직 구현
-        return categoryCode;
     }
 
     // 가격 필터

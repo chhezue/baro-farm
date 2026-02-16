@@ -30,47 +30,6 @@ public class VectorProductSearchService {
     private final ElasticsearchOperations elasticsearchOperations;
 
     /**
-     * 벡터 유사도를 기반으로 유사 상품을 검색합니다.
-     * PersonalizedRecommendService와 SimilarProductService의 공통 로직을 추출했습니다.
-     *
-     * @param queryVector 검색할 벡터
-     * @param topK 반환할 최대 상품 수
-     * @param excludeProductIds 제외할 상품 ID 목록 (이미 주문/장바구니에 담은 상품들 또는 자기 자신 포함)
-     * @param removeDuplicates 중복 제거 여부 (true일 경우 topK * 2개를 가져와 필터링)
-     * @param targetCategoryCode 특정 카테고리 코드와 일치 시 보너스 (SimilarProductService용, null 가능)
-     * @param categoryMatchBonus 카테고리 일치 시 보너스 점수 (0.0 ~ 1.0, 기본값 0.2)
-     * @return 유사 상품 목록
-     */
-    public List<ProductRecommendResponse> findSimilarProductsByVector(
-        float[] queryVector,
-        int topK,
-        List<UUID> excludeProductIds,
-        boolean removeDuplicates,
-        String targetCategoryCode,
-        Double categoryMatchBonus
-    ) {
-        try {
-            int fetchSize = removeDuplicates ? topK * 2 : topK;
-            double bonus = categoryMatchBonus != null ? categoryMatchBonus : 0.2;
-            boolean hasTargetCategory = targetCategoryCode != null;
-
-            NativeQuery query = buildVectorSearchQuery(
-                queryVector, excludeProductIds,
-                targetCategoryCode, bonus, hasTargetCategory, fetchSize);
-
-            SearchHits<ProductDocument> hits = elasticsearchOperations.search(query, ProductDocument.class);
-            List<ProductRecommendResponse> results = processSearchResults(
-                hits, topK, removeDuplicates, excludeProductIds, hasTargetCategory);
-
-            return results;
-
-        } catch (Exception e) {
-            log.error("벡터 유사도 검색 실패: {}", e.getMessage(), e);
-            return List.of();
-        }
-    }
-
-    /**
      * 메도이드 알고리즘 등 후처리를 위해, 벡터 정보를 포함한 후보 상품 목록을 반환합니다.
      * 기존 findSimilarProductsByVector는 바로 DTO로 변환하지만,
      * 이 메서드는 ProductDocument 자체를 반환하여 벡터 연산에 활용할 수 있게 합니다.

@@ -3,7 +3,6 @@ package com.barofarm.ai.config;
 import com.barofarm.ai.event.model.CartLogEvent;
 import com.barofarm.ai.event.model.OrderLogEvent;
 import com.barofarm.ai.event.model.ReviewEvent;
-import com.barofarm.ai.search.infrastructure.event.ExperienceEvent;
 import com.barofarm.ai.search.infrastructure.event.ProductEvent;
 import java.util.HashMap;
 import java.util.Map;
@@ -24,7 +23,7 @@ import org.springframework.util.backoff.FixedBackOff;
 
 /**
  * [Kafka Consumer 설정]
- * ProductEvent, ExperienceEvent, CartEvent, OrderEvent를 각각 처리하기 위한 별도의 ConsumerFactory 설정
+ * ProductEvent, CartEvent, OrderEvent를 각각 처리하기 위한 별도의 ConsumerFactory 설정
  * TODO: 재시도 로직 or DLQ 설정
  */
 @Configuration
@@ -83,33 +82,7 @@ public class KafkaConsumerConfig {
         return factory;
     }
 
-    // === Experience Event Consumer (기존) ===
-
-    @Bean
-    public ConsumerFactory<String, ExperienceEvent> experienceEventConsumerFactory() {
-        Map<String, Object> config = new HashMap<>();
-        config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
-
-        // MSA 환경: 메시지에 포함된 타입 정보를 무시하고 직접 지정한 타입으로 역직렬화
-        JsonDeserializer<ExperienceEvent> deserializer = new JsonDeserializer<>(ExperienceEvent.class);
-        deserializer.setRemoveTypeHeaders(true);  // 타입 헤더 제거
-        deserializer.setUseTypeHeaders(false);     // 타입 헤더 사용 안 함
-        deserializer.addTrustedPackages("*");
-
-        return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
-    }
-
-    @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, ExperienceEvent> experienceEventListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, ExperienceEvent> factory =
-            new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(experienceEventConsumerFactory());
-        return factory;
-    }
-
-    // === 개인화 추천을 위한 이벤트 Consumer들 (신규) ===
+    // === 개인화 추천을 위한 이벤트 Consumer들 ===
 
     @Bean
     public ConsumerFactory<String, CartLogEvent> cartEventConsumerFactory() {

@@ -8,7 +8,8 @@ import com.barofarm.ai.log.domain.SearchLogDocument;
 import com.barofarm.ai.log.infrastructure.elasticsearch.CartLogRepository;
 import com.barofarm.ai.log.infrastructure.elasticsearch.OrderLogRepository;
 import com.barofarm.ai.log.infrastructure.elasticsearch.SearchLogRepository;
-import com.barofarm.ai.search.application.UnifiedSearchService;
+import com.barofarm.ai.search.application.ProductSearchService;
+import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
 import com.barofarm.ai.search.domain.ProductDocument;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ProductSearchRepository;
 import java.time.Instant;
@@ -40,7 +41,7 @@ public class UserLogGenerationService {
     private final OrderLogRepository orderLogRepository;
     private final SearchLogRepository searchLogRepository;
     private final ChatClient chatClient;
-    private final UnifiedSearchService unifiedSearchService;
+    private final ProductSearchService productSearchService;
     private final ProductSearchRepository productSearchRepository;
     private final Random random = new Random();
 
@@ -179,9 +180,9 @@ public class UserLogGenerationService {
             UUID userId, String searchQuery, Instant searchedAt, Instant now) {
         Pageable pageable = PageRequest.of(0, 10);
         try {
-            unifiedSearchService.search(userId, searchQuery, pageable);
+            productSearchService.search(userId, new ProductSearchRequest(searchQuery, null, null, null), pageable);
 
-            // 통합 검색이 성공하면 자동으로 로그가 저장되지만, 시간이 현재 시간으로 저장됨
+            // 검색이 성공하면 자동으로 로그가 저장되지만, 시간이 현재 시간으로 저장됨
             // 과거 시간으로 업데이트하기 위해 최근 저장된 로그를 찾아서 시간 수정
             List<SearchLogDocument> recentLogs = searchLogRepository
                 .findAllByUserIdAndSearchedAtAfterOrderBySearchedAtDesc(
@@ -199,7 +200,6 @@ public class UserLogGenerationService {
                     SearchLogDocument updatedLog = SearchLogDocument.builder()
                         .userId(recentLog.getUserId())
                         .searchQuery(recentLog.getSearchQuery())
-                        .category(recentLog.getCategory())
                         .searchedAt(searchedAt)
                         .build();
 
@@ -226,7 +226,6 @@ public class UserLogGenerationService {
         SearchLogDocument searchLog = SearchLogDocument.builder()
             .userId(userId)
             .searchQuery(searchQuery)
-            .category(null)
             .searchedAt(searchedAt)
             .build();
 

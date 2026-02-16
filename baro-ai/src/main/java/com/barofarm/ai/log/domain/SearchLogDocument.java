@@ -26,19 +26,14 @@ public class SearchLogDocument {
     @Field(type = FieldType.Text, analyzer = "nori")
     private String searchQuery;
 
-    // 검색 카테고리 필터 (보조 데이터)
-    @Field(type = FieldType.Keyword)
-    private String category;
-
     // 검색 시각 (시간 패턴 분석용)
     @Field(type = FieldType.Date, format = {}, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
     private Instant searchedAt;
 
     @Builder
-    public SearchLogDocument(UUID userId, String searchQuery, String category, Instant searchedAt) {
+    public SearchLogDocument(UUID userId, String searchQuery, Instant searchedAt) {
         this.userId = userId;
         this.searchQuery = searchQuery;
-        this.category = category;
         this.searchedAt = searchedAt;
     }
 }
