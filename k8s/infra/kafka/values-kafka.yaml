@@ -2,11 +2,6 @@ global:
   security:
     allowInsecureImages: true
 
-image:
-  registry: public.ecr.aws
-  repository: bitnami/kafka
-  tag: 3.7.0
-
 replicaCount: 1
 
 listeners:
