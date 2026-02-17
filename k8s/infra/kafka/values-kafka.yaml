@@ -1,9 +1,16 @@
-replicaCount: 1
-
 image:
   registry: public.ecr.aws
   repository: bitnami/kafka
   tag: 3.7.0
+
+kraft:
+  enabled: true   # KRaft 모드 사용
+
+controller:
+  replicaCount: 1  # 컨트롤러 1개
+
+broker:
+  replicaCount: 1  # 브로커 1개
 
 listeners:
   client:
@@ -25,9 +32,4 @@ persistence:
   size: 2Gi
 
 zookeeper:
-  enabled: true
-  replicaCount: 1
-  persistence:
-    enabled: true
-    storageClass: gp3-ebs
-    size: 1Gi
+  enabled: false  # KRaft에서는 Zookeeper 끔
