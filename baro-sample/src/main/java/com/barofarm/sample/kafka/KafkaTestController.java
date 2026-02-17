@@ -3,6 +3,8 @@ package com.barofarm.sample.kafka;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -15,6 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/kafka")
 public class KafkaTestController {
+
+    private static final Logger log = LoggerFactory.getLogger(KafkaTestController.class);
 
     private static final String TOPIC_NAME = "sample-topic";
 
@@ -52,7 +56,7 @@ public class KafkaTestController {
 
     @KafkaListener(topics = TOPIC_NAME, groupId = "baro-sample-group")
     public void listen(String message) {
+        log.info("Received message from Kafka topic {}: {}", TOPIC_NAME, message);
         lastMessage.set(message);
     }
 }
-
