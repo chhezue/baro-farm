@@ -3,35 +3,52 @@ image:
   repository: bitnami/kafka
   tag: 3.7.0
 
-# KRaft 단일 컨트롤러/브로커 구성용 설정
-config:
-  controller.quorum.voters: "0@my-kafka-controller-0.my-kafka-controller-headless.kafka.svc.cluster.local:9093"
-
-controller:
+  # (기존 값 유지)
   replicaCount: 1
 
-broker:
-  replicaCount: 1
+  listeners:
+    client:
+      protocol: PLAINTEXT
+    interbroker:        # interBroker → interbroker (차트 기본 키에 맞춤)
+      protocol: PLAINTEXT
+    external:
+      enabled: false
 
-listeners:
-  client:
-    protocol: PLAINTEXT
-  interBroker:
-    protocol: PLAINTEXT
-  external:
+  auth:
+    clientProtocol: plaintext
+    interBrokerProtocol: plaintext
+    sasl:
+      enabledMechanisms: []
+
+  persistence:
+    enabled: true
+    storageClass: gp3-ebs
+    size: 2Gi
+
+  # ★ KRaft에서는 Zookeeper 끔
+  zookeeper:
     enabled: false
+    replicaCount: 1
+    persistence:
+      enabled: true
+      storageClass: gp3-ebs
+      size: 1Gi
 
-auth:
-  clientProtocol: plaintext
-  interBrokerProtocol: plaintext
-  sasl:
-    enabledMechanisms: []
+  # ★ KRaft 관련 설정
+  kraft:
+    enabled: true
 
-persistence:
-  enabled: true
-  storageClass: gp3-ebs
-  size: 2Gi
+  # 새 클러스터면 비워두기 (차트가 Secret로 생성)
+  # 기존 PVC/데이터 재사용 시에는 /bitnami/kafka/data/meta.properties 의 cluster.id와 동일하게 맞춰야 함
+  clusterId: ""
+  existingKraftSecret: ""
 
-zookeeper:
-  enabled: false
+  # Kafka 3.7 + 동적 쿼럼
+  kraftVersion: 1
 
+  # KRaft용 컨트롤러/브로커 replica 수
+  controller:
+    replicaCount: 1
+
+  broker:
+    replicaCount: 1
