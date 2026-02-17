@@ -3,32 +3,35 @@ image:
   repository: bitnami/kafka
   tag: 3.7.0
 
-  config:
-    controller.quorum.voters: "0@my-kafka-controller-0.my-kafka-controller-headless.kafka.svc.cluster.local:9093"
+# KRaft 단일 컨트롤러/브로커 구성용 설정
+config:
+  controller.quorum.voters: "0@my-kafka-controller-0.my-kafka-controller-headless.kafka.svc.cluster.local:9093"
 
-  controller:
-    replicaCount: 1
-  broker:
-    replicaCount: 1
+controller:
+  replicaCount: 1
 
-  listeners:
-    client:
-      protocol: PLAINTEXT
-    interBroker:
-      protocol: PLAINTEXT
-    external:
-      enabled: false
+broker:
+  replicaCount: 1
 
-  auth:
-    clientProtocol: plaintext
-    interBrokerProtocol: plaintext
-    sasl:
-      enabledMechanisms: []
-
-  persistence:
-    enabled: true
-    storageClass: gp3-ebs
-    size: 2Gi
-
-  zookeeper:
+listeners:
+  client:
+    protocol: PLAINTEXT
+  interBroker:
+    protocol: PLAINTEXT
+  external:
     enabled: false
+
+auth:
+  clientProtocol: plaintext
+  interBrokerProtocol: plaintext
+  sasl:
+    enabledMechanisms: []
+
+persistence:
+  enabled: true
+  storageClass: gp3-ebs
+  size: 2Gi
+
+zookeeper:
+  enabled: false
+
