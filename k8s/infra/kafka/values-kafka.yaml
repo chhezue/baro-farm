@@ -3,34 +3,32 @@ image:
   repository: bitnami/kafka
   tag: 3.7.0
 
-kraft:
-  enabled: true
-  controllerQuorumVoters: "0@my-kafka-controller-0.my-kafka-controller-headless.kafka.svc.cluster.local:9093"
+  config:
+    controller.quorum.voters: "0@my-kafka-controller-0.my-kafka-controller-headless.kafka.svc.cluster.local:9093"
 
-controller:
-  replicaCount: 1  # 컨트롤러 1개
+  controller:
+    replicaCount: 1
+  broker:
+    replicaCount: 1
 
-broker:
-  replicaCount: 1  # 브로커 1개
+  listeners:
+    client:
+      protocol: PLAINTEXT
+    interBroker:
+      protocol: PLAINTEXT
+    external:
+      enabled: false
 
-listeners:
-  client:
-    protocol: PLAINTEXT
-  interBroker:
-    protocol: PLAINTEXT
-  external:
+  auth:
+    clientProtocol: plaintext
+    interBrokerProtocol: plaintext
+    sasl:
+      enabledMechanisms: []
+
+  persistence:
+    enabled: true
+    storageClass: gp3-ebs
+    size: 2Gi
+
+  zookeeper:
     enabled: false
-
-auth:
-  clientProtocol: plaintext
-  interBrokerProtocol: plaintext
-  sasl:
-    enabledMechanisms: []
-
-persistence:
-  enabled: true
-  storageClass: gp3-ebs
-  size: 2Gi
-
-zookeeper:
-  enabled: false  # KRaft에서는 Zookeeper 끔
