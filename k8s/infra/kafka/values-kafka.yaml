@@ -44,3 +44,9 @@ controller:
 
 broker:
   replicaCount: 1
+
+extraEnvVars:
+  - name: KAFKA_CFG_LISTENERS
+    value: PLAINTEXT://:9092,CONTROLLER://:9093
+  - name: KAFKA_CFG_ADVERTISED_LISTENERS
+    value: PLAINTEXT://my-kafka.kafka.svc.cluster.local:9092
