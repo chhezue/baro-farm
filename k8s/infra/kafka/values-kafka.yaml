@@ -3,52 +3,44 @@ image:
   repository: bitnami/kafka
   tag: 3.7.0
 
-  # (기존 값 유지)
+replicaCount: 1
+
+listeners:
+  client:
+    protocol: PLAINTEXT
+  interbroker:
+    protocol: PLAINTEXT
+  external:
+    enabled: false
+
+auth:
+  clientProtocol: plaintext
+  interBrokerProtocol: plaintext
+  sasl:
+    enabledMechanisms: []
+
+persistence:
+  enabled: true
+  storageClass: gp3-ebs
+  size: 2Gi
+
+zookeeper:
+  enabled: false
   replicaCount: 1
-
-  listeners:
-    client:
-      protocol: PLAINTEXT
-    interbroker:        # interBroker → interbroker (차트 기본 키에 맞춤)
-      protocol: PLAINTEXT
-    external:
-      enabled: false
-
-  auth:
-    clientProtocol: plaintext
-    interBrokerProtocol: plaintext
-    sasl:
-      enabledMechanisms: []
-
   persistence:
     enabled: true
     storageClass: gp3-ebs
-    size: 2Gi
+    size: 1Gi
 
-  # ★ KRaft에서는 Zookeeper 끔
-  zookeeper:
-    enabled: false
-    replicaCount: 1
-    persistence:
-      enabled: true
-      storageClass: gp3-ebs
-      size: 1Gi
+kraft:
+  enabled: true
 
-  # ★ KRaft 관련 설정
-  kraft:
-    enabled: true
+clusterId: ""
+existingKraftSecret: ""
+kraftVersion: 1
 
-  # 새 클러스터면 비워두기 (차트가 Secret로 생성)
-  # 기존 PVC/데이터 재사용 시에는 /bitnami/kafka/data/meta.properties 의 cluster.id와 동일하게 맞춰야 함
-  clusterId: ""
-  existingKraftSecret: ""
+controller:
+  replicaCount: 1
 
-  # Kafka 3.7 + 동적 쿼럼
-  kraftVersion: 1
-
-  # KRaft용 컨트롤러/브로커 replica 수
-  controller:
-    replicaCount: 1
-
-  broker:
-    replicaCount: 1
+broker:
+  replicaCount: 1
