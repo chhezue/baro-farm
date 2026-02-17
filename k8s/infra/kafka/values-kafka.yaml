@@ -4,7 +4,8 @@ image:
   tag: 3.7.0
 
 kraft:
-  enabled: true   # KRaft 모드 사용
+  enabled: true
+  controllerQuorumVoters: "0@my-kafka-controller-0.my-kafka-controller-headless.kafka.svc.cluster.local:9093"
 
 controller:
   replicaCount: 1  # 컨트롤러 1개
