@@ -13,7 +13,6 @@ on:
 env:
   AWS_REGION: ap-northeast-2
   K8S_NAMESPACE: search
-  ES_RELEASE_NAME: my-elasticsearch
 
 jobs:
   deploy-elasticsearch:
@@ -36,9 +35,6 @@ jobs:
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
 
-      - name: Install Helm
-        uses: azure/setup-helm@v4
-
       - name: Set up kubeconfig
         run: |
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
@@ -49,24 +45,16 @@ jobs:
           kubectl --insecure-skip-tls-verify create namespace ${{ env.K8S_NAMESPACE }} --dry-run=client -o yaml | \
             kubectl --insecure-skip-tls-verify apply -f -
 
-      - name: Add Bitnami repo
+      - name: Cleanup old Helm-based Elasticsearch (if any)
         run: |
-          helm repo add bitnami https://charts.bitnami.com/bitnami
-          helm repo update
+          helm uninstall my-elasticsearch -n ${{ env.K8S_NAMESPACE }} || true
+          kubectl --insecure-skip-tls-verify delete statefulset my-elasticsearch -n ${{ env.K8S_NAMESPACE }} --ignore-not-found
+          kubectl --insecure-skip-tls-verify delete svc my-elasticsearch -n ${{ env.K8S_NAMESPACE }} --ignore-not-found
 
-      - name: Deploy / Upgrade Elasticsearch (Bitnami Helm)
+      - name: Deploy / Upgrade Elasticsearch (StatefulSet)
         run: |
-          # Retry a few times in case Docker Hub / OCI registry returns transient 5xx
-          for i in 1 2 3; do
-            if helm upgrade --install ${{ env.ES_RELEASE_NAME }} bitnami/elasticsearch \
-              --namespace ${{ env.K8S_NAMESPACE }} \
-              --create-namespace \
-              -f k8s/infra/elasticsearch/values-elasticsearch.yaml; then
-              break
-            fi
-            echo "Helm install failed (attempt $i), retrying in 10s..."
-            sleep 10
-          done
-
-          kubectl --insecure-skip-tls-verify rollout status statefulset/${{ env.ES_RELEASE_NAME }}-master \
+          kubectl --insecure-skip-tls-verify apply \
+            -f k8s/infra/elasticsearch/elasticsearch.yaml \
+            -n ${{ env.K8S_NAMESPACE }}
+          kubectl --insecure-skip-tls-verify rollout status statefulset/my-elasticsearch \
             -n ${{ env.K8S_NAMESPACE }} --timeout=300s
