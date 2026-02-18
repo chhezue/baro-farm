@@ -36,9 +36,6 @@ jobs:
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
 
-      - name: Install Helm
-        uses: azure/setup-helm@v4
-
       - name: Set up kubeconfig
         run: |
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
@@ -49,11 +46,16 @@ jobs:
           kubectl --insecure-skip-tls-verify create namespace ${{ env.K8S_NAMESPACE }} --dry-run=client -o yaml | \
             kubectl --insecure-skip-tls-verify apply -f -
 
-      - name: Deploy / Upgrade Kafka (bitnami Kafka KRaft via Helm)
+      - name: Install Strimzi Operator
         run: |
-          helm upgrade --install ${{ env.KAFKA_RELEASE_NAME }} \
-            oci://registry-1.docker.io/bitnamicharts/kafka \
-            --version 32.4.3 \
-            --namespace ${{ env.K8S_NAMESPACE }} \
-            --create-namespace \
-            -f k8s/infra/kafka/values-kafka.yaml
+          kubectl --insecure-skip-tls-verify apply \
+            -f "https://strimzi.io/install/latest?namespace=${{ env.K8S_NAMESPACE }}" \
+            -n ${{ env.K8S_NAMESPACE }}
+
+      - name: Deploy / Upgrade Kafka (Strimzi)
+        run: |
+          kubectl --insecure-skip-tls-verify apply \
+            -f k8s/infra/kafka/strimzi-kafka.yaml \
+            -n ${{ env.K8S_NAMESPACE }}
+          kubectl --insecure-skip-tls-verify rollout status statefulset/my-kafka-kafka \
+            -n ${{ env.K8S_NAMESPACE }} --timeout=300s
