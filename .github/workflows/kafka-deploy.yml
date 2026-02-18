@@ -54,6 +54,10 @@ jobs:
 
       - name: Deploy / Upgrade Kafka (Strimzi)
         run: |
+          # Clean up any old incompatible Kafka CRs to avoid patch errors
+          kubectl --insecure-skip-tls-verify delete kafka my-kafka -n ${{ env.K8S_NAMESPACE }} --ignore-not-found
+          kubectl --insecure-skip-tls-verify delete kafkanodepool my-kafka-pool -n ${{ env.K8S_NAMESPACE }} --ignore-not-found
+
           kubectl --insecure-skip-tls-verify apply \
             -f k8s/infra/kafka/strimzi-kafka.yaml \
             -n ${{ env.K8S_NAMESPACE }}

@@ -1,14 +1,14 @@
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: Kafka
 metadata:
   name: my-kafka
   namespace: kafka
 spec:
   kafka:
-    # Strimzi 0.46.0+ supports only 4.x
+    # Strimzi 0.46.0+ supports only Kafka 4.x
     version: 4.1.1
     config:
-      # KRaft (no ZooKeeper)
+      # Single-node KRaft (no ZooKeeper)
       node.id: 0
       process.roles: broker,controller
       controller.quorum.voters: "0@my-kafka-kafka-0.my-kafka-kafka-brokers.kafka.svc.cluster.local:9093"
@@ -27,16 +27,21 @@ spec:
         configuration:
           useServiceDnsDomain: true
 
-  kafkaNodePools:
-    - metadata:
-        name: my-kafka-pool
-      replicas: 1
-      roles:
-        - broker
-        - controller
-      storage:
-        type: ephemeral
-
   entityOperator:
     topicOperator: {}
     userOperator: {}
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: my-kafka-pool
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: my-kafka
+spec:
+  replicas: 1
+  roles:
+    - broker
+    - controller
+  storage:
+    type: ephemeral
