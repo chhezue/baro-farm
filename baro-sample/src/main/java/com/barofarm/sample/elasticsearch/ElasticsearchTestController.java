@@ -116,4 +116,3 @@ public class ElasticsearchTestController {
         return first.path("_source").path("message").asText(null);
     }
 }
-
