@@ -47,3 +47,5 @@ spec:
                   key: password
             - name: KAFKA_BOOTSTRAP_SERVERS
               value: my-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
+            - name: ELASTICSEARCH_URIS
+              value: http://my-elasticsearch.search.svc.cluster.local:9200

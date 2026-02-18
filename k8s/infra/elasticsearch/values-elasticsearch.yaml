@@ -1,0 +1,24 @@
+replicaCount: 1
+
+roles:
+  master: true
+  data: true
+  ingest: true
+  coordinating: false
+
+security:
+  enabled: false
+
+persistence:
+  enabled: true
+  storageClass: gp3-ebs
+  size: 1Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 500m
+    memory: 1Gi
+
