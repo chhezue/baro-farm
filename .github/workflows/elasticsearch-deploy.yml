@@ -56,10 +56,17 @@ jobs:
 
       - name: Deploy / Upgrade Elasticsearch (Bitnami Helm)
         run: |
-          helm upgrade --install ${{ env.ES_RELEASE_NAME }} bitnami/elasticsearch \
-            --namespace ${{ env.K8S_NAMESPACE }} \
-            --create-namespace \
-            -f k8s/infra/elasticsearch/values-elasticsearch.yaml
+          # Retry a few times in case Docker Hub / OCI registry returns transient 5xx
+          for i in 1 2 3; do
+            if helm upgrade --install ${{ env.ES_RELEASE_NAME }} bitnami/elasticsearch \
+              --namespace ${{ env.K8S_NAMESPACE }} \
+              --create-namespace \
+              -f k8s/infra/elasticsearch/values-elasticsearch.yaml; then
+              break
+            fi
+            echo "Helm install failed (attempt $i), retrying in 10s..."
+            sleep 10
+          done
+
           kubectl --insecure-skip-tls-verify rollout status statefulset/${{ env.ES_RELEASE_NAME }}-master \
             -n ${{ env.K8S_NAMESPACE }} --timeout=300s
-
