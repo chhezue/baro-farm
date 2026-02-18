@@ -57,5 +57,5 @@ jobs:
           kubectl --insecure-skip-tls-verify apply \
             -f k8s/infra/kafka/strimzi-kafka.yaml \
             -n ${{ env.K8S_NAMESPACE }}
-          kubectl --insecure-skip-tls-verify rollout status statefulset/my-kafka-kafka \
-            -n ${{ env.K8S_NAMESPACE }} --timeout=300s
+          kubectl --insecure-skip-tls-verify wait kafka/my-kafka \
+            --for=condition=Ready --timeout=300s -n ${{ env.K8S_NAMESPACE }}
