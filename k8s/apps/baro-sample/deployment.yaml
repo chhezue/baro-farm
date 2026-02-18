@@ -5,6 +5,7 @@ metadata:
   labels:
     app: baro-sample
 spec:
+  revisionHistoryLimit: 3
   replicas: 1
   selector:
     matchLabels:
