@@ -1,4 +1,4 @@
-package com.barofarm.shopping.product.domain;
+package com.barofarm.shopping.product.domain.product;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

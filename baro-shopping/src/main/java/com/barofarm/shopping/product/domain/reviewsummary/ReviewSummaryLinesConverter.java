@@ -1,4 +1,4 @@
-package com.barofarm.shopping.product.domain;
+package com.barofarm.shopping.product.domain.reviewsummary;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

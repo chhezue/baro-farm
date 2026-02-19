@@ -1,7 +1,7 @@
 package com.barofarm.shopping.product.application.dto;
 
-import com.barofarm.shopping.product.domain.ProductStatus;
-import com.barofarm.shopping.product.domain.UserType;
+import com.barofarm.shopping.product.domain.product.ProductStatus;
+import com.barofarm.shopping.product.domain.product.UserType;
 import java.util.List;
 import java.util.UUID;
 

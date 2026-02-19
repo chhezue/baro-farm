@@ -1,8 +1,8 @@
 package com.barofarm.shopping.product.application;
 
-import com.barofarm.shopping.product.domain.ReviewSummary;
-import com.barofarm.shopping.product.domain.ReviewSummaryRepository;
-import com.barofarm.shopping.product.domain.ReviewSummarySentiment;
+import com.barofarm.shopping.product.domain.reviewsummary.ReviewSummary;
+import com.barofarm.shopping.product.domain.reviewsummary.ReviewSummaryRepository;
+import com.barofarm.shopping.product.domain.reviewsummary.ReviewSummarySentiment;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;

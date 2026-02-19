@@ -1,6 +1,6 @@
 package com.barofarm.shopping.product.infrastructure;
 
-import com.barofarm.shopping.product.domain.Category;
+import com.barofarm.shopping.product.domain.category.Category;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;

@@ -2,8 +2,8 @@ package com.barofarm.shopping.product.presentation.dto;
 
 import com.barofarm.shopping.product.application.dto.ProductImageUpdateMode;
 import com.barofarm.shopping.product.application.dto.ProductUpdateCommand;
-import com.barofarm.shopping.product.domain.ProductStatus;
-import com.barofarm.shopping.product.domain.UserType;
+import com.barofarm.shopping.product.domain.product.ProductStatus;
+import com.barofarm.shopping.product.domain.product.UserType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;

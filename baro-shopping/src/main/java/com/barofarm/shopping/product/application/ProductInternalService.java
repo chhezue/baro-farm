@@ -1,11 +1,10 @@
 package com.barofarm.shopping.product.application;
 
-import com.barofarm.exception.CustomException;
 import com.barofarm.shopping.product.application.dto.internal.ReviewProductInfo;
-import com.barofarm.shopping.product.domain.Product;
-import com.barofarm.shopping.product.domain.ProductRepository;
-import com.barofarm.shopping.product.domain.SeasonalityType;
+import com.barofarm.shopping.product.domain.product.Product;
+import com.barofarm.shopping.product.domain.product.ProductRepository;
 import com.barofarm.shopping.product.exception.ProductErrorCode;
+import com.barofarm.exception.CustomException;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,15 +24,5 @@ public class ProductInternalService {
                 .orElseThrow(() -> new CustomException(ProductErrorCode.PRODUCT_NOT_FOUND));
 
         return ReviewProductInfo.from(product);
-    }
-
-    public void updateSeasonality(UUID productId, SeasonalityType seasonalityType, String seasonalityValue) {
-        Product product =
-            productRepository
-                .findById(productId)
-                .orElseThrow(() -> new CustomException(ProductErrorCode.PRODUCT_NOT_FOUND));
-
-        product.updateSeasonality(seasonalityType, seasonalityValue);
-        productRepository.save(product);
     }
 }

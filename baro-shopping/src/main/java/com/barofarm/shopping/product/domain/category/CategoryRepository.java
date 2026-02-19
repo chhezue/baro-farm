@@ -1,4 +1,4 @@
-package com.barofarm.shopping.product.domain;
+package com.barofarm.shopping.product.domain.category;
 
 import java.util.List;
 import java.util.Optional;

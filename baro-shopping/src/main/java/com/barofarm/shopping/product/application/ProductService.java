@@ -1,7 +1,5 @@
 package com.barofarm.shopping.product.application;
 
-import com.barofarm.dto.CustomPage;
-import com.barofarm.exception.CustomException;
 import com.barofarm.shopping.inventory.application.InventoryService;
 import com.barofarm.shopping.inventory.application.dto.request.InventoryCreateCommand;
 import com.barofarm.shopping.inventory.domain.Inventory;
@@ -12,16 +10,18 @@ import com.barofarm.shopping.product.application.dto.ProductInventoryOptionComma
 import com.barofarm.shopping.product.application.dto.ProductInventoryOptionInfo;
 import com.barofarm.shopping.product.application.dto.ProductUpdateCommand;
 import com.barofarm.shopping.product.application.event.ProductTransactionEvent;
-import com.barofarm.shopping.product.domain.Category;
-import com.barofarm.shopping.product.domain.CategoryRepository;
-import com.barofarm.shopping.product.domain.Product;
-import com.barofarm.shopping.product.domain.ProductRepository;
-import com.barofarm.shopping.product.domain.ProductStatus;
-import com.barofarm.shopping.product.domain.ReviewSummary;
-import com.barofarm.shopping.product.domain.ReviewSummaryRepository;
-import com.barofarm.shopping.product.domain.ReviewSummarySentiment;
-import com.barofarm.shopping.product.domain.UserType;
+import com.barofarm.shopping.product.domain.category.Category;
+import com.barofarm.shopping.product.domain.category.CategoryRepository;
+import com.barofarm.shopping.product.domain.product.Product;
+import com.barofarm.shopping.product.domain.product.ProductRepository;
+import com.barofarm.shopping.product.domain.product.ProductStatus;
+import com.barofarm.shopping.product.domain.reviewsummary.ReviewSummary;
+import com.barofarm.shopping.product.domain.reviewsummary.ReviewSummaryRepository;
+import com.barofarm.shopping.product.domain.reviewsummary.ReviewSummarySentiment;
+import com.barofarm.shopping.product.domain.product.UserType;
 import com.barofarm.shopping.product.exception.ProductErrorCode;
+import com.barofarm.dto.CustomPage;
+import com.barofarm.exception.CustomException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;

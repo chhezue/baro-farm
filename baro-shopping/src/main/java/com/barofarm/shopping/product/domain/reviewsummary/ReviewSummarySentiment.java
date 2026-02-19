@@ -1,4 +1,4 @@
-package com.barofarm.shopping.product.domain;
+package com.barofarm.shopping.product.domain.reviewsummary;
 
 public enum ReviewSummarySentiment {
     POSITIVE,

@@ -1,4 +1,4 @@
-package com.barofarm.shopping.product.domain;
+package com.barofarm.shopping.product.domain.product;
 
 public enum ProductStatus {
   ON_SALE, // 판매중

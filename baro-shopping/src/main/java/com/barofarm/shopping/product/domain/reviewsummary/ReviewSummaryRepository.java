@@ -1,4 +1,4 @@
-package com.barofarm.shopping.product.domain;
+package com.barofarm.shopping.product.domain.reviewsummary;
 
 import java.util.Optional;
 import java.util.UUID;

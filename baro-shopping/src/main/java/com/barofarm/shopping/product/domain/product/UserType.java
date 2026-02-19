@@ -1,4 +1,4 @@
-package com.barofarm.shopping.product.domain;
+package com.barofarm.shopping.product.domain.product;
 
 public enum UserType {
     CUSTOMER,

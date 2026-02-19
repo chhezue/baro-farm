@@ -3,9 +3,9 @@ package com.barofarm.shopping.product;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.barofarm.shopping.config.BaseRepositoryTest;
-import com.barofarm.shopping.product.domain.Category;
-import com.barofarm.shopping.product.domain.Product;
-import com.barofarm.shopping.product.domain.ProductStatus;
+import com.barofarm.shopping.product.domain.category.Category;
+import com.barofarm.shopping.product.domain.product.Product;
+import com.barofarm.shopping.product.domain.product.ProductStatus;
 import com.barofarm.shopping.product.infrastructure.CategoryRepositoryAdapter;
 import com.barofarm.shopping.product.infrastructure.ProductRepositoryAdapter;
 import java.util.UUID;
