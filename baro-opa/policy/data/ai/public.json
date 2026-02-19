@@ -100,26 +100,6 @@
                                                                         "*"
                                                                     ]
                                                       },
-                        "ai:seasonality-detect":  {
-                                                     "name":  "ai:seasonality-detect",
-                                                     "path":  "^(/ai-service)?/api/v1/seasonality/detect$",
-                                                     "methods":  [
-                                                                     "GET"
-                                                                 ],
-                                                     "roles":  [
-                                                                   "*"
-                                                               ]
-                                                 },
-                        "ai:seasonality-init":  {
-                                                   "name":  "ai:seasonality-init",
-                                                   "path":  "^(/ai-service)?/api/v1/seasonality/init$",
-                                                   "methods":  [
-                                                                   "POST"
-                                                               ],
-                                                   "roles":  [
-                                                                 "*"
-                                                             ]
-                                               },
                         "ai:datagen-amplify":  {
                                                   "name":  "ai:datagen-amplify",
                                                   "path":  "^(/ai-service)?/api/v1/datagen/auto-amplify-products$",
@@ -182,12 +162,10 @@
                                              "ai:search-experience-autocomplete",
                                              "ai:recommendations-personalized",
                                              "ai:recommendations-recipes",
-                                             "ai:recommendations-similar",
-                                             "ai:seasonality-detect"
+                                             "ai:recommendations-similar"
                                          ],
                                  "POST":  [
                                               "ai:recommendations-recipes-test",
-                                              "ai:seasonality-init",
                                               "ai:datagen-amplify",
                                               "ai:datagen-dummy-logs",
                                               "ai:datagen-user-profile-embedding",

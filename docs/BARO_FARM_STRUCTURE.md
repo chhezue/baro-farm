@@ -60,7 +60,6 @@ baro-farm/
 │   │   ├── eventLog/
 │   │   ├── recommend/            # 추천 서비스
 │   │   ├── review/               # 리뷰 서비스
-│   │   └── season/               # 제철 서비스
 │   └── build.gradle
 │
 ├── baro-cloud/                   # I. 인프라 모듈
@@ -101,7 +100,7 @@ baro-farm/
 | baro-payment | 8088 | payment |
 | baro-support | 8089 | delivery, notification, experience, review, deposit |
 | baro-settlement | 8090 | settlement (DaemonSet 배포) |
-| baro-ai | 8092 | search, recommend, review, season |
+| baro-ai | 8092 | search, recommend, review |
 
 ## 🔄 통신 방식
 

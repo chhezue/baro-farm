@@ -74,18 +74,6 @@ MYSQL_PASSWORD=
 예) S3_MOUNT_PATH=C:\Users\mm206\baro-s3
 ```
 
-### 추가: ai 서비스 관련
-> ai의 경우에 seasonality라는게 주입되고 사용이 됩니다. false로 사용을 안하려고 해도
-> 에러가 났기 때문에 해당 경로에 더미형태의 seasonality-data.csv를 하나 만들어줘야 합니다.
-
-아래의 코드를 맥에 입력하면 해당 경로에 csv파일이 생성되고 폴더도 생성됩니다.
-다만, name은 해당 사용자 명을 적어야 합니다.
-
-```angular2html
-mkdir -p /Users/<name>/baro-s3/dataset/season
-  printf "productName,category,content,seasonalityType,seasonalityValue,sourceType\n" > /Users/<name>/baro-s3/dataset/season/seasonality-data.csv
-```
-
 ### 3단계 : 도커 빌드 하고 올리기 
 
 ### 맥용

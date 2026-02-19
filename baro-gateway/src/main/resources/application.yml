@@ -246,8 +246,7 @@ spring:
                 - Path=/ai-service/api/v1/search/**
               filters:
                 - RewritePath=/ai-service/(?<segment>.*), /${segment}
-
-
+            # AI Service - Protected (추천 등은 인증 필요)
             - id: ai-service
               uri: lb://ai-service
               predicates:
@@ -356,4 +355,3 @@ logging:
     reactor.netty.http.client: INFO
     reactor.netty.http.server.HttpServer: INFO
     reactor.netty.http.server.HttpServerOperations: INFO
-

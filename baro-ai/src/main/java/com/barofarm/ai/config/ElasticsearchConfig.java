@@ -2,10 +2,6 @@ package com.barofarm.ai.config;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
-import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.ai.vectorstore.elasticsearch.ElasticsearchVectorStore;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,8 +9,6 @@ import org.springframework.data.elasticsearch.client.ClientConfiguration;
 import org.springframework.data.elasticsearch.repository.config.EnableElasticsearchRepositories;
 
 /**
- * 제철 지식 RAG용 VectorStore 설정
- *
  * ElasticsearchVectorStore를 사용하여 벡터를 Elasticsearch의 dense_vector 필드에 영구 저장합니다.
  *
  * Dense Vector 적용 효과:
@@ -32,6 +26,7 @@ public class ElasticsearchConfig {
 
     /**
      * Elasticsearch RestClient 생성
+     *
      * @return RestClient 인스턴스
      */
     @Bean
@@ -60,8 +55,7 @@ public class ElasticsearchConfig {
     }
 
     /**
-     * ClientConfiguration Bean 생성
-     * Spring Boot가 이를 사용하여 ElasticsearchOperations를 자동 생성합니다.
+     * ClientConfiguration Bean 생성 Spring Boot가 이를 사용하여 ElasticsearchOperations를 자동 생성합니다.
      *
      * @return ClientConfiguration 인스턴스
      */
@@ -80,22 +74,4 @@ public class ElasticsearchConfig {
             .build();
     }
 
-    /**
-     * 제철 지식 RAG용 VectorStore 생성 (Elasticsearch Dense Vector 사용)
-     *
-     * @param restClient     Elasticsearch RestClient
-     * @param embeddingModel OpenAI EmbeddingModel
-     * @return ElasticsearchVectorStore 인스턴스 (dense_vector 필드 사용)
-     */
-    @Bean(name = "seasonalityVectorStore")
-    public VectorStore seasonalityVectorStore(
-        RestClient restClient,
-        @Qualifier("openAiEmbeddingModel") EmbeddingModel embeddingModel) {
-
-        // ElasticsearchVectorStore를 사용하여 dense_vector 필드에 벡터 저장
-        // initializeSchema(true): 인덱스 및 매핑 자동 생성 (dense_vector 필드 포함)
-        return ElasticsearchVectorStore.builder(restClient, embeddingModel)
-            .initializeSchema(true)
-            .build();
-    }
 }
