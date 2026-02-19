@@ -12,10 +12,10 @@ spring:
   main:
     allow-bean-definition-overriding: true
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://baro-mysql:3306/${MYSQL_DATABASE:-baroorder}?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://baro-mysql:3306/${MYSQL_DATABASE:baroorder}?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: ${MYSQL_USER:}
-    password: ${MYSQL_PASSWORD:}
+    username: ${SPRING_DATASOURCE_USERNAME:${MYSQL_USER:}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${MYSQL_PASSWORD:}}
   jpa:
     hibernate:
       ddl-auto: update  # 일시적으로 update로 변경 (스키마 수정 후 validate로 변경)
@@ -87,3 +87,17 @@ springdoc:
     operations-sorter: alpha
   default-consumes-media-type: application/json
   default-produces-media-type: application/json
+
+# AWS 및 S3 설정
+cloud:
+  aws:
+    s3:
+      enabled: true
+      log-upload:
+        enabled: true
+      bucket: ${AWS_S3_BUCKET_NAME}
+      public-base-url: https://${AWS_S3_BUCKET_NAME}.s3.ap-northeast-2.amazonaws.com
+    credentials:
+      access-key: ${AWS_ACCESS_KEY}
+      secret-key: ${AWS_SECRET_KEY}
+    region: ap-northeast-2
