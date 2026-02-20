@@ -1,8 +1,8 @@
 package com.barofarm.shopping.product.presentation.dto;
 
 import com.barofarm.shopping.product.application.dto.ProductCreateCommand;
-import com.barofarm.shopping.product.domain.ProductStatus;
-import com.barofarm.shopping.product.domain.UserType;
+import com.barofarm.shopping.product.domain.product.ProductStatus;
+import com.barofarm.shopping.product.domain.product.UserType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

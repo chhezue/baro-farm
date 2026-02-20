@@ -1,7 +1,7 @@
 package com.barofarm.shopping.product.infrastructure;
 
-import com.barofarm.shopping.product.domain.Category;
-import com.barofarm.shopping.product.domain.CategoryRepository;
+import com.barofarm.shopping.product.domain.category.Category;
+import com.barofarm.shopping.product.domain.category.CategoryRepository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;

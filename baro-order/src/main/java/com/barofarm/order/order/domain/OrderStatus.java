@@ -34,4 +34,8 @@ public enum OrderStatus {
     public boolean isCanceled() {
         return this == CANCELED;
     }
+
+    public boolean isReviewable() {
+        return this == COMPLETED;
+    }
 }

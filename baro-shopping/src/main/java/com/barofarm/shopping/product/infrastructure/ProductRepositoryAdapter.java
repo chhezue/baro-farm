@@ -1,7 +1,7 @@
 package com.barofarm.shopping.product.infrastructure;
 
-import com.barofarm.shopping.product.domain.Product;
-import com.barofarm.shopping.product.domain.ProductRepository;
+import com.barofarm.shopping.product.domain.product.Product;
+import com.barofarm.shopping.product.domain.product.ProductRepository;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;

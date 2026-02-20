@@ -1,6 +1,6 @@
 package com.barofarm.shopping.product.application.event;
 
-import com.barofarm.shopping.product.domain.Product;
+import com.barofarm.shopping.product.domain.product.Product;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 

@@ -1,5 +1,5 @@
 # AI 모듈
-# 추천, 챗봇, 제철
+# 추천, 챗봇
 
 services:
   baro-ai:
@@ -28,4 +28,3 @@ networks:
   baro-network:
     name: be_baro-network  # 네트워크 이름 명시적으로 지정
     external: true
-

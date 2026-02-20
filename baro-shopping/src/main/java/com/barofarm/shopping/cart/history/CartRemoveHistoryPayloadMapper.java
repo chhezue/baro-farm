@@ -1,12 +1,12 @@
 package com.barofarm.shopping.cart.history;
 
-import com.barofarm.log.history.mapper.HistoryPayloadMapper;
-import com.barofarm.log.history.model.CartEventData;
-import com.barofarm.log.history.model.HistoryEventType;
 import com.barofarm.shopping.cart.domain.Cart;
 import com.barofarm.shopping.cart.domain.CartItem;
 import com.barofarm.shopping.cart.domain.CartRepository;
-import com.barofarm.shopping.product.domain.ProductRepository;
+import com.barofarm.shopping.product.domain.product.ProductRepository;
+import com.barofarm.log.history.mapper.HistoryPayloadMapper;
+import com.barofarm.log.history.model.CartEventData;
+import com.barofarm.log.history.model.HistoryEventType;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Component;

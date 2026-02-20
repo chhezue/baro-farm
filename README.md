@@ -64,7 +64,6 @@ baro-farm/
 │   │   ├── eventLog/
 │   │   ├── recommend/            # 추천 서비스
 │   │   ├── review/               # 리뷰 서비스
-│   │   └── season/               # 제철 서비스
 │   └── build.gradle
 │
 └── baro-cloud/                   # H. 인프라 모듈
@@ -213,7 +212,7 @@ docker run -d --name baro-kafka \
 ./gradlew :baro-payment:bootRun   # 결제 모듈 (payment)
 ./gradlew :baro-support:bootRun   # 지원 모듈 (delivery, notification, experience, review, deposit)
 ./gradlew :baro-settlement:bootRun # 정산 모듈 (settlement)
-./gradlew :baro-ai:bootRun        # AI 모듈 (search, recommend, season)
+./gradlew :baro-ai:bootRun        # AI 모듈 (search, recommend)
 ```
 
 #### JAR로 실행
@@ -254,7 +253,7 @@ java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
 | | baro-payment | 8088 | payment |
 | | baro-support | 8089 | delivery, notification, experience, review, deposit |
 | | baro-settlement | 8090 | settlement (DaemonSet 배포) |
-| | baro-ai | 8092 | search, recommend, review, season |
+| | baro-ai | 8092 | search, recommend, review |
 
 ## 💾 리소스 제한 사항
 
@@ -284,7 +283,7 @@ java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
 | **baro-payment** | `-Xms64m -Xmx128m` | MySQL, Kafka | 결제, 예치금 관리 |
 | **baro-support** | `-Xms64m -Xmx128m` | MySQL, Kafka | 배송, 알림, 체험, 리뷰 관리 |
 | **baro-settlement** | `-Xms64m -Xmx128m` | MySQL | 정산 관리 (DaemonSet 배포) |
-| **baro-ai** | `-Xms64m -Xmx128m` | Kafka, Elasticsearch | 검색, 추천, 챗봇, 제철 AI |
+| **baro-ai** | `-Xms64m -Xmx128m` | Kafka, Elasticsearch | 검색, 추천, 챗봇 |
 
 **설정 파일:**
 - `docker-compose.auth.yml`
@@ -848,4 +847,3 @@ curl http://localhost:8081/actuator/health
 - [CI/CD 설정 가이드](docs/CICD_GUIDE.md) - 전체 설정 및 트러블슈팅
 
 ## 📝 라이선스
-

@@ -1,7 +1,7 @@
 package com.barofarm.shopping.config;
 
-import com.barofarm.shopping.product.domain.CategoryRepository;
-import com.barofarm.shopping.product.domain.ProductRepository;
+import com.barofarm.shopping.product.domain.category.CategoryRepository;
+import com.barofarm.shopping.product.domain.product.ProductRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.ActiveProfiles;

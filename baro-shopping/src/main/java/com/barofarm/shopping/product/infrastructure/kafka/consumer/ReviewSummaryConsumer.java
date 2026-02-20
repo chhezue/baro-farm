@@ -1,7 +1,7 @@
 package com.barofarm.shopping.product.infrastructure.kafka.consumer;
 
 import com.barofarm.shopping.product.application.ReviewSummaryService;
-import com.barofarm.shopping.product.domain.ReviewSummarySentiment;
+import com.barofarm.shopping.product.domain.reviewsummary.ReviewSummarySentiment;
 import com.barofarm.shopping.product.infrastructure.kafka.consumer.dto.ReviewSummaryEvent;
 import java.time.LocalDateTime;
 import java.time.ZoneId;

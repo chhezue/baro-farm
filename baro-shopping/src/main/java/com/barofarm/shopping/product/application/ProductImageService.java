@@ -1,8 +1,8 @@
 package com.barofarm.shopping.product.application;
 
 import com.barofarm.shopping.product.application.dto.ProductImageUpdateMode;
-import com.barofarm.shopping.product.domain.Product;
-import com.barofarm.shopping.product.domain.ProductImage;
+import com.barofarm.shopping.product.domain.product.Product;
+import com.barofarm.shopping.product.domain.product.ProductImage;
 import com.barofarm.storage.s3.S3ImageUploader;
 import java.util.List;
 import lombok.RequiredArgsConstructor;

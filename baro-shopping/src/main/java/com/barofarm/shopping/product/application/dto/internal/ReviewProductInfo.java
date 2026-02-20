@@ -1,7 +1,7 @@
 package com.barofarm.shopping.product.application.dto.internal;
 
-import com.barofarm.shopping.product.domain.Product;
-import com.barofarm.shopping.product.domain.ProductStatus;
+import com.barofarm.shopping.product.domain.product.Product;
+import com.barofarm.shopping.product.domain.product.ProductStatus;
 import java.util.UUID;
 
 public record ReviewProductInfo(

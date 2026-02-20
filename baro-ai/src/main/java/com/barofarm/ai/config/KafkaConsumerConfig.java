@@ -54,8 +54,8 @@ public class KafkaConsumerConfig {
         // 와일드카드(*)가 작동하지 않을 수 있으므로 명시적으로 패키지 추가
         jsonDeserializer.addTrustedPackages(
             "*",
-            "com.barofarm.buyer.product.event",
-            "com.barofarm.buyer",
+            "com.barofarm.shopping.product.event",
+            "com.barofarm.shopping",
             "com.barofarm"
         );
 

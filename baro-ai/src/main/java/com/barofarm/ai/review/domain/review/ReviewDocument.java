@@ -2,7 +2,9 @@ package com.barofarm.ai.review.domain.review;
 
 import com.barofarm.ai.event.model.ReviewEvent;
 import com.barofarm.ai.event.model.ReviewEvent.ReviewEventData;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -35,7 +37,7 @@ public class ReviewDocument {
     @Field(type = FieldType.Keyword)
     private Sentiment sentiment;
 
-    private LocalDateTime occurredAt;
+    private Instant occurredAt;
 
     private ReviewDocument(ReviewEventData data, Sentiment sentiment) {
         String content = data.content();
@@ -49,7 +51,8 @@ public class ReviewDocument {
         this.contentLength = (content == null) ? 0 : content.length();
         this.imageCount = (imageUrls == null) ? 0 : imageUrls.size();
         this.sentiment = sentiment;
-        this.occurredAt = data.occurredAt();
+        LocalDateTime occurredAt = data.occurredAt();
+        this.occurredAt = (occurredAt == null) ? null : occurredAt.atZone(ZoneOffset.UTC).toInstant();
     }
 
     public static ReviewDocument from(ReviewEvent event, Sentiment sentiment) {

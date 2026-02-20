@@ -1,9 +1,9 @@
 package com.barofarm.shopping.product.application.dto;
 
-import com.barofarm.shopping.product.domain.Category;
-import com.barofarm.shopping.product.domain.Product;
-import com.barofarm.shopping.product.domain.ProductImage;
-import com.barofarm.shopping.product.domain.ProductStatus;
+import com.barofarm.shopping.product.domain.category.Category;
+import com.barofarm.shopping.product.domain.product.Product;
+import com.barofarm.shopping.product.domain.product.ProductImage;
+import com.barofarm.shopping.product.domain.product.ProductStatus;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;

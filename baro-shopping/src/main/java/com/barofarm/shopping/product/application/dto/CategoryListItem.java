@@ -1,6 +1,6 @@
 package com.barofarm.shopping.product.application.dto;
 
-import com.barofarm.shopping.product.domain.Category;
+import com.barofarm.shopping.product.domain.category.Category;
 import java.util.UUID;
 
 public record CategoryListItem(
