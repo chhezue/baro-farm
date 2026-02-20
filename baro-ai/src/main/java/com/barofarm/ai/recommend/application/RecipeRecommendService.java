@@ -160,7 +160,11 @@ public class RecipeRecommendService {
 
         try {
             Pageable pageable = PageRequest.of(0, size);
-            var searchResult = productSearchService.search(null, new ProductSearchRequest(ingredientName, null, null, null), pageable);
+            var searchResult = productSearchService.search(
+                null,
+                new ProductSearchRequest(ingredientName, null, null, null),
+                pageable
+            );
 
             return searchResult.content().stream()
                 .map(product -> new ProductRecommendResponse(
