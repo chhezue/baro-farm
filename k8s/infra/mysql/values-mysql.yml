@@ -19,6 +19,11 @@ primary:
       cpu: "500m"
       memory: "1Gi"
 
+  service:
+    type: NodePort
+    nodePorts:
+      mysql: 32000
+
 image:
   registry: public.ecr.aws
   repository: bitnami/mysql
