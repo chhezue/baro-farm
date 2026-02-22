@@ -72,12 +72,6 @@ bin/
 # macOS
 .DS_Store
 
-# Application
-application-local.yml
-application-prod.yml
-**/src/main/resources/application-local.yml
-**/src/main/resources/application-prod.yml
-
 # Logs
 logs/
 *.log

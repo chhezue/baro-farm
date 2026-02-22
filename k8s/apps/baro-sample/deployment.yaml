@@ -24,9 +24,10 @@ spec:
           ports:
             - containerPort: 8090
               name: http
+          envFrom:
+            - configMapRef:
+                name: baro-sample-config
           env:
-            - name: SPRING_DATASOURCE_URL
-              value: jdbc:mysql://my-mysql.db.svc.cluster.local:3306/baro_db
             - name: SPRING_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -37,16 +38,8 @@ spec:
                 secretKeyRef:
                   name: mysql-credentials
                   key: password
-            - name: REDIS_HOST
-              value: my-redis-master.cache.svc.cluster.local
-            - name: REDIS_PORT
-              value: "6379"
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: redis-credentials
                   key: password
-            - name: KAFKA_BOOTSTRAP_SERVERS
-              value: my-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
-            - name: ELASTICSEARCH_URIS
-              value: http://my-elasticsearch.search.svc.cluster.local:9200
