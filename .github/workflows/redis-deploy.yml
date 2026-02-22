@@ -4,9 +4,8 @@ on:
   push:
     branches:
       - main
-      - feature/issue-99-refactor-configmap
     paths:
-      - 'k8s/infra/**'
+      - 'k8s/infra/redis/**'
       - '.github/workflows/redis-deploy.yml'
   workflow_dispatch:
 

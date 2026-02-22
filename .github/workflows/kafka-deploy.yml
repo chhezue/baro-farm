@@ -4,9 +4,8 @@ on:
   push:
     branches:
       - main
-      - feature/issue-99-refactor-configmap
     paths:
-      - 'k8s/infra/**'
+      - 'k8s/infra/kafka/**'
       - '.github/workflows/kafka-deploy.yml'
   workflow_dispatch:
 

@@ -4,10 +4,10 @@ on:
   push:
     branches:
       - main
-      - feature/issue-99-refactor-configmap
     paths:
-      - 'k8s/infra/**'
-      - '.github/workflows/values-mysql.yml'
+      - 'k8s/infra/mysql/**'
+      - 'k8s/infra/storageclass-gp3-ebs.yml'
+      - '.github/workflows/mysql-deploy.yml'
   workflow_dispatch:
 
 env:
