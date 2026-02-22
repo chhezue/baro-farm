@@ -642,8 +642,8 @@ kind: Kustomization
 namespace: baro-prod
 
 resources:
-  - deployment.yaml
-  - service.yaml
+  - deployment.yml
+  - service.yml
 
 labels:
   - includeSelectors: false  # selector는 immutable이므로 false

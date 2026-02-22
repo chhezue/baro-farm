@@ -624,7 +624,7 @@ kubectl describe node <node-name>
 k3s는 기본적으로 롤링 업데이트를 지원합니다:
 
 ```yaml
-# deployment.yaml
+# deployment.yml
 spec:
   replicas: 2
   strategy:
