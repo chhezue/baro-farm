@@ -54,7 +54,7 @@ jobs:
       - name: Deploy / Upgrade Elasticsearch (StatefulSet)
         run: |
           kubectl --insecure-skip-tls-verify apply \
-            -f k8s/infra/elasticsearch/elasticsearch.yaml \
+            -f k8s/infra/elasticsearch/elasticsearch.yml \
             -n ${{ env.K8S_NAMESPACE }}
           kubectl --insecure-skip-tls-verify rollout status statefulset/my-elasticsearch \
             -n ${{ env.K8S_NAMESPACE }} --timeout=300s

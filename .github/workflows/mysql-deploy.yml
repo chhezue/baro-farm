@@ -43,7 +43,7 @@ jobs:
 
       - name: Apply StorageClass (gp3-ebs)
         run: |
-          kubectl --insecure-skip-tls-verify apply -f k8s/infra/storageclass-gp3-ebs.yaml
+          kubectl --insecure-skip-tls-verify apply -f k8s/infra/storageclass-gp3-ebs.yml
 
       - name: Install Helm
         uses: azure/setup-helm@v4
@@ -63,7 +63,7 @@ jobs:
 
           helm upgrade --install ${{ env.MYSQL_RELEASE_NAME }} bitnami/mysql \
             -n ${{ env.K8S_NAMESPACE }} \
-            -f k8s/infra/mysql/values-mysql.yaml \
+            -f k8s/infra/mysql/values-mysql.yml \
             --set auth.rootPassword=$MYSQL_ROOT_PASSWORD \
             --set auth.password=$MYSQL_APP_PASSWORD \
             --set global.security.allowInsecureImages=true
