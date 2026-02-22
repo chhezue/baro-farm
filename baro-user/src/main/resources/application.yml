@@ -1,5 +1,5 @@
 ﻿server:
-  port: ${SERVER_PORT:8081}
+  port: ${SERVER_PORT:8087}
 
 api:
   v1: /api/v1
@@ -7,99 +7,5 @@ api:
 spring:
   application:
     name: user-service
-  config:
-    import: ${SPRING_CONFIG_IMPORT:optional:configserver:http://config:8888}
-  main:
-    allow-bean-definition-overriding: true
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://baro-mysql:3306/${MYSQL_DATABASE:-barouser}?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    username: ${MYSQL_USER:}
-    password: ${MYSQL_PASSWORD:}
-  kafka:
-    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
-    consumer:
-      group-id: user-service
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      auto-offset-reset: latest
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      properties:
-        spring.json.add.type.headers: false
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
-        dialect: org.hibernate.dialect.MySQLDialect
-        use_sql_comments: true
-  mail:
-    host: smtp.naver.com
-    port: 465
-    username: ${SPRING_MAIL_USERNAME:}
-    password: ${SPRING_MAIL_PASSWORD:}
-    properties:
-      mail.smtp.auth: true
-      mail.smtp.ssl.enable: true
-      mail.smtp.ssl.trust: smtp.naver.com
-
-eureka:
-  client:
-    register-with-eureka: true
-    fetch-registry: true
-    service-url:
-      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka:8761/eureka/}
-  instance:
-    prefer-ip-address: true
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "*"
-  endpoint:
-    health:
-      show-details: always
-      enabled: true
-
-jwt:
-  secret: "${JWT_SECRET:replace-with-secure-secret}"
-  access-token-validity-ms: 604800000
-  refresh-token-validity-ms: 1209600000
-
-auth:
-  cookie:
-    access-name: access_token
-    refresh-name: refresh_token
-    secure: ${AUTH_COOKIE_SECURE:true}
-    same-site: Strict
-    path: /
-    domain: ${AUTH_COOKIE_DOMAIN:}
-  kafka:
-    topic:
-      user-events: ${AUTH_USER_EVENTS_TOPIC:user-events}
-  outbox:
-    publish-interval-ms: ${AUTH_OUTBOX_PUBLISH_INTERVAL_MS:1000}
-    max-attempts: ${AUTH_OUTBOX_MAX_ATTEMPTS:5}
-
-oauth:
-  naver:
-    client-id: ${NAVER_CLIENT_ID:}
-    client-secret: ${NAVER_CLIENT_SECRET:}
-    redirect-uri: ${NAVER_REDIRECT_URI:http://localhost:8081/api/v1/auth/oauth/callback?provider=naver}
-    token-uri: ${NAVER_TOKEN_URI:https://nid.naver.com/oauth2.0/token}
-    user-info-uri: ${NAVER_USERINFO_URI:https://openapi.naver.com/v1/nid/me}
-  kakao:
-    client-id: ${KAKAO_CLIENT_ID:}
-    client-secret: ${KAKAO_CLIENT_SECRET:}
-    redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:8081/api/v1/auth/oauth/callback?provider=kakao}
-    token-uri: ${KAKAO_TOKEN_URI:https://kauth.kakao.com/oauth/token}
-    user-info-uri: ${KAKAO_USERINFO_URI:https://kapi.kakao.com/v2/user/me}
-
-opa:
-  kafka:
-    topic: ${OPA_HOTLIST_TOPIC:opa-hotlist-events}
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
