@@ -2,10 +2,9 @@ package com.barofarm.gateway;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 
 @SpringBootApplication // [1] Gateway 부트스트랩 설정과 컴포넌트 스캔
-@EnableDiscoveryClient // [2] Eureka 등록으로 lb:// 라우팅 활성화
+//@EnableDiscoveryClient // [2] Eureka 등록으로 lb:// 라우팅 활성화
 public class GatewayApplication {
 
     /**

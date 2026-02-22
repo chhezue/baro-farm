@@ -51,11 +51,9 @@ public class AuthenticationFilter extends AbstractGatewayFilterFactory<Authentic
 
                 ServerHttpRequest modifiedRequest = request.mutate()
                     .headers(h->{
-                        h.remove("X-User-Email");
                         h.remove("X-User-Id");
                         h.remove("X-User-Role");
                     })
-                    .header("X-User-Email", email)
                     .header("X-User-Id", userId)
                     .header("X-User-Role", userType)
                     .build();
