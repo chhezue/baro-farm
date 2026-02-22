@@ -27,6 +27,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: baro-sample-config
+            - configMapRef:
+                name: infra-endpoints-config
           env:
             - name: SPRING_DATASOURCE_USERNAME
               valueFrom:
