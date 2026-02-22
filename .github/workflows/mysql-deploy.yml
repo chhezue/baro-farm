@@ -4,9 +4,9 @@ on:
   push:
     branches:
       - main
-      - feature/issue-90-deploy-infra(db)-k8s
     paths:
-      - 'k8s/infra/**'
+      - 'k8s/infra/mysql/**'
+      - 'k8s/infra/storageclass-gp3-ebs.yml'
       - '.github/workflows/mysql-deploy.yml'
   workflow_dispatch:
 

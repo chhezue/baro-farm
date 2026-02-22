@@ -3,12 +3,12 @@ name: baro-sample Deploy (ECR + k3s)
 on:
   push:
     branches:
-      - feature/issue-86-deploy-sample
-      - feature/issue-90-deploy-infra(db)-k8s
+      - main
     paths:
       - 'baro-sample/**'
       - 'docker/baro-sample/**'
       - 'k8s/apps/baro-sample/**'
+      - 'k8s/apps/common/**'
       - '.github/workflows/baro-sample-deploy.yml'
 
 env:
@@ -98,6 +98,9 @@ jobs:
             --from-literal=password=${{ secrets.REDIS_PASSWORD }} \
             -n ${{ env.K8S_NAMESPACE }} \
             --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
+
+          # 공통 ConfigMap (infra-endpoints-config) 적용
+          kubectl --insecure-skip-tls-verify apply -f k8s/apps/common/ -n ${{ env.K8S_NAMESPACE }}
 
           kubectl --insecure-skip-tls-verify apply -f k8s/apps/baro-sample/ -n ${{ env.K8S_NAMESPACE }}
           kubectl --insecure-skip-tls-verify set image deployment/baro-sample baro-sample=$FULL_IMAGE -n ${{ env.K8S_NAMESPACE }}
