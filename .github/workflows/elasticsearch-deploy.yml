@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - feature/issue-90-deploy-infra(db)-k8s
+      - feature/issue-99-refactor-configmap
     paths:
       - 'k8s/infra/elasticsearch/**'
       - '.github/workflows/elasticsearch-deploy.yml'
