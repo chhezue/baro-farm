@@ -1,0 +1,25 @@
+auth:
+  database: "baro_db"
+  username: "baro_user"
+  # rootPassword / password 는 GitHub Actions 에서 --set 으로 주입
+
+architecture: standalone
+
+primary:
+  persistence:
+    enabled: true
+    storageClass: gp3-ebs
+    size: 4Gi
+
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+image:
+  registry: public.ecr.aws
+  repository: bitnami/mysql
+  tag: 9.4.0-debian-12-r1

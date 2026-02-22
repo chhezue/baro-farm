@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: baro-sample
+  labels:
+    app: baro-sample
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  selector:
+    matchLabels:
+      app: baro-sample
+  template:
+    metadata:
+      labels:
+        app: baro-sample
+    spec:
+      imagePullSecrets:
+        - name: ecr-registry
+      containers:
+        - name: baro-sample
+          image: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/baro-sample:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8090
+              name: http
+          envFrom:
+            - configMapRef:
+                name: baro-sample-config
+          env:
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: password
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-credentials
+                  key: password

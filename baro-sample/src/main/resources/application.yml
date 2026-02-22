@@ -1,9 +1,8 @@
-server:
-  port: ${SERVER_PORT:8090}
-
 spring:
   application:
     name: baro-sample
+  profiles:
+    active: local
 
 api:
   v1: /api/v1
