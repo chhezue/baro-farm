@@ -26,34 +26,30 @@ dependencyManagement {
 }
 
 dependencies {
-    // ========= 공통 ?�틸 / 개발 ?�의 =========
-    // Lombok
+    // 공통
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
     implementation project(':baro-common')
 
-    // Swagger(OpenAPI)
-    // Swagger/OpenAPI 비활?�화�??�해 ?�시 주석 처리.
-    // implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
-
-    // ========= ?�스??=========
+    // 테스트
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
-    // ========= Auth ?�비???�존??=========
-    implementation 'org.springframework.boot:spring-boot-starter-web'       // servlet(Filter), MVC
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa' // @Transactional, JPA 기반 ?�랜??��
+    // User 서비스
+    implementation 'org.springframework.boot:spring-boot-starter-web'       // Servlet, MVC
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'  // JPA, 트랜잭션
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator' // 251211: actuator ?�출�?health ?�인 ?�용
-    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
-    implementation 'org.springframework.cloud:spring-cloud-starter-config' // Config Server Ŭ���̾�Ʈ
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'  // health, metrics
+    // implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client' // Eureka 미사용
+    implementation 'org.springframework.cloud:spring-cloud-starter-config'   // Config Server 클라이언트
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
     implementation 'org.springframework.kafka:spring-kafka'
 
-    // ?�메??관???�증 관??
+    // 메일
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
     // JWT
@@ -61,11 +57,11 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
-    // Database
+    // DB
     runtimeOnly 'com.mysql:mysql-connector-j'
 
-    // Security Test
-//    testImplementation 'org.springframework.security:spring-security-test'
+    // 보안 테스트
+    // testImplementation 'org.springframework.security:spring-security-test'
 }
 
 tasks.named('test') {
@@ -74,10 +70,9 @@ tasks.named('test') {
 
 bootJar {
     enabled = true
-    mainClass = 'com.barofarm.auth.AuthApplication'
+    mainClass = 'com.barofarm.auth.UserApplication'
 }
 
 jar {
     enabled = false
 }
-

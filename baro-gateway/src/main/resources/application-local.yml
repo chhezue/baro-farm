@@ -1,0 +1,258 @@
+﻿server:
+  port: ${BARO_GATEWAY_PORT:8080}
+
+spring:
+  application:
+    name: gateway-service
+  config:
+    import: ${BARO_GATEWAY_CONFIG_IMPORT:optional:configserver:http://localhost:8888}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  http:
+    codecs:
+      max-in-memory-size: 2MB
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+          metrics:
+            enabled: true
+          httpclient:
+            connect-timeout: 5000
+            response-timeout: 5s
+            # 디버깅용: 게이트웨이->백엔드 요청/응답 로그를 보기 위해 wiretap 활성화
+            # 필요 없으면 false로 되돌리거나 제거하세요.
+            wiretap: false
+            pool:
+              type: elastic
+              maxConnections: 200
+              acquireTimeout: 2000
+              maxIdleTime: 30s
+              maxLifeTime: 300s
+              pendingAcquireMaxCount: 500
+              metrics: true
+          httpserver:
+            max-header-size: 16KB
+            max-initial-line-length: 8KB
+            max-chunk-size: 8KB
+            # 디버깅용: 클라이언트->게이트웨이 요청/응답 로그를 보기 위해 wiretap 활성화
+            # 필요 없으면 false로 되돌리거나 제거하세요.
+            wiretap: false
+          default-filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 100
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@gatewayKeyResolver}"
+            - name: Retry
+              args:
+                retries: 2
+                methods: GET
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: true
+            - name: CircuitBreaker
+              args:
+                name: gatewayCircuitBreaker
+                fallbackUri: forward:/fallback
+          globalcors:
+            corsConfigurations:
+              '[/**]': # 모든 경로에 대해 CORS 허용
+                allowedOrigins:
+                  - ${GATEWAY_ALLOWED_ORIGIN_0:http://localhost:3001}
+                  - ${GATEWAY_ALLOWED_ORIGIN_1:http://localhost:3000}
+                allowedMethods: "*"   # 허용 HTTP 메서드 (GET/POST/PUT/DELETE 등)
+                allowedHeaders: "*"   # 허용 요청 헤더 (Authorization 등)
+                allowCredentials: true # 쿠키/인증 헤더 전달 허용 시 true
+                maxAge: 3600          # 프리플라이트(OPTIONS) 결과를 캐시할 시간(초)
+#          discovery:
+#            locator:
+#              enabled: true
+#              lower-case-service-id: true
+          routes:
+            - id: user-service-route
+              uri: http://localhost:${BARO_USER_PORT:8087}          # IDE에서 실행 중인 baro-user
+              predicates:
+                - Path=/user-service/**
+              filters:
+                - RewritePath=/user-service/(?<seg>.*), /${seg}
+
+            - id: order-service-route
+              uri: http://localhost:${BARO_ORDER_PORT:8083}          # IDE에서 실행 중인 baro-order
+              predicates:
+                - Path=/order-service/**
+              filters:
+                - RewritePath=/order-service/(?<seg>.*), /${seg}
+                - AuthenticationFilter
+
+            - id: payment-service-route
+              uri: http://localhost:${BARO_PAYMENT_PORT:8084}          # IDE에서 실행 중인 baro-payment
+              predicates:
+                - Path=/payment-service/**
+              filters:
+                - RewritePath=/payment-service/(?<seg>.*), /${seg}
+                - AuthenticationFilter
+
+            - id: shopping-service-route
+              uri: http://localhost:${BARO_SHOPPER_PORT:8086}          # IDE에서 실행 중인 baro-shopper
+              predicates:
+                - Path=/shopping-service/**
+              filters:
+                - RewritePath=/shopping-service/(?<seg>.*), /${seg}
+                - AuthenticationFilter
+
+            - id: notification-service-route
+              uri: http://localhost:${BARO_NOTIFICATION_PORT:8082}          # IDE에서 실행 중인 baro-notification
+              predicates:
+                - Path=/notification-service/**
+              filters:
+                - RewritePath=/notification-service/(?<seg>.*), /${seg}
+                - AuthenticationFilter
+
+            - id: settlement-service-route
+              uri: http://localhost:${BARO_SETTLEMENT_PORT:8085}          # IDE에서 실행 중인 baro-settlement
+              predicates:
+                - Path=/settlement-service/**
+              filters:
+                - RewritePath=/settlement-service/(?<seg>.*), /${seg}
+                - AuthenticationFilter
+
+            - id: ai-service-route
+              uri: http://localhost:${BARO_AI_PORT:8081}          # IDE에서 실행 중인 baro-ai
+              predicates:
+                - Path=/ai-service/**
+              filters:
+                - RewritePath=/ai-service/(?<seg>.*), /${seg}
+                - AuthenticationFilter
+
+#            # Auth Service API 문서 프록시
+#            - id: auth-service-openapi
+#              uri: lb://AUTH-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
+#              predicates:
+#                - Path=/openapi/auth/v3/api-docs
+#              filters:
+#                - RewritePath=/openapi/auth/(?<segment>.*), /${segment}
+#                - Authentication
+#                - OpaAuthorization
+#
+#            # Buyer Service API 문서 프록시
+#            - id: buyer-service-openapi
+#              uri: lb://BUYER-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
+#              predicates:
+#                - Path=/openapi/buyer/v3/api-docs
+#              filters:
+#                - RewritePath=/openapi/buyer/(?<segment>.*), /${segment}
+#                - Authentication
+#                - OpaAuthorization
+#
+#            # Seller Service API 문서 프록시
+#            - id: seller-service-openapi
+#              uri: lb://SELLER-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
+#              predicates:
+#                - Path=/openapi/seller/v3/api-docs
+#              filters:
+#                - RewritePath=/openapi/seller/(?<segment>.*), /${segment}
+#                - Authentication
+#                - OpaAuthorization
+#
+#            # Order Service API 문서 프록시
+#            - id: order-service-openapi
+#              uri: lb://ORDER-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
+#              predicates:
+#                - Path=/openapi/order/v3/api-docs
+#              filters:
+#                - RewritePath=/openapi/order/(?<segment>.*), /${segment}
+#                - Authentication
+#                - OpaAuthorization
+#
+#            # Support Service API 문서 프록시
+#            - id: support-service-openapi
+#              uri: lb://SUPPORT-SERVICE  # 대문자로 (Eureka에 등록된 이름과 동일하게)
+#              predicates:
+#                - Path=/openapi/support/v3/api-docs
+#              filters:
+#                - RewritePath=/openapi/support/(?<segment>.*), /${segment}
+#                - Authentication
+#                - OpaAuthorization
+
+#eureka:
+#  client:
+#    service-url:
+#      # Docker 환경에서는 서비스 이름(eureka) 사용, 로컬에서는 localhost 사용
+#      # 환경 변수 EUREKA_CLIENT_SERVICEURL_DEFAULTZONE으로 오버라이드 가능
+#      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+#  instance:
+#    prefer-ip-address: true
+
+jwt:
+  secret: "너무_짧지_않은_랜덤_시크릿_문자열_최소32바이트_나중에_env로_옮길예정"
+
+management:
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  endpoints:
+    web:
+      exposure:
+        include: health, info, gateway, metrics, prometheus
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      gatewayCircuitBreaker:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 50
+        minimumNumberOfCalls: 20
+        failureRateThreshold: 50
+        slowCallRateThreshold: 50
+        slowCallDurationThreshold: 2s
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 10
+      opaAuthz:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 30
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        slowCallRateThreshold: 50
+        slowCallDurationThreshold: 1s
+        waitDurationInOpenState: 5s
+        permittedNumberOfCallsInHalfOpenState: 5
+  bulkhead:
+    instances:
+      opaAuthz:
+        maxConcurrentCalls: 50
+        maxWaitDuration: 0
+
+
+# 이 부분 수정
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    use-root-path: false  # 여기로 이동
+    urls:
+      - name: Auth Service
+        url: /openapi/auth/v3/api-docs
+  api-docs:
+    enabled: true
+  enable-native-support: true
+
+logging:
+  level:
+    # 디버깅용: 인증/OPA 필터 동작 및 라우팅 흐름 확인
+    com.barofarm.gateway.filter: DEBUG
+    # 디버깅용: 게이트웨이 라우팅/필터 체인 로그
+    org.springframework.cloud.gateway: DEBUG
+    # 디버깅용: Netty 레벨 요청/응답 트레이스
+    reactor.netty: INFO
+    reactor.netty.http.server: INFO
+    reactor.netty.http.client: INFO
+    reactor.netty.http.server.HttpServer: INFO
+    reactor.netty.http.server.HttpServerOperations: INFO
+

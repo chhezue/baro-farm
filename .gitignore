@@ -87,3 +87,4 @@ baro-auth/.env
 .secrets.env
 
 .gradle-user-home/
+.gradle-local/
