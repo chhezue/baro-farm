@@ -2,8 +2,8 @@ name: baro-gateway Deploy (ECR + k3s)
 
 on:
   push:
-    branches:
-      - main
+#    branches:
+#      - main
     paths:
       - 'baro-gateway/**'
       - 'docker/baro-gateway/**'
