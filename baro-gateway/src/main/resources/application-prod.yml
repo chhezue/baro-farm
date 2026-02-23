@@ -1,32 +1,40 @@
-# local: Eureka/Config 사용, localhost 직접 라우팅
-server:
-  port: ${BARO_GATEWAY_PORT:8080}
-
+# prod(K8s): Eureka/Config 미사용, Service/ConfigMap으로 대체, http:// 직접 라우팅
 spring:
   config:
-    import: ${BARO_GATEWAY_CONFIG_IMPORT:optional:configserver:http://localhost:8888}
+    # Config Server 미사용 - 연결 시도 후 실패해도 optional이므로 기동 계속
+    import: optional:configserver:http://localhost:1
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
+      host: ${SPRING_DATA_REDIS_HOST:${REDIS_HOST:redis}}
+      port: ${SPRING_DATA_REDIS_PORT:${REDIS_PORT:6379}}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+        shutdown-timeout: 100ms
   cloud:
     gateway:
+      discovery:
+        locator:
+          enabled: false
       globalcors:
         corsConfigurations:
-          '[/**]': # 모든 경로에 대해 CORS 허용
+          '[/**]':
             allowedOrigins:
-              - ${GATEWAY_ALLOWED_ORIGIN_0:http://localhost:3001}
-              - ${GATEWAY_ALLOWED_ORIGIN_1:http://localhost:3000}
+              - ${GATEWAY_ALLOWED_ORIGIN_0:http://localhost:3000}
+              - ${GATEWAY_ALLOWED_ORIGIN_1:http://3.34.14.73:3000}
       routes:
         - id: user-service-route
-          uri: http://localhost:${BARO_USER_PORT:8087}          # IDE에서 실행 중인 baro-user
+          uri: http://baro-user:8080
           predicates:
             - Path=/user-service/**
           filters:
             - RewritePath=/user-service/(?<seg>.*), /${seg}
 
         - id: order-service-route
-          uri: http://localhost:${BARO_ORDER_PORT:8083}          # IDE에서 실행 중인 baro-order
+          uri: http://baro-order:8080
           predicates:
             - Path=/order-service/**
           filters:
@@ -34,7 +42,7 @@ spring:
             - AuthenticationFilter
 
         - id: payment-service-route
-          uri: http://localhost:${BARO_PAYMENT_PORT:8084}          # IDE에서 실행 중인 baro-payment
+          uri: http://baro-payment:8080
           predicates:
             - Path=/payment-service/**
           filters:
@@ -42,7 +50,7 @@ spring:
             - AuthenticationFilter
 
         - id: shopping-service-route
-          uri: http://localhost:${BARO_SHOPPER_PORT:8086}          # IDE에서 실행 중인 baro-shopper
+          uri: http://baro-shopping:8080
           predicates:
             - Path=/shopping-service/**
           filters:
@@ -50,7 +58,7 @@ spring:
             - AuthenticationFilter
 
         - id: notification-service-route
-          uri: http://localhost:${BARO_NOTIFICATION_PORT:8082}          # IDE에서 실행 중인 baro-notification
+          uri: http://baro-notification:8080
           predicates:
             - Path=/notification-service/**
           filters:
@@ -58,7 +66,7 @@ spring:
             - AuthenticationFilter
 
         - id: settlement-service-route
-          uri: http://localhost:${BARO_SETTLEMENT_PORT:8085}          # IDE에서 실행 중인 baro-settlement
+          uri: http://baro-settlement:8080
           predicates:
             - Path=/settlement-service/**
           filters:
@@ -66,7 +74,7 @@ spring:
             - AuthenticationFilter
 
         - id: ai-service-route
-          uri: http://localhost:${BARO_AI_PORT:8081}          # IDE에서 실행 중인 baro-ai
+          uri: http://baro-ai:8080
           predicates:
             - Path=/ai-service/**
           filters:

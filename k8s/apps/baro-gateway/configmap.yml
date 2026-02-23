@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: baro-gateway-config
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8080"
+  SPRING_DATA_REDIS_HOST: "my-redis-master.cache.svc.cluster.local"
+  SPRING_DATA_REDIS_PORT: "6379"
+  GATEWAY_ALLOWED_ORIGIN_0: "http://localhost:3000"
+  GATEWAY_ALLOWED_ORIGIN_1: "http://3.34.14.73:3000"
