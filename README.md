@@ -430,7 +430,7 @@ free -h
 
 3. **비활성 서비스 중지** (일시적)
    ```bash
-   docker-compose -f docker-compose.order.yml stop
+   docker-compose -f docker-compose.yml stop
    ```
 
 4. **인스턴스 타입 업그레이드** (장기적)

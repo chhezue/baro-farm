@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/kafka")
 public class KafkaTestController {
 
-    private static final Logger log = LoggerFactory.getLogger(KafkaTestController.class);
+    private static final Logger LOG = LoggerFactory.getLogger(KafkaTestController.class);
 
     private static final String TOPIC_NAME = "sample-topic";
 
@@ -56,7 +56,7 @@ public class KafkaTestController {
 
     @KafkaListener(topics = TOPIC_NAME, groupId = "baro-sample-group")
     public void listen(String message) {
-        log.info("Received message from Kafka topic {}: {}", TOPIC_NAME, message);
+        LOG.info("Received message from Kafka topic {}: {}", TOPIC_NAME, message);
         lastMessage.set(message);
     }
 }

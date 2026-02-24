@@ -59,7 +59,12 @@ public class ElasticsearchTestController {
                     new EsTestResponse("SENT", message, lastMessage, Instant.now().toString()));
         } catch (RestClientException | IOException e) {
             return ResponseEntity.internalServerError()
-                    .body(new EsTestResponse("ERROR: " + e.getClass().getSimpleName(), null, null, Instant.now().toString()));
+                    .body(
+                            new EsTestResponse(
+                                    "ERROR: " + e.getClass().getSimpleName(),
+                                    null,
+                                    null,
+                                    Instant.now().toString()));
         }
     }
 
@@ -71,7 +76,12 @@ public class ElasticsearchTestController {
                     new EsTestResponse("OK", null, lastMessage, Instant.now().toString()));
         } catch (RestClientException | IOException e) {
             return ResponseEntity.internalServerError()
-                    .body(new EsTestResponse("ERROR: " + e.getClass().getSimpleName(), null, null, Instant.now().toString()));
+                    .body(
+                            new EsTestResponse(
+                                    "ERROR: " + e.getClass().getSimpleName(),
+                                    null,
+                                    null,
+                                    Instant.now().toString()));
         }
     }
 

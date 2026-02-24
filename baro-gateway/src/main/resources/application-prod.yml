@@ -1,0 +1,355 @@
+﻿server:
+  # 로컬에서는 SERVER_PORT 환경변수로 포트를 덮어쓸 수 있습니다.
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: gateway-service
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:prod}
+  config:
+    import: ${SPRING_CONFIG_IMPORT:optional:configserver:http://config:8888}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:redis}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      # Redis 응답 지연 시 무한 대기를 피하기 위한 타임아웃
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+        shutdown-timeout: 100ms
+  http:
+    codecs:
+      max-in-memory-size: 2MB
+  cloud:
+    gateway:
+      server:
+        webflux:
+          metrics:
+            enabled: true
+          httpclient:
+            connect-timeout: 5000
+            response-timeout: 5s
+            pool:
+              type: elastic
+              maxConnections: 200
+              acquireTimeout: 2000
+              maxIdleTime: 30s
+              maxLifeTime: 300s
+              pendingAcquireMaxCount: 500
+              metrics: true
+          httpserver:
+            max-header-size: 16KB
+            max-initial-line-length: 8KB
+            max-chunk-size: 8KB
+          default-filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 100
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@gatewayKeyResolver}"
+            - name: Retry
+              args:
+                retries: 2
+                methods: GET
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: true
+            - name: CircuitBreaker
+              args:
+                name: gatewayCircuitBreaker
+                fallbackUri: forward:/fallback
+          globalcors:
+            corsConfigurations:
+              # 전역 CORS 설정
+              '[/**]':
+                allowedOrigins:
+                  - ${GATEWAY_ALLOWED_ORIGIN_0:http://localhost:3000}
+                  - ${GATEWAY_ALLOWED_ORIGIN_1:http://3.34.14.73:3000}
+                allowedMethods: "*"
+                allowedHeaders: "*"
+                allowCredentials: true
+                maxAge: 3600
+          discovery:
+            locator:
+              enabled: true
+              # Eureka 서비스 ID를 소문자로 매핑
+              lower-case-service-id: true
+          routes:
+            # OpenAPI 문서 라우팅
+            - id: auth-service-openapi
+              uri: lb://user-service
+              predicates:
+                - Path=/openapi/auth/v3/api-docs, /openapi/auth/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/auth/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
+
+            - id: buyer-service-openapi
+              uri: lb://buyer-service
+              predicates:
+                - Path=/openapi/buyer/v3/api-docs, /openapi/buyer/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/buyer/(?<segment>.*), /${segment}
+
+            - id: seller-service-openapi
+              uri: lb://user-service
+              predicates:
+                - Path=/openapi/seller/v3/api-docs, /openapi/seller/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/seller/(?<segment>.*), /${segment}
+
+            - id: order-service-openapi
+              uri: lb://order-service
+              predicates:
+                - Path=/openapi/order/v3/api-docs, /openapi/order/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/order/(?<segment>.*), /${segment}
+
+            - id: payment-service-openapi
+              uri: lb://payment-service
+              predicates:
+                - Path=/openapi/payment/v3/api-docs, /openapi/payment/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/payment/(?<segment>.*), /${segment}
+
+            - id: support-service-openapi
+              uri: lb://support-service
+              predicates:
+                - Path=/openapi/support/v3/api-docs, /openapi/support/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/support/(?<segment>.*), /${segment}
+
+
+            - id: notification-service-openapi
+              uri: lb://notification-service
+              predicates:
+                - Path=/openapi/notification/v3/api-docs, /openapi/notification/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/notification/(?<segment>.*), /${segment}
+            - id: settlement-service-openapi
+              uri: lb://settlement-service
+              predicates:
+                - Path=/openapi/settlement/v3/api-docs, /openapi/settlement/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/settlement/(?<segment>.*), /${segment}
+
+            - id: ai-service-openapi
+              uri: lb://ai-service
+              predicates:
+                - Path=/openapi/ai/v3/api-docs, /openapi/ai/v3/api-docs/**
+              filters:
+                - RewritePath=/openapi/ai/(?<segment>.*), /${segment}
+
+            - id: auth-public
+              uri: lb://user-service
+              predicates:
+                - Path=/auth-service/api/v1/auth/login,
+                  /auth-service/api/v1/auth/signup,
+                  /auth-service/api/v1/auth/oauth/**
+              filters:
+                - RewritePath=/auth-service/(?<segment>.*), /${segment}
+
+            - id: auth-service
+              uri: lb://user-service
+              predicates:
+                - Path=/auth-service/**
+              filters:
+                - RewritePath=/auth-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
+
+
+            - id: buyer-service
+              uri: lb://buyer-service
+              predicates:
+                - Path=/buyer-service/**
+              filters:
+                - RewritePath=/buyer-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
+
+
+            - id: seller-service
+              uri: lb://user-service
+              predicates:
+                - Path=/seller-service/**
+              filters:
+                - RewritePath=/seller-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
+
+
+            - id: order-service
+              uri: lb://order-service
+              predicates:
+                - Path=/order-service/**
+              filters:
+                - RewritePath=/order-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
+
+
+            - id: payment-service
+              uri: lb://payment-service
+              predicates:
+                - Path=/payment-service/**
+              filters:
+                - RewritePath=/payment-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
+
+
+            - id: support-service
+              uri: lb://support-service
+              predicates:
+                - Path=/support-service/**
+              filters:
+                - RewritePath=/support-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
+
+
+
+            - id: notification-service
+              uri: lb://notification-service
+              predicates:
+                - Path=/notification-service/**
+              filters:
+                - RewritePath=/notification-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
+
+            - id: settlement-service
+              uri: lb://settlement-service
+              predicates:
+                - Path=/settlement-service/**
+              filters:
+                - RewritePath=/settlement-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
+
+
+            - id: ai-service-public
+              uri: lb://ai-service
+              predicates:
+                - Path=/ai-service/api/v1/search/**
+              filters:
+                - RewritePath=/ai-service/(?<segment>.*), /${segment}
+            # AI Service - Protected (추천 등은 인증 필요)
+            - id: ai-service
+              uri: lb://ai-service
+              predicates:
+                - Path=/ai-service/**
+              filters:
+                - RewritePath=/ai-service/(?<segment>.*), /${segment}
+                - Authentication
+                - OpaAuthorization
+
+eureka:
+  client:
+
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+
+
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+jwt:
+  # 운영에서는 반드시 JWT_SECRET 환경변수로 주입하세요.
+  secret: ${JWT_SECRET:change_me_to_a_secure_secret_at_least_32_chars}
+
+management:
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  endpoints:
+    web:
+      exposure:
+        include: health, info, gateway, metrics, prometheus
+  health:
+    redis:
+      enabled: false
+
+    show-details: when-authorized
+    show-components: when-authorized
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      gatewayCircuitBreaker:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 50
+        minimumNumberOfCalls: 20
+        failureRateThreshold: 50
+        slowCallRateThreshold: 50
+        slowCallDurationThreshold: 2s
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 10
+      opaAuthz:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 30
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        slowCallRateThreshold: 50
+        slowCallDurationThreshold: 1s
+        waitDurationInOpenState: 5s
+        permittedNumberOfCallsInHalfOpenState: 5
+  bulkhead:
+    instances:
+      opaAuthz:
+        maxConcurrentCalls: 50
+        maxWaitDuration: 0
+
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    # Swagger UI를 루트 경로로 노출하지 않음
+    use-root-path: false
+    urls:
+      - name: User Service
+        url: /openapi/auth/v3/api-docs
+      - name: Buyer Service
+        url: /openapi/buyer/v3/api-docs
+      - name: Seller Service
+        url: /openapi/seller/v3/api-docs
+      - name: Order Service
+        url: /openapi/order/v3/api-docs
+      - name: Payment Service
+        url: /openapi/payment/v3/api-docs
+      - name: Support Service
+        url: /openapi/support/v3/api-docs
+      - name: Notification Service
+        url: /openapi/notification/v3/api-docs
+      - name: Settlement Service
+        url: /openapi/settlement/v3/api-docs
+      - name: AI Service
+        url: /openapi/ai/v3/api-docs
+  api-docs:
+    enabled: true
+  enable-native-support: true
+
+logging:
+  level:
+    # 커스텀 게이트웨이 필터 로그
+    com.barofarm.gateway.filter: DEBUG
+    # Spring Cloud Gateway 라우팅 로그
+    org.springframework.cloud.gateway: DEBUG
+    # Netty 서버/클라이언트 로그
+    reactor.netty: INFO
+    reactor.netty.http.server: INFO
+    reactor.netty.http.client: INFO
+    reactor.netty.http.server.HttpServer: INFO
+    reactor.netty.http.server.HttpServerOperations: INFO
