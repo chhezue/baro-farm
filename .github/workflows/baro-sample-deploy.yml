@@ -2,8 +2,8 @@ name: baro-sample Deploy (ECR + k3s)
 
 on:
   push:
-    branches:
-      - main
+#    branches:
+#      - main
     paths:
       - 'baro-sample/**'
       - 'docker/baro-sample/**'
