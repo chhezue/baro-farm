@@ -1,7 +1,0 @@
-services:
-  redis:
-    volumes: []
-  mysql:
-    volumes:
-      - mysql-data:/var/lib/mysql
-      - ./scripts/init-db:/docker-entrypoint-initdb.d
