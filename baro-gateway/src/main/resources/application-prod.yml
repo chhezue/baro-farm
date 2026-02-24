@@ -26,6 +26,14 @@ spring:
               - ${GATEWAY_ALLOWED_ORIGIN_0:http://localhost:3000}
               - ${GATEWAY_ALLOWED_ORIGIN_1:http://3.34.14.73:3000}
       routes:
+        # baro-sample 연결 (라우팅 테스트용)
+        - id: sample-service-route
+          uri: http://baro-sample:8080
+          predicates:
+            - Path=/sample-service/**
+          filters:
+            - RewritePath=/sample-service/(?<seg>.*), /${seg}
+
         - id: user-service-route
           uri: http://baro-user:8080
           predicates:
