@@ -7,23 +7,26 @@
 
 ## 🎯 변경된 서비스
 <!-- 해당하는 서비스에 체크해주세요 -->
-- [ ] auth-service
-- [ ] buyer-service
-- [ ] cart-service
-- [ ] product-service
-- [ ] seller-service
-- [ ] farm-service
-- [ ] order-service
-- [ ] payment-service
-- [ ] settlement-service
-- [ ] delivery-service
-- [ ] notification-service
-- [ ] experience-service
-- [ ] search-service
-- [ ] review-service
-- [ ] gateway-service
-- [ ] config-server
-- [ ] eureka-server
+- [ ] baro-auth
+- [ ] baro-buyer
+- [ ] baro-shopping
+- [ ] baro-seller
+- [ ] baro-order
+- [ ] baro-payment
+- [ ] baro-settlement
+- [ ] baro-user
+- [ ] baro-notification
+- [ ] baro-ai
+- [ ] baro-gateway
+- [ ] baro-config
+- [ ] baro-eureka
+- [ ] baro-cloud
+- [ ] baro-common
+- [ ] baro-opa
+- [ ] baro-opa-bundle
+- [ ] baro-sample
+- [ ] baro-support
+- [ ] 기타: ____________________
 
 ## ✅ 체크리스트
 <!-- 완료한 항목에 체크해주세요 -->
