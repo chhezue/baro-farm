@@ -47,7 +47,6 @@ spring:
             - Path=/order-service/**
           filters:
             - RewritePath=/order-service/(?<seg>.*), /${seg}
-            - AuthenticationFilter
 
         - id: payment-service-route
           uri: http://baro-payment:8080
@@ -55,7 +54,6 @@ spring:
             - Path=/payment-service/**
           filters:
             - RewritePath=/payment-service/(?<seg>.*), /${seg}
-            - AuthenticationFilter
 
         - id: shopping-service-route
           uri: http://baro-shopping:8080
@@ -63,7 +61,6 @@ spring:
             - Path=/shopping-service/**
           filters:
             - RewritePath=/shopping-service/(?<seg>.*), /${seg}
-            - AuthenticationFilter
 
         - id: notification-service-route
           uri: http://baro-notification:8080
@@ -71,7 +68,6 @@ spring:
             - Path=/notification-service/**
           filters:
             - RewritePath=/notification-service/(?<seg>.*), /${seg}
-            - AuthenticationFilter
 
         - id: settlement-service-route
           uri: http://baro-settlement:8080
@@ -79,7 +75,6 @@ spring:
             - Path=/settlement-service/**
           filters:
             - RewritePath=/settlement-service/(?<seg>.*), /${seg}
-            - AuthenticationFilter
 
         - id: ai-service-route
           uri: http://baro-ai:8080
@@ -87,4 +82,3 @@ spring:
             - Path=/ai-service/**
           filters:
             - RewritePath=/ai-service/(?<seg>.*), /${seg}
-            - AuthenticationFilter
