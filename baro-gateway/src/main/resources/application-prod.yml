@@ -3,6 +3,9 @@ spring:
   config:
     # Config Server 미사용 - 연결 시도 후 실패해도 optional이므로 기동 계속
     import: optional:configserver:http://localhost:1
+  http:
+    codecs:
+      max-in-memory-size: 2MB
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:${REDIS_HOST:redis}}
@@ -16,6 +19,52 @@ spring:
         shutdown-timeout: 100ms
   cloud:
     gateway:
+      server:
+        webflux:
+          metrics:
+            enabled: true
+          httpclient:
+            connect-timeout: 5000
+            response-timeout: 5s
+            # 디버깅용: 게이트웨이->백엔드 요청/응답 로그를 보기 위해 wiretap 활성화
+            # 필요 없으면 false로 되돌리거나 제거하세요.
+            wiretap: false
+            pool:
+              type: elastic
+              maxConnections: 200
+              acquireTimeout: 2000
+              maxIdleTime: 30s
+              maxLifeTime: 300s
+              pendingAcquireMaxCount: 500
+              metrics: true
+          httpserver:
+            max-header-size: 16KB
+            max-initial-line-length: 8KB
+            max-chunk-size: 8KB
+            # 디버깅용: 클라이언트->게이트웨이 요청/응답 로그를 보기 위해 wiretap 활성화
+            # 필요 없으면 false로 되돌리거나 제거하세요.
+            wiretap: false
+          default-filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 100
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@gatewayKeyResolver}"
+            - name: Retry
+              args:
+                retries: 2
+                methods: GET
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: true
+            - name: CircuitBreaker
+              args:
+                name: gatewayCircuitBreaker
+                fallbackUri: forward:/fallback
       discovery:
         locator:
           enabled: false
@@ -25,6 +74,10 @@ spring:
             allowedOrigins:
               - ${GATEWAY_ALLOWED_ORIGIN_0:http://localhost:3000}
               - ${GATEWAY_ALLOWED_ORIGIN_1:http://3.34.14.73:3000}
+            allowedMethods: "*"   # 허용 HTTP 메서드 (GET/POST/PUT/DELETE 등)
+            allowedHeaders: "*"   # 허용 요청 헤더 (Authorization 등)
+            allowCredentials: true # 쿠키/인증 헤더 전달 허용 시 true
+            maxAge: 3600          # 프리플라이트(OPTIONS) 결과를 캐시할 시간(초)
       routes:
         # baro-sample 연결 (라우팅 테스트용)
         - id: sample-service-route
@@ -82,3 +135,87 @@ spring:
             - Path=/ai-service/**
           filters:
             - RewritePath=/ai-service/(?<seg>.*), /${seg}
+
+jwt:
+  secret: ${JWT_SECRET:change_me_to_a_secure_secret_at_least_32_chars}
+
+management:
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  endpoints:
+    web:
+      exposure:
+        include: health, info, gateway, metrics, prometheus
+  health:
+    redis:
+      enabled: false
+    show-details: when-authorized
+    show-components: when-authorized
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      gatewayCircuitBreaker:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 50
+        minimumNumberOfCalls: 20
+        failureRateThreshold: 50
+        slowCallRateThreshold: 50
+        slowCallDurationThreshold: 2s
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 10
+      opaAuthz:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 30
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        slowCallRateThreshold: 50
+        slowCallDurationThreshold: 1s
+        waitDurationInOpenState: 5s
+        permittedNumberOfCallsInHalfOpenState: 5
+  bulkhead:
+    instances:
+      opaAuthz:
+        maxConcurrentCalls: 50
+        maxWaitDuration: 0
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    use-root-path: false  # 여기로 이동
+    urls:
+      - name: User Service
+        url: /openapi/auth/v3/api-docs
+      - name: Buyer Service
+        url: /openapi/buyer/v3/api-docs
+      - name: Seller Service
+        url: /openapi/seller/v3/api-docs
+      - name: Order Service
+        url: /openapi/order/v3/api-docs
+      - name: Payment Service
+        url: /openapi/payment/v3/api-docs
+      - name: Support Service
+        url: /openapi/support/v3/api-docs
+      - name: Notification Service
+        url: /openapi/notification/v3/api-docs
+      - name: Settlement Service
+        url: /openapi/settlement/v3/api-docs
+      - name: AI Service
+        url: /openapi/ai/v3/api-docs
+  api-docs:
+    enabled: true
+  enable-native-support: true
+
+logging:
+  level:
+    # 디버깅용: 인증/OPA 필터 동작 및 라우팅 흐름 확인
+    com.barofarm.gateway.filter: DEBUG
+    # 디버깅용: 게이트웨이 라우팅/필터 체인 로그
+    org.springframework.cloud.gateway: DEBUG
+    # 디버깅용: Netty 레벨 요청/응답 트레이스
+    reactor.netty: INFO
+    reactor.netty.http.server: INFO
+    reactor.netty.http.client: INFO
+    reactor.netty.http.server.HttpServer: INFO
+    reactor.netty.http.server.HttpServerOperations: INFO
