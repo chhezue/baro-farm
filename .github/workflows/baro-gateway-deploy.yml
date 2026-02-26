@@ -1,20 +1,20 @@
-name: baro-sample Deploy (ECR + k3s)
+name: baro-gateway Deploy (ECR + k3s)
 
 on:
   push:
 #    branches:
 #      - main
     paths:
-      - 'baro-sample/**'
-      - 'docker/baro-sample/**'
-      - 'k8s/apps/baro-sample/**'
+      - 'baro-gateway/**'
+      - 'docker/baro-gateway/**'
+      - 'k8s/apps/baro-gateway/**'
       - 'k8s/apps/common/**'
-      - '.github/workflows/baro-sample-deploy.yml'
+      - '.github/workflows/baro-gateway-deploy.yml'
 
 env:
   AWS_REGION: ap-northeast-2
   ECR_REGISTRY: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com
-  ECR_REPOSITORY: baro-prod/baro-sample
+  ECR_REPOSITORY: baro-prod/baro-gateway
   K8S_NAMESPACE: default
 
 jobs:
@@ -39,7 +39,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build JAR
-        run: ./gradlew :baro-sample:bootJar --no-daemon
+        run: ./gradlew :baro-gateway:bootJar --no-daemon
 
       - name: Set image tag
         id: image-tag
@@ -61,7 +61,7 @@ jobs:
           IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ steps.image-tag.outputs.tag }}
         run: |
-          docker build -f docker/baro-sample/Dockerfile -t $IMAGE_URI -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest .
+          docker build -f docker/baro-gateway/Dockerfile -t $IMAGE_URI -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest .
           docker push $IMAGE_URI
           docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
 
@@ -87,21 +87,21 @@ jobs:
           IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
           FULL_IMAGE: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ steps.image-tag.outputs.tag }}
         run: |
-          # MySQL 애플리케이션 계정 Secret 생성/업데이트 (default namespace)
-          kubectl --insecure-skip-tls-verify create secret generic mysql-credentials \
-            --from-literal=username=baro_user \
-            --from-literal=password=${{ secrets.MYSQL_APP_PASSWORD }} \
+          # gateway-secrets (JWT) 생성/업데이트
+          kubectl --insecure-skip-tls-verify create secret generic gateway-secrets \
+            --from-literal=jwt-secret=${{ secrets.GATEWAY_JWT_SECRET }} \
             -n ${{ env.K8S_NAMESPACE }} \
             --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
 
+          # redis-credentials (gateway Redis 사용)
           kubectl --insecure-skip-tls-verify create secret generic redis-credentials \
             --from-literal=password=${{ secrets.REDIS_PASSWORD }} \
             -n ${{ env.K8S_NAMESPACE }} \
             --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
 
-          # 공통 ConfigMap (infra-endpoints-config) 적용
+          # 공통 ConfigMap 적용
           kubectl --insecure-skip-tls-verify apply -f k8s/apps/common/ -n ${{ env.K8S_NAMESPACE }}
 
-          kubectl --insecure-skip-tls-verify apply -f k8s/apps/baro-sample/ -n ${{ env.K8S_NAMESPACE }}
-          kubectl --insecure-skip-tls-verify set image deployment/baro-sample baro-sample=$FULL_IMAGE -n ${{ env.K8S_NAMESPACE }}
-          kubectl --insecure-skip-tls-verify rollout status deployment/baro-sample -n ${{ env.K8S_NAMESPACE }} --timeout=120s
+          kubectl --insecure-skip-tls-verify apply -f k8s/apps/baro-gateway/ -n ${{ env.K8S_NAMESPACE }}
+          kubectl --insecure-skip-tls-verify set image deployment/baro-gateway baro-gateway=$FULL_IMAGE -n ${{ env.K8S_NAMESPACE }}
+          kubectl --insecure-skip-tls-verify rollout status deployment/baro-gateway -n ${{ env.K8S_NAMESPACE }} --timeout=120s
