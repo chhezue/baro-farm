@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: baro-user
+  labels:
+    app: baro-user
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  selector:
+    matchLabels:
+      app: baro-user
+  template:
+    metadata:
+      labels:
+        app: baro-user
+    spec:
+      imagePullSecrets:
+        - name: ecr-registry
+      containers:
+        - name: baro-user
+          image: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/baro-user:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8087
+              name: http
+          envFrom:
+            - configMapRef:
+                name: baro-user-config
+            - configMapRef:
+                name: infra-endpoints-config
+          env:
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: password
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-credentials
+                  key: password
+            - name: BARO_USER_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: baro-user-secrets
+                  key: BARO_USER_JWT_SECRET
+            - name: BARO_USER_MAIL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: baro-user-secrets
+                  key: BARO_USER_MAIL_USERNAME
+            - name: BARO_USER_MAIL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: baro-user-secrets
+                  key: BARO_USER_MAIL_PASSWORD
+            - name: BARO_USER_KAKAO_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: baro-user-secrets
+                  key: BARO_USER_KAKAO_CLIENT_ID
+            # - name: BARO_USER_KAKAO_CLIENT_SECRET
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: baro-user-secrets
+            #       key: BARO_USER_KAKAO_CLIENT_SECRET

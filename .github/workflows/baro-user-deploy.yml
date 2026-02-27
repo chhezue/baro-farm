@@ -1,0 +1,115 @@
+name: baro-user Deploy (ECR + k3s)
+
+on:
+  push:
+    paths:
+      - 'baro-user/**'
+      - 'docker/baro-user/**'
+      - 'k8s/apps/baro-user/**'
+      - 'k8s/apps/common/**'
+      - '.github/workflows/baro-user-deploy.yml'
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REGISTRY: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com
+  ECR_REPOSITORY: baro-prod/baro-user
+  K8S_NAMESPACE: default
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build JAR
+        run: ./gradlew :baro-user:bootJar --no-daemon
+
+      - name: Set image tag
+        id: image-tag
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        env:
+          IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ steps.image-tag.outputs.tag }}
+        run: |
+          docker build -f docker/baro-user/Dockerfile -t $IMAGE_URI -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest .
+          docker push $IMAGE_URI
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Set up kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+          echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+
+      - name: Create ECR image pull secret
+        run: |
+          kubectl --insecure-skip-tls-verify create secret docker-registry ecr-registry \
+            --docker-server=${{ env.ECR_REGISTRY }} \
+            --docker-username=AWS \
+            --docker-password="$(aws ecr get-login-password --region ${{ env.AWS_REGION }})" \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
+
+      - name: Deploy to k3s
+        env:
+          IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
+          FULL_IMAGE: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ steps.image-tag.outputs.tag }}
+        run: |
+          # MySQL 애플리케이션 계정 Secret (baro-sample과 동일한 mysql-credentials 사용)
+          kubectl --insecure-skip-tls-verify create secret generic mysql-credentials \
+            --from-literal=username=baro_user \
+            --from-literal=password=${{ secrets.MYSQL_APP_PASSWORD }} \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
+
+          kubectl --insecure-skip-tls-verify create secret generic redis-credentials \
+            --from-literal=password=${{ secrets.REDIS_PASSWORD }} \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
+
+          # baro-user 전용 Secret (JWT, 메일, OAuth)
+          kubectl --insecure-skip-tls-verify create secret generic baro-user-secrets \
+            --from-literal=BARO_USER_JWT_SECRET="${{ secrets.BARO_USER_JWT_SECRET }}" \
+            --from-literal=BARO_USER_MAIL_USERNAME="${{ secrets.BARO_USER_MAIL_USERNAME }}" \
+            --from-literal=BARO_USER_MAIL_PASSWORD="${{ secrets.BARO_USER_MAIL_PASSWORD }}" \
+            --from-literal=BARO_USER_KAKAO_CLIENT_ID="${{ secrets.BARO_USER_KAKAO_CLIENT_ID }}" \
+            # --from-literal=BARO_USER_KAKAO_CLIENT_SECRET="${{ secrets.BARO_USER_KAKAO_CLIENT_SECRET }}" \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
+
+          # 공통 ConfigMap (infra-endpoints-config) 적용
+          kubectl --insecure-skip-tls-verify apply -f k8s/apps/common/ -n ${{ env.K8S_NAMESPACE }}
+
+          kubectl --insecure-skip-tls-verify apply -f k8s/apps/baro-user/ -n ${{ env.K8S_NAMESPACE }}
+          kubectl --insecure-skip-tls-verify set image deployment/baro-user baro-user=$FULL_IMAGE -n ${{ env.K8S_NAMESPACE }}
+          kubectl --insecure-skip-tls-verify rollout status deployment/baro-user -n ${{ env.K8S_NAMESPACE }} --timeout=120s

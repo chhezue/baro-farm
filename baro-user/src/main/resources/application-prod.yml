@@ -1,5 +1,5 @@
-﻿server:
-  port: ${BARO_USER_PORT:8087}
+server:
+  port: ${SERVER_PORT:${BARO_USER_PORT:8087}}
 
 api:
   v1: /api/v1
@@ -7,17 +7,21 @@ api:
 spring:
   application:
     name: user-service
-  config:
-    import: ${BARO_USER_CONFIG_IMPORT:optional:configserver:http://config:8888}
   main:
     allow-bean-definition-overriding: true
   datasource:
-    url: ${BARO_USER_DATASOURCE_URL:jdbc:mysql://baro-mysql:3306/barouser?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true}
+    url: ${SPRING_DATASOURCE_URL:${BARO_USER_DATASOURCE_URL:jdbc:mysql://my-mysql.db.svc.cluster.local:3306/baro_user?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true}}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: ${BARO_USER_DB_USERNAME:}
-    password: ${BARO_USER_DB_PASSWORD:}
+    username: ${SPRING_DATASOURCE_USERNAME:${BARO_USER_DB_USERNAME:}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${BARO_USER_DB_PASSWORD:}}
+  data:
+    redis:
+      host: ${REDIS_HOST:${BARO_USER_REDIS_HOST:my-redis-master.cache.svc.cluster.local}}
+      port: ${REDIS_PORT:${BARO_USER_REDIS_PORT:6379}}
+      username: ${REDIS_USERNAME:default}
+      password: ${REDIS_PASSWORD:${BARO_USER_REDIS_PASSWORD:}}
   kafka:
-    bootstrap-servers: ${BARO_USER_KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:${BARO_USER_KAFKA_BOOTSTRAP_SERVERS:my-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092}}
     consumer:
       group-id: user-service
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
@@ -49,12 +53,7 @@ spring:
 
 eureka:
   client:
-    register-with-eureka: true
-    fetch-registry: true
-    service-url:
-      defaultZone: ${BARO_USER_EUREKA_DEFAULT_ZONE:http://eureka:8761/eureka/}
-  instance:
-    prefer-ip-address: true
+    enabled: false
 
 management:
   endpoints:
@@ -87,16 +86,10 @@ auth:
     max-attempts: ${BARO_USER_AUTH_OUTBOX_MAX_ATTEMPTS:5}
 
 oauth:
-  naver:
-    client-id: ${BARO_USER_NAVER_CLIENT_ID:}
-    client-secret: ${BARO_USER_NAVER_CLIENT_SECRET:}
-    redirect-uri: ${BARO_USER_NAVER_REDIRECT_URI:http://localhost:8087/api/v1/auth/oauth/callback?provider=naver}
-    token-uri: ${BARO_USER_NAVER_TOKEN_URI:https://nid.naver.com/oauth2.0/token}
-    user-info-uri: ${BARO_USER_NAVER_USERINFO_URI:https://openapi.naver.com/v1/nid/me}
   kakao:
     client-id: ${BARO_USER_KAKAO_CLIENT_ID:}
     client-secret: ${BARO_USER_KAKAO_CLIENT_SECRET:}
-    redirect-uri: ${BARO_USER_KAKAO_REDIRECT_URI:http://localhost:8087/api/v1/auth/oauth/callback?provider=kakao}
+    redirect-uri: ${BARO_USER_KAKAO_REDIRECT_URI:${BARO_PUBLIC_BASE_URL:https://api.baro.com}/user-service/api/v1/auth/oauth/callback?provider=kakao}
     token-uri: ${BARO_USER_KAKAO_TOKEN_URI:https://kauth.kakao.com/oauth/token}
     user-info-uri: ${BARO_USER_KAKAO_USERINFO_URI:https://kapi.kakao.com/v2/user/me}
 
