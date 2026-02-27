@@ -103,7 +103,6 @@ jobs:
             --from-literal=BARO_USER_MAIL_USERNAME="${{ secrets.BARO_USER_MAIL_USERNAME }}" \
             --from-literal=BARO_USER_MAIL_PASSWORD="${{ secrets.BARO_USER_MAIL_PASSWORD }}" \
             --from-literal=BARO_USER_KAKAO_CLIENT_ID="${{ secrets.BARO_USER_KAKAO_CLIENT_ID }}" \
-            # --from-literal=BARO_USER_KAKAO_CLIENT_SECRET="${{ secrets.BARO_USER_KAKAO_CLIENT_SECRET }}" \
             -n ${{ env.K8S_NAMESPACE }} \
             --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
 
