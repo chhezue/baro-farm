@@ -30,6 +30,11 @@ spec:
             - configMapRef:
                 name: infra-endpoints-config
           env:
+            # spring cloud 비활성화
+            - name: SPRING_CLOUD_CONFIG_ENABLED
+              value: "false"
+            - name: SPRING_CLOUD_CONFIG_IMPORT_CHECK_ENABLED
+              value: "false"
             - name: SPRING_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:
