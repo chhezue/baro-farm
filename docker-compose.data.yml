@@ -6,10 +6,13 @@ services:
   # MySQL
   # ═══════════════════════════════════════
   mysql:
-    image: mysql:8.0
+    build:
+      context: ./docker/mysql    # Dockerfile이 있는 폴더
+      dockerfile: Dockerfile
+    # image: mysql:8.0  ← 제거 (build와 함께 쓰면 build가 우선이지만 명시적으로 지우는 게 낫다)
     container_name: baro-mysql
     ports:
-      - "3306:3306"       # ← IntelliJ 앱이 localhost:3306 으로 접속
+      - "3307:3306"       # ← IntelliJ 앱이 localhost:3307 으로 접속
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: baro_shopping
@@ -21,8 +24,7 @@ services:
     command: >
       --innodb-buffer-pool-size=128M
       --max-connections=100
-      --character-set-server=utf8mb4
-      --collation-server=utf8mb4_unicode_ci
+
     restart: unless-stopped
     networks:
       - baro-network
@@ -69,6 +71,7 @@ services:
       - "9092:9092"       # ← IntelliJ 앱이 localhost:9092 로 접속 (외부용)
       # 29092는 컨테이너 내부 통신용이므로 노출 불필요
     environment:
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qg"
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_NODE_ID: 1
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
