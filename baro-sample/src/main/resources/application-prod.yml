@@ -20,6 +20,7 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
+      username: default
       password: ${REDIS_PASSWORD}
   elasticsearch:
     uris: ${ELASTICSEARCH_URIS}

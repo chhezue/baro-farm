@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: baro-gateway
+  labels:
+    app: baro-gateway
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  selector:
+    matchLabels:
+      app: baro-gateway
+  template:
+    metadata:
+      labels:
+        app: baro-gateway
+    spec:
+      imagePullSecrets:
+        - name: ecr-registry
+      containers:
+        - name: baro-gateway
+          image: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/baro-gateway:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: baro-gateway-config
+          env:
+            - name: SPRING_DATA_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-credentials
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gateway-secrets
+                  key: jwt-secret

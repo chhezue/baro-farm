@@ -47,7 +47,6 @@ target/
 *.iws
 *.iml
 *.ipr
-out/
 
 # Eclipse
 .apt_generated
