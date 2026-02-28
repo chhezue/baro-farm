@@ -32,7 +32,7 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:${BARO_SHOPPING_KAFKA_BOOTSTRAP_SERVERS:my-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092}}
     consumer:
-      group-id: baro-shopping # 재고 관련 토픽 구독, 리뷰 요약 반영
+      group-id: shopping-service # 재고 관련 토픽 구독, 리뷰 요약 반영
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       auto-offset-reset: latest
