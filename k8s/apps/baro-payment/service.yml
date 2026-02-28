@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: baro-payment
+  labels:
+    app: baro-payment
+spec:
+  type: ClusterIP
+  selector:
+    app: baro-payment
+  ports:
+    - port: 8080
+      targetPort: 8088
+      protocol: TCP
+      name: http
