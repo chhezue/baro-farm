@@ -2,6 +2,7 @@ package com.barofarm.payment.deposit.presentation;
 
 import com.barofarm.dto.ResponseDto;
 import com.barofarm.payment.deposit.application.dto.response.DepositChargeCreateInfo;
+import com.barofarm.payment.deposit.application.dto.response.DepositCreateInfo;
 import com.barofarm.payment.deposit.application.dto.response.DepositInfo;
 import com.barofarm.payment.deposit.presentation.dto.DepositChargeCreateRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,6 +22,32 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @Tag(name = "Deposit", description = "예치금 관련 API")
 @RequestMapping("${api.v1}/deposits")
 public interface DepositSwaggerApi {
+
+    @Operation(
+        summary = "예치금 계좌 생성",
+        description = "사용자의 예치금 계좌를 생성합니다. 이미 예치금 계좌가 존재하는 경우 에러를 반환합니다."
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "예치금 계좌 생성 성공",
+            content = @Content(mediaType = "application/json")
+        ),
+        @ApiResponse(
+            responseCode = "409",
+            description = "이미 예치금 계좌가 존재합니다. (DEPOSIT_ALREADY_EXISTS)",
+            content = @Content(mediaType = "application/json")
+        )
+    })
+    @PostMapping("/create")
+    ResponseDto<DepositCreateInfo> createDeposit(
+        @Parameter(
+            description = "사용자 ID (X-User-Id 헤더)",
+            required = true,
+            example = "550e8400-e29b-41d4-a716-446655440000"
+        )
+        @RequestHeader("X-User-Id") UUID userId
+    );
 
     @Operation(
         summary = "예치금 충전 요청 생성",
