@@ -1,0 +1,11 @@
+apiVersion: v2
+name: baro-mysql
+description: MySQL deployment for baro-farm using the Bitnami MySQL chart as a dependency.
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: mysql
+    version: 14.0.3
+    repository: https://charts.bitnami.com/bitnami
+
