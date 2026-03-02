@@ -6,6 +6,6 @@ version: 0.1.0
 
 dependencies:
   - name: elasticsearch
-    version: 21.3.3
+    version: 22.1.6
     repository: https://charts.bitnami.com/bitnami
 
