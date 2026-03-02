@@ -5,9 +5,9 @@ global:
 
 mysql:
   auth:
+    existingSecret: mysql-credentials
     database: "baro_db"
     username: "baro_user"
-    # rootPassword / password 는 GitHub Actions / Argo CD 에서 --set 으로 주입
 
   architecture: standalone
 
@@ -33,3 +33,4 @@ mysql:
   image:
     repository: bitnami/mysql
     tag: 9.4.0-debian-12-r1
+
