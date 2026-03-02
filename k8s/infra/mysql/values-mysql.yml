@@ -1,5 +1,7 @@
 global:
   imageRegistry: public.ecr.aws
+  security:
+    allowInsecureImages: true
 
 mysql:
   auth:
@@ -31,4 +33,3 @@ mysql:
   image:
     repository: bitnami/mysql
     tag: 9.4.0-debian-12-r1
-
