@@ -61,10 +61,7 @@ public class KafkaTestController {
                         Instant.now().toString()));
     }
 
-    @KafkaListener(
-            topics = TOPIC_NAME,
-            groupId = "baro-sample-group",
-            containerFactory = "kafkaTestListenerContainerFactory")
+    @KafkaListener(topics = TOPIC_NAME, groupId = "baro-sample-group")
     public void listen(KafkaTestRequest payload) {
         LOG.info("Received message from Kafka topic {}: {}", TOPIC_NAME, payload);
         lastMessage.set(payload);
