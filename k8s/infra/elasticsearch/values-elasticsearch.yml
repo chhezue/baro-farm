@@ -3,36 +3,36 @@ global:
   security:
     allowInsecureImages: true
 
-fullnameOverride: my-elasticsearch
+elasticsearch:
+  fullnameOverride: my-elasticsearch
 
-replicas: 1
+  master:
+    masterOnly: true
+    replicaCount: 1
+    persistence:
+      enabled: true
+      storageClass: gp3-ebs
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
 
-master:
-  masterOnly: true
-  replicaCount: 1
-  persistence:
-    enabled: true
-    storageClass: gp3-ebs
-    size: 1Gi
-  resources:
-    requests:
-      cpu: 100m
-      memory: 512Mi
-    limits:
-      cpu: 500m
-      memory: 1Gi
+  data:
+    replicaCount: 0
 
-data:
-  replicaCount: 0
+  ingest:
+    replicaCount: 0
 
-ingest:
-  replicaCount: 0
+  coordinating:
+    replicaCount: 0
 
-coordinating:
-  replicaCount: 0
+  security:
+    enabled: false
 
-security:
-  enabled: false
+  metrics:
+    enabled: false
 
-metrics:
-  enabled: false
