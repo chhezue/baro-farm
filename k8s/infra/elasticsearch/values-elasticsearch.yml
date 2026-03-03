@@ -7,7 +7,7 @@ elasticsearch:
   fullnameOverride: my-elasticsearch
 
   master:
-    masterOnly: true
+    masterOnly: false
     replicaCount: 1
     persistence:
       enabled: true
@@ -35,4 +35,3 @@ elasticsearch:
 
   metrics:
     enabled: false
-
