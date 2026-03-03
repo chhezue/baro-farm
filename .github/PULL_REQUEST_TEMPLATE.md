@@ -5,28 +5,25 @@
 ## 📝 작업 내용
 <!-- 이번 PR에서 작업한 내용을 간략히 설명해주세요 -->
 
-## 🎯 변경된 서비스
-<!-- 해당하는 서비스에 체크해주세요 -->
-- [ ] baro-auth
-- [ ] baro-buyer
-- [ ] baro-shopping
-- [ ] baro-seller
+## 🎯 변경된 모듈
+<!-- 해당하는 모듈에 체크해주세요 -->
+**[비즈니스 모듈]**
+- [ ] baro-ai
+- [ ] baro-notification
 - [ ] baro-order
 - [ ] baro-payment
 - [ ] baro-settlement
+- [ ] baro-shopping
 - [ ] baro-user
-- [ ] baro-notification
-- [ ] baro-ai
-- [ ] baro-gateway
-- [ ] baro-config
+
+**[인프라 모듈]**
 - [ ] baro-eureka
-- [ ] baro-cloud
-- [ ] baro-common
-- [ ] baro-opa
+- [ ] baro-config
+- [ ] baro-gateway
 - [ ] baro-opa-bundle
-- [ ] baro-sample
-- [ ] baro-support
-- [ ] 기타: ____________________
+
+**[공통 모듈]**
+- [ ] baro-common
 
 ## ✅ 체크리스트
 <!-- 완료한 항목에 체크해주세요 -->

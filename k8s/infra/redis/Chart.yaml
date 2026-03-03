@@ -1,0 +1,11 @@
+apiVersion: v2
+name: baro-redis
+description: Redis deployment for baro-farm using the Bitnami Redis chart as a dependency.
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: redis
+    version: 25.3.0
+    repository: https://charts.bitnami.com/bitnami
+

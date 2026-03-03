@@ -3,6 +3,7 @@ package com.barofarm.payment.deposit.presentation;
 import com.barofarm.dto.ResponseDto;
 import com.barofarm.payment.deposit.application.DepositService;
 import com.barofarm.payment.deposit.application.dto.response.DepositChargeCreateInfo;
+import com.barofarm.payment.deposit.application.dto.response.DepositCreateInfo;
 import com.barofarm.payment.deposit.application.dto.response.DepositInfo;
 import com.barofarm.payment.deposit.presentation.dto.DepositChargeCreateRequest;
 import jakarta.validation.Valid;
@@ -21,6 +22,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class DepositController implements DepositSwaggerApi {
 
     private final DepositService depositService;
+
+    @PostMapping("/create")
+    public ResponseDto<DepositCreateInfo> createDeposit(@RequestHeader("X-User-Id") UUID userId) {
+        return depositService.createDeposit(userId);
+    }
 
     @PostMapping("/charges")
     public ResponseDto<DepositChargeCreateInfo> createCharge(

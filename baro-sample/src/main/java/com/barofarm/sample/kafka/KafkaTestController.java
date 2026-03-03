@@ -22,10 +22,10 @@ public class KafkaTestController {
 
     private static final String TOPIC_NAME = "sample-topic";
 
-    private final KafkaTemplate<String, String> kafkaTemplate;
-    private final AtomicReference<String> lastMessage = new AtomicReference<>(null);
+    private final KafkaTemplate<String, KafkaTestRequest> kafkaTemplate;
+    private final AtomicReference<KafkaTestRequest> lastMessage = new AtomicReference<>(null);
 
-    public KafkaTestController(KafkaTemplate<String, String> kafkaTemplate) {
+    public KafkaTestController(KafkaTemplate<String, KafkaTestRequest> kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
     }
 
@@ -36,27 +36,34 @@ public class KafkaTestController {
 
     @PostMapping("/test")
     public ResponseEntity<KafkaTestResponse> sendMessage(@RequestBody KafkaTestRequest request) {
-        String message =
+        KafkaTestRequest payload =
                 (request != null && request.message() != null && !request.message().isBlank())
-                        ? request.message()
-                        : "test-message-" + Instant.now();
+                        ? request
+                        : new KafkaTestRequest("test-message-" + Instant.now());
 
-        kafkaTemplate.send(new ProducerRecord<>(TOPIC_NAME, message));
+        kafkaTemplate.send(new ProducerRecord<>(TOPIC_NAME, payload));
 
         return ResponseEntity.ok(
-                new KafkaTestResponse("SENT", message, lastMessage.get(), Instant.now().toString()));
+                new KafkaTestResponse(
+                        "SENT",
+                        payload.message(),
+                        lastMessage.get() != null ? lastMessage.get().message() : null,
+                        Instant.now().toString()));
     }
 
     @GetMapping("/test")
     public ResponseEntity<KafkaTestResponse> getLastMessage() {
         return ResponseEntity.ok(
                 new KafkaTestResponse(
-                        "OK", null, lastMessage.get(), Instant.now().toString()));
+                        "OK",
+                        null,
+                        lastMessage.get() != null ? lastMessage.get().message() : null,
+                        Instant.now().toString()));
     }
 
     @KafkaListener(topics = TOPIC_NAME, groupId = "baro-sample-group")
-    public void listen(String message) {
-        LOG.info("Received message from Kafka topic {}: {}", TOPIC_NAME, message);
-        lastMessage.set(message);
+    public void listen(KafkaTestRequest payload) {
+        LOG.info("Received message from Kafka topic {}: {}", TOPIC_NAME, payload);
+        lastMessage.set(payload);
     }
 }

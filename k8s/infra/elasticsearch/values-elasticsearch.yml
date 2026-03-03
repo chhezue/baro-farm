@@ -1,0 +1,37 @@
+global:
+  imageRegistry: public.ecr.aws
+  security:
+    allowInsecureImages: true
+
+elasticsearch:
+  fullnameOverride: my-elasticsearch
+
+  master:
+    masterOnly: false
+    replicaCount: 1
+    persistence:
+      enabled: true
+      storageClass: gp3-ebs
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+  data:
+    replicaCount: 0
+
+  ingest:
+    replicaCount: 0
+
+  coordinating:
+    replicaCount: 0
+
+  security:
+    enabled: false
+
+  metrics:
+    enabled: false

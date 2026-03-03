@@ -1,14 +1,21 @@
-architecture: standalone
+global:
+  imageRegistry: public.ecr.aws
+  security:
+    allowInsecureImages: true
 
-auth:
-  enabled: true
-  # password: "baro_redis_password" # 실제 비밀번호는 GitHub Actions에서 --set으로 주입
+redis:
+  architecture: standalone
 
-master:
-  persistence:
-    enabled: false
+  auth:
+    enabled: true
+    existingSecret: redis-credentials
+    # password 값은 Kubernetes Secret(redis-credentials)에서 주입
 
-image:
-  registry: public.ecr.aws
-  repository: bitnami/redis
-  tag: 8.6.0
+  master:
+    persistence:
+      enabled: false
+
+  image:
+    repository: bitnami/redis
+    tag: 8.6.0
+

@@ -21,28 +21,25 @@ assignees: ''
 ## ❌ 실제 동작
 <!-- 실제로 발생하는 문제를 설명해주세요 -->
 
-## 🎯 관련 서비스
-<!-- 해당하는 서비스에 체크해주세요 -->
-- [ ] baro-auth
-- [ ] baro-buyer
-- [ ] baro-shopping
-- [ ] baro-seller
+## 🎯 관련 모듈
+<!-- 해당하는 모듈에 체크해주세요 -->
+**[비즈니스 모듈]**
+- [ ] baro-ai
+- [ ] baro-notification
 - [ ] baro-order
 - [ ] baro-payment
 - [ ] baro-settlement
+- [ ] baro-shopping
 - [ ] baro-user
-- [ ] baro-notification
-- [ ] baro-ai
-- [ ] baro-gateway
-- [ ] baro-config
+
+**[인프라 모듈]**
 - [ ] baro-eureka
-- [ ] baro-cloud
-- [ ] baro-common
-- [ ] baro-opa
+- [ ] baro-config
+- [ ] baro-gateway
 - [ ] baro-opa-bundle
-- [ ] baro-sample
-- [ ] baro-support
-- [ ] 기타: ____________________
+
+**[공통 모듈]**
+- [ ] baro-common
 
 ## 📎 스크린샷 / 로그
 <!-- 관련 스크린샷이나 에러 로그가 있다면 첨부해주세요 -->
