@@ -5,5 +5,5 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE: "prod"
   SERVER_PORT: "8083"
-  SPRING_DATASOURCE_URL: "jdbc:mysql://my-mysql.db.svc.cluster.local:3306/baro_order?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true"
+  SPRING_DATASOURCE_URL: "jdbc:mysql://mysql.db.svc.cluster.local:3306/baro_order?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true"
   SHOPPING_SERVICE_URL: "http://baro-shopping:8080"

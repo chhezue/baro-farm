@@ -5,6 +5,6 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE: "prod"
   SERVER_PORT: "8087"
-  SPRING_DATASOURCE_URL: "jdbc:mysql://my-mysql.db.svc.cluster.local:3306/baro_user?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true"
+  SPRING_DATASOURCE_URL: "jdbc:mysql://mysql.db.svc.cluster.local:3306/baro_user?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true"
   # Gateway 경유 시 외부 노출 URL (OAuth redirect 등). ALB/ELB DNS 또는 api.baro.com 등
   BARO_PUBLIC_BASE_URL: "http://k8s-default-barogate-c698a3c89e-1822731405.ap-northeast-2.elb.amazonaws.com"
