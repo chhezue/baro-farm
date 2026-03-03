@@ -5,4 +5,4 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE: "prod"
   SERVER_PORT: "8090"
-  SPRING_DATASOURCE_URL: "jdbc:mysql://my-mysql.db.svc.cluster.local:3306/baro_db"
+  SPRING_DATASOURCE_URL: "jdbc:mysql://mysql.db.svc.cluster.local:3306/baro_db"
