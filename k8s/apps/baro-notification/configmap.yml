@@ -4,5 +4,5 @@ metadata:
   name: baro-notification-config
 data:
   SPRING_PROFILES_ACTIVE: "prod"
-  SERVER_PORT: "8090"
+  SERVER_PORT: "8091"
   SPRING_DATASOURCE_URL: "jdbc:mysql://mysql.db.svc.cluster.local:3306/baro_notification?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true"

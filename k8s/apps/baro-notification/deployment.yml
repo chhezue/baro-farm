@@ -22,7 +22,7 @@ spec:
           image: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/baro-notification:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 8090
+            - containerPort: 8091
               name: http
           envFrom:
             - configMapRef:
