@@ -6,14 +6,6 @@ global:
 elasticsearch:
   fullnameOverride: my-elasticsearch
 
-  # Install analysis-nori plugin for Korean text analyzer
-  plugins:
-    - analysis-nori
-
-  # Ensure data and plugins directories are created with proper permissions
-  volumePermissions:
-    enabled: true
-
   master:
     masterOnly: false
     replicaCount: 1

@@ -1,10 +1,11 @@
-name: Elasticsearch Deploy (Helm)
+name: Elasticsearch Build & Deploy (ECR + Helm)
 
 on:
   push:
     branches:
       - main
     paths:
+      - 'docker/elasticsearch/**'
       - 'k8s/infra/elasticsearch/**'
       - '.github/workflows/elasticsearch-deploy.yml'
   workflow_dispatch:
@@ -12,10 +13,50 @@ on:
 env:
   AWS_REGION: ap-northeast-2
   K8S_NAMESPACE: search
+  ECR_REGISTRY: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com
+  ECR_REPOSITORY: baro-prod/elasticsearch-nori
 
 jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    outputs:
+      image-tag: ${{ steps.image-tag.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: image-tag
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Elasticsearch nori image
+        env:
+          IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ steps.image-tag.outputs.tag }}
+        run: |
+          docker build -f docker/elasticsearch/Dockerfile -t $IMAGE_URI -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest .
+          docker push $IMAGE_URI
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+
   deploy-elasticsearch:
     runs-on: ubuntu-latest
+    needs: build-and-push
     permissions:
       id-token: write
       contents: read
@@ -44,16 +85,40 @@ jobs:
           kubectl --insecure-skip-tls-verify create namespace ${{ env.K8S_NAMESPACE }} --dry-run=client -o yaml | \
             kubectl --insecure-skip-tls-verify apply -f -
 
+      - name: Create ECR image pull secret
+        run: |
+          kubectl --insecure-skip-tls-verify create secret docker-registry ecr-registry \
+            --docker-server=${{ env.ECR_REGISTRY }} \
+            --docker-username=AWS \
+            --docker-password="$(aws ecr get-login-password --region ${{ env.AWS_REGION }})" \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
+
       - name: Cleanup old Helm-based Elasticsearch (if any)
         run: |
           helm uninstall my-elasticsearch -n ${{ env.K8S_NAMESPACE }} || true
           kubectl --insecure-skip-tls-verify delete statefulset my-elasticsearch -n ${{ env.K8S_NAMESPACE }} --ignore-not-found
           kubectl --insecure-skip-tls-verify delete svc my-elasticsearch -n ${{ env.K8S_NAMESPACE }} --ignore-not-found
 
-      - name: Deploy / Upgrade Elasticsearch (StatefulSet)
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Add Bitnami repo
         run: |
-          kubectl --insecure-skip-tls-verify apply \
-            -f k8s/infra/elasticsearch/elasticsearch.yml \
-            -n ${{ env.K8S_NAMESPACE }}
-          kubectl --insecure-skip-tls-verify rollout status statefulset/my-elasticsearch \
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo update
+
+      - name: Deploy / Upgrade Elasticsearch (Bitnami chart with custom image)
+        env:
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image-tag }}
+        run: |
+          helm upgrade --install my-elasticsearch bitnami/elasticsearch \
+            -n ${{ env.K8S_NAMESPACE }} \
+            -f k8s/infra/elasticsearch/values-elasticsearch.yml \
+            --set elasticsearch.image.repository=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }} \
+            --set elasticsearch.image.tag=$IMAGE_TAG \
+            --set elasticsearch.image.pullSecrets[0].name=ecr-registry \
+            --set global.security.allowInsecureImages=true
+
+          kubectl --insecure-skip-tls-verify rollout status statefulset/my-elasticsearch-master \
             -n ${{ env.K8S_NAMESPACE }} --timeout=300s
