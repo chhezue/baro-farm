@@ -1,3 +1,6 @@
+global:
+  imageRegistry: public.ecr.aws
+
 fullnameOverride: my-elasticsearch
 
 master:

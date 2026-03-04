@@ -120,7 +120,8 @@ jobs:
           helm upgrade --install my-elasticsearch bitnami/elasticsearch \
             -n ${{ env.K8S_NAMESPACE }} \
             -f k8s/infra/elasticsearch/values-elasticsearch.yml \
-            --set image.repository=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }} \
+            --set image.registry=${{ env.ECR_REGISTRY }} \
+            --set image.repository=${{ env.ECR_REPOSITORY }} \
             --set image.tag=$IMAGE_TAG \
             --set image.pullSecrets[0].name=ecr-registry \
             --set global.security.allowInsecureImages=true
