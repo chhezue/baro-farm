@@ -6,6 +6,10 @@ global:
 elasticsearch:
   fullnameOverride: my-elasticsearch
 
+  # Install analysis-nori plugin for Korean text analyzer
+  plugins:
+    - analysis-nori
+
   master:
     masterOnly: false
     replicaCount: 1
