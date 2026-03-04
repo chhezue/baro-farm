@@ -1,0 +1,88 @@
+server:
+  port: ${SERVER_PORT:8092}
+
+api:
+  v1: /api/v1
+
+spring:
+  application:
+    name: ai-service
+  config:
+    import:
+      - classpath:review-sentiment.yml
+      - classpath:review-negative-keywords.yml
+      - classpath:recipe-recommend.yml
+  main:
+    allow-bean-definition-overriding: true
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.ai.autoconfigure.vectorstore.elasticsearch.ElasticsearchVectorStoreAutoConfiguration
+
+  # Elasticsearch 설정
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://elasticsearch:9200}
+
+  # Kafka 설정
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    consumer:
+      group-id: ai-service
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: latest  # earliest에서 latest로 변경하여 오래된 메시지 건너뛰기
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+  # Spring AI 설정
+  ai:
+    openai:
+      api-key: ${BARO_AI_OPENAI_KEY:}
+      chat:
+        options:
+          model: ${SPRING_AI_OPENAI_MODEL:gpt-4o-mini}
+          temperature: 0.7
+      embedding:
+        options:
+          model: ${SPRING_AI_OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+
+eureka:
+  client:
+    enabled: false
+
+# 로깅 설정
+logging:
+  level:
+    root: INFO
+    com.barofarm.ai: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.web.servlet.DispatcherServlet: DEBUG
+    org.springframework.kafka: INFO  # Kafka 로깅 적절히
+    org.elasticsearch: DEBUG  # Elasticsearch 디버깅
+    org.springframework.ai: DEBUG  # Spring AI 디버깅
+
+# Swagger/OpenAPI 설정
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"  # 모든 Actuator 엔드포인트 노출
+  endpoint:
+    health:
+      show-details: always
+      enabled: true
+  health:
+    elasticsearch:
+      enabled: false  # Elasticsearch Java client 8.13.3과 호환성 문제로 비활성화

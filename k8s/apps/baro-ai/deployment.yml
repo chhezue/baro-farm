@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: baro-ai
+  labels:
+    app: baro-ai
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  selector:
+    matchLabels:
+      app: baro-ai
+  template:
+    metadata:
+      labels:
+        app: baro-ai
+    spec:
+      imagePullSecrets:
+        - name: ecr-registry
+      containers:
+        - name: baro-ai
+          image: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/baro-ai:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8092
+              name: http
+          envFrom:
+            - configMapRef:
+                name: baro-ai-config
+            - configMapRef:
+                name: infra-endpoints-config
+          env:
+            - name: SPRING_CLOUD_CONFIG_ENABLED
+              value: "false"
+            - name: SPRING_CLOUD_CONFIG_IMPORT_CHECK_ENABLED
+              value: "false"
+            - name: BARO_AI_OPENAI_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: baro-ai-secrets
+                  key: BARO_AI_OPENAI_KEY
