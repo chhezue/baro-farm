@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: baro-settlement-config
+data:
+  SPRING_PROFILES_ACTIVE: "prod,batch"
+  SPRING_DATASOURCE_URL: "jdbc:mysql://mysql.db.svc.cluster.local:3306/baro_settlement?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true"
+  ORDER_SERVICE_URL: "http://baro-order:8080"

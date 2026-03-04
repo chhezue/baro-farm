@@ -122,13 +122,6 @@ spring:
           filters:
             - RewritePath=/notification-service/(?<seg>.*), /${seg}
 
-        - id: settlement-service-route
-          uri: http://baro-settlement:8080
-          predicates:
-            - Path=/settlement-service/**
-          filters:
-            - RewritePath=/settlement-service/(?<seg>.*), /${seg}
-
         - id: ai-service-route
           uri: http://baro-ai:8080
           predicates:
@@ -199,8 +192,6 @@ springdoc:
         url: /openapi/support/v3/api-docs
       - name: Notification Service
         url: /openapi/notification/v3/api-docs
-      - name: Settlement Service
-        url: /openapi/settlement/v3/api-docs
       - name: AI Service
         url: /openapi/ai/v3/api-docs
   api-docs:
