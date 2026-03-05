@@ -186,30 +186,33 @@
 - **배송 품질**: 신선도 유지를 위한 콜드체인 물류 파트너십
 - **계절성**: 계절별 상품 다변화 및 체험 서비스로 보완
 
-## 6. 팀 역할 분담 (5인)
+## 6. 팀 역할 분담 (4인)
 
 ### 역할별 담당 영역
 
-| 역할 | 주요 책임 | 담당 서비스 (총 개수) | 핵심 경험 |
-|-----|---------|-----------|---------|
-| **🧭 PO** | 프로젝트 관리 + 개발 + 인프라 | experience, analytics + **K8s, GitHub Actions, Vercel** **(2개 + 인프라)** | Kafka, 통계, **DevOps**, **프론트** |
-| **🧱 아키텍트** | MSA 설계 + 개발 | member, auth, notification, api-gateway **(4개)** | 인증/인가, Gateway, 알림, Kafka |
-| **🧑‍💻 백엔드 개발자 1** | 핵심 API 개발 | farm, order, payment **(3개)** | Saga 패턴, Kafka, PG 연동 |
-| **🧑‍💻 백엔드 개발자 2** | 비즈니스 로직 개발 | product, review, settlement, delivery **(4개)** | Spring Batch, 정산, 배송, Kafka |
-| **🧠 AI 개발자** | AI + 검색 + 인프라 | cart, search + **AWS 관리** **(2개 + 인프라)** | Elasticsearch, Spring AI, AWS, Kafka |
+| 역할 | 담당자 | 주요 책임 | 담당 서비스 |
+|------|--------|----------|-------------|
+| **🧱 아키텍트** | - | MSA 설계 + 개발 | baro-user, baro-gateway, baro-notification, front-end |
+| **🧑‍💻 백엔드1** | - | 핵심 API 개발 | baro-order, baro-payment, baro-shopping, CI/CD, K8s |
+| **🧑‍💻 백엔드2** | - | 핵심 API 개발 | baro-shopping, baro-settlement, baro-ai |
+| **🧠 AI** | - | AI + 검색 | baro-shopping, baro-ai, CI/CD, K8s, front-end |
 
-### 주요 특징
-- **PO**: DevOps + Front-end 담당 + 예약 (K8s, CI/CD, Vercel)
-- **아키텍트**: 인증 및 게이트웨이 담당 + 알림
-- **백엔드1**: 농장, 주문, 결제 (핵심 거래)
-- **백엔드2**: 상품, 리뷰, 정산, 배송 (가장 많은 서비스)
-- **AI**: 장바구니, 검색 + AWS 인프라
+### 현재 모듈 구조 요약
+
+- **baro-user**: 회원·인증·판매자 (auth, seller)
+- **baro-shopping**: 상품·재고·장바구니 (product, inventory, cart)
+- **baro-order**: 주문·리뷰
+- **baro-payment**: 결제·예치금
+- **baro-notification**: 알림
+- **baro-settlement**: 정산
+- **baro-ai**: 검색·추천 등 AI
+- **baro-gateway**: API Gateway (라우팅/인증)
 
 **협업 방식**: 
-- 각자 담당 서비스의 Back-end 개발 (API + DB + 테스트 + 문서화)
+- 각자 담당 모듈의 Back-end 개발 (API + DB + 테스트 + 문서화)
 - 아키텍트의 코드 리뷰 필수
 - 주간 기술 공유 및 회고
 
 ---
 
-*최종 업데이트: 2025년 12월 02일*
+*최종 업데이트: 2026년 3월 (현재 도메인 모듈 구조 반영)*
