@@ -72,6 +72,12 @@ jobs:
             -n ${{ env.K8S_NAMESPACE }} \
             --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
 
+      - name: Cleanup old Elasticsearch resources (for immutable selector changes)
+        run: |
+          kubectl --insecure-skip-tls-verify delete deployment my-elasticsearch -n ${{ env.K8S_NAMESPACE }} --ignore-not-found
+          kubectl --insecure-skip-tls-verify delete statefulset my-elasticsearch-master -n ${{ env.K8S_NAMESPACE }} --ignore-not-found
+          kubectl --insecure-skip-tls-verify delete svc my-elasticsearch-master-hl -n ${{ env.K8S_NAMESPACE }} --ignore-not-found
+
       - name: Deploy / Upgrade Elasticsearch (single pod)
         run: |
           kubectl --insecure-skip-tls-verify apply \
