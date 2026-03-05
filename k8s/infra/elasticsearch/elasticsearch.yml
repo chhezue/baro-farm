@@ -4,15 +4,21 @@ metadata:
   name: my-elasticsearch
   labels:
     app: my-elasticsearch
+    app.kubernetes.io/component: master
+    app.kubernetes.io/instance: my-elasticsearch
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: my-elasticsearch
+      app.kubernetes.io/component: master
+      app.kubernetes.io/instance: my-elasticsearch
   template:
     metadata:
       labels:
         app: my-elasticsearch
+        app.kubernetes.io/component: master
+        app.kubernetes.io/instance: my-elasticsearch
     spec:
       imagePullSecrets:
         - name: ecr-registry
@@ -62,4 +68,3 @@ spec:
       targetPort: transport
   selector:
     app: my-elasticsearch
-
