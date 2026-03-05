@@ -4,72 +4,23 @@ Spring Boot 3.5.8 + JDK 21 기반 멀티 모듈 프로젝트
 
 ## 📦 프로젝트 구조 (MSA 구조)
 
-> 자세한 구조는 [BARO_FARM_STRUCTURE.md](docs/BARO_FARM_STRUCTURE.md) 참고
+> 자세한 구조는 [BARO_FARM_STRUCTURE.md](docs/BARO_FARM_STRUCTURE.md) 참고  
 
 ```
 baro-farm/
-├── baro-auth/                    # A. 인증 모듈
-│   ├── src/main/java/com/barofarm/auth/
-│   │   ├── AuthApplication.java
-│   │   └── auth/                 # 인증/인가 도메인, 구매자 및 회원관리 통합
-│   └── build.gradle
-│
-├── baro-buyer/                   # B. 구매자 모듈
-│   ├── src/main/java/com/barofarm/buyer/
-│   │   ├── BuyerApplication.java
-│   │   ├── cart/                 # 장바구니 관리
-│   │   ├── product/              # 상품 관리
-│   │   └── inventory/            # 재고 관리
-│   └── build.gradle
-│
-├── baro-seller/                  # C. 판매자 모듈
-│   ├── src/main/java/com/barofarm/seller/
-│   │   ├── SellerApplication.java
-│   │   ├── seller/               # 판매자 회원 관리
-│   │   └── farm/                 # 농장 관리
-│   └── build.gradle
-│
-├── baro-order/                   # D. 주문 모듈
-│   ├── src/main/java/com/barofarm/order/
-│   │   ├── OrderApplication.java
-│   │   └── order/                # 주문 관리
-│   └── build.gradle
-│
-├── baro-payment/                 # E. 주문 모듈
-│   ├── src/main/java/com/barofarm/payment/
-│   │   ├── PaymentApplication.java
-│   │   └── payment/              # 결제 관리
-│   └── build.gradle
-│
-├── baro-support/                 # F. 지원 모듈
-│   ├── src/main/java/com/barofarm/support/
-│   │   ├── SupportApplication.java
-│   │   ├── delivery/             # 배송 관리
-│   │   ├── notification/         # 알림 관리
-│   │   ├── experience/           # 체험 프로그램 관리
-│   │   ├── search/               # 검색 관리
-│   │   ├── review/               # 리뷰 관리
-│   │   └── deposit/              # 예치금 관리
-│   └── build.gradle
-│
-├── baro-settlement/              # G. 정산 모듈
-│   ├── src/main/java/com/barofarm/settlement/
-│   │   ├── SettlementApplication.java
-│   │   └── settlement/           # 정산 관리 (DaemonSet 배포)
-│   └── build.gradle
-│
-├── baro-ai/                      # H. AI 모듈
-│   ├── src/main/java/com/barofarm/ai/
-│   │   ├── AiApplication.java
-│   │   ├── eventLog/
-│   │   ├── recommend/            # 추천 서비스
-│   │   ├── review/               # 리뷰 서비스
-│   └── build.gradle
-│
-└── baro-cloud/                   # H. 인프라 모듈
-    ├── gateway/                  # API Gateway
-    ├── config/                   # Config Server
-    └── eureka/                   # Service Registry
+├── baro-gateway/                 # API Gateway (라우팅/인증)
+├── baro-user/                    # 사용자/인증 모듈 (auth, seller)
+├── baro-shopping/                # 쇼핑 모듈 (cart, product, inventory)
+├── baro-order/                   # 주문 모듈 (order)
+├── baro-payment/                 # 결제 모듈 (payment, deposit)
+├── baro-notification/            # 알림 모듈
+├── baro-settlement/              # 정산 모듈
+├── baro-ai/                      # AI 모듈 (search, recommend 등)
+├── baro-sample/                  # 샘플/배포 테스트용
+├── baro-eureka/                  # 서비스 디스커버리 (로컬/레거시)
+├── baro-config/                  # Config Server (로컬/레거시)
+├── baro-opa-bundle/              # OPA 정책 번들
+└── baro-common/                  # 공통 라이브러리 (배포 대상 아님)
 ```
 
 ## 🚀 기술 스택
@@ -103,7 +54,7 @@ baro-farm/
 ```bash
 # 프로젝트 클론
 git clone <repository-url>
-cd beadv2_2_dogs_BE
+cd baro-farm-be
 
 # Git hooks 설치 (커밋 전 자동 검사)
 ./scripts/install-hooks.sh
@@ -195,24 +146,24 @@ docker run -d --name baro-kafka \
 #### Gradle로 실행
 
 ```bash
-# 1. Eureka Server (서비스 디스커버리)
-./gradlew :baro-cloud:eureka:bootRun
+# 1. Eureka Server (서비스 디스커버리, 로컬/레거시)
+./gradlew :baro-eureka:bootRun
 
-# 2. Config Server (설정 서버)
-./gradlew :baro-cloud:config:bootRun
+# 2. Config Server (설정 서버, 로컬/레거시)
+./gradlew :baro-config:bootRun
 
 # 3. Gateway Service (API Gateway)
-./gradlew :baro-cloud:gateway:bootRun
+./gradlew :baro-gateway:bootRun
 
 # 4. 비즈니스 모듈 실행
-./gradlew :baro-auth:bootRun      # 인증 모듈
-./gradlew :baro-buyer:bootRun     # 구매자 모듈 (cart, product, inventory)
-./gradlew :baro-seller:bootRun    # 판매자 모듈 (seller, farm)
-./gradlew :baro-order:bootRun     # 주문 모듈 (order)
-./gradlew :baro-payment:bootRun   # 결제 모듈 (payment)
-./gradlew :baro-support:bootRun   # 지원 모듈 (delivery, notification, experience, review, deposit)
-./gradlew :baro-settlement:bootRun # 정산 모듈 (settlement)
-./gradlew :baro-ai:bootRun        # AI 모듈 (search, recommend)
+./gradlew :baro-user:bootRun        # 사용자/인증 모듈 (auth, seller)
+./gradlew :baro-shopping:bootRun    # 쇼핑 모듈 (cart, product, inventory)
+./gradlew :baro-order:bootRun       # 주문 모듈 (order)
+./gradlew :baro-payment:bootRun     # 결제 모듈 (payment)
+./gradlew :baro-notification:bootRun # 알림 모듈
+./gradlew :baro-settlement:bootRun  # 정산 모듈 (settlement)
+./gradlew :baro-ai:bootRun          # AI 모듈 (search, recommend)
+./gradlew :baro-sample:bootRun      # 샘플/배포 테스트용
 ```
 
 #### JAR로 실행
@@ -222,17 +173,17 @@ docker run -d --name baro-kafka \
 ./gradlew build
 
 # 실행
-java -jar baro-cloud/eureka/build/libs/eureka-0.0.1-SNAPSHOT.jar
-java -jar baro-cloud/config/build/libs/config-0.0.1-SNAPSHOT.jar
-java -jar baro-cloud/gateway/build/libs/gateway-0.0.1-SNAPSHOT.jar
-java -jar baro-auth/build/libs/baro-auth-0.0.1-SNAPSHOT.jar
-java -jar baro-buyer/build/libs/baro-buyer-0.0.1-SNAPSHOT.jar
-java -jar baro-seller/build/libs/baro-seller-0.0.1-SNAPSHOT.jar
-java -jar baro-order/build/libs/baro-order-0.0.1-SNAPSHOT.jar
-java -jar baro-payment/build/libs/baro-payment-0.0.1-SNAPSHOT.jar
-java -jar baro-support/build/libs/baro-support-0.0.1-SNAPSHOT.jar
-java -jar baro-settlement/build/libs/baro-settlement-0.0.1-SNAPSHOT.jar
-java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
+java -jar baro-eureka/build/libs/baro-eureka-*.jar
+java -jar baro-config/build/libs/baro-config-*.jar
+java -jar baro-gateway/build/libs/baro-gateway-*.jar
+java -jar baro-user/build/libs/baro-user-*.jar
+java -jar baro-shopping/build/libs/baro-shopping-*.jar
+java -jar baro-order/build/libs/baro-order-*.jar
+java -jar baro-payment/build/libs/baro-payment-*.jar
+java -jar baro-notification/build/libs/baro-notification-*.jar
+java -jar baro-settlement/build/libs/baro-settlement-*.jar
+java -jar baro-ai/build/libs/baro-ai-*.jar
+java -jar baro-sample/build/libs/baro-sample-*.jar
 ```
 
 ## 🌐 서비스 포트 정보
@@ -243,17 +194,17 @@ java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
 | | kafka | 29092 | Message Broker (KRaft 모드) |
 | | mysql | 3306 | Database |
 | | elasticsearch | 9200 | Search Engine |
-| **Spring Cloud** | eureka | 8761 | Service Registry |
-| | config | 8888 | Config Server |
-| | gateway | 8080 | API Gateway |
-| **비즈니스** | baro-auth | 8081 | auth |
-| | baro-buyer | 8082 | buyer, cart, product |
-| | baro-seller | 8085 | seller, farm |
-| | baro-order | 8087 | order |
-| | baro-payment | 8088 | payment |
-| | baro-support | 8089 | delivery, notification, experience, review, deposit |
-| | baro-settlement | 8090 | settlement (DaemonSet 배포) |
-| | baro-ai | 8092 | search, recommend, review |
+| **인프라(로컬)** | baro-eureka | 8761 | Service Registry |
+| | baro-config | 8888 | Config Server |
+| **비즈니스** | baro-gateway | 8080 | API Gateway |
+| | baro-shopping | 8082 | cart, product, inventory |
+| | baro-order | 8083 | order |
+| | baro-user | 8087 | auth, seller |
+| | baro-payment | 8088 | payment, deposit |
+| | baro-sample | 8090 | 샘플/배포 테스트 |
+| | baro-notification | 8091 | 알림 |
+| | baro-ai | 8092 | search, recommend |
+| | baro-settlement | 8093 | 정산 |
 
 ## 💾 리소스 제한 사항
 
@@ -276,24 +227,13 @@ java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
 
 | 서비스 | 메모리 제한 (JVM) | 의존성 | 비고 |
 |--------|------------------|--------|------|
-| **baro-auth** | `-Xms64m -Xmx128m` | MySQL | 인증/인가 서비스, 구매자 |
-| **baro-buyer** | `-Xms64m -Xmx128m` | MySQL, Kafka | 장바구니, 상품 관리 |
-| **baro-seller** | `-Xms64m -Xmx128m` | MySQL, Kafka | 판매자, 농장 관리 |
+| **baro-user** | `-Xms64m -Xmx128m` | MySQL, Redis | 인증/인가, 판매자 |
+| **baro-shopping** | `-Xms64m -Xmx128m` | MySQL, Kafka | 장바구니, 상품, 재고 |
 | **baro-order** | `-Xms64m -Xmx128m` | MySQL, Kafka | 주문 |
-| **baro-payment** | `-Xms64m -Xmx128m` | MySQL, Kafka | 결제, 예치금 관리 |
-| **baro-support** | `-Xms64m -Xmx128m` | MySQL, Kafka | 배송, 알림, 체험, 리뷰 관리 |
-| **baro-settlement** | `-Xms64m -Xmx128m` | MySQL | 정산 관리 (DaemonSet 배포) |
-| **baro-ai** | `-Xms64m -Xmx128m` | Kafka, Elasticsearch | 검색, 추천, 챗봇 |
-
-**설정 파일:**
-- `docker-compose.auth.yml`
-- `docker-compose.buyer.yml`
-- `docker-compose.seller.yml`
-- `docker-compose.order.yml`
-- `docker-compose.payment.yml`
-- `docker-compose.support.yml`
-- `docker-compose.settlement.yml`
-- `docker-compose.ai.yml`
+| **baro-payment** | `-Xms64m -Xmx128m` | MySQL, Kafka | 결제, 예치금 |
+| **baro-notification** | `-Xms64m -Xmx128m` | Kafka | 알림 |
+| **baro-settlement** | `-Xms64m -Xmx128m` | MySQL, Kafka | 정산 |
+| **baro-ai** | `-Xms64m -Xmx128m` | Kafka, Elasticsearch | 검색, 추천 |
 
 ### 데이터 인프라 모듈
 
@@ -379,12 +319,11 @@ healthcheck:
 | | config | 300MB |
 | | gateway | 300MB |
 | | **소계** | **900MB** |
-| **비즈니스 서비스** | baro-auth | 350MB |
-| | baro-buyer | 400MB |
-| | baro-seller | 350MB |
+| **비즈니스 서비스** | baro-user | 350MB |
+| | baro-shopping | 400MB |
 | | baro-order | 400MB |
 | | baro-payment | 350MB |
-| | baro-support | 400MB |
+| | baro-notification | 350MB |
 | | baro-settlement | 350MB |
 | | baro-ai | 350MB |
 | | **소계** | **1.95GB** |
@@ -407,7 +346,7 @@ healthcheck:
 docker stats
 
 # 특정 컨테이너 메모리 사용량 확인
-docker stats baro-auth baro-buyer baro-seller
+docker stats baro-user baro-shopping baro-order
 
 # 전체 메모리 사용량 확인
 free -h
@@ -448,21 +387,24 @@ free -h
 
 | 서비스 | 경로 |
 |--------|------|
-| Auth | `/api/auth/**` |
-| Buyer | `/api/buyers/**` |
-| Cart | `/api/carts/**` |
-| Product | `/api/products/**` |
-| Seller | `/api/sellers/**` |
-| Farm | `/api/farms/**` |
-| Order | `/api/orders/**` |
-| Payment | `/api/payments/**` |
-| Settlement | `/api/settlements/**` |
-| Delivery | `/api/deliveries/**` |
-| Notification | `/api/notifications/**` |
-| Experience | `/api/experiences/**` |
-| Search | `/api/search/**` |
-| Review | `/api/reviews/**` |
-| AI | `/api/ai/**` |
+| User (인증/판매자) | `/user-service/**` |
+| Shopping (상품/장바구니/재고) | `/shopping-service/**` |
+| Order | `/order-service/**` |
+| Payment | `/payment-service/**` |
+| Notification | `/notification-service/**` |
+| AI | `/ai-service/**` |
+| Sample (테스트) | `/sample-service/**` |
+
+## 📚 문서
+
+| 문서 | 설명 |
+|------|------|
+| [BARO_FARM_STRUCTURE.md](docs/BARO_FARM_STRUCTURE.md) | 프로젝트 구조 상세 |
+| [BARO_DEPLOYMENT_GUIDE.md](docs/BARO_DEPLOYMENT_GUIDE.md) | **현재 배포 구조** (팀/접근자용) |
+| [BARO_DEPLOYMENT_HISTORY.md](docs/BARO_DEPLOYMENT_HISTORY.md) | 배포 아키텍처 변경 이력 (V1→V2→V3) |
+| [CICD_GUIDE.md](docs/CICD_GUIDE.md) | CI/CD 설정 및 트러블슈팅 |
+| [BRANCH_AND_MODULE_STRATEGY.md](docs/BRANCH_AND_MODULE_STRATEGY.md) | 브랜치·모듈 전략 |
+| [BARO_FARM_OVERVIEW.md](docs/BARO_FARM_OVERVIEW.md) | 프로젝트 개요 |
 
 ## 🔒 인증
 
@@ -572,7 +514,7 @@ git merge dev-buyer
   - GitHub Actions Runner 설치
   - Kafka (Docker Compose)
   - 비즈니스 서비스 모듈 (k3s Pod)
-    - baro-auth, baro-buyer, baro-seller, baro-order, baro-payment, baro-support, baro-settlement (DaemonSet), baro-ai
+    - baro-user, baro-shopping, baro-order, baro-payment, baro-notification, baro-settlement, baro-ai
 
 #### 배포 방식
 
@@ -614,15 +556,14 @@ k8s/
 │   └── gateway/
 │
 ├── apps/                    # 비즈니스 애플리케이션 모듈
-│   ├── baro-auth/
+│   ├── baro-user/
 │   │   ├── deployment.yaml
 │   │   ├── service.yaml
 │   │   └── kustomization.yaml
-│   ├── baro-buyer/
-│   ├── baro-seller/
+│   ├── baro-shopping/
 │   ├── baro-order/
 │   ├── baro-payment/
-│   ├── baro-support/
+│   ├── baro-notification/
 │   ├── baro-settlement/
 │   └── baro-ai/
 │
@@ -648,11 +589,11 @@ labels:
   - includeSelectors: false  # selector는 immutable이므로 false
     includeTemplates: true
     pairs:
-      app: baro-auth
+      app: baro-user
       component: app
 
 images:
-  - name: ghcr.io/do-develop-space/baro-auth
+  - name: ghcr.io/do-develop-space/baro-user
     newTag: latest  # 이미지 태그 변경
 ```
 
@@ -672,13 +613,12 @@ kubectl wait --for=condition=ready pod -l app=config -n baro-prod --timeout=300s
 kubectl apply -k k8s/cloud/gateway/
 
 # 3. 비즈니스 서비스 모듈 배포
-kubectl apply -k k8s/apps/baro-auth/
-kubectl apply -k k8s/apps/baro-buyer/
-kubectl apply -k k8s/apps/baro-seller/
+kubectl apply -k k8s/apps/baro-user/
+kubectl apply -k k8s/apps/baro-shopping/
 kubectl apply -k k8s/apps/baro-order/
 kubectl apply -k k8s/apps/baro-payment/
-kubectl apply -k k8s/apps/baro-support/
-kubectl apply -k k8s/apps/baro-settlement/  # DaemonSet 배포
+kubectl apply -k k8s/apps/baro-notification/
+kubectl apply -k k8s/apps/baro-settlement/
 kubectl apply -k k8s/apps/baro-ai/
 ```
 
@@ -688,8 +628,8 @@ kubectl apply -k k8s/apps/baro-ai/
 
 ```yaml
 images:
-  - name: ghcr.io/do-develop-space/baro-auth
-    newTag: main-auth-abc123d  # 원하는 태그로 변경
+  - name: ghcr.io/do-develop-space/baro-user
+    newTag: main-user-abc123d  # 원하는 태그로 변경
 ```
 
 또는 배포 스크립트(`scripts/deploy-k8s.sh`)를 사용하면 자동으로 이미지 태그가 업데이트됩니다.
@@ -698,13 +638,13 @@ images:
 
 ```bash
 # 빌드된 매니페스트 미리보기 (실제 적용 전 확인)
-kubectl kustomize k8s/apps/baro-auth/
+kubectl kustomize k8s/apps/baro-user/
 
 # 빌드 + 적용 (권장)
-kubectl apply -k k8s/apps/baro-auth/
+kubectl apply -k k8s/apps/baro-user/
 
 # 특정 리소스만 확인
-kubectl kustomize k8s/apps/baro-auth/ | grep -A 10 "kind: Deployment"
+kubectl kustomize k8s/apps/baro-user/ | grep -A 10 "kind: Deployment"
 ```
 
 #### 장점
@@ -799,18 +739,18 @@ git push origin dev-{모듈}
 #### 자동 생성되는 이미지 태그
 
 ```
-ghcr.io/do-develop-space/baro-auth:
+ghcr.io/do-develop-space/baro-user:
 ├── latest                         # 최신 버전
-├── main-auth                      # 브랜치명
-├── main-auth-abc123d              # 브랜치-커밋SHA
-└── main-auth-20241205-143022      # 브랜치-타임스탬프
+├── main-user                      # 브랜치명
+├── main-user-abc123d              # 브랜치-커밋SHA
+└── main-user-20241205-143022      # 브랜치-타임스탬프
 ```
 
 #### 배포 이미지 버전
 
 - **공통 이미지 버전 환경 변수**: `IMAGE_VERSION=0.1.0`
 - **이미지 태그 규칙**:
-  - 애플리케이션: `ghcr.io/do-develop-space/{모듈}:IMAGE_VERSION` (예: `ghcr.io/do-develop-space/baro-auth:0.1.0`)
+  - 애플리케이션: `ghcr.io/do-develop-space/{모듈}:IMAGE_VERSION` (예: `ghcr.io/do-develop-space/baro-user:0.1.0`)
   - 필요 시 브랜치/커밋 SHA와 조합: `IMAGE_VERSION-main-auth-abc123d`
   - k8s 배포 시 `kustomization.yaml` 또는 배포 스크립트(`scripts/deploy-k8s.sh`)에서 `IMAGE_VERSION`을 기준으로 태그를 치환
 
@@ -820,18 +760,18 @@ ghcr.io/do-develop-space/baro-auth:
 # k3s Worker Node에서 실행 (비즈니스 서비스의 경우)
 
 # 1. 사용 가능한 이미지 태그 확인
-kubectl get deployment baro-auth -n baro-prod -o jsonpath='{.spec.template.spec.containers[0].image}'
+kubectl get deployment baro-user -n baro-prod -o jsonpath='{.spec.template.spec.containers[0].image}'
 
 # 2. kustomization.yaml에서 이미지 태그 변경
-cd k8s/apps/baro-auth
+cd k8s/apps/baro-user
 # images 섹션의 newTag를 이전 버전으로 변경
 
 # 3. k3s에 재배포
 kubectl apply -k .
 
 # 4. 배포 상태 확인
-kubectl get pods -n baro-prod -l app=baro-auth
-kubectl logs -n baro-prod -l app=baro-auth --tail=50
+kubectl get pods -n baro-prod -l app=baro-user
+kubectl logs -n baro-prod -l app=baro-user --tail=50
 
 # 5. Health Check
 curl http://localhost:8081/actuator/health
