@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: baro-payment
+  labels:
+    app: baro-payment
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  selector:
+    matchLabels:
+      app: baro-payment
+  template:
+    metadata:
+      labels:
+        app: baro-payment
+    spec:
+      imagePullSecrets:
+        - name: ecr-registry
+      containers:
+        - name: baro-payment
+          image: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/baro-payment:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8088
+              name: http
+          envFrom:
+            - configMapRef:
+                name: baro-payment-config
+            - configMapRef:
+                name: infra-endpoints-config
+          env:
+            - name: SPRING_CLOUD_CONFIG_ENABLED
+              value: "false"
+            - name: SPRING_CLOUD_CONFIG_IMPORT_CHECK_ENABLED
+              value: "false"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: password
+            - name: TOSS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: baro-payment-secrets
+                  key: TOSS_SECRET_KEY

@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: baro-shopping
+  labels:
+    app: baro-shopping
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  selector:
+    matchLabels:
+      app: baro-shopping
+  template:
+    metadata:
+      labels:
+        app: baro-shopping
+    spec:
+      imagePullSecrets:
+        - name: ecr-registry
+      containers:
+        - name: baro-shopping
+          image: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/baro-shopping:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8082
+              name: http
+          envFrom:
+            - configMapRef:
+                name: baro-shopping-config
+            - configMapRef:
+                name: infra-endpoints-config
+          env:
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: password
+            - name: AWS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: baro-shopping-secrets
+                  key: AWS_ACCESS_KEY
+            - name: AWS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: baro-shopping-secrets
+                  key: AWS_SECRET_KEY
+            - name: AWS_S3_BUCKET_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: baro-shopping-secrets
+                  key: AWS_S3_BUCKET_NAME

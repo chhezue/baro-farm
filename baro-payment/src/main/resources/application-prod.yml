@@ -1,0 +1,78 @@
+server:
+  port: ${SERVER_PORT:${BARO_PAYMENT_PORT:8088}}
+
+api:
+  v1: /api/v1
+
+spring:
+  application:
+    name: payment-service
+  main:
+    allow-bean-definition-overriding: true
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:${BARO_PAYMENT_DATASOURCE_URL:jdbc:mysql://my-mysql.db.svc.cluster.local:3306/baro_payment?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true}}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${SPRING_DATASOURCE_USERNAME:${BARO_PAYMENT_DB_USERNAME:}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${BARO_PAYMENT_DB_PASSWORD:}}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+        use_sql_comments: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:${BARO_PAYMENT_KAFKA_BOOTSTRAP_SERVERS:my-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092}}
+    consumer:
+      group-id: payment-service
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: latest
+      properties:
+        spring.json.trusted.packages: "com.barofarm.payment.*"
+        spring.json.use.type.headers: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+payment:
+  toss:
+    secret-key: ${TOSS_SECRET_KEY:}
+
+eureka:
+  client:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: refresh, health, beans, info
+  endpoint:
+    health:
+      enabled: true
+      show-details: always
+
+# Swagger/OpenAPI 설정
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+
+# 로깅 설정 (prod: DEBUG 위주, TRACE 제거)
+logging:
+  level:
+    root: INFO
+    com.barofarm.payment: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.springframework.kafka: DEBUG
+    org.springframework.web: DEBUG
