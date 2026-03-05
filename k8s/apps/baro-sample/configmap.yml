@@ -6,3 +6,4 @@ data:
   SPRING_PROFILES_ACTIVE: "prod"
   SERVER_PORT: "8090"
   SPRING_DATASOURCE_URL: "jdbc:mysql://mysql.db.svc.cluster.local:3306/baro_db"
+  SPRING_KAFKA_CONSUMER_PROPERTIES_SPRING_JSON_TRUSTED_PACKAGES: "com.barofarm.sample.kafka"
