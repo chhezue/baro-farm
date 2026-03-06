@@ -1,10 +1,11 @@
-name: Elasticsearch Deploy (Helm)
+name: Elasticsearch Build & Deploy (ECR + Helm)
 
 on:
   push:
     branches:
       - main
     paths:
+      - 'docker/elasticsearch/**'
       - 'k8s/infra/elasticsearch/**'
       - '.github/workflows/elasticsearch-deploy.yml'
   workflow_dispatch:
@@ -12,9 +13,11 @@ on:
 env:
   AWS_REGION: ap-northeast-2
   K8S_NAMESPACE: search
+  ECR_REGISTRY: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com
+  ECR_REPOSITORY: baro-prod/elasticsearch-nori
 
 jobs:
-  deploy-elasticsearch:
+  build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -31,6 +34,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Ensure ECR repository exists
+        run: |
+          aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY }} >/dev/null 2>&1 || \
+          aws ecr create-repository --repository-name ${{ env.ECR_REPOSITORY }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Elasticsearch nori image
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+        run: |
+          docker build -f docker/elasticsearch/Dockerfile -t $IMAGE_URI .
+          docker push $IMAGE_URI
+
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
 
@@ -44,16 +63,27 @@ jobs:
           kubectl --insecure-skip-tls-verify create namespace ${{ env.K8S_NAMESPACE }} --dry-run=client -o yaml | \
             kubectl --insecure-skip-tls-verify apply -f -
 
-      - name: Cleanup old Helm-based Elasticsearch (if any)
+      - name: Create ECR image pull secret
         run: |
-          helm uninstall my-elasticsearch -n ${{ env.K8S_NAMESPACE }} || true
-          kubectl --insecure-skip-tls-verify delete statefulset my-elasticsearch -n ${{ env.K8S_NAMESPACE }} --ignore-not-found
+          kubectl --insecure-skip-tls-verify create secret docker-registry ecr-registry \
+            --docker-server=${{ env.ECR_REGISTRY }} \
+            --docker-username=AWS \
+            --docker-password="$(aws ecr get-login-password --region ${{ env.AWS_REGION }})" \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl --insecure-skip-tls-verify apply -f -
+
+      - name: Cleanup old Elasticsearch resources (for immutable selector changes)
+        run: |
+          kubectl --insecure-skip-tls-verify delete deployment my-elasticsearch -n ${{ env.K8S_NAMESPACE }} --ignore-not-found
+          kubectl --insecure-skip-tls-verify delete statefulset my-elasticsearch-master -n ${{ env.K8S_NAMESPACE }} --ignore-not-found
+          kubectl --insecure-skip-tls-verify delete svc my-elasticsearch-master-hl -n ${{ env.K8S_NAMESPACE }} --ignore-not-found
           kubectl --insecure-skip-tls-verify delete svc my-elasticsearch -n ${{ env.K8S_NAMESPACE }} --ignore-not-found
 
-      - name: Deploy / Upgrade Elasticsearch (StatefulSet)
+      - name: Deploy / Upgrade Elasticsearch (single pod)
         run: |
           kubectl --insecure-skip-tls-verify apply \
             -f k8s/infra/elasticsearch/elasticsearch.yml \
             -n ${{ env.K8S_NAMESPACE }}
-          kubectl --insecure-skip-tls-verify rollout status statefulset/my-elasticsearch \
+
+          kubectl --insecure-skip-tls-verify rollout status deployment/my-elasticsearch \
             -n ${{ env.K8S_NAMESPACE }} --timeout=300s
