@@ -3,9 +3,6 @@
 spring:
   main:
     web-application-type: none
-  batch:
-    job:
-      enabled: false
   task:
     scheduling:
       enabled: false
@@ -15,8 +12,13 @@ settlement:
   scheduler:
     enabled: false
 
-# Eureka: 배치 Pod는 등록하지 않고 서비스 디스커버리만 사용 (order-service Feign 호출용)
+# 유레카 설정 비활성화 (Kubernetes에서 사용하지 않음)
 eureka:
   client:
-    register-with-eureka: false
-    fetch-registry: true
+    enabled: false
+
+# Eureka: 배치 Pod는 등록하지 않고 서비스 디스커버리만 사용 (order-service Feign 호출용)
+# eureka:
+#   client:
+#    register-with-eureka: false
+#    fetch-registry: true

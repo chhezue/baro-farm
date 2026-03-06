@@ -1,0 +1,87 @@
+# 운영 공통 설정 (Deployment / CronJob 공통)
+server:
+  port: ${SERVER_PORT:8093}
+
+api:
+  v1: /api/v1
+
+spring:
+  application:
+    name: settlement-service
+  main:
+    allow-bean-definition-overriding: true
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://my-mysql.db.svc.cluster.local:3306/baro_settlement?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true&useUnicode=true}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${BARO_SETTLEMENT_DB_USERNAME:}
+    password: ${BARO_SETTLEMENT_DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  batch:
+    job:
+      enabled: false   # BatchRunner에서 수동 실행
+  task:
+    scheduling:
+      cron:
+        settlement: "0 0 0 1 * *"
+
+# Deployment + CronJob 사용 시 false (CronJob이 배치 실행). 로컬/기존 동작은 true.
+settlement:
+  scheduler:
+    enabled: ${SETTLEMENT_SCHEDULER_ENABLED:true}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:my-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092}
+    consumer:
+      group-id: settlement-service
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: latest
+      properties:
+        spring.json.trusted.packages: "com.barofarm.settlement.*"
+        spring.json.use.type.headers: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+# Eureka 미사용 시 Feign 대상 URL 명시 (K8s 서비스명)
+feign:
+  client:
+    config:
+      order-service:
+        url: ${ORDER_SERVICE_URL:http://baro-order:8080}
+
+eureka:
+  client:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: refresh, health, beans, info
+  endpoint:
+    health:
+      enabled: true
+      show-details: always
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+  tags-sorter: alpha
+  operations-sorter: alpha
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+
+logging:
+  level:
+    root: INFO
+    com.barofarm.settlement: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.springframework.kafka: DEBUG
+    org.springframework.web: DEBUG

@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: baro-notification
+  labels:
+    app: baro-notification
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  selector:
+    matchLabels:
+      app: baro-notification
+  template:
+    metadata:
+      labels:
+        app: baro-notification
+    spec:
+      imagePullSecrets:
+        - name: ecr-registry
+      containers:
+        - name: baro-notification
+          image: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/baro-notification:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8091
+              name: http
+          envFrom:
+            - configMapRef:
+                name: baro-notification-config
+            - configMapRef:
+                name: infra-endpoints-config
+          env:
+            - name: SPRING_CLOUD_CONFIG_ENABLED
+              value: "false"
+            - name: SPRING_CLOUD_CONFIG_IMPORT_CHECK_ENABLED
+              value: "false"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credentials
+                  key: password
+            - name: BARO_NOTI_MAIL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: baro-notification-secrets
+                  key: BARO_NOTI_MAIL_USERNAME
+            - name: BARO_NOTI_MAIL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: baro-notification-secrets
+                  key: BARO_NOTI_MAIL_PASSWORD

@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: baro-settlement
+  namespace: default
+  labels:
+    app: baro-settlement
+spec:
+  # KST 매월 1일 00:00 = UTC 전일 15:00 (예: 30일 15:00)
+  schedule: "0 15 30 * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: baro-settlement
+        spec:
+          restartPolicy: OnFailure
+          imagePullSecrets:
+            - name: ecr-registry
+          containers:
+            - name: baro-settlement
+              image: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/baro-settlement:latest
+              imagePullPolicy: Always
+              envFrom:
+                - configMapRef:
+                    name: baro-settlement-config
+                - configMapRef:
+                    name: infra-endpoints-config
+              env:
+                - name: BARO_SETTLEMENT_DB_USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: mysql-credentials
+                      key: username
+                - name: BARO_SETTLEMENT_DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: mysql-credentials
+                      key: password
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "1Gi"

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: baro-ai-config
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "8092"

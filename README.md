@@ -1,75 +1,27 @@
 # Baro Farm - 마이크로서비스 백엔드
 
-Spring Boot 3.5.8 + JDK 21 기반 멀티 모듈 프로젝트
+Spring Boot 3.5.8 + JDK 21 기반 멀티 모듈 프로젝트.  
+프로젝트 구조·배포·문서는 `docs/` 및 현재 저장소 기준으로 정리되어 있습니다.
 
 ## 📦 프로젝트 구조 (MSA 구조)
 
-> 자세한 구조는 [BARO_FARM_STRUCTURE.md](docs/BARO_FARM_STRUCTURE.md) 참고
+> 자세한 구조는 [BARO_FARM_STRUCTURE.md](docs/BARO_FARM_STRUCTURE.md) 참고  
 
 ```
 baro-farm/
-├── baro-auth/                    # A. 인증 모듈
-│   ├── src/main/java/com/barofarm/auth/
-│   │   ├── AuthApplication.java
-│   │   └── auth/                 # 인증/인가 도메인, 구매자 및 회원관리 통합
-│   └── build.gradle
-│
-├── baro-buyer/                   # B. 구매자 모듈
-│   ├── src/main/java/com/barofarm/buyer/
-│   │   ├── BuyerApplication.java
-│   │   ├── cart/                 # 장바구니 관리
-│   │   ├── product/              # 상품 관리
-│   │   └── inventory/            # 재고 관리
-│   └── build.gradle
-│
-├── baro-seller/                  # C. 판매자 모듈
-│   ├── src/main/java/com/barofarm/seller/
-│   │   ├── SellerApplication.java
-│   │   ├── seller/               # 판매자 회원 관리
-│   │   └── farm/                 # 농장 관리
-│   └── build.gradle
-│
-├── baro-order/                   # D. 주문 모듈
-│   ├── src/main/java/com/barofarm/order/
-│   │   ├── OrderApplication.java
-│   │   └── order/                # 주문 관리
-│   └── build.gradle
-│
-├── baro-payment/                 # E. 주문 모듈
-│   ├── src/main/java/com/barofarm/payment/
-│   │   ├── PaymentApplication.java
-│   │   └── payment/              # 결제 관리
-│   └── build.gradle
-│
-├── baro-support/                 # F. 지원 모듈
-│   ├── src/main/java/com/barofarm/support/
-│   │   ├── SupportApplication.java
-│   │   ├── delivery/             # 배송 관리
-│   │   ├── notification/         # 알림 관리
-│   │   ├── experience/           # 체험 프로그램 관리
-│   │   ├── search/               # 검색 관리
-│   │   ├── review/               # 리뷰 관리
-│   │   └── deposit/              # 예치금 관리
-│   └── build.gradle
-│
-├── baro-settlement/              # G. 정산 모듈
-│   ├── src/main/java/com/barofarm/settlement/
-│   │   ├── SettlementApplication.java
-│   │   └── settlement/           # 정산 관리 (DaemonSet 배포)
-│   └── build.gradle
-│
-├── baro-ai/                      # H. AI 모듈
-│   ├── src/main/java/com/barofarm/ai/
-│   │   ├── AiApplication.java
-│   │   ├── eventLog/
-│   │   ├── recommend/            # 추천 서비스
-│   │   ├── review/               # 리뷰 서비스
-│   └── build.gradle
-│
-└── baro-cloud/                   # H. 인프라 모듈
-    ├── gateway/                  # API Gateway
-    ├── config/                   # Config Server
-    └── eureka/                   # Service Registry
+├── baro-gateway/                 # API Gateway (라우팅/인증)
+├── baro-user/                    # 사용자/인증 모듈 (auth, seller)
+├── baro-shopping/                # 쇼핑 모듈 (cart, product, inventory)
+├── baro-order/                   # 주문 모듈 (order)
+├── baro-payment/                 # 결제 모듈 (payment, deposit)
+├── baro-notification/            # 알림 모듈
+├── baro-settlement/              # 정산 모듈
+├── baro-ai/                      # AI 모듈 (search, recommend 등)
+├── baro-sample/                  # 샘플/배포 테스트용
+├── baro-eureka/                  # 서비스 디스커버리 (로컬/레거시)
+├── baro-config/                  # Config Server (로컬/레거시)
+├── baro-opa-bundle/              # OPA 정책 번들
+└── baro-common/                  # 공통 라이브러리 (배포 대상 아님)
 ```
 
 ## 🚀 기술 스택
@@ -103,7 +55,7 @@ baro-farm/
 ```bash
 # 프로젝트 클론
 git clone <repository-url>
-cd beadv2_2_dogs_BE
+cd baro-farm-be
 
 # Git hooks 설치 (커밋 전 자동 검사)
 ./scripts/install-hooks.sh
@@ -186,33 +138,31 @@ docker run -d --name baro-kafka \
   confluentinc/cp-kafka:7.6.0
 ```
 
-**📚 상세 가이드:**
-- [Redis 설정 가이드](docs/REDIS_SETUP.md) - 설치, 연동, 사용 예시
-- [Kafka 설정 가이드](docs/KAFKA_SETUP.md) - 설치, 연동, 토픽 관리
+**참고:** 로컬 인프라는 `docker-compose.data.yml` 기준으로 동작합니다. 배포 환경 인프라(k8s Helm 등)는 [BARO_DEPLOYMENT_GUIDE.md](docs/BARO_DEPLOYMENT_GUIDE.md) 참고.
 
 ### 2️⃣ Spring Boot 서비스 실행
 
 #### Gradle로 실행
 
 ```bash
-# 1. Eureka Server (서비스 디스커버리)
-./gradlew :baro-cloud:eureka:bootRun
+# 1. Eureka Server (서비스 디스커버리, 로컬/레거시)
+./gradlew :baro-eureka:bootRun
 
-# 2. Config Server (설정 서버)
-./gradlew :baro-cloud:config:bootRun
+# 2. Config Server (설정 서버, 로컬/레거시)
+./gradlew :baro-config:bootRun
 
 # 3. Gateway Service (API Gateway)
-./gradlew :baro-cloud:gateway:bootRun
+./gradlew :baro-gateway:bootRun
 
 # 4. 비즈니스 모듈 실행
-./gradlew :baro-auth:bootRun      # 인증 모듈
-./gradlew :baro-buyer:bootRun     # 구매자 모듈 (cart, product, inventory)
-./gradlew :baro-seller:bootRun    # 판매자 모듈 (seller, farm)
-./gradlew :baro-order:bootRun     # 주문 모듈 (order)
-./gradlew :baro-payment:bootRun   # 결제 모듈 (payment)
-./gradlew :baro-support:bootRun   # 지원 모듈 (delivery, notification, experience, review, deposit)
-./gradlew :baro-settlement:bootRun # 정산 모듈 (settlement)
-./gradlew :baro-ai:bootRun        # AI 모듈 (search, recommend)
+./gradlew :baro-user:bootRun        # 사용자/인증 모듈 (auth, seller)
+./gradlew :baro-shopping:bootRun    # 쇼핑 모듈 (cart, product, inventory)
+./gradlew :baro-order:bootRun       # 주문 모듈 (order)
+./gradlew :baro-payment:bootRun     # 결제 모듈 (payment)
+./gradlew :baro-notification:bootRun # 알림 모듈
+./gradlew :baro-settlement:bootRun  # 정산 모듈 (settlement)
+./gradlew :baro-ai:bootRun          # AI 모듈 (search, recommend)
+./gradlew :baro-sample:bootRun      # 샘플/배포 테스트용
 ```
 
 #### JAR로 실행
@@ -222,17 +172,17 @@ docker run -d --name baro-kafka \
 ./gradlew build
 
 # 실행
-java -jar baro-cloud/eureka/build/libs/eureka-0.0.1-SNAPSHOT.jar
-java -jar baro-cloud/config/build/libs/config-0.0.1-SNAPSHOT.jar
-java -jar baro-cloud/gateway/build/libs/gateway-0.0.1-SNAPSHOT.jar
-java -jar baro-auth/build/libs/baro-auth-0.0.1-SNAPSHOT.jar
-java -jar baro-buyer/build/libs/baro-buyer-0.0.1-SNAPSHOT.jar
-java -jar baro-seller/build/libs/baro-seller-0.0.1-SNAPSHOT.jar
-java -jar baro-order/build/libs/baro-order-0.0.1-SNAPSHOT.jar
-java -jar baro-payment/build/libs/baro-payment-0.0.1-SNAPSHOT.jar
-java -jar baro-support/build/libs/baro-support-0.0.1-SNAPSHOT.jar
-java -jar baro-settlement/build/libs/baro-settlement-0.0.1-SNAPSHOT.jar
-java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
+java -jar baro-eureka/build/libs/baro-eureka-*.jar
+java -jar baro-config/build/libs/baro-config-*.jar
+java -jar baro-gateway/build/libs/baro-gateway-*.jar
+java -jar baro-user/build/libs/baro-user-*.jar
+java -jar baro-shopping/build/libs/baro-shopping-*.jar
+java -jar baro-order/build/libs/baro-order-*.jar
+java -jar baro-payment/build/libs/baro-payment-*.jar
+java -jar baro-notification/build/libs/baro-notification-*.jar
+java -jar baro-settlement/build/libs/baro-settlement-*.jar
+java -jar baro-ai/build/libs/baro-ai-*.jar
+java -jar baro-sample/build/libs/baro-sample-*.jar
 ```
 
 ## 🌐 서비스 포트 정보
@@ -243,17 +193,17 @@ java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
 | | kafka | 29092 | Message Broker (KRaft 모드) |
 | | mysql | 3306 | Database |
 | | elasticsearch | 9200 | Search Engine |
-| **Spring Cloud** | eureka | 8761 | Service Registry |
-| | config | 8888 | Config Server |
-| | gateway | 8080 | API Gateway |
-| **비즈니스** | baro-auth | 8081 | auth |
-| | baro-buyer | 8082 | buyer, cart, product |
-| | baro-seller | 8085 | seller, farm |
-| | baro-order | 8087 | order |
-| | baro-payment | 8088 | payment |
-| | baro-support | 8089 | delivery, notification, experience, review, deposit |
-| | baro-settlement | 8090 | settlement (DaemonSet 배포) |
-| | baro-ai | 8092 | search, recommend, review |
+| **인프라(로컬)** | baro-eureka | 8761 | Service Registry |
+| | baro-config | 8888 | Config Server |
+| **비즈니스** | baro-gateway | 8080 | API Gateway |
+| | baro-shopping | 8082 | cart, product, inventory |
+| | baro-order | 8083 | order |
+| | baro-user | 8087 | auth, seller |
+| | baro-payment | 8088 | payment, deposit |
+| | baro-sample | 8090 | 샘플/배포 테스트 |
+| | baro-notification | 8091 | 알림 |
+| | baro-ai | 8092 | search, recommend |
+| | baro-settlement | 8093 | 정산 |
 
 ## 💾 리소스 제한 사항
 
@@ -276,24 +226,13 @@ java -jar baro-ai/build/libs/baro-ai-0.0.1-SNAPSHOT.jar
 
 | 서비스 | 메모리 제한 (JVM) | 의존성 | 비고 |
 |--------|------------------|--------|------|
-| **baro-auth** | `-Xms64m -Xmx128m` | MySQL | 인증/인가 서비스, 구매자 |
-| **baro-buyer** | `-Xms64m -Xmx128m` | MySQL, Kafka | 장바구니, 상품 관리 |
-| **baro-seller** | `-Xms64m -Xmx128m` | MySQL, Kafka | 판매자, 농장 관리 |
+| **baro-user** | `-Xms64m -Xmx128m` | MySQL, Redis | 인증/인가, 판매자 |
+| **baro-shopping** | `-Xms64m -Xmx128m` | MySQL, Kafka | 장바구니, 상품, 재고 |
 | **baro-order** | `-Xms64m -Xmx128m` | MySQL, Kafka | 주문 |
-| **baro-payment** | `-Xms64m -Xmx128m` | MySQL, Kafka | 결제, 예치금 관리 |
-| **baro-support** | `-Xms64m -Xmx128m` | MySQL, Kafka | 배송, 알림, 체험, 리뷰 관리 |
-| **baro-settlement** | `-Xms64m -Xmx128m` | MySQL | 정산 관리 (DaemonSet 배포) |
-| **baro-ai** | `-Xms64m -Xmx128m` | Kafka, Elasticsearch | 검색, 추천, 챗봇 |
-
-**설정 파일:**
-- `docker-compose.auth.yml`
-- `docker-compose.buyer.yml`
-- `docker-compose.seller.yml`
-- `docker-compose.order.yml`
-- `docker-compose.payment.yml`
-- `docker-compose.support.yml`
-- `docker-compose.settlement.yml`
-- `docker-compose.ai.yml`
+| **baro-payment** | `-Xms64m -Xmx128m` | MySQL, Kafka | 결제, 예치금 |
+| **baro-notification** | `-Xms64m -Xmx128m` | Kafka | 알림 |
+| **baro-settlement** | `-Xms64m -Xmx128m` | MySQL, Kafka | 정산 |
+| **baro-ai** | `-Xms64m -Xmx128m` | Kafka, Elasticsearch | 검색, 추천 |
 
 ### 데이터 인프라 모듈
 
@@ -379,12 +318,11 @@ healthcheck:
 | | config | 300MB |
 | | gateway | 300MB |
 | | **소계** | **900MB** |
-| **비즈니스 서비스** | baro-auth | 350MB |
-| | baro-buyer | 400MB |
-| | baro-seller | 350MB |
+| **비즈니스 서비스** | baro-user | 350MB |
+| | baro-shopping | 400MB |
 | | baro-order | 400MB |
 | | baro-payment | 350MB |
-| | baro-support | 400MB |
+| | baro-notification | 350MB |
 | | baro-settlement | 350MB |
 | | baro-ai | 350MB |
 | | **소계** | **1.95GB** |
@@ -407,7 +345,7 @@ healthcheck:
 docker stats
 
 # 특정 컨테이너 메모리 사용량 확인
-docker stats baro-auth baro-buyer baro-seller
+docker stats baro-user baro-shopping baro-order
 
 # 전체 메모리 사용량 확인
 free -h
@@ -448,21 +386,33 @@ free -h
 
 | 서비스 | 경로 |
 |--------|------|
-| Auth | `/api/auth/**` |
-| Buyer | `/api/buyers/**` |
-| Cart | `/api/carts/**` |
-| Product | `/api/products/**` |
-| Seller | `/api/sellers/**` |
-| Farm | `/api/farms/**` |
-| Order | `/api/orders/**` |
-| Payment | `/api/payments/**` |
-| Settlement | `/api/settlements/**` |
-| Delivery | `/api/deliveries/**` |
-| Notification | `/api/notifications/**` |
-| Experience | `/api/experiences/**` |
-| Search | `/api/search/**` |
-| Review | `/api/reviews/**` |
-| AI | `/api/ai/**` |
+| User (인증/판매자) | `/user-service/**` |
+| Shopping (상품/장바구니/재고) | `/shopping-service/**` |
+| Order | `/order-service/**` |
+| Payment | `/payment-service/**` |
+| Notification | `/notification-service/**` |
+| AI | `/ai-service/**` |
+| Sample (테스트) | `/sample-service/**` |
+| Settlement (정산) | `/settlement-service/**` (prod 라우팅은 배포 가이드 참고) |
+
+> API·배포 검증: [BARO_POSTMAN_USER_SELLER_PRODUCT_GUIDE.md](docs/BARO_POSTMAN_USER_SELLER_PRODUCT_GUIDE.md), [BARO_DEPLOY_TEST_GUIDE.md](docs/BARO_DEPLOY_TEST_GUIDE.md)
+
+## 📚 문서
+
+| 문서 | 설명 |
+|------|------|
+| [BARO_FARM_STRUCTURE.md](docs/BARO_FARM_STRUCTURE.md) | 프로젝트·모듈 구조 상세 |
+| [BARO_FARM_OVERVIEW.md](docs/BARO_FARM_OVERVIEW.md) | 프로젝트 개요 |
+| [BARO_FARM_PLAN.md](docs/BARO_FARM_PLAN.md) | 프로젝트 계획서 |
+| [BARO_FARM_USER_STORIES.md](docs/BARO_FARM_USER_STORIES.md) | 사용자 스토리 |
+| [BARO_DEPLOYMENT_GUIDE.md](docs/BARO_DEPLOYMENT_GUIDE.md) | **현재 배포 구조** (팀/접근자용) |
+| [BARO_DEPLOYMENT_HISTORY.md](docs/BARO_DEPLOYMENT_HISTORY.md) | 배포 아키텍처 변경 이력 (V1→V2→V3) |
+| [CICD_GUIDE.md](docs/CICD_GUIDE.md) | CI/CD 설정 및 트러블슈팅 |
+| [BRANCH_AND_MODULE_STRATEGY.md](docs/BRANCH_AND_MODULE_STRATEGY.md) | 브랜치·모듈 전략 |
+| [OPA_LOCAL_SETUP.md](docs/OPA_LOCAL_SETUP.md) | OPA 로컬 설정 |
+| [OPA_LOCAL_DOCKER_GUIDE.md](docs/OPA_LOCAL_DOCKER_GUIDE.md) | OPA 로컬 Docker |
+| [OPA_ARCHITECTURE.md](docs/OPA_ARCHITECTURE.md) | OPA 아키텍처 |
+| [OPA_LOCAL_FLOW.md](docs/OPA_LOCAL_FLOW.md) | OPA 로컬 플로우 |
 
 ## 🔒 인증
 
@@ -476,27 +426,22 @@ Gateway의 `AuthenticationFilter`에서 JWT 토큰을 검증합니다.
 ```
 main                          # 최종 배포 (Production)
  │
- ├── main-auth                # Auth 모듈 안정 버전
- ├── main-buyer               # Buyer 모듈 안정 버전
- ├── main-seller              # Seller 모듈 안정 버전
- ├── main-order               # Order 모듈 안정 버전
- ├── main-payment               # Payment 모듈 안정 버전
- ├── main-support             # Support 모듈 안정 버전
- ├── main-settlement          # Settlement 모듈 안정 버전
- ├── main-ai                  # AI 모듈 안정 버전
- └── main-cloud               # Cloud 모듈 안정 버전
+ ├── main-gateway              # Gateway 안정 버전
+ ├── main-user                 # User(인증/회원/판매자) 안정 버전
+ ├── main-shopping             # Shopping(상품/재고/장바구니) 안정 버전
+ ├── main-order                # Order 안정 버전
+ ├── main-payment              # Payment 안정 버전
+ ├── main-notification        # Notification 안정 버전
+ ├── main-settlement          # Settlement 안정 버전
+ ├── main-ai                  # AI 안정 버전
+ └── ...
       │
-      ├── dev-auth            # Auth 모듈 개발
-      ├── dev-buyer           # Buyer 모듈 개발
-      ├── dev-seller          # Seller 모듈 개발
-      ├── dev-order           # Order 모듈 개발
-      ├── dev-payment           # Payment 모듈 개발
-      ├── dev-support         # Support 모듈 개발
-      ├── dev-settlement      # Settlement 모듈 개발
-      ├── dev-ai              # AI 모듈 개발
-      └── dev-cloud           # Cloud 모듈 개발
+      ├── dev-user
+      ├── dev-shopping
+      ├── dev-order
+      └── ...
            │
-           └── feature/...    # 기능 개발 브랜치
+           └── feature/...    # 기능 개발 브랜치 (예: feature/issue-107-2nd-deploy)
 ```
 
 ### 브랜치 네이밍 규칙
@@ -505,8 +450,8 @@ main                          # 최종 배포 (Production)
 | 브랜치 | 용도 | 예시 |
 |--------|------|------|
 | `main` | 최종 배포 버전 | - |
-| `main-{모듈}` | 모듈별 안정 버전 | `main-buyer` |
-| `dev-{모듈}` | 모듈별 개발 통합 | `dev-buyer` |
+| `main-{모듈}` | 모듈별 안정 버전 | `main-user`, `main-order` |
+| `dev-{모듈}` | 모듈별 개발 통합 | `dev-user`, `dev-order` |
 | `feature/issue-{이슈번호}-{기능설명-영문}` | 기능 개발 | `feature/issue-123-add-cart-item` |
 | `fix/issue-{이슈번호}-{버그설명-영문}` | 버그 수정 | `fix/issue-456-product-search-error` |
 | `hotfix/issue-{이슈번호}-{긴급수정-영문}` | 긴급 버그 수정 | `hotfix/issue-789-payment-failure` |
@@ -517,7 +462,7 @@ main                          # 최종 배포 (Production)
 # 1. GitHub에서 이슈 생성 (예: #123 장바구니 담기 기능)
 
 # 2. dev 브랜치에서 feature 브랜치 생성
-git checkout dev-buyer
+git checkout dev-shopping
 git checkout -b feature/issue-123-add-cart-item
 
 # 3. 작업 후 커밋 (커밋 메시지는 한글 사용)
@@ -525,12 +470,12 @@ git add .
 git commit -m "[Feat] #123 - 장바구니 담기 기능 추가"
 
 # 4. dev 브랜치로 머지
-git checkout dev-buyer
+git checkout dev-shopping
 git merge feature/issue-123-add-cart-item
 
 # 5. 테스트 후 main 브랜치로 머지
-git checkout main-buyer
-git merge dev-buyer
+git checkout main-shopping
+git merge dev-shopping
 ```
 
 ### 커밋 메시지 규칙
@@ -556,294 +501,53 @@ git merge dev-buyer
 
 ## 🚀 CI/CD
 
-### 인프라 구성
+### 개요
 
-이 프로젝트는 **k3s 클러스터** 환경에서 운영됩니다.
+- **클러스터**: k3s (EC2 기반), 앱 네임스페이스 `default`
+- **이미지**: AWS ECR (`299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/*`)
+- **트리거**: 앱 모듈은 **path 기반** (해당 모듈/경로 변경 시), 인프라는 **main** 브랜치 + path 또는 `workflow_dispatch`
+- **배포**: `kubectl apply -f k8s/apps/common/ k8s/apps/baro-<module>/ -n default`, 이미지 ECR 푸시 후 반영
 
-#### 클러스터 구성
-
-- **k3s Master Node (t3.medium 4GB)**
-  - GitHub Actions Runner 설치
-  - MySQL, Redis, Elasticsearch (Docker Compose)
-  - Eureka, Config, Gateway (k3s Pod)
-  - Kubernetes API Server, etcd 등 k3s 제어 플레인
-
-- **k3s Worker Node (t3.medium 4GB)**
-  - GitHub Actions Runner 설치
-  - Kafka (Docker Compose)
-  - 비즈니스 서비스 모듈 (k3s Pod)
-    - baro-auth, baro-buyer, baro-seller, baro-order, baro-payment, baro-support, baro-settlement (DaemonSet), baro-ai
-
-#### 배포 방식
-
-- **데이터 인프라**: Docker Compose로 직접 배포
-- **애플리케이션**: k3s를 통해 Kubernetes Pod로 배포
-- **CI/CD**: 각 서버에 설치된 GitHub Actions Runner가 자동 배포 수행
-
-### Kustomize를 활용한 Kubernetes 배포
-
-이 프로젝트는 **Kustomize**를 사용하여 Kubernetes 매니페스트를 선언적으로 관리합니다.
-
-#### Kustomize란?
-
-Kustomize는 Kubernetes 네이티브 구성 관리 도구로, YAML 파일을 템플릿화하지 않고도 재사용 가능한 구성 패키지를 만들 수 있습니다.
-
-#### 주요 특징
-
-- **선언적 관리**: `kustomization.yaml` 파일을 통해 리소스를 선언적으로 관리
-- **이미지 태그 관리**: `images` 섹션을 통해 이미지 태그를 쉽게 변경 가능
-- **공통 라벨**: `labels`를 통한 일관된 라벨 관리
-- **네임스페이스 관리**: 각 kustomization 파일에서 네임스페이스 자동 적용
-- **환경별 구성**: base와 overlay를 통한 환경별 설정 분리
-
-#### 디렉토리 구조
+### k8s 디렉터리 구조 (현재)
 
 ```
 k8s/
-├── base/                    # 기본 리소스
-│   ├── namespace.yaml       # Namespace 정의
-│   ├── secret.yaml.template # Secret 템플릿
-│   └── kustomization.yaml   # Base kustomization 설정
-│
-├── cloud/                   # Spring Cloud 인프라 모듈
-│   ├── eureka/
-│   │   ├── deployment.yaml
-│   │   ├── service.yaml
-│   │   └── kustomization.yaml
-│   ├── config/
-│   └── gateway/
-│
-├── apps/                    # 비즈니스 애플리케이션 모듈
-│   ├── baro-auth/
-│   │   ├── deployment.yaml
-│   │   ├── service.yaml
-│   │   └── kustomization.yaml
-│   ├── baro-buyer/
-│   ├── baro-seller/
+├── apps/
+│   ├── common/               # infra-configmap.yml (infra-endpoints-config)
+│   ├── baro-gateway/         # configmap, deployment, service, ingress
+│   ├── baro-sample/
+│   ├── baro-user/
+│   ├── baro-shopping/
 │   ├── baro-order/
 │   ├── baro-payment/
-│   ├── baro-support/
-│   ├── baro-settlement/
+│   ├── baro-notification/
+│   ├── baro-settlement/      # + cronjob.yml
 │   └── baro-ai/
-│
-└── redis/                   # Redis 캐시: Docker Container로 별도 관리 
-    ├── deployment.yaml
-    ├── service.yaml
-    └── kustomization.yaml
+└── infra/                    # Helm / Strimzi (mysql, redis, kafka, elasticsearch)
 ```
 
-#### kustomization.yaml 예시
+### GitHub Actions 요약
 
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
+- **앱 워크플로**: `baro-<module>-deploy.yml` — path 변경 시 빌드 → ECR 푸시 → k3s 배포
+- **인프라 워크플로**: `redis-deploy.yml`, `mysql-deploy.yml`, `kafka-deploy.yml`, `elasticsearch-deploy.yml` (main + path 또는 수동)
 
-namespace: baro-prod
+### 주요 Secrets (참고)
 
-resources:
-  - deployment.yml
-  - service.yml
+| Secret | 용도 |
+|--------|------|
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | ECR·AWS 접근 |
+| `KUBE_CONFIG` | k3s 클러스터 접근 (base64 인코딩) |
+| `GATEWAY_JWT_SECRET`, `REDIS_PASSWORD` | Gateway·Redis |
+| `MYSQL_ROOT_PASSWORD`, `MYSQL_APP_PASSWORD` | MySQL (인프라·앱) |
+| `TOSS_SECRET_KEY` | 결제 모듈 (선택) |
 
-labels:
-  - includeSelectors: false  # selector는 immutable이므로 false
-    includeTemplates: true
-    pairs:
-      app: baro-auth
-      component: app
-
-images:
-  - name: ghcr.io/do-develop-space/baro-auth
-    newTag: latest  # 이미지 태그 변경
-```
-
-#### 배포 방법
+### 롤백
 
 ```bash
-# 1. Namespace 생성
-kubectl apply -k k8s/base/
-
-# 2. Cloud 모듈 배포 (순서 중요: Eureka → Config → Gateway)
-kubectl apply -k k8s/cloud/eureka/
-kubectl wait --for=condition=ready pod -l app=eureka -n baro-prod --timeout=300s
-
-kubectl apply -k k8s/cloud/config/
-kubectl wait --for=condition=ready pod -l app=config -n baro-prod --timeout=300s
-
-kubectl apply -k k8s/cloud/gateway/
-
-# 3. 비즈니스 서비스 모듈 배포
-kubectl apply -k k8s/apps/baro-auth/
-kubectl apply -k k8s/apps/baro-buyer/
-kubectl apply -k k8s/apps/baro-seller/
-kubectl apply -k k8s/apps/baro-order/
-kubectl apply -k k8s/apps/baro-payment/
-kubectl apply -k k8s/apps/baro-support/
-kubectl apply -k k8s/apps/baro-settlement/  # DaemonSet 배포
-kubectl apply -k k8s/apps/baro-ai/
+kubectl rollout undo deployment/baro-<module> -n default
+# 또는 이미지 태그 변경 후 kubectl apply -f k8s/apps/baro-<module>/ -n default
 ```
 
-#### 이미지 태그 변경
-
-각 서비스의 `kustomization.yaml` 파일에서 이미지 태그를 변경할 수 있습니다:
-
-```yaml
-images:
-  - name: ghcr.io/do-develop-space/baro-auth
-    newTag: main-auth-abc123d  # 원하는 태그로 변경
-```
-
-또는 배포 스크립트(`scripts/deploy-k8s.sh`)를 사용하면 자동으로 이미지 태그가 업데이트됩니다.
-
-#### Kustomize 명령어 활용
-
-```bash
-# 빌드된 매니페스트 미리보기 (실제 적용 전 확인)
-kubectl kustomize k8s/apps/baro-auth/
-
-# 빌드 + 적용 (권장)
-kubectl apply -k k8s/apps/baro-auth/
-
-# 특정 리소스만 확인
-kubectl kustomize k8s/apps/baro-auth/ | grep -A 10 "kind: Deployment"
-```
-
-#### 장점
-
-1. **템플릿 불필요**: Helm처럼 템플릿 엔진이 필요 없음
-2. **네이티브 지원**: kubectl에 내장되어 있어 별도 설치 불필요
-3. **버전 관리 용이**: Git으로 kustomization.yaml 파일을 관리
-4. **환경별 구성**: base와 overlay를 통한 dev/staging/prod 분리 가능
-5. **이미지 태그 관리**: CI/CD 파이프라인에서 쉽게 이미지 태그 변경
-
-**📚 상세 가이드:**
-### GitHub Actions 자동 배포
-
-이 프로젝트는 각 서버에 설치된 **GitHub Actions Runner**를 통해 자동으로 빌드, 테스트, 배포됩니다.
-
-#### 파이프라인
-
-```
-Push to main → CI (빌드/테스트) → Docker Image Build → 
-Docker Hub Push → AWS EC2 Deploy → Health Check
-```
-
-#### 배포 프로세스
-
-```bash
-# 1. 코드 커밋 및 Push
-git add .
-git commit -m "[Feat] #123 - 새로운 기능 추가"
-git push origin dev-{모듈}
-- main-{모듈}에 PR 요청
-
-# 2. GitHub Actions Runner 자동 실행 (각 서버에서 실행)
-- 코드 품질 검사 (Spotless, Checkstyle)
-- 빌드 및 테스트
-- Docker 이미지 빌드
-- GHCR (GitHub Container Registry)에 이미지 푸시
-- k3s 클러스터에 배포 (kubectl apply)
-
-# 3. 배포 확인
-# http://your-ec2-ip:8761 (Eureka Dashboard)
-# http://your-ec2-ip:8080 (API Gateway)
-```
-
-#### GitHub Actions Runner 설정
-
-각 서버(Master Node, Worker Node)에 GitHub Actions Runner가 설치되어 있어, GitHub에서 워크플로우가 트리거되면 해당 Runner가 자동으로 작업을 수행합니다.
-
-**Runner 설치 위치:**
-- Master Node: `/home/ubuntu/actions-runner`
-- Worker Node: `/home/ubuntu/actions-runner`
-
-**Runner 특징:**
-- Self-hosted Runner로 GitHub에서 직접 관리
-- 각 서버에서 직접 실행되어 네트워크 지연 최소화
-- k3s 클러스터에 직접 접근 가능 (`kubectl` 명령어 사용)
-
-#### 필요한 GitHub Secrets
-
-> GitHub Actions 워크플로우에서 사용하는 **민감 정보** 목록입니다.  
-> 모든 Secret은 GitHub Repository → **Settings → Secrets and variables → Actions → Repository secrets** 에서 설정합니다.
-
-| Secret | 설명 | 필요 여부 |
-|--------|------|----------|
-| `GITHUB_TOKEN` | GitHub Container Registry 인증 (GitHub에서 자동 제공) | ✅ 자동 |
-| `GHCR_PAT` | GHCR 이미지 Push/Pull용 Personal Access Token (필요 시) | ⚠️ 선택 |
-| `AWS_ACCESS_KEY` | AWS Access Key (S3, 기타 AWS 리소스 접근) | ✅ 필수 |
-| `AWS_SECRET_KEY` | AWS Secret Key (S3, 기타 AWS 리소스 접근) | ✅ 필수 |
-| `DATA_EC2_IP` | Data EC2 Private IP (MySQL/Redis/Kafka/ES 접속용) | ✅ 필수 |
-| `EC2_HOST` | EC2 Public IP (SSH 접속, 수동 디버깅용) | ⚠️ 선택 |
-| `EC2_USERNAME` | EC2 SSH 사용자명 (예: `ubuntu`) | ⚠️ 선택 |
-| `EC2_SSH_KEY` | EC2 SSH Private Key (.pem 파일 내용) | ⚠️ 선택 |
-| `TOSS_SECRET_KEY` | Toss Payments Secret Key (결제 모듈에서 사용) | ✅ 필수 |
-
-**참고:** 
-- `GITHUB_TOKEN`은 GitHub Actions가 자동으로 제공하므로 별도 설정이 필요 없습니다.
-- `GHCR_PAT`은 조직/권한 구조에 따라 필요할 수 있으며, 필요 없으면 설정하지 않아도 됩니다.
-- Self-hosted Runner를 사용하므로 SSH 관련 Secret(EC2_HOST, EC2_USERNAME, EC2_SSH_KEY)은 **디버깅/수동 작업용 선택사항**입니다.
-
-#### GitHub Variables (환경 변수)
-
-> GitHub Actions에서 사용하는 **비밀이 아닌 설정 값**입니다.  
-> GitHub Repository → **Settings → Secrets and variables → Actions → Repository variables** 에서 설정합니다.
-
-| Variable | 예시 값 | 설명 |
-|----------|---------|------|
-| `DEPLOY_KAFKA` | `true` / `false` | k3s 환경에서 Kafka를 배포할지 여부 (Docker Compose 기반 Kafka 사용 제어) |
-| `DEPLOY_ELASTICSEARCH` | `true` / `false` | k3s 환경에서 Elasticsearch를 배포할지 여부 (Docker Compose 기반 ES 사용 제어) |
-
-
-### 버전 관리 및 롤백
-
-#### 자동 생성되는 이미지 태그
-
-```
-ghcr.io/do-develop-space/baro-auth:
-├── latest                         # 최신 버전
-├── main-auth                      # 브랜치명
-├── main-auth-abc123d              # 브랜치-커밋SHA
-└── main-auth-20241205-143022      # 브랜치-타임스탬프
-```
-
-#### 배포 이미지 버전
-
-- **공통 이미지 버전 환경 변수**: `IMAGE_VERSION=0.1.0`
-- **이미지 태그 규칙**:
-  - 애플리케이션: `ghcr.io/do-develop-space/{모듈}:IMAGE_VERSION` (예: `ghcr.io/do-develop-space/baro-auth:0.1.0`)
-  - 필요 시 브랜치/커밋 SHA와 조합: `IMAGE_VERSION-main-auth-abc123d`
-  - k8s 배포 시 `kustomization.yaml` 또는 배포 스크립트(`scripts/deploy-k8s.sh`)에서 `IMAGE_VERSION`을 기준으로 태그를 치환
-
-#### 롤백 방법
-
-```bash
-# k3s Worker Node에서 실행 (비즈니스 서비스의 경우)
-
-# 1. 사용 가능한 이미지 태그 확인
-kubectl get deployment baro-auth -n baro-prod -o jsonpath='{.spec.template.spec.containers[0].image}'
-
-# 2. kustomization.yaml에서 이미지 태그 변경
-cd k8s/apps/baro-auth
-# images 섹션의 newTag를 이전 버전으로 변경
-
-# 3. k3s에 재배포
-kubectl apply -k .
-
-# 4. 배포 상태 확인
-kubectl get pods -n baro-prod -l app=baro-auth
-kubectl logs -n baro-prod -l app=baro-auth --tail=50
-
-# 5. Health Check
-curl http://localhost:8081/actuator/health
-```
-
-#### 자동 정리
-
-- ✅ 배포 성공 후 오래된 이미지 자동 삭제
-- ✅ 최근 5개 버전만 GHCR에 유지
-- ✅ EC2 로컬 이미지 수동 정리 가능 (`cleanup-images.sh`)
-
-**📚 상세 가이드:**
-- [CI/CD 설정 가이드](docs/CICD_GUIDE.md) - 전체 설정 및 트러블슈팅
+**📚 상세:** [BARO_DEPLOYMENT_GUIDE.md](docs/BARO_DEPLOYMENT_GUIDE.md), [CICD_GUIDE.md](docs/CICD_GUIDE.md)
 
 ## 📝 라이선스
