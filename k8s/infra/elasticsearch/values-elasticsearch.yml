@@ -1,35 +1,43 @@
 global:
-  imageRegistry: public.ecr.aws
+  imagePullSecrets:
+    - ecr-registry
 
-fullnameOverride: my-elasticsearch
+elasticsearch:
+  fullnameOverride: my-elasticsearch
 
-master:
-  # single node, not master-only so it can handle all roles
-  masterOnly: false
-  replicaCount: 1
-  persistence:
-    enabled: true
-    storageClass: gp3-ebs
-    size: 1Gi
-  resources:
-    requests:
-      cpu: 100m
-      memory: 512Mi
-    limits:
-      cpu: 500m
-      memory: 1Gi
+  # Use custom image with nori plugin (built from docker/elasticsearch/Dockerfile)
+  image:
+    repository: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/elasticsearch-nori
+    tag: latest
+    pullPolicy: IfNotPresent
 
-data:
-  replicaCount: 0
+  master:
+    # single node, not master-only so it can handle all roles
+    masterOnly: false
+    replicaCount: 1
+    persistence:
+      enabled: true
+      storageClass: gp3-ebs
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
 
-ingest:
-  replicaCount: 0
+  data:
+    replicaCount: 0
 
-coordinating:
-  replicaCount: 0
+  ingest:
+    replicaCount: 0
 
-security:
-  enabled: false
+  coordinating:
+    replicaCount: 0
 
-metrics:
-  enabled: false
+  security:
+    enabled: false
+
+  metrics:
+    enabled: false

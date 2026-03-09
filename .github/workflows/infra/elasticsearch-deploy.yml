@@ -3,11 +3,12 @@ name: Elasticsearch Build & Deploy (ECR + Helm)
 on:
   push:
     branches:
-      - main
+      ## ArgoCD 배포 전환으로 인해 주석처리, workflow 실행 안됨.
+      ## - main
     paths:
       - 'docker/elasticsearch/**'
       - 'k8s/infra/elasticsearch/**'
-      - '.github/workflows/elasticsearch-deploy.yml'
+      - '.github/workflows/infra/elasticsearch-deploy.yml'
   workflow_dispatch:
 
 env:
