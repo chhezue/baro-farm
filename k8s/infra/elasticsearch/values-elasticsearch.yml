@@ -3,6 +3,10 @@ global:
     - ecr-registry
   security:
     allowInsecureImages: true
+  osShell:
+    image:
+      repository: bitnami/os-shell
+      tag: latest
 
 elasticsearch:
   fullnameOverride: my-elasticsearch
