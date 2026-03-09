@@ -1,6 +1,8 @@
 global:
   imagePullSecrets:
     - ecr-registry
+  security:
+    allowInsecureImages: true
 
 elasticsearch:
   fullnameOverride: my-elasticsearch
