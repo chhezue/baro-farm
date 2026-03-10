@@ -5,7 +5,7 @@ global:
     allowInsecureImages: true
   osShell:
     image:
-      repository: bitnami/os-shell
+      repository: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/os-shell
       tag: latest
 
 elasticsearch:
