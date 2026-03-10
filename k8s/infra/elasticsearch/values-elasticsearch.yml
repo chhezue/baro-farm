@@ -13,7 +13,8 @@ elasticsearch:
 
   # Use custom image with nori plugin (built from docker/elasticsearch/Dockerfile)
   image:
-    repository: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/elasticsearch-nori
+    registry: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com
+    repository: baro-prod/elasticsearch-nori
     tag: latest
     pullPolicy: IfNotPresent
 
