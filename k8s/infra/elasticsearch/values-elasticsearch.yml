@@ -15,7 +15,7 @@ elasticsearch:
   image:
     registry: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com
     repository: baro-prod/elasticsearch-nori
-    tag: nori-v1
+    tag: nori-v2
     pullPolicy: IfNotPresent
 
   master:
