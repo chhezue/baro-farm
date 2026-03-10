@@ -5,7 +5,7 @@ global:
     allowInsecureImages: true
   osShell:
     image:
-      repository: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/os-shell
+      repository: bitnami/os-shell
       tag: latest
 
 elasticsearch:
@@ -36,11 +36,11 @@ elasticsearch:
   data:
     replicaCount: 0
 
-  # Override sysctl init container image to use ECR os-shell
+  # Override sysctl init container image to use Docker Hub os-shell
   sysctlImage:
     enabled: true
-    registry: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com
-    repository: baro-prod/os-shell
+    registry: docker.io
+    repository: bitnami/os-shell
     tag: latest
 
   ingest:
