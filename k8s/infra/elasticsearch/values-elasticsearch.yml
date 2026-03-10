@@ -55,3 +55,16 @@ elasticsearch:
 
   metrics:
     enabled: false
+
+  # Initialize application indices with a compatible "nori" analyzer.
+  # Current cluster does not have the real nori tokenizer plugin,
+  # so this uses the standard tokenizer + lowercase filter.
+  initIndices:
+    enabled: true
+    image: curlimages/curl:8.11.0
+    host: http://my-elasticsearch.search.svc.cluster.local:9200
+    indices:
+      - cart_event_logs
+      - order_event_logs
+      - search_logs
+      - product
