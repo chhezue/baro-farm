@@ -37,12 +37,11 @@ elasticsearch:
     replicaCount: 0
 
   # Override sysctl init container image to use ECR os-shell
-  sysctl:
+  sysctlImage:
     enabled: true
-    image:
-      registry: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com
-      repository: baro-prod/os-shell
-      tag: latest
+    registry: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com
+    repository: baro-prod/os-shell
+    tag: latest
 
   ingest:
     replicaCount: 0
