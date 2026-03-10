@@ -47,8 +47,8 @@ spec:
                         "analyzer": {
                           "nori": {
                             "type": "custom",
-                            "tokenizer": "standard",
-                            "filter": ["lowercase"]
+                            "tokenizer": "nori_tokenizer",
+                            "filter": ["lowercase", "nori_part_of_speech", "nori_readingform"]
                           }
                         }
                       }

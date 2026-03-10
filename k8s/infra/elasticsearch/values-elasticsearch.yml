@@ -15,7 +15,7 @@ elasticsearch:
   image:
     registry: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com
     repository: baro-prod/elasticsearch-nori
-    tag: latest
+    tag: nori-v1
     pullPolicy: IfNotPresent
 
   master:
@@ -56,9 +56,7 @@ elasticsearch:
   metrics:
     enabled: false
 
-  # Initialize application indices with a compatible "nori" analyzer.
-  # Current cluster does not have the real nori tokenizer plugin,
-  # so this uses the standard tokenizer + lowercase filter.
+  # Initialize application indices with the "nori" analyzer.
   initIndices:
     enabled: true
     image: curlimages/curl:8.11.0
