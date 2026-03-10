@@ -1,4 +1,4 @@
-name: baro-settlement Deploy (ECR + k3s)
+name: baro-settlement Deploy (ECR + ArgoCD)
 
 on:
   push:

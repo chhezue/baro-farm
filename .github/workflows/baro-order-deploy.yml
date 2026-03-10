@@ -1,4 +1,4 @@
-name: baro-order Deploy (ECR + k3s)
+name: baro-order Deploy (ECR + ArgoCD)
 
 on:
   push:

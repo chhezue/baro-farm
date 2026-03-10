@@ -1,4 +1,4 @@
-name: baro-notification Deploy (ECR + k3s)
+name: baro-notification Deploy (ECR + ArgoCD)
 
 on:
   push:

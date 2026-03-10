@@ -1,4 +1,4 @@
-name: baro-shopping Deploy (ECR + k3s)
+name: baro-shopping Deploy (ECR + ArgoCD)
 
 on:
   push:

@@ -1,4 +1,4 @@
-name: baro-payment Deploy (ECR + k3s)
+name: baro-payment Deploy (ECR + ArgoCD)
 
 on:
   push:

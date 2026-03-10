@@ -1,4 +1,4 @@
-name: baro-ai Deploy (ECR + k3s)
+name: baro-ai Deploy (ECR + ArgoCD)
 
 on:
   push:
