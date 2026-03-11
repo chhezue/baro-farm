@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout
@@ -43,7 +43,7 @@ jobs:
 
       - name: Set image tag
         id: image-tag
-        run: echo \"tag=sha-${GITHUB_SHA::7}\" >> $GITHUB_OUTPUT
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
