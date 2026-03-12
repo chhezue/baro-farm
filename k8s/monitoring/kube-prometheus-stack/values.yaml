@@ -1,0 +1,30 @@
+kube-prometheus-stack:
+  fullnameOverride: kube-prometheus
+
+  kubeControllerManager:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeProxy:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+
+  prometheus:
+    service:
+      type: ClusterIP
+
+  grafana:
+    enabled: true
+    adminUser: admin
+    adminPassword: admin123
+    service:
+      type: NodePort
+      port: 80
+      nodePort: 32000
+    defaultDashboardsEnabled: true
+
+  alertmanager:
+    service:
+      type: ClusterIP
+
