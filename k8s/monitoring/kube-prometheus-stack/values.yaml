@@ -2,7 +2,7 @@ kube-prometheus-stack:
   fullnameOverride: kube-prometheus
 
   crds:
-    enabled: true
+    enabled: false
 
   kubeControllerManager:
     enabled: false
