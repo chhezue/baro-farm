@@ -1,6 +1,9 @@
 kube-prometheus-stack:
   fullnameOverride: kube-prometheus
 
+  crds:
+    enabled: true
+
   kubeControllerManager:
     enabled: false
   kubeScheduler:
@@ -32,7 +35,7 @@ kube-prometheus-stack:
     service:
       type: NodePort
       port: 80
-      nodePort: 32000
+      nodePort: 32080
     defaultDashboardsEnabled: true
     resources:
       requests:
