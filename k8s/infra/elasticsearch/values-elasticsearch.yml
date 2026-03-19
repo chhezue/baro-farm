@@ -55,6 +55,10 @@ elasticsearch:
 
   metrics:
     enabled: true
+    image:
+      registry: docker.io
+      repository: prometheuscommunity/elasticsearch-exporter
+      tag: latest
     serviceMonitor:
       enabled: true
       namespace: monitoring
