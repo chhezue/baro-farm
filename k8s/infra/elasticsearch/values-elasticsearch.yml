@@ -54,7 +54,12 @@ elasticsearch:
     enabled: false
 
   metrics:
-    enabled: false
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring
+      labels:
+        release: kube-prometheus-stack
 
   # Initialize application indices with the "nori" analyzer.
   initIndices:
