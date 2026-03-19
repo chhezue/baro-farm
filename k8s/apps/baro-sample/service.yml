@@ -4,10 +4,6 @@ metadata:
   name: baro-sample
   labels:
     app: baro-sample
-  annotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/path: "/actuator/prometheus"
-    prometheus.io/port: "8080"
 spec:
   type: NodePort
   selector:
