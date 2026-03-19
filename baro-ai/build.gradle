@@ -95,6 +95,8 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
     implementation 'io.github.openfeign:feign-okhttp:13.6'
 
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
     // Database
     runtimeOnly 'com.mysql:mysql-connector-j'
 }

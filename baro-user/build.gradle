@@ -43,6 +43,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'  // health, metrics
+    implementation 'io.micrometer:micrometer-registry-prometheus'
     // implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client' // Eureka 미사용
     implementation 'org.springframework.cloud:spring-cloud-starter-config'   // Config Server 클라이언트
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
