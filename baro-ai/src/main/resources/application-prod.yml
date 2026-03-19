@@ -75,6 +75,9 @@ springdoc:
   default-produces-media-type: application/json
 
 management:
+  metrics:
+    tags:
+      application: ${spring.application.name}
   endpoints:
     web:
       exposure:
