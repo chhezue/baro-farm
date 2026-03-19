@@ -24,6 +24,5 @@ redis:
     serviceMonitor:
       enabled: true
       namespace: monitoring
-      labels:
+      additionalLabels:
         release: kube-prometheus-stack
-
