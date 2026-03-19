@@ -3,6 +3,8 @@ kind: ServiceMonitor
 metadata:
   name: baro-sample
   namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
 spec:
   namespaceSelector:
     matchNames:
@@ -15,4 +17,3 @@ spec:
       path: /actuator/prometheus
       interval: 30s
       scheme: http
-
