@@ -5,11 +5,12 @@ metadata:
   labels:
     app: baro-gateway
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: baro-gateway
   ports:
     - port: 80
       targetPort: 8080
+      nodePort: 30399
       protocol: TCP
       name: http
