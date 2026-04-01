@@ -1,7 +1,8 @@
 # Baro Farm - 마이크로서비스 백엔드
 
-Spring Boot 3.5.8 + JDK 21 기반 멀티 모듈 프로젝트.  
-프로젝트 구조·배포·문서는 `docs/` 및 현재 저장소 기준으로 정리되어 있습니다.
+<img width="741" height="625" alt="image" src="https://github.com/user-attachments/assets/01859bea-a70a-42a4-9eae-d66d8b187855" />
+
+
 
 ## 📦 프로젝트 구조 (MSA 구조)
 
