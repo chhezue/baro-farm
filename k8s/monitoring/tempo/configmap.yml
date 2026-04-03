@@ -29,6 +29,3 @@ data:
           dimensions:
             - service.name
 
-    overrides:
-      max_traces_per_user: 100000
-
