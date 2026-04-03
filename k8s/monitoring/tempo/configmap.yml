@@ -23,9 +23,5 @@ data:
         wal:
           path: /var/tempo/wal
 
-    metrics_generator:
-      processor:
-        span_metrics:
-          dimensions:
-            - service.name
-
+    # metrics_generator is disabled for now to avoid
+    # requiring a Kafka topic configuration.
