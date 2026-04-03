@@ -21,6 +21,7 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - "-config.file=/etc/tempo/tempo.yaml"
+            - "-metrics-generator.enabled=false"
           ports:
             - name: http
               containerPort: 3200
@@ -42,4 +43,3 @@ spec:
         - name: tempo-config
           configMap:
             name: tempo-config
-
