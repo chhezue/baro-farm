@@ -5,8 +5,8 @@ metadata:
   namespace: kafka
 spec:
   kafka:
-    # Strimzi 0.46.0+ supports only Kafka 4.x
-    version: 4.1.1
+    # Strimzi 0.41.0 supports Kafka 3.6.x / 3.7.x
+    version: 3.7.0
     config:
       # Single-node KRaft (no ZooKeeper)
       node.id: 0
