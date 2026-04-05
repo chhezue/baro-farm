@@ -46,6 +46,6 @@ spec:
                   name: redis-credentials
                   key: password
             - name: MANAGEMENT_OTLP_TRACING_ENDPOINT
-              value: otel-collector.monitoring.svc.cluster.local:4317
+              value: http://otel-collector.monitoring.svc.cluster.local:4317
             - name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
               value: "1.0"
