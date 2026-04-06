@@ -24,11 +24,9 @@ dependencyManagement {
     imports {
         mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
     }
-    // Spring AI BOM은 swagger 버전을 오버라이드하지 않도록 별도로 관리
     imports {
         mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
     }
-    // Elasticsearch Java client 8.13.3과 호환되는 Spring Data 버전으로 고정
     dependencies {
         dependency 'org.springframework.data:spring-data-elasticsearch:5.3.6'
         dependency 'org.springframework.data:spring-data-commons:3.3.6'
@@ -36,68 +34,55 @@ dependencyManagement {
 }
 
 configurations.all {
-    // Spring AI BOM과 springdoc-openapi의 swagger-core 버전 충돌 해결
     resolutionStrategy {
-        // Jakarta 버전 (springdoc-openapi 2.8.5가 사용)
         force 'io.swagger.core.v3:swagger-core-jakarta:2.2.28'
         force 'io.swagger.core.v3:swagger-models-jakarta:2.2.28'
         force 'io.swagger.core.v3:swagger-annotations-jakarta:2.2.28'
-        // 일반 버전 (일부 라이브러리가 사용)
         force 'io.swagger.core.v3:swagger-core:2.2.22'
         force 'io.swagger.core.v3:swagger-models:2.2.22'
         force 'io.swagger.core.v3:swagger-annotations:2.2.22'
-        // Spring AI 1.0.0-M5 호환을 위한 Elasticsearch Java client 버전 고정
-        // 공식 문서에서 8.13.3 권장 (8.14 이상에서는 k(Long) -> k(Integer)로 변경되어 호환성 문제 발생)
         force 'co.elastic.clients:elasticsearch-java:8.13.3'
     }
 }
 
 dependencies {
-    // ========= 공통 유틸 / 개발 편의 =========
-    // Lombok
+    // ========= 공통 / 개발 편의 =========
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
-    // .env 파일 지원
+    // .env 로딩
     implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 
     // Swagger(OpenAPI)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
 
-    // ========= AI 서비스 의존성 =========
+    // ========= AI 서비스 공통 인프라 =========
     implementation project(':baro-common')
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator' // Health check용
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
-    implementation 'org.springframework.cloud:spring-cloud-starter-config' // Config Server 클라이언트
-    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign' // Feign Client
+    implementation 'org.springframework.cloud:spring-cloud-starter-config'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 
-    // Elasticsearch
-    // Spring AI 1.0.0-M5 호환을 위해 elasticsearch-java 8.13.3 사용 (공식 권장 버전)
+    // ========= Elasticsearch / 벡터 스토어 =========
     implementation('org.springframework.boot:spring-boot-starter-data-elasticsearch') {
         exclude group: 'co.elastic.clients', module: 'elasticsearch-java'
     }
-    // Spring AI 1.0.0-M5 호환 버전 명시적 추가 (8.13.3이 공식 권장)
     implementation 'co.elastic.clients:elasticsearch-java:8.13.3'
-    // Spring AI - Elasticsearch VectorStore (ElasticsearchVectorStore)
     implementation 'org.springframework.ai:spring-ai-elasticsearch-store'
 
-    // Kafka 연결
-   implementation 'org.springframework.kafka:spring-kafka'
+    // ========= 메시징 / Kafka =========
+    implementation 'org.springframework.kafka:spring-kafka'
 
-    // Spring AI
+    // ========= Spring AI =========
     implementation 'org.springframework.ai:spring-ai-openai-spring-boot-starter'
     implementation 'org.springframework.ai:spring-ai-ollama-spring-boot-starter'
 
-    // OpenFeign (외부 서비스 통신)
-    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    // ========= OpenFeign 클라이언트 =========
     implementation 'io.github.openfeign:feign-okhttp:13.6'
 
-    implementation 'io.micrometer:micrometer-registry-prometheus'
-
-    // Database
+    // ========= 데이터베이스 =========
     runtimeOnly 'com.mysql:mysql-connector-j'
 }
 
