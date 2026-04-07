@@ -54,6 +54,12 @@ kube-prometheus-stack:
         isDefault: false
         jsonData:
           httpMethod: GET
+      - name: k6-influxdb
+        type: influxdb
+        access: proxy
+        url: http://influxdb.monitoring.svc.cluster.local:8086
+        database: k6
+        isDefault: false
 
   alertmanager:
     alertmanagerSpec:
