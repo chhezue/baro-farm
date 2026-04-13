@@ -81,6 +81,7 @@ https://github.com/user-attachments/assets/fffc63e3-bb12-45c7-8054-8530d53df406
 
 https://github.com/user-attachments/assets/9dfcdc53-5dda-4ecb-9ed8-9fe5d4245879
 
+</br>
 
 ### 9. 리뷰 감정 분석 및 요약 
 
@@ -116,7 +117,7 @@ Gateway 뒤에는 서비스별 Prefix와 실제 API 경로를 붙여 호출합�
 
 ## 👤 Member
 
-<table align="center">
+<table align="left">
   <tr>
     <td align="center">Backend</td>
     <td align="center">Backend</td>
