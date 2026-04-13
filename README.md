@@ -5,20 +5,21 @@
 
 ## 🛠️ 기술 스택
 **Backend**
-![img_4.png](img_4.png)
+<img width="899" height="146" alt="Image" src="https://github.com/user-attachments/assets/440fadea-bc58-43d2-a3de-58c90c6c5e03" />
 
 **Infra**
-![img_5.png](img_5.png)
+<img width="1019" height="144" alt="Image" src="https://github.com/user-attachments/assets/ae301c9c-ad86-4ca5-af6d-ac584dc522e6" />
 
 </br>
 
 ## 🔄 CI/CD
-![img_1.png](img_1.png)
+<img width="413" height="184" alt="Image" src="https://github.com/user-attachments/assets/1feaa85a-c425-4fd9-829e-a8ca53b8f4f8" />
 
 </br>
 
 ## 🏗️ Architecture
-![img_2.png](img_2.png)
+<img width="757" height="417" alt="Image" src="https://github.com/user-attachments/assets/c50b086a-59b8-497e-9740-ac1edc57909c" />
+
 
 </br>
 
