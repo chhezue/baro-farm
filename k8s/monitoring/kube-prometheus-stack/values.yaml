@@ -1,0 +1,99 @@
+kube-prometheus-stack:
+  fullnameOverride: kube-prometheus
+
+  crds:
+    enabled: false
+
+  kubeControllerManager:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeProxy:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+
+  prometheus:
+    prometheusSpec:
+      retention: 6h
+      scrapeInterval: 30s
+      evaluationInterval: 30s
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 400m
+          memory: 512Mi
+    service:
+      type: ClusterIP
+
+  grafana:
+    enabled: true
+    admin:
+      existingSecret: grafana-admin
+      userKey: admin-user
+      passwordKey: admin-password
+    service:
+      type: NodePort
+      port: 80
+      nodePort: 32080
+    defaultDashboardsEnabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    additionalDataSources:
+      - name: Tempo
+        type: tempo
+        access: proxy
+        url: http://tempo.monitoring.svc.cluster.local:3200
+        isDefault: false
+        jsonData:
+          httpMethod: GET
+      - name: k6-influxdb
+        type: influxdb
+        access: proxy
+        url: http://influxdb.monitoring.svc.cluster.local:8086
+        database: k6
+        isDefault: false
+
+  alertmanager:
+    alertmanagerSpec:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+    service:
+      type: ClusterIP
+
+  kube-state-metrics:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  prometheus-node-exporter:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+
+  defaultRules:
+    rules:
+      etcd: false
+      kubeScheduler: false
+      kubeControllerManager: false
+      kubeProxy: false

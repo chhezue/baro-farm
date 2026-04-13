@@ -49,3 +49,7 @@ spec:
                 secretKeyRef:
                   name: baro-payment-secrets
                   key: TOSS_SECRET_KEY
+            - name: MANAGEMENT_OTLP_TRACING_ENDPOINT
+              value: http://otel-collector.monitoring.svc.cluster.local:4318/v1/traces
+            - name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
+              value: "1.0"

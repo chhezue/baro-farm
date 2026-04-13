@@ -26,41 +26,38 @@ dependencyManagement {
 }
 
 dependencies {
-    // 공통
+    // ========= 공통 / 개발 편의 =========
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
     implementation project(':baro-common')
 
-    // 테스트
+    // ========= 테스트 =========
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
-    // User 서비스
+    // ========= User 서비스 의존성 =========
     implementation 'org.springframework.boot:spring-boot-starter-web'       // Servlet, MVC
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'  // JPA, 트랜잭션
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'  // JPA, 엔티티 리포지토리
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'  // health, metrics
-    // implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client' // Eureka 미사용
-    implementation 'org.springframework.cloud:spring-cloud-starter-config'   // Config Server 클라이언트
+    implementation 'org.springframework.cloud:spring-cloud-starter-config'   // Config Server 연동
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
     implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
     implementation 'org.springframework.kafka:spring-kafka'
 
-    // 메일
+    // ========= 메일 =========
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
-    // JWT
+    // ========= JWT =========
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
-    // DB
+    // ========= 데이터베이스 =========
     runtimeOnly 'com.mysql:mysql-connector-j'
 
-    // 보안 테스트
     // testImplementation 'org.springframework.security:spring-security-test'
 }
 

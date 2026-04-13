@@ -26,8 +26,7 @@ dependencyManagement {
 }
 
 dependencies {
-    // ========= 공통 유틸 / 개발 편의 =========
-    // Lombok
+    // ========= 공통 유틸 / 개발 의존성 =========
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
@@ -42,20 +41,18 @@ dependencies {
     // ========= Shopping 서비스 의존성 =========
     implementation project(':baro-common')
     implementation 'org.springframework.boot:spring-boot-starter-web'       // REST 컨트롤러
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'  // jakarta.persistence (@Entity 등)
-    // implementation 'org.springframework.boot:spring-boot-starter-data-redis' // Redis 미사용: 의존성만 남겨두고 주석 처리
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'  // JPA 엔티티/리포지토리
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator' // Health check용
     implementation 'org.springframework.kafka:spring-kafka'                 // Kafka producer/consumer
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
-    implementation 'org.springframework.cloud:spring-cloud-starter-config' // Config Server 클라이언트
-    implementation 'software.amazon.awssdk:s3:2.25.60'                     // S3 클라이언트
-    implementation 'com.sksamuel.scrimage:scrimage-webp:4.1.1'              // WebP writer 지원
+    implementation 'org.springframework.cloud:spring-cloud-starter-config' // Config Server 연동
+    implementation 'software.amazon.awssdk:s3:2.25.60'                     // S3 연동
+    implementation 'com.sksamuel.scrimage:scrimage-webp:4.1.1'              // WebP writer
 
-    // Database
+    // ========= 데이터베이스 =========
     runtimeOnly 'com.mysql:mysql-connector-j'
 
-    // OpenFeign (HttpURLConnection, Apache HttpClient, OkHttp 중 OkHttp가 가장 좋아보임)
+    // ========= OpenFeign =========
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
     implementation 'io.github.openfeign:feign-okhttp:13.6'
 }

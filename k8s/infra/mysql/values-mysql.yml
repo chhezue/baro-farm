@@ -9,6 +9,14 @@ mysql:
     database: "baro_db"
     username: "baro_user"
 
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring
+      labels:
+        release: kube-prometheus-stack
+
   architecture: standalone
 
   primary:
@@ -32,5 +40,4 @@ mysql:
 
   image:
     repository: bitnami/mysql
-    tag: 9.4.0-debian-12-r1
 

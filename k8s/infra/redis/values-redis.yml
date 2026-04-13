@@ -19,3 +19,10 @@ redis:
     repository: bitnami/redis
     tag: 8.6.0
 
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring
+      additionalLabels:
+        release: kube-prometheus-stack

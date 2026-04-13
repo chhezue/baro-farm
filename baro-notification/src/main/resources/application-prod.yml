@@ -51,10 +51,13 @@ notification:
       enabled: false
 
 management:
+  metrics:
+    tags:
+      application: ${spring.application.name}
   endpoints:
     web:
       exposure:
-        include: refresh, health, beans, info
+        include: refresh, health, beans, info, metrics, prometheus
 
 springdoc:
   api-docs:

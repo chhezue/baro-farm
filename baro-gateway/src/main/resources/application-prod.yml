@@ -1,5 +1,7 @@
 # prod(K8s): Eureka/Config 미사용, Service/ConfigMap으로 대체, http:// 직접 라우팅
 spring:
+  application:
+    name: baro-gateway
   config:
     # Config Server 미사용 - 연결 시도 후 실패해도 optional이므로 기동 계속
     import: optional:configserver:http://localhost:1
