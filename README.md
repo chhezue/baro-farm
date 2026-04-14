@@ -10,8 +10,8 @@
   ├── .github/           # github actions script  
   ├── baro-ai/                                                                                                                                                                                                                      
   ├── baro-common/                                                                                                                                                                                                                  
-  ├── <span style="color:red;"><s>baro-config/</s>       # k8s configmap으로 대체</span>                                                                                                                                                 
-  ├── <span style="color:red;"><s>baro-eureka/</s>       # k8s service로 대체</span>                                                                                                                                                     
+  ├── ❌ <span style="color:red;"><s>baro-config/</s>       # k8s configmap으로 대체</span>                                                                                                                                                 
+  ├── ❌ <span style="color:red;"><s>baro-eureka/</s>       # k8s service로 대체</span>                                                                                                                                          
   ├── baro-gateway/                                                                                                                                                                                                                 
   ├── baro-notification/                                                                                                                                                                                                            
   ├── baro-opa-bundle/                                                                                                                                                                                                              
