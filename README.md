@@ -112,18 +112,18 @@ https://github.com/user-attachments/assets/52e27271-3f67-4008-a606-eb086d7dea90
 
 Gateway 뒤에는 서비스별 Prefix와 실제 API 경로를 붙여 호출합니다.
 
-| 서비스           | Gateway 경로 예시                   |                                                                                                                                                         
-|---------------|-------------------------------------|                                                                                                                                                          
-| User          | `/user-service/api/v1/**`          |                                                                                                                                                           
-| Shopping      | `/shopping-service/api/v1/**`      |
-| Order         | `/order-service/api/v1/**`         |                                                                                                                                                           
-| Payment       | `/payment-service/api/v1/**`       |                                                                                                                                                           
-| Notification  | `/notification-service/api/v1/**`  |                                                                                                                                                           
-| AI            | `/ai-service/api/v1/**`            |                                                                                                                                                           
-| Settlement    | `/settlement-service/api/v1/**`    |
-| Sample (헬스체크) | `/sample-service/api/v1/health`    |                                                                                                                                                           
+| 서비스           | Gateway 경로 예시                         |                                                                                                                                                         
+|---------------|---------------------------------------|                                                                                                                                                          
+| User          | `/user-service/api/v1/**`             |                                                                                                                                                           
+| Shopping      | `/shopping-service/api/v1/**`         |
+| Order         | `/order-service/api/v1/**`            |                                                                                                                                                           
+| Payment       | `/payment-service/api/v1/**`          |                                                                                                                                                           
+| Notification  | `/notification-service/api/v1/**`     |                                                                                                                                                           
+| AI            | `/ai-service/api/v1/**`               |                                                                                                                                                           
+| Settlement    | `/settlement-service/api/v1/**`       |
+| Sample (테스트용) | `/sample-service/api/v1/health`(헬스체크) |                                                                                                                                                           
 
-예: Sample 헬스체크 호출                                                                                                                                                                                                         
+예: Sample 서비스 헬스체크 api 호출                                                                                                                                                                                                         
 `http://k8s-default-barogate-c698a3c89e-486320229.ap-northeast-2.elb.amazonaws.com/sample-service/api/v1/health`
 
 </br>
