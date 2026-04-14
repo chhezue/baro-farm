@@ -3,6 +3,39 @@
 
 </br>
 
+## 📁 Directory
+
+  <pre>                                                                                                                                                                                                                             
+  baro-farm/   
+  ├── .github/           # github actions script  
+  ├── baro-ai/                                                                                                                                                                                                                      
+  ├── baro-common/                                                                                                                                                                                                                  
+  ├── <span style="color:red;"><s>baro-config/</s>       # k8s configmap으로 대체</span>                                                                                                                                                 
+  ├── <span style="color:red;"><s>baro-eureka/</s>       # k8s service로 대체</span>                                                                                                                                                     
+  ├── baro-gateway/                                                                                                                                                                                                                 
+  ├── baro-notification/                                                                                                                                                                                                            
+  ├── baro-opa-bundle/                                                                                                                                                                                                              
+  ├── baro-opa/                                                                                                                                                                                                                     
+  ├── baro-order/                                                                                                                                                                                                                   
+  ├── baro-payment/                                                                                                                                                                                                                 
+  ├── baro-sample/       # 배포 테스트용 모듈                                                                                                                                                                                     
+  ├── baro-settlement/                                                                                                                                                                                                              
+  ├── baro-shopping
+  ├── baro-user/                                                                                                                                                                                                                    
+  ├── config/            # 전역 설정                                                                                                                                                                                             
+  ├── docker/            # 도커 이미지                                                                                                                                                                                            
+  ├── gradle/wrapper/                                                                                                                                                                                                               
+  ├── k8s/                                                                                                                                                                                                                          
+  │   ├── apps/                                                                                                                                                                                                                     
+  │   ├── infra/                                                                                                                                                                                                                    
+  │   └── monitoring/                                                                                                                                                                                                             
+  └── scripts/           # 초기 더미데이터용 스크립트                                                                                                                                                                                                           
+  </pre>
+
+> 초기에는 docker compose로 배포하다가, k8s로 전환하면서 `baro-config`, `baro-eureka`를 각각 k8s의 ConfigMap, Service로 대체했습니다.
+
+</br>
+
 ## ✨ 주요 기능
 
   <details>                                                                                                                                                                                                                         
