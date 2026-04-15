@@ -19,7 +19,7 @@ spec:
         - name: ecr-registry
       containers:
         - name: baro-notification
-          image: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/baro-notification:sha-cbbaca0
+          image: 299369991605.dkr.ecr.ap-northeast-2.amazonaws.com/baro-prod/baro-notification:sha-d4d7052
           imagePullPolicy: Always
           ports:
             - containerPort: 8091
