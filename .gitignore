@@ -87,3 +87,6 @@ baro-auth/.env
 
 .gradle-user-home/
 .gradle-local/
+
+# 개인 포트폴리오 자료 (저장소에 올리지 않는다)
+baro-ai/docs/portfolio/

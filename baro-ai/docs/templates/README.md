@@ -33,9 +33,10 @@
 | 리뷰 분석 로드맵 (팀원 소유) | 팀원 작성 | `docs/REVIEW_ANALYSIS_PHASES.md` | 설명 | [`explanation-doc.md`](explanation-doc.md) — 이 하네스가 고치지 않는다 |
 | 인계 문서 | 사용자 승인 후 수동 작성(세션을 넘길 때 미해결 문제를 모음) | `docs/audits/{unit}/{NNN}-*-handoff.md` — 감사 번호 체계를 쓰되 A/B/C/D가 아니라 "측정된 사실 / 근거 없는 것 / 결론 난 것 / 선택지" 구성 | 참조 | [`reference-doc.md`](reference-doc.md) |
 | 기능·기술 문서 (주제별) | 사용자 승인 후 수동 작성 | `docs/features/{unit}.md` — 절 구성·참고 자료는 [`features/README.md`](../features/README.md) | 설명 (Google 설계 문서의 목표·비목표·대안·교차 관심사 절을 더함) | [`explanation-doc.md`](explanation-doc.md) 골격 + `features/README.md` 절 표 |
-| 포트폴리오 케이스 스터디 | 사용자 승인 후 수동 작성 | `docs/portfolio/{unit}.md` — 절 구성은 [`portfolio/README.md`](../portfolio/README.md) | 설명 (배경 → 분석 → 대안 → 해결 → 자평 → 한계 → 회고) | [`explanation-doc.md`](explanation-doc.md) 골격 + `portfolio/README.md` 절 표 |
 | 기술 비교·분석 메모 | 사용자 승인 후 수동 작성 | `docs/audits/{주제}.md` (예: `ssoss-llm-comparison.md`) | 설명 | [`explanation-doc.md`](explanation-doc.md) |
 | 모듈 README·폴더 인덱스 | 사용자 승인 후 수동 작성 | `docs/README.md` · 하위 `README.md` | 참조(인덱스) | [`reference-doc.md`](reference-doc.md) |
+
+**저장소 밖에 두는 산출물.** 포트폴리오 자료(`baro-ai/docs/portfolio/`)는 개인 자료라 `.gitignore`로 저장소에서 제외한다 — 케이스 스터디·문제별 슬라이드·최종 덱·선정본이 여기 속하며, 이 등록부는 그 형식을 관리하지 않는다. 로컬에는 남아 있고, 형식은 그 폴더의 `README.md`가 스스로 정의한다.
 
 **마크다운을 만들지 않는 것들.** 등록된 훅 4개 중 셋은 stderr 메시지만 내보내고, `auto-format-java.sh`는 `.java` 파일을 포맷할 뿐 문서를 만들지 않는다. `preflight`·`debug` 스킬과 `doc-reviewer`·`spring-reviewer`·`researcher` 에이전트는 결과를 채팅으로만 보고한다. 이들의 결과를 문서로 남겨야 한다고 판단되면 위 등록부에 행을 추가하는 것이 먼저다 — 임의 경로에 파일을 만들지 않는다.
 

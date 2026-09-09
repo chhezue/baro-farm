@@ -132,7 +132,7 @@
 |---|---|
 | 규칙 4 문구 교체 + Javadoc 정책 4 | `RecipeCandidateGenerator.buildRecipeCandidateTemplate` |
 | 골든셋 사본 동기화 + 바꾸기 전 프롬프트를 `no-category-rule` 팔로 보존 | `scripts/goldenset/prompts.py` |
-| 현행 서술 갱신 | [`specs/cart-recipe/recipe-recommendation.md`](../../specs/cart-recipe/recipe-recommendation.md) 용어 표 · [`pantry-staples-and-catalog-coverage.md`](../../specs/cart-recipe/pantry-staples-and-catalog-coverage.md) 갈래 A 후속 · [`recipe-quality-redesign.md`](../../specs/cart-recipe/recipe-quality-redesign.md) · [`features/cart-recipe.md`](../../features/cart-recipe.md) · [`portfolio/cart-recipe.md`](../../portfolio/cart-recipe.md) 결정 C · [`glossary.md`](../../product/glossary.md) |
+| 현행 서술 갱신 | [`specs/cart-recipe/recipe-recommendation.md`](../../specs/cart-recipe/recipe-recommendation.md) 용어 표 · [`pantry-staples-and-catalog-coverage.md`](../../specs/cart-recipe/pantry-staples-and-catalog-coverage.md) 갈래 A 후속 · [`recipe-quality-redesign.md`](../../specs/cart-recipe/recipe-quality-redesign.md) · [`features/cart-recipe.md`](../../features/cart-recipe.md) · 포트폴리오 케이스 스터디 결정 C(저장소 밖) · [`glossary.md`](../../product/glossary.md) |
 | 테스트 | `./gradlew :baro-ai:test` 81건 통과(프롬프트는 문자열이라 직접 검증하는 테스트는 없다 — 골든셋이 담당) |
 | 사람 채점 | 사용자, 2026-09-09. 64줄(실행 84건) × 3축 전부 O, 지목 3줄은 위 표. 기록은 아티팩트 "골든셋 채점대"의 데이터베이스 |
 

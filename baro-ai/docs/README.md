@@ -107,7 +107,6 @@ curl http://localhost:8092/actuator/health
 | [`specs/`](specs/README.md) | 기능 스펙(현재 동작·API·규칙의 SSOT). `Draft → Approved → Implemented` |
 | [`decisions/`](decisions/README.md) | 되돌리기 비싼 선택의 근거와 트레이드오프(ADR) |
 | [`audits/`](audits/README.md) | 아키텍처 감사·측정 보고서·리팩터 반영 이력·미결 항목·하네스 회고 |
-| [`portfolio/`](portfolio/README.md) | 같은 4개 주제의 케이스 스터디 — 코드 변경이 끝난 뒤 재작성 예정 |
 | [`product/`](product/README.md) | MVP 범위·용어 사전·클라이언트 전제 |
 | [`harness/`](harness/README.md) | AI 에이전트 하네스의 레이어별 동작 |
 | [`templates/`](templates/README.md) | 산출물 등록부 + 유형별 템플릿 4종 |
