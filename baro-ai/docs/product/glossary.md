@@ -19,7 +19,7 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 카테고리 코드 | 3단계 22개(루트 `AGRI_DIRECT` 포함 — Level 1·2만 세면 21개), 전부 `AGRI_*`(농산물·축산물 계열). 리프 코드가 이벤트·문서의 `productCategoryCode` | `scripts/init-db/02-init-categories.sql` |
 | dense_vector | Elasticsearch 벡터 필드 타입. baro-ai는 768차원 고정(2026-09-07 이전 1536) | `ProductDocument.vector` |
 | 코사인 유사도 | 두 벡터의 방향 유사도(−1~1). 벡터 후보 조회의 정렬 기준 | ES `script_score(cosineSimilarity)` |
-| topK | 추천 API가 최종 반환하는 개수. 후보는 이보다 넉넉히 가져온 뒤 다양화로 줄인다(값: [`vector-similarity` 스펙](../specs/vector-similarity/vector-similarity-search.md) 비즈니스 규칙) | `RecommendationController` |
+| topK | 추천 API가 최종 반환하는 개수. 후보는 이보다 넉넉히 가져온 뒤 카테고리 상한으로 줄인다(값: [`vector-similarity` 스펙](../specs/vector-similarity/vector-similarity-search.md) 비즈니스 규칙) | `RecommendationController` |
 | `X-User-Id` | 게이트웨이가 넣어 주기로 한 사용자 식별 헤더. prod 라우트에는 인증 필터가 없어 클라이언트 값이 그대로 전달(2026-09-08부터 추천 API는 이 헤더와 경로의 userId를 대조해 다르면 403으로 끊는다 — 다만 헤더가 아예 없으면 막지 않는다)된다 | `baro-gateway` `application-prod.yml`, [`platform.md`](platform.md) |
 | Sentiment · 베스트 리뷰 | review 도메인(팀원 소유) 용어 — `POSITIVE`/`NEGATIVE`/`MIXED`, 매일 배치로 갱신되는 대표 리뷰 목록 | `Sentiment.java`, `BestReviewListDocument` |
 
@@ -58,9 +58,9 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 용어 | 의미 | 코드/문서 근거 |
 |------|------|-----------------|
 | 상품 벡터 | 상품명을 Gemini `gemini-embedding-001`로 임베딩한 768차원 벡터. 실패 시 `null` | `ProductEmbeddingService`, `ProductDocument.vector` |
-| 후보 규모 | 다양화 전에 ES에서 가져오는 상품 수. topK의 배수에 상한을 둔다(값: `vector-similarity` 스펙 비즈니스 규칙) | `candidateSize` |
+| 후보 규모 | 고르기 전에 ES에서 가져오는 상품 수. `topK`의 3배다(값: `vector-similarity` 스펙 비즈니스 규칙) | `candidateSize` |
 | 카테고리 상한 | 유사도 순서를 지키면서 같은 카테고리를 최대 2개까지만 추천에 담는 규칙. 모자라면 상한을 풀어 개수를 채운다. 2026-09-09 이전에는 max-min 다양화(서로 가장 먼 것을 고르는 greedy)를 썼다 | `VectorRecommendPipeline.selectWithCategorySpread` |
-| 추천 공통 경로 | 기준 벡터 하나로 후보 조회 → 다양화 → 응답 변환까지 수행하는 경로. 유사 상품·개인화 추천이 함께 쓴다 | `VectorRecommendPipeline.recommend` |
+| 추천 공통 경로 | 기준 벡터 하나로 후보 조회 → 카테고리 상한 고르기 → 응답 변환까지 수행하는 경로. 유사 상품·개인화 추천이 함께 쓴다 | `VectorRecommendPipeline.recommend` |
 | script_score 벡터 검색 | 필터를 통과한 문서 전부의 코사인을 계산하는 방식. HNSW 근사 검색(native `knn`)을 쓰지 않는다 | `VectorProductSearchService` |
 
 ## 키워드 검색 (`keyword-search`)
@@ -73,12 +73,12 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 정확 매칭 | `match_phrase` 절(slop·boost: `keyword-search` 스펙) | `applyExactMatch` |
 | 일반 매칭 | `match` OR 절(boost: `keyword-search` 스펙) | `applyNormalMatch` |
 | 오탈자 매칭 | `productName.word`(띄어쓰기 단위 text) 대상 fuzzy 절. 단어마다 한 글자 오타를 허용한다(길이 조건·boost: `keyword-search` 스펙) | `applyFuzzyMatch` |
-| 자동완성 접두어 | `edge_ngram`으로 색인한 상품명 조각. 상품 문서의 `productName.ac` 서브필드에 들어 있고(2026-09-08 통합, 그전에는 별도 인덱스), 조회는 확장 없이 `match`(`operator=and`)로 찾는다(길이 범위: `keyword-search` 스펙) | `autocomplete-analyzer.json`, `ProductDocument.productName`, `ProductSearchService.autocomplete` |
+| 자동완성 접두어 | `edge_ngram`으로 색인한 상품명 조각. 상품 문서의 `productName.ac` 서브필드에 들어 있고(2026-09-08 통합, 그전에는 별도 인덱스), 조회는 확장 없이 `match`(`operator=and`)로 찾는다(길이 범위: `keyword-search` 스펙) | `autocomplete-analyzer.json`, `ProductDocument.productName`, `ProductAutocompleteService.autocomplete` |
 | 자동완성 캐시 | 자동완성 결과를 인스턴스 안에서만 잠시 기억하는 Caffeine 로컬 캐시(크기·TTL: [`keyword-search` 스펙](../specs/keyword-search/product-search-and-autocomplete.md) 비즈니스 규칙) | `CacheConfig`, [`decisions/001`](../decisions/001-autocomplete-caching.md) |
 
 ## 예시
 
-- "이 사용자의 **프로필 벡터**로 후보 15개를 뽑고 **max-min 다양화**로 **topK**=5개를 골랐는데, **경험 상품** 2개는 처음부터 제외됐다."
+- "이 사용자의 **프로필 벡터**로 후보 15개를 뽑고 **카테고리 상한**으로 **topK**=5개를 골랐는데, **경험 상품** 2개는 처음부터 제외됐다."
 - "장바구니의 **보유 재료**가 계란·애호박·두부라서 LLM이 낸 **레시피 후보**가 '애호박 두부전'이고, 서버가 계산한 **부족 핵심 재료**는 2개다."
 
 ## 관련 문서

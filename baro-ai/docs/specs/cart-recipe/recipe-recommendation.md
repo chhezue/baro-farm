@@ -104,7 +104,7 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 | Feign 호출 상한 | 장바구니 조회 연결 1초·읽기 3초. 게이트웨이 응답 상한(5초)보다 짧게 둔다 | `application.yml` |
 | 부족 재료 상품 수 | 재료당 최대 2개, 키워드 검색 상태 필터 적용 | `MISSING_PRODUCTS_LIMIT_PER_INGREDIENT` |
 | 부족 재료 검색어 | 원문의 **마지막 어절**만 쓴다(`국거리용 소고기` → `소고기`). LLM이 수식어를 붙여 말해도 색인된 재료명과 맞추기 위한 규칙이고, 응답에 나가는 문구는 원문을 유지한다 | `IngredientProcessingUtil.toSearchKeyword` |
-| 부족 재료 상품 매칭 | 전용 쿼리 `buildIngredientQuery`. `ingredientName` **정확 일치(`term`)에 boost 4.0**을 주어 상품명 정확 매칭(2.0)보다 위에 두고, 그 아래로 일반 키워드 3중 매칭(정확 2.0·형태소 1.0·오탈자 0.3)을 함께 건다(`minimumShouldMatch=1`). 색인된 재료명이 정답일 때 1위로 오게 하려는 것이다 | `ProductSearchService.buildIngredientQuery` |
+| 부족 재료 상품 매칭 | 전용 쿼리 `buildIngredientQuery`. `ingredientName` **정확 일치(`term`)에 boost 4.0**을 주어 상품명 정확 매칭(2.0)보다 위에 두고, 그 아래로 일반 키워드 3중 매칭(정확 2.0·형태소 1.0·오탈자 0.3)을 함께 건다(`minimumShouldMatch=1`). 색인된 재료명이 정답일 때 1위로 오게 하려는 것이다 | `ProductQueryFactory.buildIngredientQuery` |
 | 재료명 추출(색인 시) | temperature 0, 카테고리명을 힌트로 전달, 실패·빈 답은 `""` | `ProductIngredientNormalizer` ([`audits/search/002`](../../audits/search/002-llm-prompt-tuning.md)) |
 | 단계별 실패 | 장바구니 실패 → 전부 빈 값(`UPSTREAM_ERROR`) / 빈 장바구니(`EMPTY_CART`)·전부 제외(`NO_ELIGIBLE_ITEMS`)·재료명 없음(`INGREDIENTS_NOT_INDEXED`) → 빈 값 / LLM 실패 → `ownedIngredients`만(`GENERATION_FAILED`) / 상품 검색 실패 → 카드 전부 빠짐, 레시피는 유지(`OK`). 최상위 catch는 스택트레이스를 남긴다(2026-09-06 이전엔 메시지만) | `recommendFromCart` |
 
@@ -138,7 +138,7 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 
 - [x] 기능 구현
 - [ ] 위 "수동 확인 (로컬)" 절차 — baro-shopping 미기동으로 2026-09-05 리팩터에서는 수행하지 못했다
-- [x] `./gradlew :baro-ai:test` — 이 단위 20건 통과 (`RecipeRecommendServiceTest` 7 · `IngredientProcessingUtilTest` 8 · `CandidateRecipePlanTest` 5). 저장소 전체는 감사 010 반영 뒤 **93건**(2026-09-09 — 이 단위에 `RecipeCandidateGeneratorTest` 5·`ProductIngredientNormalizerTest` 5가 더해져 30건)
+- [x] `./gradlew :baro-ai:test` — 이 단위 25건 통과 (`RecipeRecommendServiceTest` 7 · `IngredientProcessingUtilTest` 8 · `CandidateRecipePlanTest` 5 · `RecipeCandidateGeneratorTest` 5). 부족 재료 조회는 `ProductSearchServiceTest`의 `multiSearch` 2건이, 색인 시점 재료명 추출은 `ProductIngredientNormalizerTest` 5건이 보는데 **둘 다 검색 단위 합계에 넣어 센다**(중복 집계 방지). 저장소 전체는 17클래스 **93건**
 
 ## 리스크·미결정
 
@@ -146,7 +146,7 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 |------|------|------|
 | **Feign 응답 언래핑 누락** | 해소 · 런타임 미검증 | 2026-09-05 `CartClient`가 `ResponseDto<CartInfo>`를 받도록 고쳤다. baro-shopping을 띄운 실제 왕복 확인은 아직 못 했다 |
 | **`shopping-service` 이름이 prod에서 해석 불가** | 해소 · 런타임 미검증 | 2026-09-05 `spring.cloud.openfeign.client.config.shopping-service.url`을 추가했다(기본값 `http://baro-shopping:8080`). 네임스페이스가 다르면 FQDN이 필요해 배포 담당자 확인 `[미정]` |
-| 게이트웨이 응답 타임아웃 5초 vs 레시피 경로 예산 | **해소(2026-09-09)** | 요청 경로는 3초 상한이고, 2026-09-09에 SDK 기본 재시도까지 꺼서 실제로 3초 근처에 끝난다([`audits/cart-recipe/010`](../../audits/cart-recipe/010-unit-wide-audit.md) A-1). 장바구니 조회 3초 + LLM 3초 + 상품 검색이 직렬이라 최악 합이 5초를 넘을 수 있는 점은 `open-items.md` B-3 |
+| 게이트웨이 응답 타임아웃 5초 vs 레시피 경로 예산 | **해소(2026-09-09)** | 요청 경로는 3초 상한이고, 2026-09-09에 SDK 기본 재시도까지 꺼서 실제로 3초 근처에 끝난다([`audits/cart-recipe/010`](../../audits/cart-recipe/010-unit-wide-audit.md) A-1). 다만 코드 값을 그대로 더한 최악 합(장바구니 4초[연결 1 + 읽기 3] + ES 3초 + LLM 3초 + 부족 재료 ES 3초 = **13초**)은 여전히 5초를 넘는다 — `open-items.md` B-3 |
 | 스코어링 가중치 미문서화·프롬프트 정책과 중복 | 해소 | 2026-09-05 점수 로직 삭제(사용자 결정). **되돌리려면 삭제 전 가중치가 필요하다** — 값은 [`audits/recommend/002`](../../audits/recommend/002-recipe-scoring.md) C-1에 남아 있다 |
 | 후보 선택 품질 비교 근거 없음 | 확정 | 점수를 지우기 전에도 후보별 점수를 로그로 남기지 않아, 삭제 전후 추천 품질을 비교할 자료가 없다 `[미정]` |
 | 테스트용 POST 엔드포인트가 운영에 노출 | 해소 | 2026-09-05 삭제 |

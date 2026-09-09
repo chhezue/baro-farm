@@ -39,7 +39,7 @@ baro-ai에는 RDB가 없다. 상품의 원본은 `baro-shopping`(MySQL)이고, b
 | 3. 색인 | `ProductIndexService.indexProducts` | **기존 문서 일괄 조회 → 상품명이 그대로면 임베딩·재료명을 그대로 옮겨 쓴다**(2026-09-08). 바뀐 상품만 묶음 임베딩(Gemini `batchEmbedContents` 1회, 실패 시 상품별 폴백 → 실패한 상품만 `null`) → 요리 재료명(상품별 1회)(LLM(Large Language Model, 거대 언어 모델), 실패 시 `""`) → `product` `saveAll`(bulk 1회). `updatedAt`은 이벤트 값(발행 시각)을 그대로 쓰고 없을 때만 현재 시각. CREATED·UPDATED 모두 전체 덮어쓰기 | [`ProductIndexService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductIndexService.java) |
 | 4. 삭제 | `ProductIndexService.deleteProduct` | `product` 인덱스에서 삭제(2026-09-08 자동완성 인덱스 통합 후 한 곳이다) | 동일 |
 | 5. 검색 | `GET /api/v1/search` | 페이징 파라미터 검증 → `bool` 쿼리(should 3 + filter) → `_score desc, updatedAt desc` → 벡터를 뺀 `_source`만 받아 `CustomPage`. **조회만 하고 아무것도 기록하지 않는다** — 2026-09-07까지는 검색 로그를 남겼으나 검색이 취향 신호에서 빠지며 제거됐다 | [`ProductSearchService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductSearchService.java) |
-| 6. 자동완성 | `GET /api/v1/search/autocomplete` (`ProductAutocompleteService`) | `size` 검증 → 2글자 미만 빈 배열 → Caffeine 캐시(키 `query-size`, 1,000개·5분) → `product` 인덱스의 `productName.ac`에 `match`(`operator=and`) + 상태 필터 | `ProductSearchService.autocomplete` |
+| 6. 자동완성 | `GET /api/v1/search/autocomplete` (`ProductAutocompleteService`) | `size` 검증 → 2글자 미만 빈 배열 → Caffeine 캐시(키 `query-size`, 1,000개·5분) → `product` 인덱스의 `productName.ac`에 `match`(`operator=and`) + 상태 필터 | `ProductAutocompleteService.autocomplete` |
 
 ## API / 인터페이스
 
@@ -47,7 +47,7 @@ baro-ai에는 RDB가 없다. 상품의 원본은 `baro-shopping`(MySQL)이고, b
 |--------|------|------|------|
 | GET | `/api/v1/search` | 없음(사용자 식별 안 함) | `q`·`categories[]`·`priceMin`·`priceMax`·`page`(0)·`size`(10). `q`가 없으면 필터만으로 검색 |
 | GET | `/api/v1/search/autocomplete` | 없음 | `q`(필수)·`size`(5) |
-| POST | `/api/v1/search/admin/reindex` | `X-Admin-Token` 헤더(`BARO_AI_ADMIN_TOKEN`) | 전체 재색인 시작(2026-09-09 신설, [`ProductReindexController.java`](../../../src/main/java/com/barofarm/ai/search/presentation/ProductReindexController.java)). 이미 진행 중이면 409 |
+| POST | `/api/v1/search/admin/reindex` | `X-Admin-Token` 헤더(`BARO_AI_ADMIN_TOKEN`). 토큰이 설정되지 않았거나 다르면 403 `ADMIN_TOKEN_INVALID` | **한 요청에 한 페이지**만 재색인한다(2026-09-09 신설, [`ProductReindexController.java`](../../../src/main/java/com/barofarm/ai/search/presentation/ProductReindexController.java)). `page`(기본 0)·`size`(기본 20, 1~100) 쿼리를 받고 `ReindexPageResult{page, indexed, totalProducts, hasNext}`를 돌려준다 — 호출자가 `hasNext`가 false가 될 때까지 반복한다. 이미 진행 중이면 409 |
 
 두 API 모두 `ResponseDto<…>`로 감싼다. 2026-09-05부터 추천 API도 같은 envelope를 쓴다.
 
@@ -57,7 +57,7 @@ baro-ai에는 RDB가 없다. 상품의 원본은 `baro-shopping`(MySQL)이고, b
 
 | 코드 | HTTP | 조건 |
 |------|------|------|
-| `INVALID_PAGE` | 400 | `page < 0` |
+| `INVALID_PAGE` | 400 | `page < 0` (검색·자동완성 경로. 재색인은 `page < 0`도 `INVALID_PAGE_SIZE`로 끊는다) |
 | `INVALID_PAGE_SIZE` | 400 | `size < 1` 또는 `size > 100` |
 | `PAGE_RANGE_EXCEEDED` | 400 | `(page + 1) × size > 10,000` (ES `index.max_result_window`) |
 | `INVALID_AUTOCOMPLETE_SIZE` | 400 | 자동완성 `size < 1` 또는 `size > 20` |
@@ -93,7 +93,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 
 | 규칙 | 값 | 구현 위치 |
 |------|-----|-----------|
-| poll당 건수 · 처리 허용 · 재시도 | 최대 5건(묶음) · 15분 · 실패 레코드부터 1초 간격 2회 | `KafkaConsumerConfig` product 팩토리. 5는 상품 1건 최악 지연 180초(임베딩·재료명 각 30초×3회) × 5 = 15분에서 나왔다 — 1건일 때 지키던 "최악에도 리밸런싱 없음"을 유지하는 최대값([`audits/keyword-search/002`](../../audits/keyword-search/002-index-throughput-and-search-log.md) A-1) |
+| poll당 건수 · 처리 허용 · 재시도 | 최대 5건(묶음) · 15분 · 실패 레코드부터 1초 간격 2회 | `KafkaConsumerConfig` product 팩토리. 5는 "상품 1건 최악 지연 × N ≤ `max.poll.interval`"에서 역산했다 — 1건일 때 지키던 "최악에도 리밸런싱 없음"을 유지하는 최대값이다([`audits/keyword-search/002`](../../audits/keyword-search/002-index-throughput-and-search-log.md) A-1). 당시 쓴 1건 최악값 180초(임베딩·재료명 각 30초×3회)는 **2026-09-09에 약 72초로 정정됐다** — SDK 타임아웃이 재시도까지 포함한 호출 전체를 감싸 1회 최악이 약 36초다([`audits/cart-recipe/010`](../../audits/cart-recipe/010-unit-wide-audit.md) A-1). 값 5는 그대로 두었다(필요보다 보수적) |
 | 색인 시 원격 호출 | **상품명이 바뀐 상품에 대해서만** 묶음당 임베딩 1회 + 상품당 재료명 LLM 1회, 각 30초 상한·SDK 재시도 총 3회(배치 경로 클라이언트). 이름이 그대로면 0회 | `LlmClientConfig`, `ProductIndexService` |
 | 임베딩 실패 | 묶음이 실패하면 상품별로 다시 시도, 그래도 실패한 상품만 벡터 `null`로 색인 계속 | `ProductEmbeddingService.embedProducts` |
 | 재료명 실패 | `""`로 색인, "재색인 대상" WARN. 정규식 폴백 없음 | [`decisions/002`](../../decisions/002-ingredient-name-at-index-time.md) |
@@ -108,7 +108,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 | 자동완성 개수 상한 | `size` 1~20 | `autocomplete` |
 | 자동완성 캐시 | Caffeine 최대 1,000개·TTL 5분·인스턴스별 | `CacheConfig`, [`decisions/001`](../../decisions/001-autocomplete-caching.md) |
 | 자동완성 접두어 길이 | `edge_ngram` 1~20자, `token_chars` letter·digit | `settings/autocomplete-analyzer.json` |
-| 자동완성 쿼리 | `productName.ac`에 `match`(`operator=and`) + 상태 필터. 색인 쪽 `edge_ngram`이 이미 접두어를 갖고 있어 조회에서 다시 확장하지 않는다. **2026-09-08부터 별도 인덱스가 아니라 상품 문서의 서브필드다** — 한 상품을 두 인덱스에 나눠 쓰면 한쪽만 성공할 수 있고 구매 가능 상태 목록도 두 곳에 갈라졌기 때문이다 | `ProductSearchService.autocomplete` |
+| 자동완성 쿼리 | `productName.ac`에 `match`(`operator=and`) + 상태 필터. 색인 쪽 `edge_ngram`이 이미 접두어를 갖고 있어 조회에서 다시 확장하지 않는다. **2026-09-08부터 별도 인덱스가 아니라 상품 문서의 서브필드다** — 한 상품을 두 인덱스에 나눠 쓰면 한쪽만 성공할 수 있고 구매 가능 상태 목록도 두 곳에 갈라졌기 때문이다 | `ProductAutocompleteService.autocomplete` |
 | 검색 로그 | **없다.** 검색 API는 부작용이 없는 조회다. `X-User-Id` 헤더도 더 이상 읽지 않는다(2026-09-07, [`audits/taste-vector/005`](../../audits/taste-vector/005-signal-and-weight-simplification.md) A-1) | — |
 
 ### 배포 전제 (게이트웨이·인프라)
@@ -152,7 +152,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 
 - [x] 기능 구현
 - [ ] 위 "수동 확인 (로컬)" 절차 — 로컬 ES 미기동으로 2026-09-05 리팩터에서는 수행하지 못했다
-- [x] `./gradlew :baro-ai:test` — 이 단위 39건 통과 (`ProductSearchServiceTest` 8 · `ProductIndexServiceTest` 10 · `ProductEventConsumerTest` 5 · `ProductAutocompleteServiceTest` 2 · `ProductReindexServiceTest` 6 · `ProductReindexControllerTest` 4 · `ProductIndexAndSearchIntegrationTest` 4). 저장소 전체는 17클래스 93건(2026-09-09 감사 010 반영 뒤 `./gradlew :baro-ai:test` 실행 기준)
+- [x] `./gradlew :baro-ai:test` — 이 단위 43건 통과 (`ProductSearchServiceTest` 8 · `ProductIndexServiceTest` 10 · `ProductEventConsumerTest` 5 · `ProductAutocompleteServiceTest` 2 · `ProductReindexServiceTest` 6 · `ProductReindexControllerTest` 4 · `ProductIngredientNormalizerTest` 5 · `ProductIndexAndSearchIntegrationTest` 3). 저장소 전체는 17클래스 93건(2026-09-09 감사 010 반영 뒤 `./gradlew :baro-ai:test` 실행 기준)
 
 ## 리스크·미결정
 

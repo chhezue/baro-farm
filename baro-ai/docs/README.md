@@ -23,7 +23,7 @@
 
 ## 아키텍처
 
-RDB가 없다. 검색·추천·로그 전부 Elasticsearch 문서다. 상품 정보는 Kafka `product-events`로, 사용자 행동은 `cart-events`·`order-events`로 들어오고, 레시피 추천만 `baro-shopping`을 Feign으로 직접 부른다. LLM(Gemini)은 색인 시점의 재료명 추출과 레시피 생성 두 곳에서만 쓴다.
+RDB가 없다. 검색·추천·로그 전부 Elasticsearch 문서다. 상품 정보는 Kafka `product-events`로, 사용자 행동은 `cart-events`·`order-events`로 들어오고, `baro-shopping`을 Feign으로 직접 부르는 곳은 둘이다 — 레시피 추천의 장바구니 조회(`CartClient`)와 재색인의 상품 목록 조회(`ProductCatalogClient`). LLM(Gemini)은 이 문서가 다루는 범위에서 색인 시점의 재료명 추출과 레시피 생성 두 곳에 쓴다(팀원 소유인 `review`의 리뷰 요약이 세 번째 호출부다).
 
 ```mermaid
 flowchart LR
@@ -52,7 +52,7 @@ src/main/java/com/barofarm/ai/
 ├── embedding/       상품 임베딩, 취향 벡터 계산 (application · domain)
 ├── log/             행동 로그 문서·저장 (application · domain · infrastructure)
 ├── event/           Kafka 컨슈머와 이벤트 모델 (consumer · model)
-├── config/          Kafka·LLM·캐시·Feign 설정
+├── config/          Kafka·LLM·캐시 설정 (Feign 값은 application.yml)
 ├── common/          LLM 호출 관문(LlmGateway)·전역 예외 처리·Swagger
 └── review/          리뷰 감정 분석·요약 — 팀원 소유, 이 문서 범위 밖
 ```

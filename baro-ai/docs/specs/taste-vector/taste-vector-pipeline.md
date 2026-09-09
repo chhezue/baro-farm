@@ -41,7 +41,7 @@
 | 2. 주문 이벤트 발행 | `baro-order` `InventoryConfirmedConsumer.handle` | 재고 확정 이벤트(`inventory-confirmed`)를 받아 주문을 `CONFIRMED`로 바꾸는 메서드에만 `@TrackHistory(ORDER_CONFIRMED)`가 있다. `userId`는 HTTP 헤더가 아니라 주문 엔티티에서 매퍼가 조회 | `baro-order/.../InventoryConfirmedConsumer.java:47`, `OrderConfirmedHistoryPayloadMapper.java:41-47` |
 | 3. 이벤트 소비 | `CartEventConsumer`·`OrderEventConsumer` | 그룹 `ai-service-cart`·`ai-service-order`, `auto-offset-reset=earliest`. 발행 측 enum을 그대로 `user_behavior_logs`에 저장한다. **여기서 하는 일은 로그 적재뿐이다**(2026-09-08 — 프로필 갱신 요청을 뺐다). 문서 ID는 `{도메인}-{파티션}-{오프셋}`(주문은 `-{항목 순번}` 추가). 도메인 접두어는 토픽마다 파티션·오프셋이 따로 세어져 한 인덱스에서 겹치는 것을 막는다 | [`CartEventConsumer.java`](../../../src/main/java/com/barofarm/ai/event/consumer/CartEventConsumer.java), [`OrderEventConsumer.java`](../../../src/main/java/com/barofarm/ai/event/consumer/OrderEventConsumer.java) |
 | 4. 취향 벡터 계산 | `UserProfileEmbeddingService.computeProfile` | **개인화 추천을 요청받았을 때 그 자리에서 계산한다**(2026-09-08 — 미리 만들어 저장하던 방식을 없앴다). 30일 내 행동 로그를 유형 구분 없이 최신 10개 조회 → 게이트 → 로그별 비중 계산(0은 제외) → 상품 벡터 일괄 조회 → 가중 평균 + L2 정규화 → `TasteProfile` 반환(저장하지 않음) | [`UserProfileEmbeddingService.java`](../../../src/main/java/com/barofarm/ai/embedding/application/UserProfileEmbeddingService.java) |
-| 5. 개인화 추천 | `PersonalizedRecommendService.recommendProducts` | 프로필 벡터 계산 → 경험 상품 제외로 후보 `min(topK×3, 100)`개 벡터 검색 → 카테고리당 최대 2개 상한으로 고르기(2026-09-09, 다양화 삭제) → 응답. 카테고리 보너스는 주지 않는다 | [`PersonalizedRecommendService.java`](../../../src/main/java/com/barofarm/ai/recommend/application/PersonalizedRecommendService.java) |
+| 5. 개인화 추천 | `PersonalizedRecommendService.recommendProducts` | 프로필 벡터 계산 → 경험 상품 제외로 후보 `topK×3`개 벡터 검색 → 카테고리당 최대 2개 상한으로 고르기(2026-09-09, 다양화 삭제) → 응답. 카테고리 보너스는 주지 않는다 | [`PersonalizedRecommendService.java`](../../../src/main/java/com/barofarm/ai/recommend/application/PersonalizedRecommendService.java) |
 
 ## API / 인터페이스
 
@@ -98,16 +98,16 @@
 | 규칙 | 값 | 구현 위치 |
 |------|-----|-----------|
 | 조회 기간 | 최근 30일 | `LOOKBACK_DAYS` |
-| 종류별 로그 상한 | 장바구니·주문 각 최신 5개 | `RECENT_LOG_LIMIT` (`PageRequest.of(0, 5)`) |
-| 갱신 스킵 게이트 | 장바구니·주문 **두 종류** 합계가 3개 미만이면 저장하지 않음 | `MIN_TOTAL_LOGS_FOR_EMBEDDING` |
+| 로그 상한 | 유형 구분 없이 최신 **10개**(2026-09-09 인덱스 통합 전에는 장바구니·주문 각 5개였다) | `RECENT_LOG_LIMIT = 10` |
+| 계산 스킵 게이트 | 장바구니·주문 **두 종류** 합계가 3개 미만이면 프로필을 만들지 않음 | `MIN_TOTAL_LOGS_FOR_EMBEDDING` |
 | 행동 가중치 | 주문 CONFIRMED 3 · 장바구니 ADD 2 · UPDATE 1 / 삭제 REMOVE·취소 CANCELLED 0 | `calculateEventWeight` |
 | 행동 비중 | 로그 1건이 취향에 기여하는 정도 = **행동 가중치 그 자체**(범위 0 또는 1~3). 곱하는 축이 더 없다. 시간 감쇠 축은 2026-09-06에, 수량 축은 2026-09-07에 뺐다 — 앞은 L2 정규화가 소거해 효과가 없었고([`002`](../../audits/taste-vector/002-weight-axes-and-tests.md) F-1·F-2), 뒤는 수량이 선호의 세기가 아니라 소비량이었다([`005`](../../audits/taste-vector/005-signal-and-weight-simplification.md) A-2) | `calculateEventWeight` |
 | 비중 0인 로그 | 가중 평균과 경험 상품 **양쪽 모두에서 제외**. 삭제·취소한 상품은 관심이 없어진 것이므로 다시 추천에 나와도 된다 | `WeightedProduct.isUsable` |
 | 프로필 벡터 계산 | 로그 상품의 `ProductDocument.vector`를 비중대로 더한 뒤 **L2 정규화**. 비중 합으로 나누는 단계는 정규화가 흡수하므로 코드에 없다 | `blendIntoProfileVector` |
-| 벡터 없는 상품 | 아직 색인되지 않았거나 임베딩이 실패한 상품은 조용히 건너뛴다. 쓸 수 있는 벡터가 하나도 없으면 프로필을 저장하지 않는다 | `loadProductVectors` |
+| 벡터 없는 상품 | 아직 색인되지 않았거나 임베딩이 실패한 상품, 차원이 다른 상품은 조용히 건너뛴다. 쓸 수 있는 벡터가 하나도 없으면 프로필을 만들지 않는다(빈 결과) | `loadProductVectors` |
 | 외부 임베딩 호출 | **없음.** 프로필 갱신 1회에 Gemini 호출 0회, ES 조회만 남는다 | — |
 | 경험 상품 | 비중이 0이 아닌 장바구니·주문 로그의 productId(중복 제거) | `TasteProfile.experiencedProductIds` |
-| 갱신 트리거 | 장바구니 이벤트 1건·주문 이벤트 1건마다 재계산. 빈도 제한은 두지 않는다 — 가장 비쌌던 Gemini 호출이 빠져 제한할 이유가 없어졌다 | 3단계 |
+| 계산 시점 | **개인화 추천 요청 때마다**(2026-09-08). 이벤트 소비는 로그만 적재하고 재계산을 부르지 않는다. 빈도 제한은 두지 않는다 — 가장 비쌌던 Gemini 호출이 빠져 제한할 이유가 없어졌다 | 4단계 |
 | 비동기 실행 | **없다**(2026-09-08). 취향 벡터를 추천 시점에 계산하게 되면서 전용 실행자와 트리거 빈을 지웠다. 미리 만들어 두는 대가로 쓰기 증폭(이벤트 1건당 ES 왕복 4회)·동시 갱신 시 덮어쓰기·부하 시 갱신 유실을 안고 있었는데, 계산이 벡터 열 개 평균이라 요청 때 해도 차이가 없었다 | — |
 | 대기열 초과 처리 | **해당 없음**(2026-09-08). 갱신을 대기열에 넣지 않으므로 버려질 일이 없다. 그전에는 큐가 가득 차면 그 갱신을 버렸다 | — |
 | 추천 후보 규모 · 상태 필터 | [`vector-similarity`](../vector-similarity/vector-similarity-search.md) 비즈니스 규칙과 같다(후보 규모·상태 필터는 그쪽이 SSOT) | `PersonalizedRecommendService` |
@@ -121,21 +121,21 @@
 
 ### 정상
 
-- [x] 담기 2회 + 주문 확정 1회 → 로그 3건 → 프로필 저장 → 추천 응답에 경험 상품이 없고 `topK`개 이하 (2026-09-07 로컬 확인: 이벤트 3건째에 프로필이 생기고 4건째에 갱신됐다)
-- [x] 같은 사용자에게 이벤트가 더 오면 → 프로필이 최신 로그로 덮어쓰기
+- [x] 담기 2회 + 주문 확정 1회 → 로그 3건 → 추천 요청 시 프로필 계산 → 응답에 경험 상품이 없고 `topK`개 이하 (2026-09-07 로컬 확인은 프로필을 저장하던 시점이라 이벤트 3건째에 프로필이 생기는 것으로 확인했다)
+- [x] 같은 사용자에게 이벤트가 더 오면 → 다음 추천 요청이 최신 로그로 다시 계산
 
 ### 엣지 · 실패
 
 - [x] 로그 2개 이하 → 프로필 없음 → 추천 빈 배열
 - [x] 프로필은 있는데 후보 상품이 0개(전부 품절) → 빈 배열
-- [ ] 장바구니 삭제 이벤트만 있는 사용자 → 비중이 전부 0이라 프로필을 저장하지 않는다(추천은 빈 배열)
-- [ ] 로그의 상품이 모두 아직 색인되지 않아 벡터가 없는 경우 → 프로필을 저장하지 않는다
+- [ ] 장바구니 삭제 이벤트만 있는 사용자 → 비중이 전부 0이라 프로필이 만들어지지 않는다(추천은 빈 배열)
+- [ ] 로그의 상품이 모두 아직 색인되지 않아 벡터가 없는 경우 → 프로필이 만들어지지 않는다
 
 ### 수동 확인 (로컬 — ES·Kafka 기동 필요)
 
 2026-09-05 재설계 시점에는 로컬 인프라를 띄우지 못해 **실행하지 못한 절차**다. 인프라가 준비되면 이 순서로 확인한다.
 
-- [ ] 이벤트 1건 발행 후 프로필 갱신 INFO가 찍힌 스레드 이름이 `profile-update-*`인지(리스너 스레드 `KafkaListenerEndpointContainer#…`가 아니어야 한다)
+- [x] ~~이벤트 발행 후 프로필 갱신이 별도 스레드(`profile-update-*`)에서 도는지~~ **해당 없음(2026-09-08)** — 비동기 갱신 자체를 없애 컨슈머는 로그만 적재하고, 프로필은 추천 요청 스레드에서 계산한다
 - [x] 검색은 취향에 아무 부작용도 만들지 않는다 — 회원 검색 963회에서 비동기 작업 제출 0건(2026-09-07 로컬 확인, [`005`](../../audits/taste-vector/005-signal-and-weight-simplification.md))
 - [ ] 개인화 추천 응답이 채워지는지(취향 벡터는 더 이상 저장되지 않으므로 인덱스로 확인할 수 없다 — 응답으로 확인한다)
 - [ ] 사과만 담은 사용자의 프로필과 `product` 인덱스의 사과 문서 벡터의 코사인 유사도가 0.99 이상인지

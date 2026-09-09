@@ -36,9 +36,9 @@
 
 | 단계 | 어디서 | 무엇을 | 근거 |
 |------|--------|--------|------|
-| 1. 상품 벡터 생성 | `ProductIndexService.indexProducts` → `ProductEmbeddingService.embedProducts` | 상품 묶음(최대 5건)당 `batchEmbedContents` 1회. 묶음 호출이 실패하면 상품별로 폴백하고, 그래도 실패하면 벡터 `null`로 색인 계속 | [`ProductIndexService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductIndexService.java), [`ProductEmbeddingService.java`](../../../src/main/java/com/barofarm/ai/embedding/application/ProductEmbeddingService.java) |
+| 1. 상품 벡터 생성 | `ProductIndexService.indexProducts` → `ProductEmbeddingService.embedProducts` | 상품 묶음당 `batchEmbedContents` 1회. 묶음 크기는 호출 경로가 정한다 — Kafka 이벤트는 poll당 최대 5건, 재색인 API는 한 페이지(최대 100건). 묶음 호출이 실패하면 상품별로 폴백하고, 그래도 실패하면 벡터 `null`로 색인 계속 | [`ProductIndexService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductIndexService.java), [`ProductEmbeddingService.java`](../../../src/main/java/com/barofarm/ai/embedding/application/ProductEmbeddingService.java) |
 | 2. 기준 벡터 확보 | `SimilarProductRecommendService` / `PersonalizedRecommendService` | 유사 상품은 기준 상품 문서의 벡터, 개인화는 프로필 벡터. 이후 단계는 공통 경로에 넘긴다 | 각 서비스 |
-| 3. 벡터 검색 | `VectorRecommendPipeline.recommend` → `VectorProductSearchService.findSimilarProductDocumentsByVector` | `script_score` + `cosineSimilarity(params.query_vector,'vector') + 1.0`, 상태·`exists(vector)` 필터, `mustNot ids`(자기 자신 또는 경험 상품). 후보 문서 전체(`_source`, 벡터 포함)를 가져온다 | [`VectorProductSearchService.java`](../../../src/main/java/com/barofarm/ai/search/application/VectorProductSearchService.java) |
+| 3. 벡터 검색 | `VectorRecommendPipeline.recommend` → `VectorProductSearchService.findSimilarProductDocumentsByVector` | `script_score` + `cosineSimilarity(params.query_vector,'vector') + 1.0`, 상태·`exists(vector)` 필터, `mustNot ids`(자기 자신 또는 경험 상품). **응답에서 벡터는 제외한다**(`_source` 필터). 2026-09-09에 고르기가 카테고리 상한으로 바뀌면서 앱이 후보 벡터를 볼 이유가 없어졌다 | [`VectorProductSearchService.java`](../../../src/main/java/com/barofarm/ai/search/application/VectorProductSearchService.java) |
 | 4. 고르기 | `VectorRecommendPipeline.selectWithCategorySpread` | 유사도 순으로 훑으며 카테고리당 2개까지 담고, 모자라면 남은 후보로 채운다. 후보는 이미 ES가 유사도 순으로 정렬해 주므로 다시 정렬하지 않는다 | [`VectorRecommendPipeline.java`](../../../src/main/java/com/barofarm/ai/recommend/application/VectorRecommendPipeline.java) |
 | 5. 응답 | 컨트롤러 | `ResponseDto<ProductSummaryResponse[]>` — 검색 API와 같은 envelope(2026-09-05 통일) | `RecommendationController` |
 
@@ -67,7 +67,7 @@
 
 | 항목 | 값 | 근거 |
 |------|-----|------|
-| ES 접속 | `spring.elasticsearch.*`(연결 대기 1초·응답 대기 30초)만으로 구성. 설정 클래스 없음 | `application.yml` |
+| ES 접속 | `spring.elasticsearch.*`(연결 대기 1초·응답 대기 **3초**)만으로 구성. 설정 클래스 없음. 30초는 2026-09-09에 3초로 낮췄다 — 실제 조회가 1만 건에서도 p95 8ms 미만이라 근거 없는 기본값이었다 | `application.yml` |
 | 벡터 필드 | `product.vector`, `dense_vector`, `dims=768`, `float[]` | `ProductDocument` |
 | 사용자 벡터 | 저장하지 않는다. 개인화 추천 요청 시 행동 로그로 계산해 만든 768차원 `float[]`을 그대로 쓴다(2026-09-08) | `TasteProfile`, `UserProfileEmbeddingService.computeProfile` |
 | 매핑 옵션 | `index`·`similarity`를 명시하지 않는다. 로컬 ES 8.12·운영 ES 9.1.2 모두 기본값이 `index=true`라 HNSW 그래프가 만들어질 가능성이 높으나, `script_score`는 그 그래프를 쓰지 않는다 | `@Field(type = Dense_Vector, dims = 768)` |
@@ -79,14 +79,13 @@
 | 규칙 | 값 | 구현 위치 |
 |------|-----|-----------|
 | `topK` 허용 범위 | 1~50(`VectorRecommendPipeline.MAX_TOP_K`). 벗어나면 400 `INVALID_TOP_K`(조회 시작 전에 끊는다). 2026-09-09에 다양화를 없애면서 배수 근거(100÷3=33)가 사라져 50으로 되돌렸다(변경 이력) | `VectorRecommendPipeline.validateTopK` |
-| 후보 규모 | `min(topK × 3, 100)` | `VectorRecommendPipeline` |
+| 후보 규모 | `topK × 3` (상한 없음 — `topK` 상한 50에서 최대 150). 2026-09-09에 후보 상한 100을 없앴다 | `VectorRecommendPipeline.CANDIDATE_MULTIPLIER` |
 | 유사도 점수 | `cosine + 1.0`(0~2 범위) | `VectorProductSearchService` |
 | 상태 필터 | `ON_SALE`·`DISCOUNTED` | 동일 |
 | 제외 상품 | 유사 상품: 자기 자신 1개. 개인화: 경험 상품 목록 | `mustNot ids` |
 | 카테고리 일치 보너스 | **없다.** 두 추천 경로 모두 순수 코사인만 쓴다(2026-09-05 삭제 — 최종 정렬에 반영되지 않아 후보 선정에만 영향을 주던 값이고, 상품 벡터에 이미 카테고리 성격이 담겨 있다) | — |
-| 다양화 첫 선택 | ES 점수 1순위 | `selected.add(validCandidates.get(0))` |
-| 다양화 거리 | 코사인 거리 `1 − cos`(0~2). 유사도가 음수인 후보는 "가장 먼 후보"로 정상 취급한다. 벡터가 없거나 차원이 맞지 않아 **잴 수 없는** 경우만 건너뛴다 | `cosineDistance` |
-| 최종 정렬 | 기준 벡터와의 코사인 내림차순. 잴 수 없는 후보는 맨 뒤 | `selectDiverse` 말미 |
+| 쏠림 방지 | 유사도 순서를 그대로 두고 **같은 카테고리를 최대 2개**까지만 담는다. 그래도 `topK`가 안 차면 상한을 풀어 남은 후보로 채운다 — 상한은 쏠림을 막자는 것이지 결과 수를 줄이자는 것이 아니다 | `selectWithCategorySpread`, `MAX_PER_CATEGORY = 2` |
+| 최종 정렬 | 하지 않는다. ES가 이미 유사도 순으로 돌려주므로 그 순서를 유지한다 | `VectorRecommendPipeline` |
 | 벡터 없는 상품 | ES 쿼리의 `exists` 필터로 후보에서 제외한다. 임베딩 실패로 벡터가 없는 상품은 재색인 전까지 추천에 나오지 않는다 | `buildBoolQuery` |
 | 상품 이벤트 순서 | `product-events`는 키 없이 발행되어 같은 상품의 생성·수정 순서가 보장되지 않는다 | `baro-shopping/.../ProductEventProducer.java:26` |
 
@@ -110,7 +109,7 @@
 - [ ] 벡터 없는 판매 상품 1건을 직접 색인한 뒤 유사 상품 API가 정상 목록을 돌려주는지(감사 001 A-1 검증 절차)
 - [ ] `ElasticsearchConfig` 삭제 후 기동해 리포지토리·템플릿 빈이 자동설정으로 뜨는지, 유사 상품 API가 응답하는지
 - [ ] 라우팅되지 않는 주소로 기동해 `spring.elasticsearch.connection-timeout` 값대로 응답이 지연되는지(설정이 살아 있다는 증거)
-- [ ] 기존 프로필 문서가 있는 사용자로 개인화 API 호출 결과가 재색인 없이 그대로 읽히는지(`float[]` 전환 확인)
+- [ ] 개인화 API가 요청 시 계산한 768차원 프로필로 정상 응답하는지(`float[]` 전환 확인). 2026-09-08부터 프로필을 저장하지 않으므로 "기존 프로필 문서"를 준비할 필요가 없다
 - [ ] `GET product/_mapping`으로 `vector` 필드에 `index`·`similarity` 기본값이 실제로 붙어 있는지 확인
 - [x] `script_score`와 native `knn`의 응답 시간을 상품 1천·1만·10만 건에서 비교 — 2026-09-06 난수 벡터로 실측, 전환 안 함([`decisions/004`](../../decisions/004-script-score-over-knn.md)). 실제 상품 벡터로 일치율을 다시 보는 것은 상품 수가 수만 건을 넘을 때
 
@@ -118,7 +117,7 @@
 
 - [x] 기능 구현
 - [ ] 위 "수동 확인 (로컬)" 절차 — 로컬 ES 미기동으로 2026-09-05 리팩터에서는 수행하지 못했다
-- [x] `./gradlew :baro-ai:test` — 통과. 이 단위 몫은 `ProductEmbeddingServiceTest`와 `VectorRecommendPipelineTest`(고르기 규칙 6건 + topK 경계 2건)이고, 후보 조회는 통합 테스트(`ProductIndexAndSearchIntegrationTest`)가 실물 ES로 확인한다
+- [x] `./gradlew :baro-ai:test` — 통과. 이 단위 몫은 `VectorRecommendPipelineTest` 7건(고르기 규칙 5 + `topK` 경계 2)이고, 상품 임베딩은 `ProductEmbeddingServiceTest` 4건이 따로 본다. 후보 조회는 통합 테스트(`ProductIndexAndSearchIntegrationTest`)가 실물 ES로 확인한다
 
 ## 리스크·미결정
 
@@ -126,8 +125,8 @@
 |------|------|------|
 | `script_score` 전수 계산 | 확정(유지) | HNSW를 쓰지 않는다. 2026-09-06 실측: 1만 건 p95 7.4ms로 `knn`과 지연이 같고, 10만 건에서야 92ms vs 32ms로 갈린다. 상품이 수만 건을 넘으면 다시 연다 — [`decisions/004`](../../decisions/004-script-score-over-knn.md) |
 | 카테고리 보너스 | 해소 | 2026-09-05 두 경로 모두 삭제 |
-| "메도이드" 명칭 | 해소 | 2026-09-05 `MaxMinDiversityService`로 개명 |
-| 후보 조회가 벡터 포함 `_source` 전체 | 확정(허용) | 다양화에 벡터가 필요하므로 이 경로는 필요. 2026-09-06 실측: k=30 응답이 벡터 포함 약 1,030KB·제외 약 2KB, 기본 topK 5면 후보 15건 ≈ 315KB. 그 대가로 같은 카테고리 쌍이 45%→11.5%(k=5)라 유지 — [`audits/vector-similarity/002`](../../audits/vector-similarity/002-vector-transfer-knn-and-diversity.md) M-2. 키워드 검색·`findAllById`의 벡터 조회는 [`keyword-search`](../keyword-search/product-search-and-autocomplete.md) 리스크 |
+| "메도이드" 명칭 | 해소 | 2026-09-05 `MaxMinDiversityService`로 개명 → 2026-09-09 그 클래스를 삭제하고 `VectorRecommendPipeline.selectWithCategorySpread`로 흡수 |
+| ~~후보 조회가 벡터 포함 `_source` 전체~~ | **해소(2026-09-09)** | 벡터를 받던 이유가 max-min 다양화였고, 카테고리 상한으로 바꾸면서 `_source`에서 벡터를 뺐다. 아래는 그전 근거다 — 2026-09-06 실측: k=30 응답이 벡터 포함 약 1,030KB·제외 약 2KB, 기본 topK 5면 후보 15건 ≈ 315KB. 그 대가로 같은 카테고리 쌍이 45%→11.5%(k=5)라 유지 — [`audits/vector-similarity/002`](../../audits/vector-similarity/002-vector-transfer-knn-and-diversity.md) M-2. 키워드 검색·`findAllById`의 벡터 조회는 [`keyword-search`](../keyword-search/product-search-and-autocomplete.md) 리스크 |
 | ES 서버 버전 불일치 | 확정 | 로컬 8.12.0 / 운영 이미지 9.1.2 / Java 클라이언트 8.13.3. 운영 헬스 인디케이터가 호환 문제로 꺼져 있다. 인프라 소유자 확인 `[미정]` |
 | 사용자 벡터 `List<Double>` vs 상품 벡터 `float[]` | 해소 | 2026-09-05 `float[]`로 통일. 다만 ES 스크립트 파라미터로 넘길 때의 `List<Double>` 변환은 남아 있다 — `JsonData.of(float[])`가 숫자 배열로 직렬화되는지 로컬에서 확인하지 못했다 |
 | 임베딩 실패 상품의 재색인 경로 없음 | 확정 | [`audits/search/001`](../../audits/search/001-index-path.md) 개선 제안 1 (Track A) |

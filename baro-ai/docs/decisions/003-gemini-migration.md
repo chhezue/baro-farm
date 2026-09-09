@@ -34,7 +34,7 @@ baro-ai가 쓰던 Spring AI **1.0.0-M5**의 BOM에는 Vertex AI 쪽만 있었다
   - Spring AI **2.0.x는 Spring Boot 4.1을 요구**한다(2.0.1 pom에서 확인). 2.0으로 갔다면 5인이 함께 쓰는 모노레포 전체의 Boot 4 업그레이드가 필요했다. **1.1.8은 `baro-ai/build.gradle` 하나만 바꾸면 되고 다른 모듈에 영향이 없다.**
 - **마일스톤 릴리스를 벗어난다.** `1.0.0-M5`는 정식 릴리스가 아니다. 무료 Gemini와 무관하게 올릴 이유가 있었다.
 - **임베딩 재색인 부담이 없다.** 서로 다른 모델의 벡터는 비교할 수 없어 부분 전환이 불가능한데, 운영 서버가 내려가 있어 보존할 데이터가 없다(`AGENTS.md` 운영 상태, `.claude/rules/baro-ai-performance-refactor.md` 데이터 마이그레이션 방침).
-- **차원을 1536으로 고정한 이유**: Gemini 임베딩 모델은 출력 차원을 조정할 수 있다(`GoogleGenAiTextEmbeddingOptions.dimensions`). 이를 1536으로 두면 `ProductDocument`·`UserProfileEmbeddingDocument`의 ES 매핑과 코사인 유사도·메도이드 계산 코드를 그대로 쓸 수 있다. 벡터 자체는 어차피 재생성해야 하므로, 바꾸지 않아도 되는 것까지 함께 바꿀 이유가 없다.
+- **차원을 1536으로 고정한 이유**: Gemini 임베딩 모델은 출력 차원을 조정할 수 있다(`GoogleGenAiTextEmbeddingOptions.dimensions`). 이를 1536으로 두면 당시의 `ProductDocument`·`UserProfileEmbeddingDocument` ES 매핑과 유사도 계산 코드를 그대로 쓸 수 있었다. (이 근거는 뒤에 전부 무효가 됐다 — 차원은 2026-09-07에 768로 낮췄고, `UserProfileEmbeddingDocument`는 2026-09-08에 삭제돼 취향 벡터를 저장하지 않으며, 메도이드/max-min 계산 코드도 2026-09-09에 사라졌다.) 벡터 자체는 어차피 재생성해야 하므로, 바꾸지 않아도 되는 것까지 함께 바꿀 이유가 없다.
 
 ## 확인한 실물 값
 
@@ -84,5 +84,5 @@ baro-ai가 쓰던 Spring AI **1.0.0-M5**의 BOM에는 Vertex AI 쪽만 있었다
 
 - **왜 지금 바꿨나**: 추천 요청 경로를 동시 요청까지 걸어 재 보니, 후보 15건(기본 `topK=5`)에 507KB가 오가고 그중 계산에 쓰이는 시간은 0.074ms뿐이었다. 비용이 계산이 아니라 벡터를 옮기는 데 있었고, 차원은 그 비용에 그대로 비례한다
 - **품질 확인**: 같은 상품명 154개를 두 차원으로 임베딩해 상위 5개 유사 상품 목록을 비교했다. 94.5%가 그대로였고 1위는 96.1%가 같았다
-- **되돌리는 비용**: `application.yml`의 `dimensions`와 두 문서의 `dims`를 되돌린 뒤 전량 재색인. 이 결정의 "되돌리는 비용" 항목과 같다
+- **되돌리는 비용**: `application.yml`의 `dimensions`와 `ProductDocument`의 `dims`를 되돌린 뒤 전량 재색인(취향 벡터는 저장하지 않으므로 되돌릴 매핑이 하나뿐이다). 이 결정의 "되돌리는 비용" 항목과 같다
 - 상세: [`audits/vector-similarity/003`](../audits/vector-similarity/003-embedding-dims-and-candidate-multiplier.md)

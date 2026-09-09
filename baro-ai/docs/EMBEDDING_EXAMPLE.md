@@ -10,7 +10,7 @@
 
 행동 하나가 어떤 비중을 갖는지, 삭제한 상품이 왜 결과에 전혀 남지 않는지, 그 비중이 어떻게 벡터 하나로 합쳐지는지를 알 수 있다.
 
-> **2026-09-07 기준이다.** 이 예시에 검색 로그가 없는 이유는 검색을 취향 신호에서 뺐기 때문이고, 비중에 수량을 곱하지 않는 이유도 그날 그 축을 뺐기 때문이다 — 근거는 [`audits/taste-vector/005`](audits/taste-vector/005-signal-and-weight-simplification.md)에 있다.
+> **2026-09-09 기준이다.** 이 예시에 검색 로그가 없는 이유는 검색을 취향 신호에서 뺐기 때문이고, 비중에 수량을 곱하지 않는 이유도 그날 그 축을 뺐기 때문이다 — 근거는 [`audits/taste-vector/005`](audits/taste-vector/005-signal-and-weight-simplification.md)에 있다.
 >
 > **2026-09-05 재설계 반영본이다.** 예전에는 상품명을 가중치만큼 반복한 긴 문장을 만들어 Gemini 임베딩 API에 보냈다. 지금은 그 호출이 없다 — 로그에 등장한 상품이 색인 시점에 이미 갖고 있는 벡터를 비중대로 섞는다. 바꾼 이유는 [`audits/taste-vector/001-profile-refresh-path.md`](audits/taste-vector/001-profile-refresh-path.md) "A-3 재설계" 절에 있다.
 
@@ -27,7 +27,7 @@
 | P3 | `…0003` | 오렌지 1kg |
 | P4 | `…0004` | 홍로사과 2kg |
 
-### 1. 장바구니 로그 (최신 5건까지)
+### 1. 장바구니 로그
 
 ```json
 [
@@ -38,7 +38,7 @@
 ]
 ```
 
-### 2. 주문 로그 (최신 5건까지)
+### 2. 주문 로그
 
 ```json
 [
@@ -46,13 +46,13 @@
 ]
 ```
 
-총 5건이라 최소 로그 개수(3건)를 넘겼으므로 계산을 진행한다. 로그에 남는 것은 위 네 항목뿐이다 — 수량과 카테고리 코드는 상류가 보내지만 2026-09-07부터 받지도 저장하지도 않는다.
+로그는 유형을 나누지 않고 `user_behavior_logs` 한 인덱스에서 **최근 30일 안의 최신 10건**을 한 번에 읽는다(2026-09-09 인덱스 통합 전에는 장바구니·주문을 각각 5건씩 따로 읽었고, 그래서 유형 경계에서 최근순이 깨질 수 있었다). 이 예시는 총 5건이라 최소 로그 개수(3건)를 넘겨 계산을 진행한다. 로그에 남는 것은 위 네 항목뿐이다 — 수량과 카테고리 코드는 상류가 보내지만 2026-09-07부터 받지도 저장하지도 않는다.
 
 ## 비중 계산
 
 로그 1건의 비중은 **행동 종류 하나로** 정해진다. 주문 확정 3 · 장바구니 담기 2 · 수량 변경 1이고, 삭제·취소는 0이다. 곱하는 축이 없어서 범위가 0 또는 1~3이다.
 
-> 한때 여기에 두 축을 더 곱했다. **시간 감쇠**(최근 3.0에서 7일마다 절반)는 유형별 최근 5건만 읽는 구조에서 한 번의 쇼핑 로그가 전부 같은 시간대라 감쇠값이 같고, 마지막 L2 정규화가 그 배수를 소거해 결과에 영향이 없어서 2026-09-06에 뺐다([`002`](audits/taste-vector/002-weight-axes-and-tests.md) F-1·F-2). **수량**은 선호의 세기가 아니라 소비량이어서 2026-09-07에 뺐다([`005`](audits/taste-vector/005-signal-and-weight-simplification.md) A-2). 발생 시각은 30일 조회 창과 최신순 정렬에 쓰이므로 계속 저장하지만, 수량은 아예 저장하지 않게 됐다([`cross-cutting/003`](audits/cross-cutting/003-stale-comments-and-write-only-fields.md) B-1).
+> 한때 여기에 두 축을 더 곱했다. **시간 감쇠**(최근 3.0에서 7일마다 절반)는 당시 유형별 최근 5건만 읽던 구조에서 한 번의 쇼핑 로그가 전부 같은 시간대라 감쇠값이 같고, 마지막 L2 정규화가 그 배수를 소거해 결과에 영향이 없어서 2026-09-06에 뺐다([`002`](audits/taste-vector/002-weight-axes-and-tests.md) F-1·F-2). **수량**은 선호의 세기가 아니라 소비량이어서 2026-09-07에 뺐다([`005`](audits/taste-vector/005-signal-and-weight-simplification.md) A-2). 발생 시각은 30일 조회 창과 최신순 정렬에 쓰이므로 계속 저장하지만, 수량은 아예 저장하지 않게 됐다([`cross-cutting/003`](audits/cross-cutting/003-stale-comments-and-write-only-fields.md) B-1).
 
 ### 장바구니
 
@@ -114,7 +114,7 @@ new TasteProfile(
 ```java
 TasteProfile profile = userProfileEmbeddingService.computeProfile(userId).orElseThrow();
 
-// 경험 상품을 뺀 뒤 코사인 유사도로 후보를 뽑고, 다양화로 topK개를 고른다.
+// 경험 상품을 뺀 뒤 코사인 유사도로 후보를 뽑고, 카테고리 상한으로 topK개를 고른다.
 List<ProductSummaryResponse> recommendations =
     vectorRecommendPipeline.recommend(profile.vector(), profile.experiencedProductIds(), topK);
 ```

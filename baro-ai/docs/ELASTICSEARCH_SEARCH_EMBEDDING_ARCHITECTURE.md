@@ -51,7 +51,7 @@ analyzer 설정은 `src/main/resources/settings/autocomplete-analyzer.json`(`Pro
 
 ## 연결 설정
 
-`application.yml`의 `spring.elasticsearch.*`만으로 구성한다(별도 설정 클래스 없음 — 2026-09-05 `ElasticsearchConfig` 삭제). 기본 URI `http://elasticsearch:9200`, connect timeout 1초, socket timeout 30초. Spring AI VectorStore 추상화는 쓰지 않는다 — Spring Data Elasticsearch + `NativeQuery` 직접 조립이고, 별도 벡터 DB 연동도 없다.
+`application.yml`의 `spring.elasticsearch.*`만으로 구성한다(별도 설정 클래스 없음 — 2026-09-05 `ElasticsearchConfig` 삭제). 기본 URI `http://elasticsearch:9200`, connect timeout 1초, socket timeout 3초(2026-09-09에 30초에서 낮췄다). Spring AI VectorStore 추상화는 쓰지 않는다 — Spring Data Elasticsearch + `NativeQuery` 직접 조립이고, 별도 벡터 DB 연동도 없다.
 
 ## 흐름·쿼리는 어디에
 
@@ -67,7 +67,7 @@ analyzer 설정은 `src/main/resources/settings/autocomplete-analyzer.json`(`Pro
 - 상품 스키마: `src/main/java/com/barofarm/ai/search/domain/ProductDocument.java`
 - 행동 로그 스키마: `src/main/java/com/barofarm/ai/log/domain/UserBehaviorLogDocument.java`
 - 질의 조립: `src/main/java/com/barofarm/ai/search/infrastructure/elasticsearch/ProductQueryFactory.java`
-- 검색·벡터 검색: `search/application/ProductSearchService.java` · `VectorProductSearchService.java`
+- 검색·벡터 검색: `search/application/ProductSearchService.java` · `VectorProductSearchService.java` · 자동완성: `ProductAutocompleteService.java`
 - 색인·재색인: `search/application/ProductIndexService.java` · `ProductReindexService.java`
 - 상품 임베딩: `embedding/application/ProductEmbeddingService.java` · 취향 벡터: `embedding/application/UserProfileEmbeddingService.java`
 - 설정: `src/main/resources/application.yml` · `settings/autocomplete-analyzer.json`
