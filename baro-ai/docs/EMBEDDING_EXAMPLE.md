@@ -12,19 +12,16 @@
   {
     "userId": "550e8400-e29b-41d4-a716-446655440000",
     "searchQuery": "사과",
-    "category": "과일",
     "searchedAt": "2026-01-12T10:00:00Z"  // 1시간 전
   },
   {
     "userId": "550e8400-e29b-41d4-a716-446655440000",
     "searchQuery": "바나나",
-    "category": "과일",
     "searchedAt": "2026-01-11T15:00:00Z"  // 1일 전
   },
   {
     "userId": "550e8400-e29b-41d4-a716-446655440000",
     "searchQuery": "청송사과",
-    "category": "과일",
     "searchedAt": "2026-01-10T09:00:00Z"  // 2일 전
   }
 ]
@@ -35,25 +32,28 @@
 [
   {
     "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "productId": "product-001",
+    "productId": "550e8400-e29b-41d4-a716-446655440001",
     "productName": "청송사과 프리미엄 1kg",
-    "eventType": "ADD",
+    "categoryCode": "AGRI_FRUIT_SEASONAL",
+    "eventType": "CART_ITEM_ADDED",
     "quantity": 3,
     "occurredAt": "2026-01-12T11:00:00Z"  // 1시간 전
   },
   {
     "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "productId": "product-002",
+    "productId": "550e8400-e29b-41d4-a716-446655440002",
     "productName": "바나나 1송이",
-    "eventType": "ADD",
+    "categoryCode": "AGRI_FRUIT_SEASONAL",
+    "eventType": "CART_ITEM_ADDED",
     "quantity": 2,
     "occurredAt": "2026-01-11T16:00:00Z"  // 1일 전
   },
   {
     "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "productId": "product-003",
+    "productId": "550e8400-e29b-41d4-a716-446655440003",
     "productName": "오렌지 1kg",
-    "eventType": "REMOVE",
+    "categoryCode": "AGRI_FRUIT_SEASONAL",
+    "eventType": "CART_ITEM_REMOVED",
     "quantity": 1,
     "occurredAt": "2026-01-10T10:00:00Z"  // 2일 전 (제거됨)
   }
@@ -65,17 +65,19 @@
 [
   {
     "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "productId": "product-001",
+    "productId": "550e8400-e29b-41d4-a716-446655440001",
     "productName": "청송사과 프리미엄 1kg",
-    "eventType": "ORDER_CREATED",
+    "categoryCode": "AGRI_FRUIT_SEASONAL",
+    "eventType": "ORDER_CONFIRMED",
     "quantity": 2,
     "occurredAt": "2026-01-12T12:00:00Z"  // 30분 전
   },
   {
     "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "productId": "product-002",
+    "productId": "550e8400-e29b-41d4-a716-446655440002",
     "productName": "바나나 1송이",
-    "eventType": "ORDER_CREATED",
+    "categoryCode": "AGRI_FRUIT_SEASONAL",
+    "eventType": "ORDER_CONFIRMED",
     "quantity": 1,
     "occurredAt": "2026-01-11T17:00:00Z"  // 1일 전
   }
@@ -103,9 +105,9 @@
 
 | 상품명 | 이벤트 | 수량 | 시간 | 시간 가중치 | 최종 가중치 | 반복 횟수 |
 |--------|--------|------|------|------------|------------|----------|
-| "청송사과 프리미엄 1kg" | ADD | 3 | 1시간 전 | 2.8 | 2 × 3 × 2.8 = 16.8 | 17번 |
-| "바나나 1송이" | ADD | 2 | 1일 전 | 1.5 | 2 × 2 × 1.5 = 6.0 | 6번 |
-| "오렌지 1kg" | REMOVE | 1 | 2일 전 | 1.2 | 0 × 1 × 1.2 = 0 | 0번 (제외) |
+| "청송사과 프리미엄 1kg" | CART_ITEM_ADDED | 3 | 1시간 전 | 2.8 | 2 × 3 × 2.8 = 16.8 | 17번 |
+| "바나나 1송이" | CART_ITEM_ADDED | 2 | 1일 전 | 1.5 | 2 × 2 × 1.5 = 6.0 | 6번 |
+| "오렌지 1kg" | CART_ITEM_REMOVED | 1 | 2일 전 | 1.2 | 0 × 1 × 1.2 = 0 | 0번 (제외) |
 
 **장바구니 텍스트:**
 ```
@@ -117,8 +119,8 @@
 
 | 상품명 | 이벤트 | 수량 | 시간 | 시간 가중치 | 최종 가중치 | 반복 횟수 |
 |--------|--------|------|------|------------|------------|----------|
-| "청송사과 프리미엄 1kg" | ORDER_CREATED | 2 | 30분 전 | 2.9 | 3 × 2 × 2.9 = 17.4 | 17번 |
-| "바나나 1송이" | ORDER_CREATED | 1 | 1일 전 | 1.5 | 3 × 1 × 1.5 = 4.5 | 5번 |
+| "청송사과 프리미엄 1kg" | ORDER_CONFIRMED | 2 | 30분 전 | 2.9 | 3 × 2 × 2.9 = 17.4 | 17번 |
+| "바나나 1송이" | ORDER_CONFIRMED | 1 | 1일 전 | 1.5 | 3 × 1 × 1.5 = 4.5 | 5번 |
 
 **주문 텍스트:**
 ```
@@ -149,7 +151,7 @@
 
 ## 🤖 임베딩 벡터 생성
 
-### **OpenAI Embedding API 호출**
+### **Gemini Embedding API 호출**
 
 ```java
 embeddingModel.embed(List.of(representativeText))

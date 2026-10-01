@@ -42,7 +42,7 @@ graph LR
     C --> D[로그 저장 + 벡터화]
     D --> E[추천 알고리즘]
     E --> F[개인화 결과]
-    F --> G[Redis 캐시]
+    F --> G[추천 응답]
 ```
 
 ---
@@ -56,25 +56,25 @@ graph LR
 - **입력**: 검색/장바구니/주문 로그 (각 타입별 최대 5개씩, 총 최대 15개)
 - **처리**: 
   - 수량 × 이벤트 타입 × 시간 가중치 적용
-  - 대표 텍스트 생성 후 OpenAI 임베딩
+  - 대표 텍스트 생성 후 Gemini 임베딩
   - 1536차원 벡터로 사용자 취향 표현
 - **출력**: Top-K 개인화 상품 리스트 (상품 ID, 이름, 카테고리, 가격 포함)
 - **품질 보장**: 최소 3개 이상 로그 필요
 - **API**: 
-  - `GET /api/v1/recommendations/personalized/{userId}` - 일반 추천
-  - `GET /api/v1/recommendations/personalized/{userId}/with-score` - 검증용 (유사도 점수 포함)
+  - `GET /api/v1/recommendations/personalized/{userId}` - 추천 상품 목록 (`topK` 쿼리 파라미터, 기본값 5)
 
 ### 2. **레시피 추천** ✅ 구현 완료
 
-**장바구니 상품 → LLM 분석 → 레시피 + 부족 재료 추천**
+**장바구니 상품 → 보유 재료 확인 → 레시피 + 부족 재료 추천**
 
-- **입력**: 장바구니 상품 목록 (실제 상품명)
+- **입력**: 장바구니 상품 목록 (`productId` 기준)
 - **처리**:
-  - `ProductNameNormalizer`: 상품명에서 재료 추출 (LLM)
-  - `RecipePromptService`: 보유 재료로 레시피 생성 (LLM)
+  - `RecipeRecommendService`: 장바구니 상품의 `ProductDocument.ingredientName`을 ES에서 한 번에 조회 (LLM 아님)
+  - `RecipeCandidateGenerator`: 보유 재료로 레시피 생성 (LLM — 요청 경로의 유일한 호출)
   - `IngredientProcessingUtil`: 재료 정규화 및 비교
+- **재료명 계산 시점**: 상품 색인 시점 1회 (`ProductIngredientNormalizer`) — 근거: [`decisions/002-ingredient-name-at-index-time.md`](decisions/002-ingredient-name-at-index-time.md)
 - **출력**: 레시피 정보 + 부족 재료 + 추천 상품
-- **API**: `POST /api/v1/recommendations/recipes/test` (테스트용)
+- **API**: `GET /api/v1/recommendations/recipes/{userId}` (주 경로), `POST /api/v1/recommendations/recipes/test` (테스트용)
 
 ### 3. **비슷한 상품 추천** ✅ 구현 완료
 
@@ -99,13 +99,10 @@ graph LR
 - **안전성**: 정책 외 질문 거부
 - **실시간성**: 최신 정책 반영
 
-### 5. **데이터 생성 도구** 🛠️
+### 5. **리뷰 감정 분석/요약** (이벤트 + 배치)
 
-개발 및 테스트 편의를 위한 데이터 생성 API
-
-- **상품 데이터 증폭**: SQL 파일 기반 LLM 자동 증폭
-- **더미 로그 생성**: 테스트용 사용자 행동 로그 생성
-- **프로필 임베딩 생성**: 테스트용 사용자 프로필 임베딩 생성
+- Kafka: `review-events` 구독 → 별점/키워드 기반 감정 분류
+- Elasticsearch: `review_event`에 리뷰/감정 저장
 
 ---
 
@@ -191,8 +188,6 @@ src/main/java/com/barofarm/ai/
 │   │   └── elasticsearch/
 │   ├── messaging/          # 메시징 관련 (Kafka Consumers/Producers)
 │   │   └── consumer/
-│   ├── external/           # 외부 API 클라이언트 (OpenAI 등)
-│   │   └── openai/
 │   └── config/             # Spring, Kafka 등 각종 설정
 │
 └── 📁 common/                # 🛠️ 공통 유틸리티 (계층에 속하지 않음)
@@ -225,10 +220,10 @@ src/main/java/com/barofarm/ai/
 │   ├── application/           # 추천 서비스 (PersonalizedRecommendService, RecipeRecommendService)
 │   │   ├── config/           # 추천 설정 (RecommendProperties)
 │   │   └── dto/              # 추천 응답 DTO
-│   ├── domain/               # 도메인 모델 (CandidateRecipePlan, IngredientProcessingUtil, OwnedIngredient, RecipeCandidates)
+│   ├── domain/               # 도메인 모델 (CandidateRecipePlan, IngredientProcessingUtil, RecipeCandidates)
 │   ├── infrastructure/       # 외부 연동
 │   │   ├── client/           # Cart API 클라이언트
-│   │   └── llm/              # LLM 서비스 (ProductNameNormalizer, RecipePromptService)
+│   │   └── llm/              # LLM 서비스 (RecipeCandidateGenerator)
 │   ├── presentation/          # 추천 컨트롤러 (RecommendationController)
 │   └── exception/            # 추천 에러 코드 (RecommendErrorCode)
 ├── embedding/
@@ -246,7 +241,6 @@ src/main/java/com/barofarm/ai/
 ├── event/
 │   ├── consumer/              # Kafka 이벤트 컨슈머
 │   └── model/                # 이벤트 모델
-├── datagen/                  # 데이터 생성 도구
 ├── config/                   # Spring 설정
 └── common/                   # 공통 유틸리티
 ```
@@ -276,9 +270,6 @@ src/main/java/com/barofarm/ai/
 | `embedding/domain` | `embedding/domain` | 도메인 모델 (유지) |
 | `embedding/infrastructure/elasticsearch` | `embedding/infrastructure/elasticsearch` | 리포지토리 구현체 (완료) |
 | `embedding/exception` | `embedding/exception` | 에러 코드 (완료) |
-| `datagen/application` | `datagen/application` | 데이터 생성 서비스 (유지) |
-| `datagen/application/dto` | `datagen/application/dto` | DTO (완료) |
-| `datagen/exception` | `datagen/exception` | 에러 코드 (완료) |
 | `chat/application` | `chat/application` | 챗봇 서비스 (완료) |
 | `chat/presentation` | `chat/presentation` | 챗봇 컨트롤러 (유지) |
 | `chat/exception` | `chat/exception` | 에러 코드 (완료) |
@@ -294,15 +285,15 @@ src/main/java/com/barofarm/ai/
 ## 🛠️ 기술 스택
 
 ### AI/ML
-- **OpenAI GPT-4**: 텍스트 생성 (레시피 추천, 챗봇)
-- **OpenAI Embedding**: 벡터 생성 (`text-embedding-3-small`, 1536차원)
+- **Google Gemini (chat model)**: 텍스트 생성 (레시피/요약 등). 기본값은 `gemini-2.5-flash-lite` (`SPRING_AI_GEMINI_MODEL`)
+- **Google Gemini Embedding**: 벡터 생성 (`gemini-embedding-001`, 출력 차원을 1536으로 고정)
 - **Spring AI**: AI 통합 프레임워크
 - **LangChain**: RAG 구현 (향후)
 
 ### 데이터/검색
 - **Elasticsearch**: 벡터 검색 및 로그 저장
-- **Redis**: 고성능 캐싱
-- **Spring Data JPA**: 관계형 데이터
+- **Cache**: 자동완성만 Caffeine 로컬 캐시 적용(최대 1,000개·TTL 5분). 개인화·추천 결과는 캐싱하지 않음 — 근거: [`decisions/001-autocomplete-caching.md`](decisions/001-autocomplete-caching.md)
+- **Spring Data Elasticsearch**: 문서 저장·검색 (baro-ai에는 RDB·JPA 엔티티가 없다)
 
 ### 메시징/이벤트
 - **Apache Kafka**: 이벤트 스트림 처리
@@ -325,10 +316,9 @@ src/main/java/com/barofarm/ai/
 ### 환경 요구사항
 
 ```text
-- Java 17+
+- Java 21+
 - Gradle 7.6+
 - Elasticsearch 8.x
-- Redis 7.x
 - Kafka 3.x
 - Docker & Docker Compose
 ```
@@ -346,7 +336,7 @@ docker-compose -f docker-compose.data.yml up -d
 ./gradlew bootRun
 
 # 4. API 테스트
-curl http://localhost:8092/api/v1/recommendations/personalized/1
+curl "http://localhost:8092/api/v1/recommendations/personalized/550e8400-e29b-41d4-a716-446655440000?topK=5"
 ```
 
 ### 개발 워크플로우
@@ -371,7 +361,8 @@ curl http://localhost:8092/api/v1/recommendations/personalized/1
 - [**기능 명세**](FEATURES.md) - 각 기능의 상세 설명
 - [**구현 가이드**](IMPLEMENTATION.md) - 코드 예시 및 설정
 - [**임베딩 예시**](EMBEDDING_EXAMPLE.md) - 사용자 프로필 임베딩 생성 예시
-- [**미래 작업**](FUTURE_WORKS.md) - 추후 구현 예정 사항
+- [**검토 분석 확장**](REVIEW_ANALYSIS_PHASES.md) - 리뷰 분석/요약 고도화 로드맵
+- [**캐싱 범위 결정**](decisions/001-autocomplete-caching.md) - 자동완성만 캐싱하는 이유와 트레이드오프
 
 ---
 

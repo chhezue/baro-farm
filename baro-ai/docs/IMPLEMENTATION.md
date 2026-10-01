@@ -16,10 +16,9 @@
 ### 필수 요구사항
 
 ```text
-- Java: 17 이상
+- Java: 21 이상
 - Gradle: 7.6 이상
 - Elasticsearch: 8.x
-- Redis: 7.x
 - Kafka: 3.x
 - Docker & Docker Compose
 ```
@@ -30,14 +29,12 @@
 // build.gradle
 dependencies {
     // AI/ML
-    implementation 'org.springframework.ai:spring-ai-openai-spring-boot-starter:1.0.0-M5'
-    implementation 'org.springframework.ai:spring-ai-ollama-spring-boot-starter:1.0.0-M5'
+    implementation 'org.springframework.ai:spring-ai-starter-model-google-genai'
+    implementation 'org.springframework.ai:spring-ai-starter-model-google-genai-embedding'
 
     // 데이터/검색
     implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-
     // 메시징
     implementation 'org.springframework.kafka:spring-kafka'
 
@@ -50,47 +47,36 @@ dependencies {
 ### 환경 설정
 
 ```yaml
-# application.yml
+# application-prod.yml 기준 (로컬은 env 값으로 오버라이드)
 server:
-  port: 8092
+  port: ${SERVER_PORT:8092}
+
+api:
+  v1: /api/v1
 
 spring:
-  application:
-    name: ai-service
-
-  # 데이터베이스
-  datasource:
-    url: jdbc:mysql://localhost:3306/baro_ai
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
-
-  # Elasticsearch
   elasticsearch:
-    uris: http://localhost:9200
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
 
-  # Redis
-  data:
-    redis:
-      host: localhost
-      port: 6379
-
-  # Kafka
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: ai-service
 
-# AI 설정
-ai:
-  openai:
-    api-key: ${SPRING_AI_OPENAI_API_KEY:}
-    chat:
-      options:
-        model: ${SPRING_AI_OPENAI_MODEL:gpt-4o-mini}
-        temperature: 0.7
-    embedding:
-      options:
-        model: ${SPRING_AI_OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+  ai:
+    google:
+      genai:
+        api-key: ${BARO_AI_GEMINI_KEY:}
+        chat:
+          options:
+            model: ${SPRING_AI_GEMINI_MODEL:gemini-2.5-flash-lite}
+            temperature: 0.7
+        embedding:
+          api-key: ${BARO_AI_GEMINI_KEY:}
+          text:
+            options:
+              model: ${SPRING_AI_GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
+              dimensions: 1536
 ```
 
 ### 로컬 개발 실행
@@ -98,6 +84,12 @@ ai:
 ```bash
 # 1. 인프라 서비스 실행
 docker-compose -f docker-compose.data.yml up -d
+
+# 1.1. (필수) 프로필/환경변수 설정
+export SPRING_PROFILES_ACTIVE=prod
+export BARO_AI_GEMINI_KEY="YOUR_GEMINI_API_KEY"
+export ELASTICSEARCH_URIS="http://localhost:9200"
+export KAFKA_BOOTSTRAP_SERVERS="localhost:9092"
 
 # 2. 애플리케이션 빌드 및 실행
 ./gradlew build
@@ -274,99 +266,66 @@ public class ProductIndexService {
 @RequiredArgsConstructor
 public class RecipeRecommendService {
 
-    private final RecipePromptService recipePromptService;
-    private final ProductNameNormalizer productNameNormalizer;
+    private final RecipeCandidateGenerator recipeCandidateGenerator;
+    private final ProductSearchRepository productSearchRepository;
 
-    public RecipeRecommendResponse testRecommendFromCartWithMissing(CartInfo cart) {
-        // 1. 장바구니 상품에서 보유 재료 추출
-        List<OwnedIngredient> ownedIngredients =
-            recipePromptService.extractOwnedIngredients(cartToCartItems(cart));
+    private RecipeRecommendResponse recommendFromCart(CartInfo cart, String userIdentifier) {
+        // 1. 장바구니 상품 중 레시피 대상만 남긴다 (카테고리 제외 필터)
+        List<CartItemInfo> eligibleItems = ...;
 
-        // 2. 보유 재료 목록으로 레시피 후보 생성
-        List<String> ownedNames = ownedIngredients.stream()
-            .map(oi -> IngredientProcessingUtil.normalizeForCompare(oi.name()))
-            .distinct()
-            .toList();
+        // 2. 보유 재료는 색인 시점에 계산해 둔 ingredientName을 ES에서 한 번에 읽는다 (LLM 호출 없음)
+        //    근거: docs/decisions/002-ingredient-name-at-index-time.md
+        List<String> ownedNames = loadOwnedIngredientNames(eligibleItems, userIdentifier);
 
-        RecipeCandidates candidates = recipePromptService.generateRecipeCandidates(ownedNames);
+        // 3. 레시피 후보 생성 — 요청 경로에 남은 유일한 LLM 호출
+        RecipeCandidates candidates = recipeCandidateGenerator.generateRecipeCandidates(ownedNames);
+        CandidateRecipePlan plan = candidates.chooseBest(ownedNames).orElseThrow(...);
 
-        // 3. 첫 번째 레시피 선택 및 부족 재료 계산
-        if (candidates.candidates().isEmpty()) {
-            return createEmptyResponse(ownedNames);
-        }
+        // 4. 부족한 재료는 RecipeCandidateGenerator가 서버 계산으로 채워 둔 값을 그대로 쓴다
+        List<String> missingCore = IngredientProcessingUtil.normalizeList(plan.getMissingIngredientsCore());
 
-        CandidateRecipePlan selectedRecipe = candidates.candidates().get(0);
-
-        // 4. 부족한 재료 검색
-        List<String> missingCore = IngredientProcessingUtil.subtractNormalized(
-            selectedRecipe.recipeIngredientsCore(), ownedNames);
-
-        List<IngredientRecommendResponse> recommendations = missingCore.stream()
-            .map(this::searchProductsForIngredient)
-            .toList();
-
-        return new RecipeRecommendResponse(
-            selectedRecipe.recipeName(),
-            ownedNames,
-            missingCore,
-            recommendations,
-            selectedRecipe.instructions()
-        );
+        // 5. 부족 재료별로 대체 상품을 ES에서 검색
+        ...
     }
 }
 ```
 
-### LLM 기반 재료 추출
+### 색인 시점 재료명 추출
 
-> **[Infrastructure Layer]** 상품명에서 실제 재료를 추출하는 LLM 서비스입니다.
+> **[Infrastructure Layer]** 상품명에서 요리 재료명을 뽑아 `ProductDocument.ingredientName`에 넣는다.
+> 상품 색인(Kafka `product-events` 소비) 시점에만 호출되고, 추천 요청 경로에서는 호출하지 않는다.
+> 근거: [`decisions/002-ingredient-name-at-index-time.md`](decisions/002-ingredient-name-at-index-time.md)
 
 ```java
-// recommend/infrastructure/llm/ProductNameNormalizer.java
+// search/infrastructure/llm/ProductIngredientNormalizer.java
 
 @Component
 @RequiredArgsConstructor
-public class ProductNameNormalizer {
+public class ProductIngredientNormalizer {
 
     private final ChatClient chatClient;
 
-    public String normalizeForRecipeIngredient(String productName) {
-        if (productName == null || productName.trim().isEmpty()) {
+    public String normalize(String productName) {
+        if (productName == null || productName.isBlank()) {
             return "";
         }
-
-        String prompt = buildNormalizationPrompt(productName);
-
         try {
             NormalizationResponse response = chatClient.prompt()
-                .user(prompt)
+                // 상품명은 .param()으로 넘긴다 — 문자열에 직접 이어붙이면 상품명 안의 중괄호가
+                // 템플릿 문법으로 해석돼 렌더링이 실패한다
+                .user(u -> u.text(PROMPT).param("productName", productName))
                 .call()
                 .entity(new ParameterizedTypeReference<NormalizationResponse>() {});
 
-            return response != null && response.normalizedIngredient() != null
-                ? response.normalizedIngredient().trim()
-                : "";
+            String normalized = response == null || response.normalizedIngredient() == null
+                ? "" : response.normalizedIngredient().trim();
 
+            return normalized.isBlank() ? applyBasicNormalization(productName) : normalized;
         } catch (Exception e) {
-            log.warn("상품명 정규화 실패: '{}', 기본 정규화 적용", productName, e);
+            log.warn("상품명 정규화 실패, 정규식 폴백 사용: '{}'", productName, e);
             return applyBasicNormalization(productName);
         }
     }
-
-    private String buildNormalizationPrompt(String productName) {
-        return String.format("""
-            당신은 농산물 이커머스 상품명을 분석하여 실제 요리에 사용할 수 있는 '핵심 재료명'만 추출하는 전문가입니다.
-
-            <상품명>
-            %s
-
-            <출력(JSON only)>
-            {{
-              "normalizedIngredient": "핵심재료명"
-            }}
-            """, productName);
-    }
-
-    private record NormalizationResponse(String normalizedIngredient) { }
 }
 ```
 
@@ -417,6 +376,7 @@ public class PersonalizedRecommendService {
 
     private final UserProfileEmbeddingRepository userProfileEmbeddingRepository;
     private final VectorProductSearchService vectorProductSearchService;
+    private final MedoidDiversityService medoidDiversityService;
 
     public List<ProductRecommendResponse> recommendProducts(UUID userId, int topK) {
         // 1. 사용자 프로필 벡터 조회
@@ -441,31 +401,52 @@ public class PersonalizedRecommendService {
             .map(UUID::fromString)
             .toList();
 
-        return vectorProductSearchService.findSimilarProductsByVector(
-            userVector,
-            topK,
-            excludeProductIds,  // 제외할 상품 ID들
-            null,               // 자기 자신 제외하지 않음
-            true                // 중복 제거 활성화
-        );
+        String preferredCategoryCode = profile.getPreferredCategoryCode();
+        int candidateSize = Math.min(topK * 3, 100);
+
+        List<ProductDocument> candidates =
+            vectorProductSearchService.findSimilarProductDocumentsByVector(
+                userVector,
+                candidateSize,
+                excludeProductIds,
+                preferredCategoryCode,
+                preferredCategoryCode != null ? 0.3 : null
+            );
+
+        List<ProductDocument> medoids =
+            medoidDiversityService.selectDiverseMedoids(userVector, candidates, topK);
+
+        return medoids.stream()
+            .map(product -> new ProductRecommendResponse(
+                product.getProductId(),
+                product.getProductName(),
+                product.getProductCategoryName(),
+                product.getPrice()
+            ))
+            .toList();
     }
 }
 ```
+
+### 개인화 추천 캐싱
+
+개인화 추천·유사 상품 추천·레시피 추천은 캐싱하지 않는다 — 사용자·상품별로 결과가 갈려 캐시 효율이 낮고, 방금 담은 장바구니·방금 완료한 주문이 바로 반영돼야 하는 최신성 요구가 더 크다고 판단했다. 실제로 캐싱하는 건 `autocomplete` 하나뿐이다(Caffeine, `CacheConfig.java`). 근거·기각한 대안: [`decisions/001-autocomplete-caching.md`](decisions/001-autocomplete-caching.md).
 
 ### 비슷한 상품 추천 로직
 
 > **[Application Layer]** 특정 상품의 벡터를 기반으로 유사한 상품을 추천합니다.
 
 ```java
-// recommend/application/SimilarProductService.java
+// recommend/application/SimilarProductRecommendService.java
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class SimilarProductService {
+public class SimilarProductRecommendService {
 
     private final ProductSearchRepository productSearchRepository;
     private final VectorProductSearchService vectorProductSearchService;
+    private final MedoidDiversityService medoidDiversityService;
 
     public List<ProductRecommendResponse> recommendSimilarProducts(UUID productId, int topK) {
         // 1. 기준 상품 조회 및 벡터 추출
@@ -481,24 +462,41 @@ public class SimilarProductService {
         }
 
         float[] productVector = product.getVector();
+        String originalCategoryCode = product.getProductCategoryCode();
 
         // 2. 벡터 유사도 검색 실행
-        return findSimilarProducts(productVector, productId, topK);
+        return findSimilarProducts(productVector, productId, originalCategoryCode, topK);
     }
 
     private List<ProductRecommendResponse> findSimilarProducts(
         float[] vector, 
         UUID originalProductId, 
+        String originalCategoryCode,
         int topK
     ) {
-        // VectorProductSearchService의 메소드 사용
-        return vectorProductSearchService.findSimilarProductsByVector(
-            vector,
-            topK,
-            List.of(),          // 제외할 상품 ID 없음
-            originalProductId,  // 자기 자신 제외
-            false               // 중복 제거 비활성화
-        );
+        Double categoryMatchBonus = originalCategoryCode != null ? 0.3 : null;
+        int candidateSize = Math.min(topK * 3, 100);
+
+        List<ProductDocument> candidates =
+            vectorProductSearchService.findSimilarProductDocumentsByVector(
+                vector,
+                candidateSize,
+                List.of(originalProductId),
+                originalCategoryCode,
+                categoryMatchBonus
+            );
+
+        List<ProductDocument> medoids =
+            medoidDiversityService.selectDiverseMedoids(vector, candidates, topK);
+
+        return medoids.stream()
+            .map(product -> new ProductRecommendResponse(
+                product.getProductId(),
+                product.getProductName(),
+                product.getProductCategoryName(),
+                product.getPrice()
+            ))
+            .toList();
     }
 }
 ```
@@ -517,12 +515,12 @@ public class VectorProductSearchService {
 
     private final ElasticsearchOperations elasticsearchOperations;
 
-    public List<ProductRecommendResponse> findSimilarProductsByVector(
+    public List<ProductDocument> findSimilarProductDocumentsByVector(
         float[] queryVector,
-        int topK,
+        int candidateSize,
         List<UUID> excludeProductIds,
-        UUID excludeSelfProductId,
-        boolean removeDuplicates
+        String targetCategoryCode,
+        Double categoryMatchBonus
     ) {
         // Elasticsearch script_score 쿼리를 사용한 코사인 유사도 계산
         NativeQuery query = NativeQuery.builder()
@@ -532,8 +530,12 @@ public class VectorProductSearchService {
                         .bool(b -> b
                             // 자기 자신 제외
                             .mustNot(mn -> {
-                                if (excludeSelfProductId != null) {
-                                    mn.ids(i -> i.values(excludeSelfProductId.toString()));
+                                if (excludeProductIds != null && !excludeProductIds.isEmpty()) {
+                                    mn.ids(i -> i.values(
+                                        excludeProductIds.stream()
+                                            .map(UUID::toString)
+                                            .toList()
+                                    ));
                                 }
                                 return mn;
                             })
@@ -556,12 +558,13 @@ public class VectorProductSearchService {
                     )
                 )
             )
-            .withPageable(PageRequest.of(0, fetchSize))
+            .withPageable(PageRequest.of(0, candidateSize))
             .build();
 
         // 검색 실행 및 결과 변환
         SearchHits<ProductDocument> hits = elasticsearchOperations.search(query, ProductDocument.class);
         // ... 결과 처리 및 필터링
+        return List.of();
     }
 }
 ```
@@ -614,7 +617,7 @@ public class CartLogDocument {
     private String productName; // 임베딩 텍스트 데이터
 
     @Field(type = FieldType.Keyword)
-    private String eventType; // ADD, REMOVE, UPDATE
+    private String eventType; // CART_ITEM_ADDED, CART_QUANTITY_UPDATED, CART_ITEM_REMOVED
 
     @Field(type = FieldType.Integer)
     private Integer quantity; // 관심 강도
@@ -756,91 +759,21 @@ class RecommendationApiTest {
 
 ### Docker 구성
 
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  ai-service:
-    image: baro-ai:latest
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-    depends_on:
-      - elasticsearch
-      - redis
-      - kafka
-    ports:
-      - "8092:8092"
+인프라(Elasticsearch, Kafka, MySQL)는 프로젝트 루트의 `docker-compose.data.yml`로 실행합니다.
 
-  elasticsearch:
-    image: elasticsearch:8.11.0
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-    ports:
-      - "9200:9200"
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-```
+- `baro-ai`(API 서버)는 로컬에서는 `./gradlew bootRun`으로 실행하거나
+- Kubernetes에서는 `k8s/apps/baro-ai/` 매니페스트를 배포합니다.
 
 ### 헬스체크 및 모니터링
 
-```java
-@RestController
-public class HealthController {
-
-    @GetMapping("/actuator/health")
-    public ResponseEntity<HealthResponse> health() {
-        return ResponseEntity.ok(HealthResponse.builder()
-            .status("UP")
-            .components(Map.of(
-                "elasticsearch", checkElasticsearch(),
-                "redis", checkRedis(),
-                "openai", checkOpenAI()
-            ))
-            .build());
-    }
-}
-```
+- Health: `GET /actuator/health`
+- 메트릭: `GET /actuator/metrics` (및 `GET /actuator/metrics/{metric.name}`)
 
 ### 로그 및 메트릭
 
-```java
-@Configuration
-public class MonitoringConfig {
+이 서비스는 기본적으로 Micrometer + Spring Boot Actuator를 통해 로그/메트릭을 수집합니다.
 
-    @Bean
-    public MeterRegistry meterRegistry() {
-        return new CompositeMeterRegistry();
-    }
-
-    @Bean
-    public AIMetricsService aiMetricsService(MeterRegistry registry) {
-        return new AIMetricsService(registry);
-    }
-}
-
-@Service
-@RequiredArgsConstructor
-public class AIMetricsService {
-
-    private final MeterRegistry registry;
-
-    public void recordRecommendation(String type, long durationMs, boolean success) {
-        registry.timer("ai.recommendation.duration",
-            Tags.of("type", type, "success", String.valueOf(success)))
-            .record(durationMs, MILLISECONDS);
-    }
-
-    public void recordCost(String model, double cost) {
-        registry.counter("ai.cost.total", Tags.of("model", model))
-            .increment(cost);
-    }
-}
-```
+커스텀 메트릭 수집 코드는 문서에 포함하지 않고, 기본 엔드포인트를 기준으로 확인하는 것을 권장합니다.
 
 ### 배포 파이프라인
 
@@ -872,7 +805,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Kubernetes
-        run: kubectl apply -f k8s/
+        run: kubectl apply -f k8s/apps/baro-ai/
 ```
 
 ---
