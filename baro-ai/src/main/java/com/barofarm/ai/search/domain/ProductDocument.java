@@ -50,8 +50,11 @@ public class ProductDocument {
     @JsonFormat(pattern = "uuuu-MM-dd'T'HH:mm:ssX", timezone = "UTC")
     private Instant updatedAt; // 검색 결과 반환 로직 내에서 최신순으로 정렬
 
+    @Field(type = FieldType.Keyword)
+    private String ingredientName; // 상품명에서 뽑은 요리 재료명 — 색인 시점에 1회 계산 (레시피 추천이 읽음)
+
     @Field(type = FieldType.Dense_Vector, dims = 1536)
-    private float[] vector; // OpenAI 임베딩 벡터 (1536차원)
+    private float[] vector; // Gemini 임베딩 벡터 (1536차원 — 출력 차원을 설정으로 고정한다)
 
     public ProductDocument() {
     }
@@ -66,6 +69,7 @@ public class ProductDocument {
         Long price,
         String status,
         Instant updatedAt,
+        String ingredientName,
         float[] vector) {
         this.productId = productId;
         this.productName = productName;
@@ -75,6 +79,7 @@ public class ProductDocument {
         this.price = price;
         this.status = status;
         this.updatedAt = updatedAt;
+        this.ingredientName = ingredientName;
         this.vector = vector;
     }
 }

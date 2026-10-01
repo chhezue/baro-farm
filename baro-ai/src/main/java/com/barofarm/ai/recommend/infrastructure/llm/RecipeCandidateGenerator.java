@@ -1,10 +1,10 @@
 package com.barofarm.ai.recommend.infrastructure.llm;
 
 import com.barofarm.ai.recommend.domain.CandidateRecipePlan;
-import com.barofarm.ai.recommend.domain.OwnedIngredient;
+import com.barofarm.ai.recommend.domain.IngredientProcessingUtil;
 import com.barofarm.ai.recommend.domain.RecipeCandidates;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
@@ -16,104 +16,10 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class RecipePromptService {
+public class RecipeCandidateGenerator {
 
     private final ChatClient chatClient;
-    private final ProductNameNormalizer productNameNormalizer;
 
-    public record CartItemInput(String productName, String categoryName) {
-
-    }
-
-    private record NormalizedCartItem(String originalProductName, String normalizedProductName,
-        String categoryName) {
-
-    }
-
-    /**
-     * [LLM #1] 장바구니 상품에서 보유 재료 추출
-     * 정규화된 상품명들을 LLM에게 전달하여 실제 요리 재료를 추출
-     *
-     * @param cartItems 장바구니 상품 목록 (이미 정규화됨)
-     * @return 추출된 보유 재료 목록
-     */
-    public List<OwnedIngredient> extractOwnedIngredients(List<CartItemInput> cartItems) {
-        // LLM의 JSON 응답 구조를 임시로 받기 위한 private record
-        record LlmOwnedIngredientsResponse(List<OwnedIngredient> ownedIngredients) {
-
-        }
-
-        // 1. 각 상품명을 미리 정규화하여 더 명확한 입력 제공 (배치 처리)
-        List<String> productNames = cartItems.stream()
-            .map(RecipePromptService.CartItemInput::productName)
-            .toList();
-
-        Map<String, String> normalizedMap = productNameNormalizer.normalizeBatchForRecipeIngredient(
-            productNames);
-
-        List<NormalizedCartItem> normalizedItems = cartItems.stream()
-            .map(item -> {
-                String normalizedName = normalizedMap.getOrDefault(item.productName(), "");
-                return new NormalizedCartItem(
-                    item.productName(),  // 원본 유지
-                    normalizedName,      // 정규화된 이름
-                    item.categoryName()
-                );
-            })
-            .filter(item -> !item.normalizedProductName().isEmpty())
-            .toList();
-
-        String cartItemsText = normalizedItems.stream()
-            .map(i -> "- original: \"" + i.originalProductName() + "\", normalized: \""
-                + i.normalizedProductName() + "\", category: \"" + i.categoryName() + "\"")
-            .collect(Collectors.joining("\n"));
-
-        String templateString = """
-            당신은 농산물 이커머스 장바구니를 분석해 실제 요리에 쓰일 수 있는 '보유 재료'만 추출합니다.
-
-            <입력(cartItems)>
-            {cartItems}
-
-            <중요 정책>
-            - normalized 필드를 우선적으로 참고하되, original과 비교하여 검증하세요.
-
-            <핵심 규칙(엄격)>
-            - 반드시 normalized 필드의 재료명을 그대로 사용하세요. 다른 형태로 변경하지 마세요.
-            - normalized 필드의 정제된 재료명을 우선적으로 사용하세요.
-            - 반드시 입력 cartItems의 original 또는 normalized에서 직접 근거를 찾을 수 있는 재료만 추출하세요.
-            - 입력에 없는 재료(예: 양파, 마늘 등)를 상상으로 추가하면 안 됩니다.
-            - 각 재료명은 한 단어(공백 없음)만 허용합니다.
-            - 중복은 제거하세요.
-            - 모호하면 제외하세요(추측 금지).
-
-            <출력(JSON only)>
-            {{
-              "ownedIngredients": [
-                {{
-                  "name": "한단어재료명",
-                  "sourceProductName": "입력에 존재하는 original 원문 그대로",
-                  "sourceCategoryName": "입력에 존재하는 category 원문 그대로"
-                }}
-              ]
-            }}
-            다른 텍스트는 절대 출력하지 마세요.
-            """;
-
-        try {
-            LlmOwnedIngredientsResponse response = chatClient.prompt()
-                .user(p -> p.text(templateString).param("cartItems", cartItemsText))
-                .call()
-                .entity(new ParameterizedTypeReference<>() {
-                });
-            return response != null && response.ownedIngredients() != null
-                ? response.ownedIngredients() : List.of();
-        } catch (Exception e) {
-            log.error("보유 재료 추출 실패: {}", e.getMessage(), e);
-            return List.of();
-        }
-    }
-
-    // -------------------------
     // LLM #2: ownedIngredients -> candidates (Korean/Japanese/Western)
     // -------------------------
     /**
@@ -248,7 +154,9 @@ public class RecipePromptService {
     }
 
     /**
-     * LLM 응답을 서버 계산으로 보정하여 CSP 검증 필드들을 정확하게 채움
+     * LLM이 스스로 적어 보낸 "썼다/부족하다" 값을 믿지 않고 서버가 다시 계산해 덮어쓴다.
+     * 비교는 {@link IngredientProcessingUtil#normalizeForCompare}로 통일한다 — 예전에는 여기서만
+     * 공백·대소문자를 그대로 둔 채 비교해서, 같은 재료를 호출부와 다르게 세는 경우가 있었다.
      */
     private CandidateRecipePlan enhanceWithServerValidation(
         CandidateRecipePlan candidate,
@@ -260,16 +168,18 @@ public class RecipePromptService {
             candidate.getRecipeIngredientsExtra().stream()
         ).toList();
 
+        Set<String> ownedNormalized = ownedIngredients.stream()
+            .map(IngredientProcessingUtil::normalizeForCompare)
+            .collect(Collectors.toSet());
+
         List<String> accurateUsed = allIngredients.stream()
-            .filter(ownedIngredients::contains)
+            .filter(ing -> ownedNormalized.contains(IngredientProcessingUtil.normalizeForCompare(ing)))
             .distinct()
             .toList();
 
-        // core 재료 중 ownedIngredients에 없는 것들
-        List<String> accurateMissing = candidate.getRecipeIngredientsCore().stream()
-            .filter(ing -> !ownedIngredients.contains(ing))
-            .distinct()
-            .toList();
+        // core 재료 중 보유 재료에 없는 것들
+        List<String> accurateMissing = IngredientProcessingUtil
+            .subtractNormalized(candidate.getRecipeIngredientsCore(), ownedIngredients);
 
         // 검증된 candidate 반환
         CandidateRecipePlan verifiedCandidate = new CandidateRecipePlan();

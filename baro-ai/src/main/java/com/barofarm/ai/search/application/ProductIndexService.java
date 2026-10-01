@@ -8,6 +8,7 @@ import com.barofarm.ai.search.domain.ProductAutocompleteDocument;
 import com.barofarm.ai.search.domain.ProductDocument;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ProductAutocompleteRepository;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ProductSearchRepository;
+import com.barofarm.ai.search.infrastructure.llm.ProductIngredientNormalizer;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -32,6 +33,7 @@ public class ProductIndexService {
     private final ProductAutocompleteRepository autocompleteRepository;
     private final ProductEmbeddingService productEmbeddingService;
     private final UserProfileEmbeddingService userProfileEmbeddingService;
+    private final ProductIngredientNormalizer ingredientNormalizer;
 
     /**
      * 상품 문서를 ES에 저장 (인덱싱), updatedAt은 현재 시각으로 자동 설정
@@ -48,6 +50,16 @@ public class ProductIndexService {
             log.error("❌ Product embedding failed. productId=" + request.productId() + ", error=" + e.getMessage(), e);
         }
 
+        // 요리 재료명은 색인 시점에 1회만 계산한다. 추천 요청마다 LLM으로 뽑던 것을 여기로 옮긴 것.
+        // 실패해도 색인은 계속되어야 하므로 빈 값으로 둔다. 근거: docs/decisions/002-ingredient-name-at-index-time.md
+        String ingredientName = "";
+        try {
+            ingredientName = ingredientNormalizer.normalize(request.productName(), request.productCategoryName());
+        } catch (Exception e) {
+            log.error("❌ Ingredient normalization failed. productId={}, error={}",
+                request.productId(), e.getMessage(), e);
+        }
+
         ProductDocument doc =
             new ProductDocument(
                 request.productId(),
@@ -58,6 +70,7 @@ public class ProductIndexService {
                 request.price(),
                 request.status(),
                 Instant.now(),
+                ingredientName,
                 vector);
 
         // 자동완성 인덱스에도 저장 (status 포함하여 필터링 가능하도록)
@@ -78,8 +91,9 @@ public class ProductIndexService {
 
     /**
      * 상품 자동완성 검색
+     * 로컬 캐시(Caffeine, CacheConfig) 적용 — 입력할 때마다 호출되고 흔한 접두어는 반복 요청이 많아
+     * 반복 호출 절약 효과가 큰 지점. 근거: docs/decisions/001-autocomplete-caching.md
      */
-    // TODO Redis 캐시 추가
     @Cacheable(value = "autocomplete", key = "#query + '-' + #size")
     public List<ProductAutoCompleteResponse> autocomplete(String query, int size) {
         if (query == null || query.length() < 2) {
