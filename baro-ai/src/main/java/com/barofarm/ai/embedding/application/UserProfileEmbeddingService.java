@@ -41,7 +41,7 @@ public class UserProfileEmbeddingService {
     private final UserProfileEmbeddingRepository userProfileEmbeddingRepository;
 
     public UserProfileEmbeddingService(
-        @Qualifier("openAiEmbeddingModel") EmbeddingModel embeddingModel,
+        @Qualifier("googleGenAiTextEmbedding") EmbeddingModel embeddingModel,
         CartLogRepository cartLogRepository,
         OrderLogRepository orderLogRepository,
         SearchLogRepository searchLogRepository,

@@ -17,7 +17,7 @@ java {
 
 ext {
     set('springCloudVersion', "2025.0.0")
-    set('springAiVersion', "1.0.0-M5")
+    set('springAiVersion', "1.1.8")
 }
 
 dependencyManagement {
@@ -70,14 +70,17 @@ dependencies {
         exclude group: 'co.elastic.clients', module: 'elasticsearch-java'
     }
     implementation 'co.elastic.clients:elasticsearch-java:8.13.3'
-    implementation 'org.springframework.ai:spring-ai-elasticsearch-store'
 
     // ========= 메시징 / Kafka =========
     implementation 'org.springframework.kafka:spring-kafka'
 
-    // ========= Spring AI =========
-    implementation 'org.springframework.ai:spring-ai-openai-spring-boot-starter'
-    implementation 'org.springframework.ai:spring-ai-ollama-spring-boot-starter'
+    // ========= 캐시 (로컬, 자동완성 전용 — docs/decisions/001-autocomplete-caching.md) =========
+    implementation 'com.github.ben-manes.caffeine:caffeine'
+
+    // ========= Spring AI (Google Gemini — 챗·임베딩 모두) =========
+    // 근거: docs/decisions/003-gemini-migration.md
+    implementation 'org.springframework.ai:spring-ai-starter-model-google-genai'
+    implementation 'org.springframework.ai:spring-ai-starter-model-google-genai-embedding'
 
     // ========= OpenFeign 클라이언트 =========
     implementation 'io.github.openfeign:feign-okhttp:13.6'

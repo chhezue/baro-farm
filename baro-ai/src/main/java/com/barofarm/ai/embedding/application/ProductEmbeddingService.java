@@ -14,7 +14,7 @@ public class ProductEmbeddingService {
 
     private final EmbeddingModel embeddingModel;
 
-    public ProductEmbeddingService(@Qualifier("openAiEmbeddingModel") EmbeddingModel embeddingModel) {
+    public ProductEmbeddingService(@Qualifier("googleGenAiTextEmbedding") EmbeddingModel embeddingModel) {
         this.embeddingModel = embeddingModel;
     }
 

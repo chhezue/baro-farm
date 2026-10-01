@@ -18,7 +18,6 @@ spring:
     exclude:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
       - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
-      - org.springframework.ai.autoconfigure.vectorstore.elasticsearch.ElasticsearchVectorStoreAutoConfiguration
 
   # Elasticsearch 설정
   elasticsearch:
@@ -36,17 +35,32 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
-  # Spring AI 설정
+  # Spring AI 설정 (Google Gemini — 근거: docs/decisions/003-gemini-migration.md)
   ai:
-    openai:
-      api-key: ${BARO_AI_OPENAI_KEY:}
-      chat:
-        options:
-          model: ${SPRING_AI_OPENAI_MODEL:gpt-4o-mini}
-          temperature: 0.7
-      embedding:
-        options:
-          model: ${SPRING_AI_OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+    # 기본값은 최대 10회 재시도에 백오프 상한 3분이라, 호출당 타임아웃(30초)을 걸어도
+    # 한 번의 요청이 수십 분까지 늘어질 수 있다. 무료 티어의 호출 한도(429)에 걸리면
+    # 실제로 이 경로를 밟으므로 명시적으로 좁힌다.
+    retry:
+      max-attempts: 3
+      backoff:
+        initial-interval: 1s
+        multiplier: 2
+        max-interval: 10s
+    google:
+      genai:
+        api-key: ${BARO_AI_GEMINI_KEY:}
+        chat:
+          options:
+            model: ${SPRING_AI_GEMINI_MODEL:gemini-2.5-flash-lite}
+            # 레시피 후보 생성용 기본값. 결정적 추출이 필요한 호출은 호출부에서 0으로 덮어쓴다
+            temperature: 0.7
+        embedding:
+          api-key: ${BARO_AI_GEMINI_KEY:}
+          text:
+            options:
+              model: ${SPRING_AI_GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
+              # ES 매핑(dims=1536)을 유지하려고 출력 차원을 고정한다
+              dimensions: 1536
 
 eureka:
   client:

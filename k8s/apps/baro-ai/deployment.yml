@@ -34,11 +34,11 @@ spec:
               value: "false"
             - name: SPRING_CLOUD_CONFIG_IMPORT_CHECK_ENABLED
               value: "false"
-            - name: BARO_AI_OPENAI_KEY
+            - name: BARO_AI_GEMINI_KEY
               valueFrom:
                 secretKeyRef:
                   name: baro-ai-secrets
-                  key: BARO_AI_OPENAI_KEY
+                  key: BARO_AI_GEMINI_KEY
             - name: MANAGEMENT_OTLP_TRACING_ENDPOINT
               value: http://otel-collector.monitoring.svc.cluster.local:4318/v1/traces
             - name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY

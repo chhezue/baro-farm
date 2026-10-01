@@ -19,7 +19,8 @@ public class UserProfileEmbeddingDocument {
     @Id
     private UUID userId;
 
-    // OpenAI 'text-embedding-ada-002' 모델의 기본 차원인 1536으로 설정
+    // 1536차원으로 고정한다. Gemini 임베딩 모델은 출력 차원을 조정할 수 있어
+    // application-prod.yml에서 1536으로 맞춘다 — 근거: docs/decisions/003-gemini-migration.md
     @Field(type = FieldType.Dense_Vector, dims = 1536)
     private List<Double> userProfileVector;
 
