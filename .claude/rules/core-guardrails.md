@@ -5,7 +5,7 @@
 작업을 **어떤 순서로** 진행하는지(트랙 1개 선택 → 게이트 4개 통과)는 `core-workflow.md`가 담당한다.
 
 **형제 규칙:** `core-guardrails.md` · `core-workflow.md` · `core-scope.md` · `core-followup.md` · `core-tools.md` · `harness-map.md`(슬롯)
-경로·명령·옵션은 `harness-map.md`가 SSOT · Git: `.github/CONTRIBUTING.md`
+경로·명령·옵션은 `harness-map.md`가 SSOT · Git 브랜치·커밋·PR 규칙은 `core-workflow.md` "Git 컨벤션" 절
 스택 팩(Java·Spring)을 쓰면: `spring-boot-java.md`
 
 ## ⛔ STOP (모든 규칙보다 우선)
@@ -54,6 +54,7 @@ SSOT: {{API 응답 규격}} · `spring-boot-java.md` ErrorCode·AOP 절
 1. Flyway / Liquibase / `V*__*.sql` / 데이터 보존 마이그레이션 **작성·커밋 금지**.
 2. 스키마 SSOT = **ORM 엔티티(최신 하나)** + 자동 DDL 반영 (`{{아키텍처 개요}}`).
 3. 로컬·dev DB **폐기·재생성** 허용 (`docker compose down -v` 등). orphan·구 스키마 호환 레이어 금지.
+   **단, 이 명령은 `deny-dangerous-bash.sh`가 의도적으로 차단한다** — 정책상 허용된다는 것과 에이전트가 스스로 실행해도 된다는 것은 다르다. 되돌릴 수 없는 삭제이므로 사람이 직접 실행한다. 훅에 막혔다면 우회하지 말고 사용자에게 실행을 요청한다.
 4. “나중에 마이그레이션 도입” 식 예정 코드/파일·주석 추가 금지. prod 보존이 필요해지면 **그때** decisions + 마이그레이션 별도 결정.
 
 ### 4. 레거시·정책 불일치 코드 제거 (호환 레이어 금지 · **같은 변경에서 즉시**)
@@ -87,5 +88,5 @@ SSOT: {{API 응답 규격}} · `spring-boot-java.md` ErrorCode·AOP 절
 | 축 | 하지 않는다 |
 |----|-------------|
 | **STOP** | §0 `baro-ai/`(+`.claude/`) 밖 쓰기 확인 없이 진행 · §1 문서 충돌 무시 · §2 ErrorCode 미갱신 · §3 마이그레이션 작성 · §4 교체 후 구 경로 방치 · §5(꺼짐, 해당 없음) · §6 `how-it-works.md` 미갱신 |
-| **게이트** | G1 리서치 없이 추측 구현·블로그 인용 · G2 확인 없이 이슈/브랜치/PR 생성 · G3 `doc-reviewer` 생략 · 이슈 번호 없는 브랜치명(CONTRIBUTING) |
+| **게이트** | G1 리서치 없이 추측 구현·블로그 인용 · G2 확인 없이 이슈/브랜치/PR 생성 · G3 `doc-reviewer` 생략 · 이슈 번호 없는 브랜치명(`core-workflow.md` Git 컨벤션) |
 | **환경** | `git push --force`(main/master) · `rm -rf` · 운영 DB 파괴 · `.env`·API 키 커밋 |

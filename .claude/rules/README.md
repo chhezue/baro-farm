@@ -87,7 +87,6 @@ Claude Code가 이 저장소에서 작업할 때 참조하는 **프로젝트 전
 | `core-guardrails.md` | ⛔ **수정 범위(`baro-ai/`+`.claude/` 밖 금지)** · 문서 정합 · ErrorCode/AOP · DB 마이그레이션 금지 · **레거시(교체=같은 PR 삭제)** · **API Breaking-Change-Reason 트레일러** · `how-it-works.md` 갱신 + 금지 요약 표 | **하지 말 것 (STOP §0~§6)** |
 | `core-workflow.md` | 진입(트랙 분류) · **3 트랙 × 4 게이트 사이클** · 구현 중 지킬 것 | **어떤 순서로 할 것** |
 | `core-scope.md` | priority(must/could) 단정 금지 · `[미정]` 문서 표기(중앙 트래커 없음) | 범위·우선순위 |
-| `{프로젝트}-release.md`(견본: `examples/tripfit/`) | 🚨 Release Gate(앱 심사) · 릴리즈 축 3개 질문 · 희망기간/조회윈도우/C1 · 도메인·배포 확정 사항 | **이 저장소 고유** — 하네스 이식 시 제외. 폐지 이력은 `docs/product/release-milestones.md` |
 | `baro-ai-performance-refactor.md` | **이 저장소 고유, 한시적** — 지금 진행 중인 이니셔티브(캐싱·프롬프트 튜닝·비동기 처리 등 근거 기반 성능 리팩토링)의 범위(search/recommend/embedding/event-log/chat, review 제외)와 근거 기준. 이니셔티브 종료 시 갱신·삭제 | **이 저장소 고유** — 다른 프로젝트로 옮길 때 가져가지 않음 |
 | `core-followup.md` | 💡 후속 제안 · ✅ Defer 이슈 분리 · 💡 ERD 적극 제안 | 완료 후·범위 미루기 |
 | `core-tools.md` | **도구 우선순위**(Claude Code 기본 > OMC > Superpowers > 프로젝트 문서) · **트랙 × 게이트 → 도구** 매핑 | 워크플로 도구 연동·채택 판단 |
@@ -121,7 +120,7 @@ Claude Code가 이 저장소에서 작업할 때 참조하는 **프로젝트 전
 | 종류 | 규칙 | 예 |
 |------|------|-----|
 | **스킬** | 짧은 **동사** 하나 | `spec`이 아니라 `specify`, `preflight`, `defer`, `debug` |
-| **규칙** | **적용 시점·대상이 드러나는 명사구.** 프로젝트 무관은 `core-`, 이 저장소 고유는 `tripfit-` 접두사 | `core-guardrails`, `harness-map`, `spring-boot-java` |
+| **규칙** | **적용 시점·대상이 드러나는 명사구.** 프로젝트 무관은 `core-` 접두사, 이 저장소 고유는 접두사 없이 대상을 밝힌다 | `core-guardrails`, `harness-map`, `baro-ai-performance-refactor` |
 | **훅** | 동작을 접두사로 — 차단 `deny-`, 경고 `warn-`, 자동 실행 `auto-` | `deny-out-of-scope-write.sh`, `deny-db-migration.sh`, `warn-breaking-change.sh`, `auto-format-java.sh` |
 | **에이전트** | 역할 명사, 20자 이내 | `spring-reviewer`, `doc-reviewer`, `researcher` |
 
@@ -164,7 +163,7 @@ Claude Code가 이 저장소에서 작업할 때 참조하는 **프로젝트 전
 
 | 이벤트 | 매처 | 현재 동작 |
 |--------|------|-----------|
-| `PreToolUse` | `Bash` | `deny-dangerous-bash.sh` — force push, `rm -rf`, `git reset --hard`, `docker compose down -v` 차단(exit 2, fail-closed) |
+| `PreToolUse` | `Bash` | `deny-dangerous-bash.sh` — force push, `rm -rf`, `git reset --hard`, `docker compose down -v` 차단(exit 2, fail-closed). `core-guardrails.md` STOP §3이 dev DB 폐기를 허용하는 것과 충돌하지 않는다 — 정책상 허용이지만 되돌릴 수 없어 **사람이 직접 실행**하게 하는 의도된 마찰이다. **알려진 오탐:** 패턴을 명령 문자열 전체에서 찾으므로 위 문구를 인자로 담은 `grep`·`echo` 같은 무해한 명령도 함께 막힌다(2026-09-04 실제 발생). 문구를 쪼개 쓰거나 파일 편집 도구를 쓰고, 훅을 우회하지 않는다 |
 | `PreToolUse` | `Bash` | `warn-breaking-change.sh` — `git commit`에 DTO/ErrorCode/Controller 변경이 스테이징됐는데 `Breaking-Change-Reason:` 트레일러가 없으면 advisory 경고(항상 exit 0, 커밋을 막지 않음) |
 | `PreToolUse` | `Write\|Edit` | `deny-out-of-scope-write.sh` — `baro-ai/`·`.claude/` 밖 파일 쓰기 차단(exit 2, fail-closed) — `core-guardrails.md` STOP §0. 5인 공용 모노레포에서 다른 모듈에 영향 없이 하네스를 저장소 루트에 둘 수 있게 하는 핵심 백스톱 |
 | `PreToolUse` | `Write\|Edit` | `deny-db-migration.sh` — `baro-ai/` 안 `db/migration/` 경로 또는 Flyway 네이밍(`V1__x.sql`, `R__x.sql`) 파일 생성 차단(exit 2, fail-closed) — `core-guardrails.md` STOP §3. `baro-ai/` 밖은 위 훅이 이미 막으므로 대상 아님(방어적 재확인만) |

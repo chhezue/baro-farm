@@ -4,12 +4,12 @@
 
 **새 프로젝트에 하네스를 붙일 때 채우는 건 이 파일 하나다.** 규칙 파일은 건드리지 않는다.
 
-채운 예시: [`examples/tripfit/harness-map.md`](../../examples/tripfit/harness-map.md)
+**이 슬롯 체계는 baro-ai 이식 때 새로 만든 것이다** — 규칙 본문이 경로를 직접 부르던 방식을 슬롯으로 바꿨다. 채운 예시를 따로 두지 않는다. 이 파일 자체가 유일한 채움 사례다.
 
 ## 이 프로젝트 특이사항 (2026-09-04)
 
 - **모노레포 하위 모듈, 하네스는 저장소 루트**: `baro-farm-be`는 5인이 같이 쓰는 Gradle 멀티 모듈 저장소이고, `.git`은 저장소 루트 하나뿐이다. `.claude/`는 처음엔 `baro-ai/.claude/`(서브트리)에 뒀었는데, Claude Code가 프로젝트 설정을 **세션이 시작된 작업 디렉터리 기준**으로만 로드해서 저장소 루트에서 세션을 열면 전혀 로드되지 않는 문제가 있었다(2026-09-04 실측 — 세션의 스킬·에이전트 목록에 이 하네스의 것이 하나도 안 뜸). 그래서 **저장소 루트로 이동**했다. 다만 규칙 본문·강제 대상은 여전히 **`baro-ai/`(+ 하네스 자체인 `.claude/`)로 제한** — 참조·조사는 자유롭게 다른 모듈까지 하되, 쓰기는 벗어나면 STOP & 확인한다(`core-guardrails.md` STOP §0, 결정론적 백스톱: `.claude/hooks/deny-out-of-scope-write.sh`). 다른 모듈(`baro-order`, `baro-payment` 등)에 이 하네스의 스택 특정 규칙(ErrorCode 패턴·테스트 명령 등)을 강제하지 않는다 — STOP §0 4번.
-- **`.github/CONTRIBUTING.md` 없음** — 저장소 루트엔 `.github/`가 실제로 있지만(워크플로·이슈 템플릿) `CONTRIBUTING.md`는 아직 없다. (하네스가 `baro-ai/.claude/`에 있던 시절엔 서브폴더 `.github`를 가리켜 GitHub이 아예 인식 못 하는 구조적 문제였는데, 루트 이동으로 그 문제 자체는 해소됐다 — 이제 파일만 없는 상태.) 브랜치명·커밋 컨벤션 SSOT가 아직 없다는 뜻 — 규칙 본문에서 `.github/CONTRIBUTING.md`를 가리키는 부분은 지금은 대상 문서 없음으로 취급.
+- **`.github/CONTRIBUTING.md` 없음 — 하네스 안에서 해결했다.** 저장소 루트엔 `.github/`가 실제로 있지만(워크플로·이슈 템플릿·PR 템플릿) `CONTRIBUTING.md`는 없다. 루트는 5인 공용 영역이라 STOP §0에 걸려 하네스가 임의로 만들 수 없으므로, 브랜치명·커밋·PR 컨벤션은 [`core-workflow.md`](core-workflow.md) "Git 컨벤션" 절이 SSOT다 — 값은 이 저장소의 실제 커밋·브랜치 이력에서 실측해 채웠다(2026-09-04). 팀이 루트에 `CONTRIBUTING.md`를 만들기로 하면 그때 그 절을 옮기고 링크로 바꾼다.
 - **`scripts/git-hooks` 미설치** — `install-git-hooks.sh`는 `.git/hooks`를 저장소 루트 기준으로 찾는데, 설치하면 이 저장소의 **모든** 커밋(다른 모듈 포함)에 훅이 걸린다. 5인 공용 저장소라 일단 설치를 보류했다 (2026-09-04 사용자 결정). 나중에 필요하면 재논의.
 
 ## 규칙
@@ -72,13 +72,15 @@
 |----|------|------|
 | Java · Spring Boot | `spring-boot-java.md` · `java-comments.md` · `openapi-conventions.md` · `testing.md` · `agents/spring-reviewer.md` | Java 21 / Spring Boot / Gradle. **JPA는 baro-ai에 거의 해당 없음**(Elasticsearch 중심) — 팩 본문 중 JPA 특정 조언은 참고만, 강제 아님 |
 
-인프라 성격 규칙(클라이언트 전제·배포 토폴로지)은 스택이 아니라 **저장소 고유 사실**이라 팩에 넣지 않았다 — 견본 `examples/tripfit/client-platform.md`·`deployment.md`를 보고 프로젝트별로 새로 쓴다.
+인프라 성격 규칙(클라이언트 전제·배포 토폴로지)은 스택이 아니라 **저장소 고유 사실**이라 팩에 넣지 않았다 — baro-ai에서는 클라이언트 전제를 [`docs/product/platform.md`](../../baro-ai/docs/product/platform.md)가 담당하고, 배포 토폴로지는 이 하네스 스코프 밖이라 규칙으로 두지 않았다(`{{배포 SSOT}}` 슬롯 `(없음)`).
 
 ## 변경 이력
 
 | 날짜 | 변경 |
 |------|------|
 | 2026-09-04 | `.claude/`를 `baro-ai/.claude/`에서 **저장소 루트**로 이동 — 서브트리에 두면 루트에서 시작한 세션에 하네스가 전혀 로드되지 않는 문제 발견. `core-guardrails.md` STOP §0(쓰기 범위 `baro-ai/`+`.claude/` 제한) + `deny-out-of-scope-write.sh` 훅 신설로 다른 모듈에 대한 영향 차단 |
+| 2026-09-04 | Git 컨벤션을 `core-workflow.md`에 신설 — 저장소 실측(커밋 963건·브랜치 이력) 기준으로 `[Type] #n - 한글`·`feature/issue-{n}-{desc}` 확정. 하네스가 물려받은 `{Type}: {한글}`·`{type}/{issue}-{desc}`는 이 저장소 관례가 아니었다. 존재하지 않는 `.github/CONTRIBUTING.md`·`examples/tripfit/` 참조도 함께 정리 |
+| 2026-09-04 | `{{문서 루트}}` 슬롯 신설(`baro-ai/docs/`) + 산출물 등록부(`docs/templates/README.md`) 도입. 전용 템플릿(`spec-template.md`·`audit-template.md`) 폐지 — 모든 산출물이 toss 4유형 템플릿 중 하나를 따른다. `doc-writing.md`·`testing.md`의 `paths:` glob이 `.claude` 루트 이동 후 `baro-ai/` 하위를 못 잡던 문제 수정 |
 | 2026-09-05 | 초안 — TripFit 하네스에서 슬롯 17개(경로 13·명령 4)·옵션 7개 추출 |
 | 2026-09-04 | baro-ai에 하네스 이식, 전 슬롯·옵션 1차 채움 (git-hooks·`.github/CONTRIBUTING.md`는 모노레포 제약으로 보류 — 위 "이 프로젝트 특이사항" 참고). 테스트 0개·챗봇 미구현 등은 `docs/audits/`에 후속 감사로 남길 예정 |
 | 2026-09-04 | search·recommend·embedding·event-log·chat 5개 도메인 스펙(`docs/specs/`) 역작성 + `docs/product/mvp.md`·`glossary.md`·`platform.md` 신설. `{{제품 범위}}`·`{{클라이언트 전제}}`·`{{용어집}}` 슬롯을 새 문서로 갱신 |

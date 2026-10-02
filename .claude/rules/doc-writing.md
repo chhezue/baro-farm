@@ -19,7 +19,7 @@ paths:
 | 채팅 응답·완료 보고·`refactor-log.md` 요약 | `core-reporting.md` | 비전공자 |
 | `.java`의 `//`·Javadoc | `java-comments.md` | 신규 서버 개발자 |
 
-**이슈·PR 본문에도 적용한다.** 파일이 아니라 GitHub에 쓰는 글이라 `paths:`로는 잡히지 않으므로, 적용 규칙은 [`.github/CONTRIBUTING.md`](../../.github/CONTRIBUTING.md) "이슈·PR 본문 작성" 절에 두고 템플릿(`.github/ISSUE_TEMPLATE/`·`pull_request_template.md`)이 순서를 강제한다.
+**이슈·PR 본문에도 적용한다.** 파일이 아니라 GitHub에 쓰는 글이라 `paths:`로는 잡히지 않는다. 제목 접두사와 본문 순서는 저장소 루트의 [`.github/ISSUE_TEMPLATE/`](../../.github/ISSUE_TEMPLATE/)·[`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md) 양식이 강제하고, 그 양식을 채울 때의 문장 기준이 이 파일이다.
 
 원칙은 [toss/technical-writing](https://github.com/toss/technical-writing)(CC BY-NC-SA 4.0)을 참고해 이 저장소 문맥으로 재작성했다. **원문 문장을 그대로 옮기지 않는다.**
 

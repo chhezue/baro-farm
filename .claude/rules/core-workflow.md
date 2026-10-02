@@ -5,7 +5,7 @@
 **⛔ `core-guardrails.md`가 이 문서보다 우선한다** — 게이트를 진행하는 것보다 중단·질문이 먼저다.
 
 **형제 규칙:** `core-guardrails.md` · `core-workflow.md` · `core-scope.md` · `core-followup.md` · `core-tools.md` · `harness-map.md`(슬롯)
-경로·명령·옵션은 `harness-map.md`가 SSOT · Git: `.github/CONTRIBUTING.md`
+경로·명령·옵션은 `harness-map.md`가 SSOT · Git 브랜치·커밋·PR 규칙은 이 문서 맨 아래 [Git 컨벤션](#git-컨벤션-이-저장소-실측-기준) 절
 
 ## 사이클 — 3 트랙 × 4 게이트
 
@@ -38,7 +38,7 @@
 **스펙 신호(A 트랙):** DB 스키마, 3파일+, BR-*, 프로필/배포, **인증·푸시·딥링크·결제** 등 클라 연동 API
 
 **priority(must/could) / `[미정]` 처리:** `core-scope.md` (⛔ 단정 금지)
-**저장소 고유 릴리즈 사실(Milestone·심사 게이트·도메인 용어):** `{프로젝트}-release.md`를 따로 둔다 — 견본 `examples/tripfit/tripfit-release.md`
+**저장소 고유 릴리즈 사실(Milestone·심사 게이트·도메인 용어):** baro-ai에는 해당 문서가 없다 — 백엔드 모듈이라 앱 심사 같은 릴리즈 게이트가 없고, `harness-map.md`의 `{{우선순위 SSOT}}` 슬롯도 `(없음)`이다. 필요해지면 그때 만들고 슬롯을 채운다.
 
 ## G1. 리서치 게이트 — 외부 지식 확인
 
@@ -47,7 +47,7 @@
 **소스 우선순위 (위에서 답이 나오면 멈춤):** ① 로컬 실물(의존성 선언 파일·`{{의존성 조회}}`·설치된 패키지 실물) → ② 공식 문서(**버전 고정 필수**) → ③ 릴리즈 노트·마이그레이션 가이드 → ④ provider 공식 문서. **블로그·StackOverflow는 근거로 인용 금지** — 힌트로만 쓰고 ①②로 재확인한다.
 
 > **[스택 옵션: 스택 함정 메모]** 이 프로젝트가 쓰는 프레임워크의 **주 버전 함정**을 여기 한 문단으로 적는다 — 웹 예제 대다수가 다른 주 버전 기준이라 그대로 쓰면 깨지는 경우, 공식 문서 URL로 버전을 고정할 수 없는 경우 등. 없으면 이 절을 지운다.
-> 채운 예: `examples/tripfit/g1-stack-trap.md`
+> 이 옵션은 현재 **꺼져 있다**(`harness-map.md` 스택 옵션) — Java 21 / Spring Boot 표준을 쓰고 있어 알려진 주 버전 함정이 아직 없다.
 
 **도구 선택:** 2개 이상 문서를 비교해야 하면 **`researcher` 서브에이전트**([`.claude/agents/researcher.md`](../agents/researcher.md) — 소스 우선순위·출력 포맷 SSOT), 단일 페이지 확인이면 인라인 `WebFetch`(서브에이전트 오버헤드가 더 큼).
 
@@ -59,11 +59,11 @@
 - 변경 파일 목록 확정 (drive-by 리팩터 금지)
 - 다단계: `1. [단계] → verify: [확인]`
 
-**브랜치:** `main`에서 `{type}/{issue-number}-{description}` — 이슈 번호 생략 금지. SSOT: [`.github/CONTRIBUTING.md`](../../.github/CONTRIBUTING.md)
+**브랜치:** `main`에서 `feature/issue-{번호}-{영문-설명}` — 이슈 번호 생략 금지. 상세는 아래 [Git 컨벤션](#git-컨벤션-이-저장소-실측-기준) 절
 
 **⚠️ 새 이슈·새 브랜치·새 PR 생성은 항상 먼저 확인** (2026-08-04 사용자 결정, 2026-08-05 PR까지 확장)
 
-- **규칙:** `gh issue create` · 새 작업 브랜치 분기(`git checkout -b` 등) · `gh pr create`는 사용자가 이미 명시적으로 요청한 경우가 아니면 **실행 전 채팅으로 먼저 묻는다.** "이슈 번호 없는 브랜치 금지"(CONTRIBUTING) 같은 형식 규칙과 별개로, **만들지 여부 자체**를 임의 판단하지 않는다.
+- **규칙:** `gh issue create` · 새 작업 브랜치 분기(`git checkout -b` 등) · `gh pr create`는 사용자가 이미 명시적으로 요청한 경우가 아니면 **실행 전 채팅으로 먼저 묻는다.** "이슈 번호 없는 브랜치 금지" 같은 형식 규칙과 별개로, **만들지 여부 자체**를 임의 판단하지 않는다.
 - **적용 지점:** `defer` 스킬의 `gh issue create` 단계, G4의 PR 생성 단계 등 이슈·브랜치·PR을 만들 수 있는 **모든** 지점.
 - **승인 범위:** **커밋 승인이 PR 승인을 포함하지 않는다.** 구현·커밋까지 요청받았어도 "PR까지 올려줘"를 별도로 확인받지 않았다면 PR 생성 전에 다시 묻는다.
 
@@ -101,7 +101,54 @@
 - Must Have급 완료 / 사용자 요청 시 후속 제안 → `core-followup.md`
 - 「다른 이슈로」범위 미루기 → `core-followup.md` ✅ Defer (**이슈만 만들고 끝내지 않음**)
 - **PR 전:** `Closes #n`·PR 체크리스트를 구현·테스트와 대조 (`[x]`만 실제 완료). 수동·미구현·`[제안]`·현재 Milestone 밖은 체크 금지. **`gh pr create` 실행 전 사용자에게 먼저 확인** — G2 "새 이슈·새 브랜치·새 PR 생성은 항상 먼저 확인" 절
-- 커밋·PR: CONTRIBUTING — `{Type}: {한글}`, base `main`, **Create a merge commit** (Squash 금지)
+- 커밋·PR: `[Type] #{이슈번호} - {한글}`, base `main`, **Create a merge commit** (Squash 금지) — 아래 [Git 컨벤션](#git-컨벤션-이-저장소-실측-기준) 절
 - **커밋 분할안 제안:** 작업이 끝나면 **사용자가 묻지 않아도** 어떻게 나눌지 먼저 제안한다. 목적·주제별 **최대 5개**. 억지 분할 금지 — 한 주제면 1개
 - **절대 마음대로 커밋하지 않는다** — 제안은 제안일 뿐이고, 실행은 사용자 승인 후
-- **PR merge 확인 후:** 작업 브랜치 삭제 (원격+로컬) — CONTRIBUTING Pull Request "merge 후" 절. merge 안 된 브랜치는 삭제 금지
+- **PR merge 확인 후:** 작업 브랜치 삭제 (원격+로컬) — 아래 [Git 컨벤션](#git-컨벤션-이-저장소-실측-기준) Pull Request 절. merge 안 된 브랜치는 삭제 금지
+
+## Git 컨벤션 (이 저장소 실측 기준)
+
+저장소 루트에 `CONTRIBUTING.md`가 없어 **이 절이 SSOT다.** 값은 추정이 아니라 `baro-farm-be`의 실제 커밋·브랜치 이력에서 확인했다(2026-09-04). 팀이 관례를 바꾸면 이 절도 같은 턴에 고친다.
+
+### 브랜치
+
+`main`에서 분기하고, 이슈 번호를 반드시 넣는다.
+
+```
+feature/issue-{번호}-{영문-설명}
+```
+
+실제 예: `feature/issue-116-refactor-order-payment`, `feature/issue-113-modify-readme`. 기능 외 작업도 대부분 `feature/`를 쓰고 있어 접두사를 새로 늘리지 않는다.
+
+### 커밋 메시지
+
+```
+[Type] #{이슈번호} - {한글 설명}
+```
+
+실제 예: `[Feat] #116 - 결제 멱등성 보장 로직 추가`. 이슈 번호가 없는 작업은 `[Docs] 하네스 설계 배경·회고 문서 추가`처럼 `#n`을 생략한다.
+
+| Type | 쓰임 | 실측 건수 |
+|------|------|-----------|
+| `[Fix]` | 버그 수정 | 368 |
+| `[Feat]` | 기능 추가 | 279 |
+| `[Chore]` | 설정·빌드·정리 | 226 |
+| `[Refactor]` | 동작 변경 없는 개선 | 90 |
+| `[Docs]` | 문서만 변경 | 19 |
+
+대괄호 표기와 대문자 시작을 지킨다 — `[fix]`·`[FIX]`처럼 흐트러진 사례가 소수 있지만 따라 하지 않는다. `[Test]`·`[Hotfix]`도 쓰인 적 있으나 드물어 위 5개를 기본으로 본다.
+
+### Pull Request
+
+| 항목 | 규칙 |
+|------|------|
+| base | `main` |
+| 본문 | [`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md) 양식 — 관련 이슈(`closes #n`)·작업 내용·변경된 모듈 체크·체크리스트 |
+| merge | **Create a merge commit** (Squash 금지) — `Merge pull request #117 from dogs-team/...` 형태로 이력이 남는다 |
+| merge 후 | 작업 브랜치 삭제 (원격 + 로컬). merge 안 된 브랜치는 삭제 금지 |
+
+### 이슈
+
+[`.github/ISSUE_TEMPLATE/`](../../.github/ISSUE_TEMPLATE/)의 두 양식이 제목 접두사를 강제한다 — `task.md`는 `[Chore] `, `bug_report.md`는 `[Fix] `. 새 이슈를 만들 때 이 양식을 벗어나지 않는다.
+
+**⚠️ 이슈·브랜치·PR 생성은 항상 먼저 확인** — 위 G2 절의 규칙이 형식보다 우선한다.
