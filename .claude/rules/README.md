@@ -105,15 +105,15 @@ Claude Code가 이 저장소에서 작업할 때 참조하는 **프로젝트 전
 | `spring-boot-java.md` | `**/*.java` | 레이어·enum·Entity·**ErrorCode·AOP**·**SOLID/OOP·ACID**·스타일·테스트 |
 | `openapi-conventions.md` | `**/*.java` | `@Schema`·`@Operation`·`@Parameter`·`@ApiResponses`(FE용 섹션 템플릿·JWT) — 2026-08-27 `spring-boot-java.md`에서 분리 |
 | `java-comments.md` | `**/*.java` | `//`·Javadoc 작성 스타일(역할 줄·다단계 Why·레이어별 초점) — 2026-08-27 `spring-boot-java.md`에서 분리 |
-| `testing.md` | `**/*Test.java`, `src/test/**` | JUnit 5·프로필·테스트 네이밍 |
-| `doc-writing.md` | `docs/**/*.md`, `.claude/**/*.md` | 문서 유형(학습·문제해결·참조·설명) → 정보 구조(개요 필수·가치 먼저·제목) → 문장(한 문장 한 생각·메타 담화 제거·용어 일관). **채팅 보고는 `core-reporting.md`, 코드 주석은 `java-comments.md`** — 독자가 달라 겹치지 않음 |
+| `testing.md` | `**/*Test.java`, `**/src/test/**` | JUnit 5·프로필·테스트 네이밍 |
+| `doc-writing.md` | `**/docs/**/*.md`, `.claude/**/*.md` | 문서 유형(학습·문제해결·참조·설명) → 정보 구조(개요 필수·가치 먼저·제목) → 문장(한 문장 한 생각·메타 담화 제거·용어 일관). **채팅 보고는 `core-reporting.md`, 코드 주석은 `java-comments.md`** — 독자가 달라 겹치지 않음 |
 | `README.md`(이 파일) | `agents/**`·`skills/**`·`hooks/**`·`settings*.json`·이 파일 | 구조 인덱스 — 사람이 보는 디렉터리 맵이라 행동 규칙이 아님. **구성 요소를 추가·삭제할 때**(아래 유지보수 체크리스트가 실제로 필요할 때)만 로드된다. 계기·실측: [`docs/harness/layer1-human-gate.md`](../../baro-ai/docs/harness/layer1-human-gate.md) §4-1 |
 
 ### 규칙 추가·분리 가이드
 
 1. **한 규칙 = 한 관심사** (코어 하네스 ~120줄, 형제 ~70줄 권장)
 2. 전역 STOP → `core-guardrails` · 작업 순서 → `core-workflow` (둘 다 frontmatter 없음, always-load)
-3. 우선순위·`[미정]` → `core-scope` · 이 저장소 고유 릴리즈 사실 → `{프로젝트}-release` · 후속/Defer/ERD → `core-followup` (**중복 금지**, 링크만)
+3. 우선순위·`[미정]` → `core-scope` · 후속/Defer/ERD → `core-followup` (**중복 금지**, 링크만)
 4. 파일 타입별 → `paths:` frontmatter
 5. 반복 실수 → 해당 규칙에 짧게 추가
 

@@ -1,7 +1,7 @@
 ---
 paths:
   - "**/*Test.java"
-  - "src/test/**"
+  - "**/src/test/**"
 ---
 
 # Testing

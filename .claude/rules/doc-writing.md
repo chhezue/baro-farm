@@ -1,6 +1,6 @@
 ---
 paths:
-  - "docs/**/*.md"
+  - "**/docs/**/*.md"
   - ".claude/**/*.md"
   - ".github/**"
 ---
