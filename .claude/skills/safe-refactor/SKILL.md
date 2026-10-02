@@ -18,7 +18,7 @@ description: 기존 도메인 코드를 아키텍처 감사 후 비즈니스 로
 | 5. Report | **G4 회고** — `refactor-log.md` append + 문서 갱신 점검 |
 | 6. 다음 도메인 | 다음 사이클 진입 (승인 필요) |
 
-점검 항목·A/B/C/D 분류 체계는 [`references/audit-checklist.md`](references/audit-checklist.md)·[`references/audit-template.md`](references/audit-template.md)가 SSOT. 이 스킬은 그걸 한 번에 실행하는 대신 **도메인 단위로 쪼개고 매 단계 승인 게이트를 둔다.**
+점검 항목은 [`references/audit-checklist.md`](references/audit-checklist.md)가, `audit.md`의 절 구성과 A/B/C/D 분류 포맷은 [`docs/templates/how-to-doc.md`](../../../baro-ai/docs/templates/how-to-doc.md)의 "아키텍처 감사" 채움 예가 SSOT다 — 감사는 문제 해결 유형이다. 이 스킬은 그걸 한 번에 실행하는 대신 **도메인 단위로 쪼개고 매 단계 승인 게이트를 둔다.**
 
 ## 절대 원칙 (변경 불가)
 
@@ -55,7 +55,7 @@ description: 기존 도메인 코드를 아키텍처 감사 후 비즈니스 로
 
 - `Agent` 툴(`subagent_type: Explore` 또는 `general-purpose`, 읽기 전용)로 **새 서브에이전트**를 띄워 해당 도메인 패키지만 스캔한다.
   - **왜 서브에이전트인가:** 방금 짠 코드를 같은 대화에서 스스로 평가하면 자기 판단을 재확인하는 self-grading 편향이 생기기 쉽다 — `code-review`/`simplify` 스킬이 서브에이전트 컨텍스트를 쓰는 것과 동일한 이유(`core-tools.md`). 이 도메인은 아직 이번 세션에서 건드리지 않았더라도, 신선한 컨텍스트가 dead code·중복을 더 냉정하게 찾는다.
-  - 프롬프트에 반드시 포함: 대상 패키지 경로, `references/audit-checklist.md` 16개 점검 항목 전체(baro-ai는 16번 LLM/프롬프트 포함), A/B/C/D 분류 기준, `references/audit-template.md` 포맷, `baro-ai-performance-refactor.md`의 근거 기준, "코드 수정 금지 — 읽기·분석만".
+  - 프롬프트에 반드시 포함: 대상 패키지 경로, `references/audit-checklist.md` 16개 점검 항목 전체(baro-ai는 16번 LLM/프롬프트 포함), A/B/C/D 분류 기준, `baro-ai/docs/templates/how-to-doc.md`의 "아키텍처 감사" 채움 예 포맷, `baro-ai-performance-refactor.md`의 근거 기준, "코드 수정 금지 — 읽기·분석만".
 - 산출물: `{{감사 로그}}/audit.md` (신규 작성, **코드는 건드리지 않음**)
 
 ### 2. 승인
@@ -97,7 +97,7 @@ LLM의 "안 바꿨다"는 자기 보고를 신뢰하지 않고, 아래를 전부
 
 ## 브랜치·이슈·커밋 (2026-09-04 사용자 결정)
 
-- **이슈 생성 없이 브랜치만 만들어 진행한다** (`.github/CONTRIBUTING.md`가 baro-ai에는 없다 — `harness-map.md` "이 프로젝트 특이사항" 참고). `{type}/{issue-number}-{description}` 형식은 강제하지 않는다.
+- **이슈 생성 없이 브랜치만 만들어 진행한다** — 감사·리팩터는 대개 이슈 없이 시작한다. 브랜치를 만든다면 `core-workflow.md` "Git 컨벤션" 절의 `feature/issue-{번호}-{설명}` 형식을 따르되, 대응 이슈가 없으면 형식을 강제하지 않는다.
 - 5인 공용 모노레포이므로 브랜치는 `main`에서 새로 분기하고, PR을 올릴 단계가 되면 팀 컨벤션(커밋 로그 관례: `[Type] #이슈 - 설명`)을 다시 확인한다.
 - 커밋은 `AGENTS.md` 공통 규칙대로 **사용자가 명시적으로 요청할 때만** 진행한다.
 
@@ -108,4 +108,4 @@ LLM의 "안 바꿨다"는 자기 보고를 신뢰하지 않고, 아래를 전부
 - **API·ErrorCode·엔드포인트를 audit.md에 없던 항목으로 즉흥 변경** — baro-ai는 계약 변경 자체는 허용하지만, 그것도 A/B 항목으로 감사·승인을 거쳐야 한다. "고치다 보니 더 나아 보여서" 식 drive-by 계약 변경은 여전히 금지
 - 비즈니스 로직·정책을 "계약이 바뀌니까 김에" 같이 바꾸기 — 계약 변경과 로직 변경은 별개 승인 대상
 - 전체 테스트 통과 전 "완료" 보고
-- C/D 항목을 이유 없이 나열만 하고 넘어감 (`references/audit-template.md` 원칙: 반드시 이유 포함)
+- C/D 항목을 이유 없이 나열만 하고 넘어감 (템플릿 원칙: 반드시 이유 포함)

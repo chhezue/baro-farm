@@ -50,13 +50,10 @@ Claude Code가 이 저장소에서 작업할 때 참조하는 **프로젝트 전
 │   ├── doc-writing.md             # 문서 작성 (docs/·.claude/ 마크다운, path-scoped)
 └── skills/                ← 반복 워크플로 스킬
     ├── specify/
-    │   ├── SKILL.md
-    │   └── references/
-    │       └── spec-template.md
+    │   └── SKILL.md            # 스펙 템플릿은 baro-ai/docs/templates/reference-doc.md
     ├── safe-refactor/
-    │   ├── SKILL.md
+    │   ├── SKILL.md            # 감사 템플릿은 baro-ai/docs/templates/how-to-doc.md
     │   └── references/
-    │       ├── audit-template.md
     │       └── audit-checklist.md
     ├── preflight/
     │   └── SKILL.md

@@ -25,7 +25,7 @@ description: 요구사항을 정리하고 docs/specs/에 스펙 파일을 생성
 3. **클라이언트 전제** — API·인증·푸시·링크면 `{{클라이언트 전제}}`와 충돌 없는지
 4. **모호함 해소** — 불명확하면 `AskUserQuestion` (API shape, 권한, 엣지 케이스)
 5. **외부 리서치 (G1)** — 외부 라이브러리·SDK·provider 스펙에 의존하는 설계면 **스펙을 쓰기 전에** 확인한다. 2개 이상 문서를 비교해야 하면 `researcher` 서브에이전트, 단일 페이지면 인라인 `WebFetch`. 확인한 URL·문서 버전은 스펙 본문에 근거로 남긴다 — 상세 기준은 `core-workflow.md` G1
-6. **스펙 작성** — `{{스펙 저장소}}/{kebab-case}.md` ([템플릿](references/spec-template.md), 도메인 폴더는 아래 "Spec Naming" 참고). 문서 자체의 작성 기준은 `doc-writing.md`
+6. **스펙 작성** — `{{스펙 저장소}}/{kebab-case}.md` (템플릿: [`docs/templates/reference-doc.md`](../../../baro-ai/docs/templates/reference-doc.md)의 "기능 스펙" 채움 예 — 스펙은 참조 유형이다. 도메인 폴더는 아래 "Spec Naming" 참고). 문서 자체의 작성 기준은 `doc-writing.md`
 7. **충돌 검토** — `{{아키텍처 개요}}`, `erd.md`, 기존 specs
 8. **승인 대기 (G2)** — 구현 시작 전 사용자 OK
 
@@ -43,7 +43,7 @@ description: 요구사항을 정리하고 docs/specs/에 스펙 파일을 생성
 - API 표 또는 "API 없음" (앱·React 클라이언트 계약 — `platform.md` 참고)
 - 완료 기준 (`{{테스트 명령}}`, 수용 조건)
 - `[미정]` 항목과 결정 필요자
-- **기존 Approved 스펙을 amend하는 경우**: `ADDED`/`MODIFIED`/`REMOVED` delta 섹션 필수(템플릿 참고) — `REMOVED`는 core-guardrails.md STOP §4에 따라 같은 PR에서 실제 삭제 대상
+- **기존 Approved 스펙을 amend하는 경우**: `ADDED`/`MODIFIED`/`REMOVED` delta 절 필수(템플릿의 "변경 범위" 참고) — `REMOVED`는 core-guardrails.md STOP §4에 따라 같은 PR에서 실제 삭제 대상
 
 ## Output (사용자에게)
 

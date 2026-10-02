@@ -1,6 +1,6 @@
 # Audit Checklist
 
-`safe-refactor` 스킬의 1단계(Audit) 서브에이전트 프롬프트에 그대로 포함하는 점검 항목 15개. 절대 원칙·A/B/C/D 분류·산출물 포맷은 [`SKILL.md`](../SKILL.md)·[`audit-template.md`](audit-template.md)가 SSOT — 여기서는 중복하지 않는다.
+`safe-refactor` 스킬의 1단계(Audit) 서브에이전트 프롬프트에 그대로 포함하는 점검 항목 15개. 절대 원칙·A/B/C/D 분류는 [`SKILL.md`](../SKILL.md)가, 산출물 포맷은 [`docs/templates/how-to-doc.md`](../../../../baro-ai/docs/templates/how-to-doc.md)의 "아키텍처 감사" 채움 예가 SSOT — 여기서는 중복하지 않는다.
 
 ## 1. 중복 코드 제거
 
