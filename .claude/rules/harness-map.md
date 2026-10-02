@@ -20,10 +20,13 @@
 
 ## 경로 슬롯
 
-하네스와 **함께 배달되는** 문서(`.github/CONTRIBUTING.md`, `docs/harness/`, `docs/templates/`, `docs/audits/harness-retro.md`)는 슬롯이 아니다 — 경로가 고정이므로 규칙이 직접 부른다.
+하네스와 **함께 배달되는** 문서(`docs/harness/`, `docs/templates/`, `docs/audits/harness-retro.md`)는 슬롯이 아니다 — 경로가 고정이므로 규칙이 직접 부른다.
+
+**경로는 전부 `{{문서 루트}}` 기준으로 읽는다.** 규칙·스킬 본문이 `docs/specs/`처럼 짧게 쓴 경로는 `baro-ai/docs/specs/`를 뜻한다 — 저장소 루트의 `docs/`가 아니다(그쪽은 5인 공용 영역이고 `deny-out-of-scope-write.sh`가 쓰기를 차단한다).
 
 | 슬롯 | 이 프로젝트의 경로 | 쓰는 곳 |
 |------|-------------------|---------|
+| `{{문서 루트}}` | `baro-ai/docs/` — 하네스가 만드는 **모든** md 산출물의 중앙 저장소. 무엇이 어디에 어떤 유형으로 쌓이는지는 [`baro-ai/docs/templates/README.md`](../../baro-ai/docs/templates/README.md) 산출물 등록부가 SSOT | `doc-writing` · `templates/README.md` · 아래 모든 문서 슬롯의 상위 경로 |
 | `{{스펙 저장소}}` | `baro-ai/docs/specs/{domain}/` | `core-workflow` A 트랙 · `specify` 스킬 |
 | `{{현재동작 요약}}` | (없음) — 필요해지면 `baro-ai/docs/how-it-works.md` 신설 | `core-guardrails` ⛔ §6 |
 | `{{우선순위 SSOT}}` | (없음) — baro-ai 전용 마일스톤 문서 없음 | `core-workflow` 진입 · `core-scope` |

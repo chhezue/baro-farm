@@ -1,32 +1,61 @@
-# 문서 템플릿 (`docs/templates/`)
+# 문서 산출물 등록부 (`docs/templates/`)
 
-새 문서를 만들 때 **유형을 먼저 고르고** 해당 템플릿을 복사해서 채우는 곳입니다. 유형별로 독자가 원하는 것이 다르고 그에 맞는 구조도 다르기 때문에, 빈 파일에서 시작하는 것보다 훨씬 빠르고 결과가 고릅니다.
+이 저장소의 **모든 마크다운 문서가 어디에 쌓이고 어떤 형식을 따르는지**를 한 곳에 모은 표다. 스킬이 자동으로 만드는 산출물뿐 아니라 사람이 직접 쓰는 문서도 전부 포함한다 — 어느 쪽이든 `baro-ai/docs/` 밖에 두거나 등록부에 없는 형식으로 쓰지 않는다. 새 문서를 쓸 때는 여기서 유형을 찾아 해당 템플릿을 복사하고, 새 산출물을 만드는 스킬을 추가할 때는 여기에 행을 먼저 추가한다.
 
-유형 판정 기준과 작성 규칙 SSOT는 [`.claude/rules/doc-writing.md`](../../../.claude/rules/doc-writing.md)입니다.
+문서 루트는 **`baro-ai/docs/`** 하나다(`harness-map.md`의 `{{문서 루트}}` 슬롯). 저장소 루트 `docs/`는 5인 공용 영역이고 `deny-out-of-scope-write.sh`가 쓰기를 차단하므로, 이 하네스가 만드는 산출물은 예외 없이 `baro-ai/docs/` 아래에 둔다.
+
+유형 판정 순서와 문장·구조 작성 기준은 [`.claude/rules/doc-writing.md`](../../../.claude/rules/doc-writing.md)가 SSOT다.
+
+## 언제 이 문서를 보는가
+
+- 새 문서를 만들기 전에 어떤 템플릿을 쓸지 정할 때
+- 스킬이 만든 산출물이 어디에 저장돼야 하는지 확인할 때
+- md를 새로 만드는 스킬·에이전트를 추가할 때 (등록부에 행 추가가 먼저다)
+
+## 산출물 등록부
+
+| 산출물 | 만드는 것 | 저장 경로 | 유형 | 템플릿 |
+|--------|-----------|-----------|------|--------|
+| 기능 스펙 | `specify` · `defer` 스킬 | `docs/specs/{domain}/{kebab-case}.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
+| 아키텍처 감사 | `safe-refactor` 스킬 (Audit 단계) | `docs/audits/{domain}/audit.md` | 문제 해결 | [`how-to-doc.md`](how-to-doc.md) |
+| 리팩터 반영 이력 | `safe-refactor` 스킬 (G4 Report) | `docs/audits/{domain}/refactor-log.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
+| 하네스 회고 백로그 | `retro` 스킬 | `docs/audits/harness-retro.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
+| 아키텍처 결정 (ADR) | 사용자 승인 후 수동 작성 | `docs/decisions/{번호}-{kebab-case}.md` | 설명 | [`explanation-doc.md`](explanation-doc.md) |
+| 제품 범위·용어 | 사용자 승인 후 수동 작성 | `docs/product/mvp.md` · `glossary.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
+| 클라이언트 전제 | 사용자 승인 후 수동 작성 | `docs/product/platform.md` | 설명 | [`explanation-doc.md`](explanation-doc.md) |
+| 하네스 설계 배경 | 사용자 승인 후 수동 작성 | `docs/harness/` · `docs/harness-engineering.md` | 설명 | [`explanation-doc.md`](explanation-doc.md) |
+| 온보딩·개념 입문 | (아직 없음) | `docs/` | 학습 | [`learning-doc.md`](learning-doc.md) |
+| ES 인덱스 매핑 | 사용자 승인 후 수동 작성 | `docs/ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
+| 임베딩 입출력 예시 | 사용자 승인 후 수동 작성 | `docs/EMBEDDING_EXAMPLE.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
+| 구현·기능 설명 | 사용자 승인 후 수동 작성 | `docs/IMPLEMENTATION.md` · `FEATURES.md` · `REVIEW_ANALYSIS_PHASES.md` | 설명 | [`explanation-doc.md`](explanation-doc.md) |
+| 기술 비교·분석 메모 | 사용자 승인 후 수동 작성 | `docs/audits/{주제}.md` (예: `ssoss-llm-comparison.md`) | 설명 | [`explanation-doc.md`](explanation-doc.md) |
+| 모듈 README·폴더 인덱스 | 사용자 승인 후 수동 작성 | `docs/README.md` · 하위 `README.md` | 참조(인덱스) | [`reference-doc.md`](reference-doc.md) |
+
+**마크다운을 만들지 않는 것들.** 훅 5개는 stderr 메시지만 내보내고 파일을 쓰지 않는다. `preflight`·`debug` 스킬과 `doc-reviewer`·`spring-reviewer`·`researcher` 에이전트는 결과를 채팅으로만 보고한다. 이들의 결과를 문서로 남겨야 한다고 판단되면 위 등록부에 행을 추가하는 것이 먼저다 — 임의 경로에 파일을 만들지 않는다.
 
 ## 유형별 템플릿
+
+toss의 [테크니컬 라이팅 가이드](https://github.com/toss/technical-writing)가 나눈 네 가지 유형을 그대로 쓴다. 이 저장소가 만드는 산출물은 전부 이 넷 중 하나에 속하며, **유형 밖의 전용 템플릿은 두지 않는다.**
 
 | 유형 | 독자의 목적 | 템플릿 |
 |------|-------------|--------|
 | **학습** | 처음 접해서 전체 흐름을 알고 싶다 | [`learning-doc.md`](learning-doc.md) |
 | **문제 해결** | 지금 막힌 것을 풀고 싶다 | [`how-to-doc.md`](how-to-doc.md) |
 | **참조** | 값·계약·목록을 정확히 확인하고 싶다 | [`reference-doc.md`](reference-doc.md) |
-| **설명** | 왜 이렇게 됐는지 이해하고 싶다 | [`decisions/README.md`](../decisions/README.md)의 ADR 템플릿 |
+| **설명** | 왜 이렇게 됐는지 이해하고 싶다 | [`explanation-doc.md`](explanation-doc.md) |
 
-## 이 저장소 고유 문서에는 전용 템플릿이 따로 있습니다
-
-아래 세 가지는 위 4유형과 별개로 **작업 산출물** 성격이라 각자의 템플릿을 씁니다.
-
-| 문서 | 템플릿 | 만드는 시점 |
-|------|--------|-------------|
-| 기능 스펙 (`docs/specs/`) | [`spec-template.md`](../../../.claude/skills/specify/references/spec-template.md) | A 트랙 — 구현 전 |
-| 아키텍처 감사 (`docs/audits/`) | [`audit-template.md`](../../../.claude/skills/safe-refactor/references/audit-template.md) | B 트랙 — 리팩터 전 |
-| 기술 결정 (`docs/decisions/`) | [`decisions/README.md`](../decisions/README.md) 내장 | 되돌리기 어려운 선택을 할 때 |
+원칙과 구조만 참고하고 **원문 문장은 옮기지 않는다.** toss 가이드는 CC BY-NC-SA 4.0이라 문장을 그대로 복사하면 라이선스가 이 저장소로 전염된다.
 
 ## 쓰는 법
 
-1. 유형을 정한다 (`doc-writing.md`의 판정 순서)
-2. 해당 템플릿의 코드블록 안쪽을 복사해 새 파일에 붙인다
-3. 대괄호 `[...]` 안내문을 실제 내용으로 바꾼다 — 안내문이 남아 있으면 미완성이다
-4. 템플릿 하단 체크리스트로 자가 점검한다
-5. 새 문서이므로 **G3 문서 품질 게이트** 대상이다 — `doc-reviewer`로 확인한다
+1. `doc-writing.md`의 판정 순서로 유형을 정한다.
+2. 위 등록부에 이미 있는 산출물이면 해당 템플릿의 **"작업 산출물로 쓸 때"** 절에 있는 채움 예를 복사한다. 없으면 **"골격"** 절을 복사한다.
+3. 대괄호 `[...]` 안내문을 실제 내용으로 바꾼다 — 안내문이 남아 있으면 미완성이다.
+4. 템플릿 하단 체크리스트로 자가 점검한다.
+5. 새 문서이므로 **G3 문서 품질 게이트** 대상이다 — `doc-reviewer`로 확인한다.
+
+## 관련 문서
+
+- [`.claude/rules/doc-writing.md`](../../../.claude/rules/doc-writing.md) — 유형 판정·정보 구조·문장 기준
+- [`.claude/rules/harness-map.md`](../../../.claude/rules/harness-map.md) — `{{문서 루트}}` 등 경로 슬롯
+- [`.claude/agents/doc-reviewer.md`](../../../.claude/agents/doc-reviewer.md) — 문서 품질 리뷰 기준

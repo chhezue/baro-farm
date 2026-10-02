@@ -39,37 +39,19 @@ paths:
 | **학습** | 처음 접해서 전체 흐름을 알고 싶다 | 이 문서를 읽고 나면 · 사전 준비 · 단계(왜 하는지 포함) · 확인 · 다음에 읽을 것 | [`docs/templates/learning-doc.md`](../../baro-ai/docs/templates/learning-doc.md) |
 | **문제 해결** | 지금 막힌 것을 풀고 싶다 | 증상 · 먼저 확인할 것 · 원인별 조치 · 해결 확인 · 그래도 안 되면 | [`how-to-doc.md`](../../baro-ai/docs/templates/how-to-doc.md) |
 | **참조** | 값·계약·목록을 정확히 확인하고 싶다 | 언제 보는가 · 표 · 예시 · 관련 문서 | [`reference-doc.md`](../../baro-ai/docs/templates/reference-doc.md) |
-| **설명** | 왜 이렇게 됐는지 이해하고 싶다 | 맥락 · 결정 · 고려한 대안 · 트레이드오프 | [`decisions/README.md`](../../baro-ai/docs/decisions/README.md) ADR |
+| **설명** | 왜 이렇게 됐는지 이해하고 싶다 | 개념 소개 · 등장 배경 · 어떻게 동작하는가 · 관련 문서 | [`explanation-doc.md`](../../baro-ai/docs/templates/explanation-doc.md) |
 
-**작업 산출물은 별도 템플릿을 쓴다** — 스펙(`spec-template.md`) · 감사(`audit-template.md`). 위 4유형과 축이 다르므로 혼동하지 않는다.
+**작업 산출물도 이 4유형 안에 있다.** 스펙·감사·리팩터 로그·ADR은 전용 골격을 따로 두지 않고, 각자 속한 유형의 템플릿에 있는 "작업 산출물로 쓸 때" 절을 복사해서 쓴다. 어떤 산출물이 어느 유형이고 어디에 저장되는지는 [`docs/templates/README.md`](../../baro-ai/docs/templates/README.md) 산출물 등록부가 SSOT다.
 
 한 문서에 유형이 섞이면 길어지고 찾기 어려워진다. 섞였다면 나눌지 검토한다. **폴더 구조는 유형이 아니라 역할(product/specs/decisions/audits/harness)로 유지한다** — 유형은 작성 시 판단 기준으로만 쓴다.
 
-### 이 저장소 문서의 유형 매핑
+### 어떤 문서가 어떤 유형인지
 
-새 문서를 어디에 둘지, 기존 문서를 고칠 때 어떤 구조를 지켜야 하는지 판단하는 기준이다.
+경로별 유형·템플릿 매핑은 [`docs/templates/README.md`](../../baro-ai/docs/templates/README.md) **산출물 등록부가 SSOT다.** 여기에 같은 표를 두지 않는다 — 두 곳에 두면 유형이 바뀔 때 한쪽만 고쳐져 어긋난다.
 
-| 경로 | 유형 | 비고 |
-|------|------|------|
-| `docs/how-it-works.md` | 설명 | "지금 이렇게 동작한다"를 쉬운 말로 서술 — 단계별 실습이 아니라 시스템 동작 설명이라 학습이 아닌 설명으로 분류(2026-09-03 정정) |
-| `docs/README.md`·하위 `README.md` | 참조(인덱스) | 목록·경로를 찾으러 옴 |
-| `docs/architecture.md` | 설명 | 레이어 구조·설계 원칙 (2026-09-03 참조 부분을 아래 `package-layout.md`로 분리) |
-| `docs/architecture/package-layout.md` | 참조 | 패키지 트리·공통 컴포넌트 목록 |
-| `docs/architecture/erd.md`·`api-response.md` | 참조 | 스키마·envelope 계약 |
-| `docs/api/README.md` | 참조 | OpenAPI 운영 규칙 |
-| `docs/product/prd.md`·`platform.md` | 설명 | 왜 이 제품·이 전제인가 |
-| `docs/product/mvp.md`·`glossary.md`·`release-milestones.md` | 참조 | In/Out · 용어 · Milestone 운영 |
-| `docs/product/business-rules/` | 참조 | BR-* 목록 |
-| `docs/product/flows/` | 설명 | 사용자 시나리오 흐름 |
-| `docs/decisions/` | 설명 | ADR |
-| `docs/harness-engineering.md`·`docs/harness/` | 설명 | 하네스가 왜 이렇게 됐는지 |
-| `docs/specs/` | 작업 산출물(설계) | `spec-template.md` |
-| `docs/audits/{domain}/` | 작업 산출물(코드 감사) | `audit-template.md` |
-| `docs/audits/harness-retro.md` | 작업 산출물(하네스 회고) | 규칙·스킬·에이전트·훅이 놓친 것을 쌓는 백로그 — 도메인 축이 아니라 `audits/` 루트에 둠 (`retro` 스킬 산출물) |
-| `deploy/README.md` | 문제 해결 | 배포·HTTPS 발급·롤백 절차 (2026-09-03 env 표를 아래로 분리) |
-| `deploy/environment-reference.md` | 참조 | GitHub Secrets·EC2 인프라·환경 변수 표 |
+새 문서를 만들 때는 위 판정 순서로 유형을 정한 뒤 등록부에 행을 추가하고, 기존 문서를 고칠 때는 등록부에 지정된 유형의 구조를 지킨다. 등록부와 다르게 읽히는 문서를 발견하면 조용히 맞추지 말고 어느 쪽이 맞는지 사용자에게 확인한다.
 
-**현재 비어 있는 자리 (2026-09-03 기준):** 문제 해결 유형은 `deploy/README.md` 하나뿐이고 `docs/` 안에는 없다. 학습 유형은 **아예 없다** — `how-it-works.md`를 학습 문서로 분류했었으나, 단계별로 따라 하는 구조가 아니라 동작을 설명하는 글이어서 설명 유형으로 정정했다. 신규 합류자용 온보딩 문서가 필요해지면 새로 만든다. **둘 다 지금 만들라는 뜻은 아니고**, 해당 성격의 내용을 쓰게 되면 기존 문서에 섞지 말고 새 문서로 분리하라는 기준이다.
+**현재 비어 있는 자리 (2026-09-04 기준):** **학습 유형 문서가 하나도 없다.** 신규 합류자용 온보딩이나 도메인 개념 입문이 필요해지면 기존 문서에 섞지 말고 `learning-doc.md`로 새로 만든다. 문제 해결 유형도 `audits/{domain}/audit.md` 외에는 없다 — 배포 실패 대응이나 자주 겪는 에러 대처를 적게 되면 `how-to-doc.md`로 분리한다. **둘 다 지금 만들라는 뜻은 아니고**, 해당 성격의 내용을 쓰게 되면 새 문서로 분리하라는 기준이다.
 
 ## 2. 정보 구조
 

@@ -10,6 +10,7 @@
 - [폴더 구조 가이드라인](#-폴더-구조-가이드라인)
 - [기술 스택](#-기술-스택)
 - [개발 시작하기](#-개발-시작하기)
+- [문서 맵](#-문서-맵)
 
 ---
 
@@ -356,13 +357,29 @@ curl "http://localhost:8092/api/v1/recommendations/personalized/550e8400-e29b-41
 
 ---
 
-## 📚 참고 문서
+## 📚 문서 맵
 
-- [**기능 명세**](FEATURES.md) - 각 기능의 상세 설명
-- [**구현 가이드**](IMPLEMENTATION.md) - 코드 예시 및 설정
-- [**임베딩 예시**](EMBEDDING_EXAMPLE.md) - 사용자 프로필 임베딩 생성 예시
-- [**검토 분석 확장**](REVIEW_ANALYSIS_PHASES.md) - 리뷰 분석/요약 고도화 로드맵
-- [**캐싱 범위 결정**](decisions/001-autocomplete-caching.md) - 자동완성만 캐싱하는 이유와 트레이드오프
+`baro-ai/docs/`는 이 모듈의 **모든 마크다운 문서가 모이는 단일 저장소**입니다. 어떤 문서를 어디에 어떤 형식으로 쓰는지의 SSOT는 [**산출물 등록부**](templates/README.md)이고, 문장·구조 작성 기준은 [`.claude/rules/doc-writing.md`](../../.claude/rules/doc-writing.md)입니다. 새 문서를 만들기 전에 등록부에서 유형을 먼저 확인하세요.
+
+### 폴더
+
+| 경로 | 무엇이 있나 |
+|------|-------------|
+| [`specs/`](specs/README.md) | 기능 스펙 — 도메인별 폴더, `Draft → Approved → Implemented` |
+| [`decisions/`](decisions/README.md) | 아키텍처 결정 기록(ADR) — 되돌리기 비싼 선택의 근거와 트레이드오프 |
+| [`audits/`](audits/README.md) | 아키텍처 감사·리팩터 반영 이력·하네스 회고 백로그 |
+| [`product/`](product/README.md) | MVP 범위·용어 사전·클라이언트 전제 |
+| [`harness/`](harness/README.md) | AI 에이전트 하네스의 레이어별 설계 배경 |
+| [`templates/`](templates/README.md) | 산출물 등록부 + 유형별 문서 템플릿 4종 |
+
+### 단일 문서
+
+- [**기능 명세**](FEATURES.md) — 각 기능의 상세 설명
+- [**구현 가이드**](IMPLEMENTATION.md) — 코드 예시 및 설정
+- [**검색·임베딩 아키텍처**](ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md) — Elasticsearch 인덱스 매핑 SSOT
+- [**임베딩 예시**](EMBEDDING_EXAMPLE.md) — 사용자 프로필 임베딩 생성 예시
+- [**검토 분석 확장**](REVIEW_ANALYSIS_PHASES.md) — 리뷰 분석·요약 고도화 로드맵
+- [**하네스 설계 배경**](harness-engineering.md) — AI를 어떻게 활용했는지에 대한 총정리
 
 ---
 
