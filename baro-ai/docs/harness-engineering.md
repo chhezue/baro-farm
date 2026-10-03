@@ -59,9 +59,17 @@ Always-load 규칙 7개(`core-guardrails`·`core-workflow`·`core-scope`·`core-
 - **`doc-reviewer`(G3)** — 문서 유형·정보 구조·문장 3단계 리뷰(기준: `doc-writing.md`). advisory라 커밋을 막지 않습니다.
 - **`spring-reviewer`(G3, 2026-09-04 추가)** — Java 변경 diff를 트랜잭션 경계·N+1·하네스 계약·레이어 재사용·캡슐화 5축으로 리뷰(기준: `spring-boot-java.md`). 설계의 핵심은 **`ArchitectureTest`(ArchUnit)가 이미 검증하는 7개 규칙을 지적 대상에서 명시적으로 제외**한 것입니다 — 기계가 결정론적으로 잡는 것을 LLM이 다시 보면 비용만 늘고 신호가 흐려지므로, 정적 규칙으로 표현할 수 없어 ArchUnit이 못 잡는 결함에만 집중시켰습니다. 도입 전 조사한 공개 서브에이전트 컬렉션 3종(wshobson·VoltAgent·hesreallyhim)은 모두 `tools`를 제한하지 않거나 `Write`/`Edit`을 포함시켜 **리뷰어가 코드를 고칠 수 있게 방치**돼 있었고, 그 부분은 채택하지 않았습니다.
 
-### 실제 적용 사례 — `auth` 도메인 리팩터 감사 (2026-08-04)
+### 실제 적용 사례 — LLM 호출 인프라·상품 색인 경로 감사 (2026-09-04)
 
-`safe-refactor` 스킬을 처음으로 전체 사이클 적용한 사례: 신선한 서브에이전트로 `auth` 패키지를 읽기 전용 감사 → A/B 9건을 사용자에게 요약 보고·승인 → 구현 → `./gradlew test` 통과 확인까지 진행했습니다(`oasdiff` 검증은 로컬 샌드박스의 Docker 제약으로 보류). 기록: [`docs/audits/auth/audit.md`](audits/auth/audit.md), [`docs/audits/auth/refactor-log.md`](audits/auth/refactor-log.md). 나머지 도메인(`user`, `user-schedule`, `trip`, `notification`, `cross-cutting`)은 아직 미시작 — 진행 현황 SSOT: [`docs/audits/README.md`](audits/README.md).
+`safe-refactor` 스킬을 baro-ai에서 처음으로 전체 사이클 적용한 사례입니다. 외부 저장소(ssoss-server) 비교 조사에서 나온 지적 13건을 코드·jar 바이트코드로 재확인해 A/B/C/D로 분류하고, 사용자 승인 후 A/B 6건을 구현했습니다. 기록: [`docs/audits/cross-cutting/001-llm-call-infra.md`](audits/cross-cutting/001-llm-call-infra.md), [`docs/audits/search/001-index-path.md`](audits/search/001-index-path.md), 각 폴더의 `refactor-log.md`.
+
+이 라운드에서 하네스가 실제로 값을 한 지점 세 가지입니다.
+
+- **근거 기준이 처음 진단을 뒤집었습니다.** "429에서 재시도 0회"라는 조사 결과를 그대로 구현하지 않고 `researcher`·바이트코드로 재확인했더니, Google SDK가 기본 5회 재시도를 이미 걸고 있어 문제의 방향이 반대("통제되지 않는 재시도")였습니다. `baro-ai-performance-refactor.md`의 "적극적 증거" 요구가 없었다면 잘못된 전제 위에 코드를 얹을 뻔했습니다.
+- **감사 문서 이름 규칙이 여기서 나왔습니다.** 한 도메인이 여러 라운드로 나뉘자 `audit.md` 하나로는 이름이 충돌해 `{NNN}-{topic}.md`(번호+범위)로 바꿨습니다 — [`docs/audits/README.md`](audits/README.md).
+- **테스트 없는 모듈의 검증을 문서에 정직하게 남기는 형식**이 자리 잡았습니다. 자동화 테스트가 없어 수동 절차로 대체했고, 이 세션에서 실행하지 못한 절차는 "못 했다"고 리팩터 로그에 적습니다. 이 관행을 [`docs/templates/reference-doc.md`](templates/reference-doc.md)의 리팩터 로그 채움 예에 반영했습니다.
+
+나머지 도메인(`embedding`, `recommend`, `event-log`, `chat`)은 미시작 — 진행 현황은 [`docs/audits/README.md`](audits/README.md).
 
 ## 5. 훅 (`.claude/hooks/`) — 프롬프트로 안 되는 결정론적 하한선
 

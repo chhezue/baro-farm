@@ -13,7 +13,7 @@
 | 스킬 | 사이클 위치 | 파일 | 트리거 | 산출물 | 승인 게이트 |
 |---|---|---|---|---|---|
 | `specify` | **A 트랙** | [`.claude/skills/specify/SKILL.md`](../../../.claude/skills/specify/SKILL.md) + `docs/templates/reference-doc.md` | 새 API·엔티티·인증 흐름, DB 스키마 변경, 3파일+ 리팩터 | `docs/specs/{domain}/{feature}.md` | **있음** (Approved 전 구현 금지) |
-| `safe-refactor` | **B 트랙** | [`.claude/skills/safe-refactor/SKILL.md`](../../../.claude/skills/safe-refactor/SKILL.md) + `references/audit-checklist.md`·`docs/templates/how-to-doc.md` | 기존 코드 아키텍처 감사·무손실 리팩터 | `docs/audits/{domain}/audit.md` · `refactor-log.md` | **있음** (감사·구현 각각) |
+| `safe-refactor` | **B 트랙** | [`.claude/skills/safe-refactor/SKILL.md`](../../../.claude/skills/safe-refactor/SKILL.md) + `references/audit-checklist.md`·`docs/templates/how-to-doc.md` | 기존 코드 아키텍처 감사·무손실 리팩터 | `docs/audits/{domain}/{NNN}-{topic}.md` · `refactor-log.md` | **있음** (감사·구현 각각) |
 | `debug` | **C 트랙** | [`.claude/skills/debug/SKILL.md`](../../../.claude/skills/debug/SKILL.md) | 버그 리포트·테스트 실패 | 없음(조사 절차) | 없음 |
 | `preflight` | **G3 게이트** | [`.claude/skills/preflight/SKILL.md`](../../../.claude/skills/preflight/SKILL.md) | "완료/통과" 선언 직전 | 없음(검증 절차) | 없음 |
 | `defer` | **G4 게이트** | [`.claude/skills/defer/SKILL.md`](../../../.claude/skills/defer/SKILL.md) | 「다른 이슈로 빼」 | Draft 스펙 + 스펙 amend + (확인 후) 이슈 | **있음** (이슈 생성 전) |
@@ -60,10 +60,10 @@
        · A/B/C/D 분류 기준
        · docs/templates/how-to-doc.md 의 감사 채움 예 포맷
        · "코드 수정 금지 — 읽기·분석만"
-     산출: docs/audits/{domain}/audit.md
+     산출: docs/audits/{domain}/{NNN}-{topic}.md
 
 [2] 승인 게이트  ← 사람
-     audit.md의 A/B 항목만 사용자에게 요약 보고
+     감사 문서의 A/B 항목만 사용자에게 요약 보고
      C/D는 애초에 이번 라운드 구현 대상이 아님 (거부가 아니라 범위 밖)
      승인 안 받은 항목은 손대지 않음
 

@@ -26,7 +26,7 @@ Harness 형제: `core-guardrails.md` (⛔ STOP) · `core-scope.md` (priority·`[
 | 게이트 | Claude Code | 이 프로젝트 |
 |--------|-------------|---------|
 | **G1 리서치** | `WebFetch`/`WebSearch` · `Agent` 서브에이전트 | 2개 이상 문서 비교면 **`researcher`**(`.claude/agents/researcher.md`), 단일 페이지면 인라인 `WebFetch`. 소스 우선순위·버전 고정은 `core-workflow.md` G1 |
-| **G2 승인** | `AskUserQuestion` · 채팅 확인 | A=스펙 승인 · B=`audit.md` A/B 항목 승인 · C=원인 가설 승인. 새 이슈·브랜치·PR 생성은 **항상 먼저 확인** |
+| **G2 승인** | `AskUserQuestion` · 채팅 확인 | A=스펙 승인 · B=감사 문서(`docs/audits/{domain}/{NNN}-*.md`) A/B 항목 승인 · C=원인 가설 승인. 새 이슈·브랜치·PR 생성은 **항상 먼저 확인** |
 | **G3 검증** | **`preflight`** 스킬 · `code-review`/`simplify` 서브에이전트 | `{{테스트 명령}}` + 이슈·스펙 체크리스트 + API 변경 시 `oasdiff`. 문서 50줄+ 변경·신규 문서면 **`doc-reviewer`**(기준: `doc-writing.md`), Java 3파일+·API·DB 변경이면 **`spring-reviewer`**(기준: `spring-boot-java.md`) |
 | **G4 회고** | — | 프로젝트 문서 갱신 점검(승인 후 반영) · `core-followup.md` 💡 후속 제안 · 「다른 이슈로」는 **`defer`** 스킬 · 하네스 개선 후보는 **`retro`** 스킬 · B 트랙은 `refactor-log.md` append |
 

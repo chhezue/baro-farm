@@ -188,7 +188,6 @@ FK·UNIQUE 제약으로 표현 가능한 무결성은 DB 제약을 우선한다.
   - Entity: **클래스 레벨 `@Getter`만.** `@Setter`는 클래스 레벨에 두지 않는다 — 상태 전이는 도메인 메서드로 한다(위 **SOLID / OOP 원칙 — 캡슐화** 절). 예외: PK(`id`) 필드에 한해 테스트 픽스처용 **필드 레벨** `@Setter`를 허용한다(`updatable = false`라 런타임 갱신 경로가 없음 — `Trip.id`/`TripMember.id` 참고). `@Data`/`@EqualsAndHashCode`/`@ToString`은 Entity에 금지(JPA 프록시·지연로딩 함정)
   - Service: 생성자 주입 필드는 `@RequiredArgsConstructor` + `private final` — 수동 생성자 작성 금지(ArchitectureTest가 필드 주입 금지는 이미 검증, 생성자 스타일은 리뷰로 확인)
     - **예외 — 수동 생성자 유지:** 생성자 바디에 필드 대입 외 로직(검증·파생값 계산 — `JwtService`의 secret 길이 검증 등)이 있거나, `@Lazy`처럼 **생성자 파라미터에만** 걸려야 의미가 살아나는 스프링 애너테이션이 있는 경우(필드에 붙이면 Lombok이 생성자로 복사하지 않음 — `FcmService`의 `@Lazy FirebaseMessaging` 사고 사례, 2026-08-14). 이런 경우 수동 생성자를 유지하고 이유를 `//` 한 줄로 남긴다
-  - 단일 필드 `@ConfigurationProperties`(`FcmProperties`, `SocialTokenCryptoProperties`)는 예외적으로 수동 getter/setter 유지 — 유출 위험 없음, `cross-cutting/audit.md` C에서 검토 후 유지 결정
 - 공통 설정: `common/config/`, 도메인 전용: `{domain}/config/`
 
 ### DTO record 가독성

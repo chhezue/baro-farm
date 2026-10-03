@@ -40,7 +40,7 @@
 
 **"일반적으로 좋다"·"베스트 프랙티스다"·"보통 이렇게 한다"는 근거로 변경하지 않는다.** `audit-checklist.md` 15번 항목이 이미 "최신 기술이라서"류 근거를 금지하고 있었는데, 이 이니셔티브에서는 그보다 더 엄격하게 **적극적 증거**를 요구한다 — 지난 세션에서 실제로 문서가 미구현 Redis 캐시를 사실처럼 서술했던 사고([`docs/specs/search/product-search-and-autocomplete.md`](../../baro-ai/docs/specs/search/product-search-and-autocomplete.md) 리스크 항목)가 계기다.
 
-**A(반드시 수정) 항목, 특히 Category가 Performance인 항목은 audit.md에 다음을 추가로 명시해야 한다** (감사 템플릿 A 항목 포맷의 "근거" 필드 — [`docs/templates/how-to-doc.md`](../../baro-ai/docs/templates/how-to-doc.md)):
+**A(반드시 수정) 항목, 특히 Category가 Performance인 항목은 감사 문서에 다음을 추가로 명시해야 한다** (감사 템플릿 A 항목 포맷의 "근거" 필드 — [`docs/templates/how-to-doc.md`](../../baro-ai/docs/templates/how-to-doc.md)):
 
 1. **현재 동작의 증거** — 코드로 확인 가능한 사실(예: "`@EnableCaching`이 없어 `@Cacheable`이 no-op임을 grep으로 확인"), 또는 재현 가능한 관찰(간단한 타이밍 로그·반복 호출 스크립트 등). "느릴 것 같다"·"비효율적으로 보인다"는 증거가 아니다.
 2. **개선 후 검증 방법** — 어떻게 효과를 확인할 것인지(테스트로 캐시 hit 확인, 호출 횟수 감소 확인, LLM 토큰 수 비교 등). 프로덕션 서버가 내려가 있어 실측 APM은 못 쓰므로, **로컬에서 재현 가능한 방법**(단위/통합 테스트, 반복 호출 스크립트, 토큰 카운트 비교)이어야 한다.
@@ -52,7 +52,7 @@
 
 `safe-refactor` 6단계(Audit → 승인 → Implement → Verify → Report → 다음 도메인) 그대로. 단 이 이니셔티브는:
 
-- **OpenAPI 계약 보호가 꺼진 프로젝트라 `oasdiff` 생략** — 대신 `{{테스트 명령}}` 전체 통과 + (테스트가 없는 도메인은) 최소 수동 확인 절차를 audit.md에 명시
+- **OpenAPI 계약 보호가 꺼진 프로젝트라 `oasdiff` 생략** — 대신 `{{테스트 명령}}` 전체 통과 + (테스트가 없는 도메인은) 최소 수동 확인 절차를 감사 문서에 명시
 - 도메인 5개를 전부 하나의 큰 라운드로 취급하지 않는다 — **여전히 한 번에 한 도메인**. 순서는 사용자에게 확인(제안 우선순위: search → embedding → recommend → event-log → chat)
 
 ## 변경 이력

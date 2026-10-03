@@ -17,7 +17,7 @@
 | 산출물 | 만드는 것 | 저장 경로 | 유형 | 템플릿 |
 |--------|-----------|-----------|------|--------|
 | 기능 스펙 | `specify` · `defer` 스킬 | `docs/specs/{domain}/{kebab-case}.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
-| 아키텍처 감사 | `safe-refactor` 스킬 (Audit 단계) | `docs/audits/{domain}/audit.md` | 문제 해결 | [`how-to-doc.md`](how-to-doc.md) |
+| 아키텍처 감사 | `safe-refactor` 스킬 (Audit 단계) | `docs/audits/{domain}/{NNN}-{kebab-topic}.md` (도메인 안에서 001부터 증가, 규칙은 [`audits/README.md`](../audits/README.md)) | 문제 해결 | [`how-to-doc.md`](how-to-doc.md) |
 | 리팩터 반영 이력 | `safe-refactor` 스킬 (G4 Report) | `docs/audits/{domain}/refactor-log.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
 | 하네스 회고 백로그 | `retro` 스킬 | `docs/audits/harness-retro.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
 | 아키텍처 결정 (ADR) | 사용자 승인 후 수동 작성 | `docs/decisions/{번호}-{kebab-case}.md` | 설명 | [`explanation-doc.md`](explanation-doc.md) |

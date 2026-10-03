@@ -259,7 +259,7 @@ agents_group [label: "서브에이전트 (.claude/agents/)", color: purple, icon
 
 // 5. Outcomes
 outcome_spec [label: "docs/specs/", icon: file-text, color: purple]
-outcome_audit [label: "audit.md / refactor-log.md", icon: file-text, color: purple]
+outcome_audit [label: "{NNN}-{topic}.md / refactor-log.md", icon: file-text, color: purple]
 outcome_issue [label: "GitHub Issue (Draft 스펙)", icon: github, color: black]
 outcome_verify [label: "oasdiff / gradlew 통과", icon: check-circle, color: green]
 outcome_research [label: "결론 + 근거 URL + 확인 버전", icon: book, color: blue]
