@@ -36,16 +36,9 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
   # Spring AI 설정 (Google Gemini — 근거: docs/decisions/003-gemini-migration.md)
+  # 타임아웃·재시도는 spring.ai.retry.*가 아니라 LlmClientConfig가 Gemini SDK 클라이언트에 직접 건다.
+  # spring.ai.retry.*는 SDK가 던지는 429·5xx 예외에 반응하지 않는 죽은 설정이라 두지 않는다.
   ai:
-    # 기본값은 최대 10회 재시도에 백오프 상한 3분이라, 호출당 타임아웃(30초)을 걸어도
-    # 한 번의 요청이 수십 분까지 늘어질 수 있다. 무료 티어의 호출 한도(429)에 걸리면
-    # 실제로 이 경로를 밟으므로 명시적으로 좁힌다.
-    retry:
-      max-attempts: 3
-      backoff:
-        initial-interval: 1s
-        multiplier: 2
-        max-interval: 10s
     google:
       genai:
         api-key: ${BARO_AI_GEMINI_KEY:}
@@ -95,7 +88,8 @@ management:
   endpoints:
     web:
       exposure:
-        include: "*"  # 모든 Actuator 엔드포인트 노출
+        # LLM 호출 지표(gen_ai.client.*) 확인용으로 health·metrics만 연다. 게이트웨이 밖으로 열리는지는 배포 설정에서 확인
+        include: health,metrics
   endpoint:
     health:
       show-details: always

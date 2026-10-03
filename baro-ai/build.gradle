@@ -76,6 +76,8 @@ dependencies {
 
     // ========= 캐시 (로컬, 자동완성 전용 — docs/decisions/001-autocomplete-caching.md) =========
     implementation 'com.github.ben-manes.caffeine:caffeine'
+    // Spring AI가 이미 갖춘 LLM 호출 관측 훅(토큰·지연·오류 지표)을 켜기 위한 것. 근거: docs/audits/cross-cutting/audit.md B-1
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
     // ========= Spring AI (Google Gemini — 챗·임베딩 모두) =========
     // 근거: docs/decisions/003-gemini-migration.md

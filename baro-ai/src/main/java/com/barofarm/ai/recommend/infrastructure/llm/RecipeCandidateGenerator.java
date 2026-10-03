@@ -10,13 +10,21 @@ import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class RecipeCandidateGenerator {
+
+    // 응답 형식을 프롬프트 문구로 부탁하지 않고 Gemini API에 JSON 스키마로 못 박는다.
+    // 모델이 설명 문장이나 코드펜스를 붙여 파싱이 깨지는 경우를 없애기 위한 것.
+    // 근거: docs/audits/cross-cutting/001-llm-call-infra.md A-2
+    private static final BeanOutputConverter<RecipeCandidates> RESPONSE_CONVERTER =
+        new BeanOutputConverter<>(RecipeCandidates.class);
 
     private final ChatClient chatClient;
 
@@ -95,23 +103,7 @@ public class RecipeCandidateGenerator {
             - recipeIngredientsExtra: 있으면 더 좋은 추가 재료 (1~3개).
             - instructions: 3~6 단계의 간단한 조리법.
             - staplesAssumed: 기본 양념을 가정했는지 여부 (항상 true로 설정).
-
-            <출력(JSON only)>
-            {{
-              "candidates": [
-                {{
-                  "cookingMethod": "ONE_POT",
-                  "difficulty": "EASY",
-                  "mealType": "SOUP",
-                  "recipeName": "돼지고기 김치찌개",
-                  "recipeIngredientsCore": ["돼지고기", "김치", "두부", "대파"],
-                  "recipeIngredientsExtra": ["양파", "청양고추"],
-                  "instructions": "1) ...\n2) ...",
-                  "staplesAssumed": true
-                }}
-              ]
-            }}
-            다른 텍스트는 절대 출력하지 마세요.
+            - usedOwnedIngredients, missingIngredientsCore: 빈 배열로 두세요. 서버가 다시 계산합니다.
             """.replace("{ownedIngredients}", ownedText);
     }
 
@@ -119,11 +111,17 @@ public class RecipeCandidateGenerator {
      * LLM을 호출하여 레시피 후보를 생성
      */
     private RecipeCandidates callRecipeCandidateLLM(String templateString) {
-        return chatClient.prompt()
+        // .entity() 대신 content()+convert()를 쓴다. .entity()는 프롬프트 끝에 스키마 지시문을 한 번 더
+        // 붙이는데, 스키마를 API 옵션으로 넘기므로 그 지시문은 토큰만 쓰는 중복이다.
+        String json = chatClient.prompt()
+            .options(GoogleGenAiChatOptions.builder()
+                .responseMimeType(MediaType.APPLICATION_JSON_VALUE)
+                .responseSchema(RESPONSE_CONVERTER.getJsonSchema())
+                .build())
             .user(p -> p.text(templateString))
             .call()
-            .entity(new ParameterizedTypeReference<>() {
-            });
+            .content();
+        return RESPONSE_CONVERTER.convert(json);
     }
 
     /**
