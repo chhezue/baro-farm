@@ -56,6 +56,7 @@ LLM을 실제로 호출하는 지점은 `chat`을 포함해 정확히 4곳(`chat
 ## 신규 리스크 (Gemini 전환 이후 새로 확인됨)
 
 1. **`spring.ai.retry` 설정이 Gemini 호출에는 실제로 적용되지 않는다.** `application-prod.yml:43-48`에 `max-attempts: 3` 등을 명시해 뒀지만, 이 설정은 죽은 설정이다.
+   > **2026-09-04 정정**: 아래 "재시도 0회" 결론은 틀렸다. Google GenAI SDK(`google-genai-1.37.0`)의 `ApiClient`는 재시도 옵션을 안 줘도 기본 `RetryInterceptor`(총 5회, 지연 1→60초, 429·5xx 대상)를 항상 등록한다 — Spring AI 레이어만 보고 SDK 레이어를 놓친 조사였다. 실제 문제는 "재시도가 없다"가 아니라 "통제되지 않는 재시도가 최대 5회 걸려 최악 응답 시간이 정해져 있지 않다"이다. 정정 근거와 조치는 [`cross-cutting/001-llm-call-infra.md`](cross-cutting/001-llm-call-infra.md) A-1. 아래 원문은 이력으로 남긴다.
    - `GoogleGenAiChatModel`(바이트코드 확인)은 호출을 `RetryTemplate.execute(...)`로 감싸지만, 이 템플릿의 재시도 대상은 `TransientAiException`·`ResourceAccessException`·`WebClientRequestException`뿐이다(`SpringAiRetryAutoConfiguration`의 `retryOn` 목록).
    - 반면 Google GenAI SDK(`com.google.genai`)는 429를 `ClientException`, 5xx를 `ServerException`으로 던지는데, 둘 다 `ApiException`→`BaseException`→`RuntimeException` 계열이라 위 세 타입 중 어디에도 속하지 않는다. `GoogleGenAiChatModel`에 이를 변환하는 코드도 없다(catch 블록은 관측용 `Exception` 하나뿐).
    - 즉 429·5xx가 나면 **재시도 0회로 즉시 실패**한다. 원래 우려했던 "재시도가 너무 길어진다"는 리스크는 애초에 발생하지 않지만, 대신 "설정해 뒀다고 믿고 있는 재시도가 실제로는 전혀 동작하지 않는다"는 정반대 문제가 있다 — 무료 티어의 순간적인 429 하나에도 폴백(정규식)이나 빈 응답으로 곧장 떨어진다.
