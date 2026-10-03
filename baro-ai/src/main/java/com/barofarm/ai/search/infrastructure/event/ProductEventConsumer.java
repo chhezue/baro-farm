@@ -21,6 +21,12 @@ public class ProductEventConsumer {
         containerFactory = "productEventListenerContainerFactory"
     )
     public void onMessage(ProductEvent event) {
+        // 역직렬화에 실패한 레코드는 KafkaConsumerConfig의 팩토리가 null로 바꿔 넘긴다.
+        // 다시 시도해도 같은 결과라 재시도 없이 바로 건너뛴다.
+        if (event == null || event.getData() == null) {
+            log.warn("⚠️ [CONSUMER] Skipping product event with no payload (deserialization failed)");
+            return;
+        }
         ProductEvent.ProductEventData data = event.getData();
         log.info("📨 [CONSUMER] Received product event - Type: {}, Product ID: {}, Name: {}, " +
                 "Category: {} ({}), Price: {}",
@@ -60,7 +66,9 @@ public class ProductEventConsumer {
         } catch (Exception e) {
             log.error("❌ [CONSUMER] Failed to process product event - Type: {}, Product ID: {}, Name: {}, Error: {}",
                 event.getType(), data.getProductId(), data.getProductName(), e.getMessage(), e);
-            throw e; // 예외를 다시 던져서 Kafka가 재시도하도록 함
+            // 재시도 여부와 횟수는 KafkaConsumerConfig의 productEventListenerContainerFactory가 정한다.
+            // 여기서 삼키면 그 정책이 동작하지 않으므로 그대로 다시 던진다.
+            throw e;
         }
     }
 
