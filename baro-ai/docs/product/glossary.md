@@ -21,7 +21,7 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | topK | 추천/검색에서 최종적으로 반환할 결과 개수. 후보는 이보다 넉넉히(topK*3, 최대 100) 가져온 뒤 필터링 | `RecommendationController` 쿼리 파라미터 |
 | Sentiment | 리뷰의 감정 분류 값 — `POSITIVE`/`NEGATIVE`/`MIXED` 세 가지(review 도메인, 팀원 소유) | `Sentiment.java` |
 | 베스트 리뷰 (Best Review List) | 상품·감정별로 선정된 대표 리뷰 목록. 매일 새벽 배치로 갱신되며 기존 목록과 50% 이상 달라야 교체됨(review 도메인) | `BestReviewListDocument`, `BestReviewReplacementPolicy` |
-| 요리 재료명 (ingredientName) | 상품명에서 브랜드·수량·단위를 걷어내고 남긴 재료 이름(예: "계란"). 상품 색인 시점에 1회 계산해 상품 문서에 저장한다. 요리 재료가 아닌 상품은 빈 값 | `ProductDocument.ingredientName` |
+| 요리 재료명 (ingredientName) | 상품명에서 브랜드·수량·단위를 걷어내고 남긴 재료 이름(예: "계란"). 상품 색인 시점에 1회 계산해 상품 문서에 저장한다. 빈 값은 LLM 추출이 실패해 아직 재료명을 모른다는 뜻이며, 추천은 그 상품을 건너뛰고 재색인 대상으로 센다(이 카탈로그는 전부 농산물이라 "재료가 아닌 상품"은 없다) | `ProductDocument.ingredientName` |
 | 보유 재료 | 장바구니에 담긴 상품들의 요리 재료명을 모은 목록. 레시피 후보 생성의 입력이 된다 | `RecipeRecommendService.loadOwnedIngredientNames` |
 | dense_vector | Elasticsearch의 벡터 필드 타입. baro-ai에서는 1536차원 고정 (Gemini `gemini-embedding-001`의 출력 차원을 1536으로 맞춘다) | `ProductDocument.vector`, `UserProfileEmbeddingDocument.userProfileVector` |
 | 코사인 유사도 (Cosine Similarity) | 두 벡터의 방향이 얼마나 비슷한지를 -1~1로 나타낸 값. baro-ai 전역의 벡터 유사도 계산 기준 | `MedoidDiversityService.cosineSimilarity`, ES `script_score(cosineSimilarity)` |

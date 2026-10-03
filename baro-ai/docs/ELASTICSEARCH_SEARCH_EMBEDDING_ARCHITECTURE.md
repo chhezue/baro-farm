@@ -252,7 +252,7 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 `indexProduct(request)` 처리 순서:
 
 1. 상품명 임베딩 생성 시도 (`embedProduct`)
-2. 요리 재료명 추출 시도 (`ProductIngredientNormalizer.normalize`) — LLM 1회, 실패 시 정규식 폴백
+2. 요리 재료명 추출 시도 (`ProductIngredientNormalizer.normalize`) — LLM 1회, 실패·빈 답이면 `ingredientName`을 빈 값으로 두고 재색인 대상으로 남긴다
 3. `ProductDocument` 생성 (`updatedAt=now`, `ingredientName`·`vector` 포함)
 4. `ProductAutocompleteDocument` 생성
 5. `product-autocomplete` 저장

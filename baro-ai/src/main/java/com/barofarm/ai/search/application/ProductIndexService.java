@@ -51,14 +51,10 @@ public class ProductIndexService {
         }
 
         // 요리 재료명은 색인 시점에 1회만 계산한다. 추천 요청마다 LLM으로 뽑던 것을 여기로 옮긴 것.
-        // 실패해도 색인은 계속되어야 하므로 빈 값으로 둔다. 근거: docs/decisions/002-ingredient-name-at-index-time.md
-        String ingredientName = "";
-        try {
-            ingredientName = ingredientNormalizer.normalize(request.productName(), request.productCategoryName());
-        } catch (Exception e) {
-            log.error("❌ Ingredient normalization failed. productId={}, error={}",
-                request.productId(), e.getMessage(), e);
-        }
+        // normalize()는 예외를 던지지 않고 실패하면 빈 문자열을 돌려주므로 여기서 잡을 예외가 없다.
+        // 빈 값으로 색인된 상품은 레시피 추천이 보유 재료에서 건너뛰고 재색인 대상으로 센다.
+        // 근거: docs/decisions/002-ingredient-name-at-index-time.md
+        String ingredientName = ingredientNormalizer.normalize(request.productName(), request.productCategoryName());
 
         ProductDocument doc =
             new ProductDocument(

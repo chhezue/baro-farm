@@ -320,10 +320,16 @@ public class ProductIngredientNormalizer {
             String normalized = response == null || response.normalizedIngredient() == null
                 ? "" : response.normalizedIngredient().trim();
 
-            return normalized.isBlank() ? applyBasicNormalization(productName) : normalized;
+            // 빈 답·실패는 빈 값으로 색인한다. 추천이 빈 값을 건너뛰고 재색인 대상으로 세므로
+            // 정규식으로 만든 그럴듯한 오답을 넣지 않는다 (docs/audits/search/001-index-path.md B-2)
+            if (normalized.isBlank()) {
+                log.warn("재료명 추출 결과가 비어 빈 값으로 색인합니다. 재색인 대상: '{}'", productName);
+                return "";
+            }
+            return normalized;
         } catch (Exception e) {
-            log.warn("상품명 정규화 실패, 정규식 폴백 사용: '{}'", productName, e);
-            return applyBasicNormalization(productName);
+            log.warn("재료명 추출 실패로 빈 값으로 색인합니다. 재색인 대상: '{}'", productName, e);
+            return "";
         }
     }
 }

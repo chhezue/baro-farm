@@ -3,8 +3,9 @@ package com.barofarm.ai.search.infrastructure.llm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.prompt.ChatOptions;
-import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,13 +24,20 @@ public class ProductIngredientNormalizer {
 
     private static final String NO_CATEGORY = "(카테고리 없음)";
 
+    // 응답 형식을 Gemini API에 JSON 스키마로 못 박는다. 근거: docs/audits/cross-cutting/001-llm-call-infra.md A-2
+    private static final BeanOutputConverter<NormalizationResponse> RESPONSE_CONVERTER =
+        new BeanOutputConverter<>(NormalizationResponse.class);
+
     private final ChatClient chatClient;
 
     /**
      * 상품명과 카테고리명을 함께 넘겨 요리 재료명을 뽑는다.
      * 카테고리는 상품명만으로 애매한 경우를 좁혀 주는 힌트다. 예를 들어 카테고리가 "제철 과일"로
      * 함께 오면 산지·당도 같은 수식어를 떼고 과일 이름만 남기기가 쉬워진다.
-     * LLM 호출이 실패하면 정규식 폴백을 쓰므로 이 메서드는 예외를 던지지 않는다.
+     * LLM 호출이 실패하거나 빈 답이 오면 예외를 던지지 않고 빈 문자열을 돌려준다.
+     * 빈 값은 "아직 재료명을 모른다"는 표시다. 레시피 추천은 빈 값인 상품을 보유 재료에서 건너뛰고
+     * 재색인이 필요한 건수로 센다. 정규식으로 대충 만든 값을 넣으면 그 표시가 사라지고
+     * "대란" 같은 틀린 재료명이 정상 값처럼 남으므로 폴백은 두지 않는다.
      */
     public String normalize(String productName, String categoryName) {
         if (productName == null || productName.isBlank()) {
@@ -37,43 +45,34 @@ public class ProductIngredientNormalizer {
         }
         String category = categoryName == null || categoryName.isBlank() ? NO_CATEGORY : categoryName;
         try {
-            NormalizationResponse response = chatClient.prompt()
-                .options(ChatOptions.builder().temperature(DETERMINISTIC_TEMPERATURE).build())
+            String json = chatClient.prompt()
+                .options(GoogleGenAiChatOptions.builder()
+                    .temperature(DETERMINISTIC_TEMPERATURE)
+                    .responseMimeType(MediaType.APPLICATION_JSON_VALUE)
+                    .responseSchema(RESPONSE_CONVERTER.getJsonSchema())
+                    .build())
                 .user(u -> u.text(PROMPT)
                     .param("productName", productName)
                     .param("categoryName", category))
                 .call()
-                .entity(new ParameterizedTypeReference<NormalizationResponse>() {});
+                .content();
+            NormalizationResponse response = RESPONSE_CONVERTER.convert(json);
 
             String normalized = response == null || response.normalizedIngredient() == null
                 ? "" : response.normalizedIngredient().trim();
 
             // 이 쇼핑몰의 카테고리는 전부 농산물(AGRI_*)이라 "재료가 아닌 상품"이라는 경우가 없다.
-            // 그래서 빈 값은 재료 아님이 아니라 추출 실패로만 해석하고 정규식 폴백을 태운다.
+            // 그래서 빈 답은 재료 아님이 아니라 추출 실패로만 해석한다.
             if (normalized.isBlank()) {
-                log.warn("재료명 추출 결과가 비어 정규식 폴백을 사용합니다: '{}'", productName);
-                return applyBasicNormalization(productName);
+                log.warn("재료명 추출 결과가 비어 빈 값으로 색인합니다. 재색인 대상: '{}'", productName);
+                return "";
             }
             log.debug("상품명 정규화: '{}'에서 '{}'을(를) 추출", productName, normalized);
             return normalized;
         } catch (Exception e) {
-            log.warn("상품명 정규화 실패, 정규식 폴백 사용: '{}'", productName, e);
-            return applyBasicNormalization(productName);
+            log.warn("재료명 추출 실패로 빈 값으로 색인합니다. 재색인 대상: '{}'", productName, e);
+            return "";
         }
-    }
-
-    // LLM을 쓰지 않고 규칙만으로 브랜드·수량·단위·등급 표현을 걷어낸다.
-    private String applyBasicNormalization(String productName) {
-        return productName
-            .replaceAll("\\d+(개|구|마리|팩|송이|포기|단|봉|박스)\\s*", "")
-            .replaceAll("(?i)\\d+(kg|g|ml|l)\\s*", "")
-            .replaceAll("무항생제|신선한|곰곰|국산|수입|프리미엄|유기농|친환경|GAP|저탄소", "")
-            .replaceAll("하림|농협|풀무원|CJ|오뚜기|대상|삼양|청정원|동원", "")
-            .replaceAll("특품|등급|1등급|2등급|특상", "")
-            .replaceAll("\\([^)]*\\)", "")
-            .replaceAll("[,·]", " ")
-            .replaceAll("\\s+", " ")
-            .trim();
     }
 
     private record NormalizationResponse(String normalizedIngredient) {
