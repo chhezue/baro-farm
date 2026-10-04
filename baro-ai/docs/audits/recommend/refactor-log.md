@@ -44,7 +44,7 @@
 - `recommend/application/RecipeRecommendService.java` — LLM 재료 추출을 ES 조회로 교체, 중복 계산 제거
 - `recommend/infrastructure/llm/RecipePromptService.java` — `extractOwnedIngredients` 제거(288줄 → 198줄), `enhanceWithServerValidation`의 비교 기준을 `normalizeForCompare`로 통일
 - `docs/ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md` — `product` 매핑·색인 순서 갱신
-- `docs/specs/recommend/recipe-recommendation.md` — 구현 반영
+- `docs/specs/cart-recipe/recipe-recommendation.md`(당시 경로 `specs/recommend/`) — 구현 반영
 
 **삭제** (STOP §4 — 교체된 구 경로는 같은 변경에서 제거)
 - `recommend/infrastructure/llm/ProductNameNormalizer.java` — 역할이 `ProductIngredientNormalizer`로 이동

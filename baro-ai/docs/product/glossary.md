@@ -1,39 +1,91 @@
 # 용어집 — baro-ai
 
-baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harness-map.md`의 `{{용어집}}` 슬롯이 가리키는 문서다. 같은 개념을 문서마다 다른 말로 부르지 않기 위해 여기 기준으로 통일한다.
+baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harness-map.md`의 `{{용어집}}` 슬롯이 가리키는 문서다. 같은 개념을 문서마다 다른 말로 부르지 않기 위해 여기 기준으로 통일한다. 2026-09-04부터 용어를 **작업 단위**(취향 벡터·장바구니 레시피·임베딩 유사도 검색·키워드 검색)별로 묶었고, 다른 모듈이 정하는 전제(이벤트 발행 조건 등)도 baro-ai가 알아야 하는 만큼 함께 실었다.
 
 ## 언제 이 문서를 보는가
 
 - 새 문서·스펙을 쓸 때 용어를 통일하고 싶을 때
 - 코드의 변수·클래스명이 무슨 개념인지 처음 볼 때
+- 포트폴리오·발표에서 한 기능을 어떤 이름으로 부를지 정할 때
 
-## 용어
+## 공통
 
 | 용어 | 의미 | 코드/문서 근거 |
 |------|------|-----------------|
-| 프로필 벡터 (User Profile Vector) | 사용자의 최근 검색·장바구니·주문 로그를 가중치 합성해 만든 임베딩 벡터. 개인화 추천의 입력값 | `UserProfileEmbeddingDocument.userProfileVector` |
-| 소스 상품 ID (Source Product IDs) | 프로필 벡터 생성에 쓰인 로그에서 나온 상품 ID 목록. 개인화 추천에서 "이미 경험한 상품"을 제외하는 데 씀 | `UserProfileEmbeddingDocument.sourceProductIds` |
-| 선호 카테고리 코드 (Preferred Category Code) | 장바구니·주문 로그를 이벤트 가중치로 합산해 도출한, 사용자가 가장 선호하는 카테고리 1개 | `UserProfileEmbeddingService.calculatePreferredCategoryCode` |
-| 메도이드 (Medoid) / 메도이드 다양성 | 벡터 유사도 top-K가 서로 비슷한 상품만 뽑는 문제를 막기 위해, 후보들 사이의 거리를 기준으로 서로 먼 대표 상품을 순차 선택하는 k-medoids 방식 알고리즘 | `MedoidDiversityService.selectDiverseMedoids` |
-| 카테고리 일치 보너스 (Category Match Bonus) | 추천 후보가 사용자 선호/기준 상품과 같은 카테고리일 때 주는 가산점(현재 0.3 고정) | `PersonalizedRecommendService`, `SimilarProductRecommendService` |
-| 시간 가중치 (Time Weight) | 로그가 최근일수록 프로필 벡터에 더 크게 반영되도록 하는 지수감쇠 계수 (7일 기준 반감, 0.3~3.0배로 clamp) | `UserProfileEmbeddingService.calculateTimeWeight` |
-| 이벤트 가중치 (Event Weight) | 로그 이벤트 종류별 관심도 가중치 (예: 주문확정=3, 장바구니추가=2, 취소/삭제=0) | `UserProfileEmbeddingService.calculateCartEventWeight`/`calculateOrderEventWeight` |
-| topK | 추천/검색에서 최종적으로 반환할 결과 개수. 후보는 이보다 넉넉히(topK*3, 최대 100) 가져온 뒤 필터링 | `RecommendationController` 쿼리 파라미터 |
-| Sentiment | 리뷰의 감정 분류 값 — `POSITIVE`/`NEGATIVE`/`MIXED` 세 가지(review 도메인, 팀원 소유) | `Sentiment.java` |
-| 베스트 리뷰 (Best Review List) | 상품·감정별로 선정된 대표 리뷰 목록. 매일 새벽 배치로 갱신되며 기존 목록과 50% 이상 달라야 교체됨(review 도메인) | `BestReviewListDocument`, `BestReviewReplacementPolicy` |
-| 요리 재료명 (ingredientName) | 상품명에서 브랜드·수량·단위를 걷어내고 남긴 재료 이름(예: "계란"). 상품 색인 시점에 1회 계산해 상품 문서에 저장한다. 빈 값은 LLM 추출이 실패해 아직 재료명을 모른다는 뜻이며, 추천은 그 상품을 건너뛰고 재색인 대상으로 센다(이 카탈로그는 전부 농산물이라 "재료가 아닌 상품"은 없다) | `ProductDocument.ingredientName` |
-| 보유 재료 | 장바구니에 담긴 상품들의 요리 재료명을 모은 목록. 레시피 후보 생성의 입력이 된다 | `RecipeRecommendService.loadOwnedIngredientNames` |
-| dense_vector | Elasticsearch의 벡터 필드 타입. baro-ai에서는 1536차원 고정 (Gemini `gemini-embedding-001`의 출력 차원을 1536으로 맞춘다) | `ProductDocument.vector`, `UserProfileEmbeddingDocument.userProfileVector` |
-| 코사인 유사도 (Cosine Similarity) | 두 벡터의 방향이 얼마나 비슷한지를 -1~1로 나타낸 값. baro-ai 전역의 벡터 유사도 계산 기준 | `MedoidDiversityService.cosineSimilarity`, ES `script_score(cosineSimilarity)` |
+| 작업 단위 | baro-ai를 감사·문서·설명하는 기본 단위. 패키지가 아니라 비즈니스 기능 4개 | [`specs/README.md`](../specs/README.md) |
+| 이벤트 봉투 (HistoryEnvelope) | `baro-common`이 Kafka로 보내는 `{event, ts, userId, payload}`. `cart-events`·`order-events`의 값 형식(JSON 문자열, 키는 userId) | `HistoryEnvelope`, `HistoryLogWriter` |
+| 상태 필터 | 검색·자동완성·벡터 검색이 공통으로 적용하는 `ON_SALE`·`DISCOUNTED`만 노출 조건 | `applyStatusFilter`, `buildBoolQuery` |
+| 상품 상태 (ProductStatus) | `ON_SALE`·`DISCOUNTED`·`SOLD_OUT`·`HIDDEN`·`DELETED`. 판매자 수정으로만 바뀌고 재고 0이 자동으로 `SOLD_OUT`을 만들지 않는다 | `baro-shopping` `ProductStatus` |
+| 카테고리 코드 | 3단계 22개, 전부 `AGRI_*`(농산물). 리프 코드가 이벤트·문서의 `productCategoryCode` | `scripts/init-db/02-init-categories.sql` |
+| dense_vector | Elasticsearch 벡터 필드 타입. baro-ai는 1536차원 고정 | `ProductDocument.vector`, `UserProfileEmbeddingDocument.userProfileVector` |
+| 코사인 유사도 | 두 벡터의 방향 유사도(−1~1). 벡터 검색·다양화의 공통 기준 | ES `script_score(cosineSimilarity)`, `MedoidDiversityService` |
+| topK | 추천 API가 최종 반환하는 개수. 후보는 이보다 넉넉히 가져온 뒤 다양화로 줄인다(값: [`vector-similarity` 스펙](../specs/vector-similarity/vector-similarity-search.md) 비즈니스 규칙) | `RecommendationController` |
+| `X-User-Id` | 게이트웨이가 넣어 주기로 한 사용자 식별 헤더. prod 라우트에는 인증 필터가 없어 클라이언트 값이 그대로 전달된다 | `baro-gateway` `application-prod.yml`, [`platform.md`](platform.md) |
+| Sentiment · 베스트 리뷰 | review 도메인(팀원 소유) 용어 — `POSITIVE`/`NEGATIVE`/`MIXED`, 매일 배치로 갱신되는 대표 리뷰 목록 | `Sentiment.java`, `BestReviewListDocument` |
+
+## 취향 벡터 (`taste-vector`)
+
+| 용어 | 의미 | 코드/문서 근거 |
+|------|------|-----------------|
+| 행동 로그 | 검색어·장바구니 변경·주문 확정 1건을 ES에 저장한 문서 | `SearchLogDocument`·`CartLogDocument`·`OrderLogDocument` |
+| 대표 텍스트 | 행동 로그의 상품명·검색어를 가중치만큼 반복해 이어 붙인 문자열. 임베딩 입력. **2026-09-05 승인된 재설계에서 폐지 예정**(상품 벡터 가중 평균으로 대체 — `taste-vector` 스펙 "승인된 재설계") | `buildRepresentativeText` |
+| 프로필 벡터 (취향 벡터) | 대표 텍스트를 임베딩한 1536차원 벡터. 문서 ID는 userId | `UserProfileEmbeddingDocument.userProfileVector` |
+| 행동 가중치 | 행동 종류(주문 확정 > 장바구니 담기 > 검색, 취소·삭제는 0)에 따라 대표 텍스트 반복 횟수에 곱하는 계수. 2026-09-04 기준 장바구니 쪽은 저장값과 비교값의 문자열이 달라 의도와 다르게 전부 1로 동작한다(값·상세: [`taste-vector` 스펙](../specs/taste-vector/taste-vector-pipeline.md) 비즈니스 규칙) | `calculateCartEventWeight`, `calculateOrderEventWeight` |
+| 수량 가중치 | 이벤트의 `quantity`를 그대로 곱하는 계수(최소 1). 이벤트마다 `quantity` 의미가 다르다(ADD 증분·UPDATE 새 총량·REMOVE 전량) | `expandCartProductWithFullWeight` |
+| 시간 가중치 | 최근 로그일수록 크게 반영하는 지수 감쇠 계수. 상·하한이 있다(식과 값: `taste-vector` 스펙 비즈니스 규칙) | `calculateTimeWeight` |
+| 반복 횟수 | 행동·수량·시간 가중치의 곱을 반올림한 값만큼 상품명·검색어를 대표 텍스트에 반복한다. 상한이 없고 최소 1회다(식: `taste-vector` 스펙 비즈니스 규칙) | `Stream.generate(...).limit(...)` |
+| 갱신 스킵 게이트 | 조회 기간 안의 로그가 최소 개수에 못 미치면 프로필을 만들지 않는 조건(값: `taste-vector` 스펙 비즈니스 규칙) | `MIN_TOTAL_LOGS_FOR_EMBEDDING` |
+| 경험 상품 (Source Product IDs) | 프로필 계산에 쓰인 장바구니·주문 로그의 상품 ID. 개인화 추천에서 제외 | `sourceProductIds` |
+| 선호 카테고리 코드 | 장바구니·주문 로그를 가중치로 합산해 가장 큰 카테고리 1개. **2026-09-05 삭제 결정**(`taste-vector` 스펙 "승인된 재설계") | `calculatePreferredCategoryCode` |
+| 프로필 갱신 트리거 | 검색 1회·장바구니 이벤트 1건·주문 이벤트 1건마다 재계산. 검색 경로만 실제 비동기 | `updateUserProfileAsync` |
+| 주문 확정 시점 | `baro-order`가 `inventory-confirmed`를 받아 `AWAITING_PAYMENT → CONFIRMED`로 바꾸는 순간. `ORDER_CONFIRMED` 이벤트는 여기서만 발행 | `InventoryConfirmedConsumer` |
+| 게스트 장바구니 | `X-Session-Key`만 있는 장바구니. userId가 없어 Kafka 이벤트가 발행되지 않는다 | `HistoryLogWriter.sendToKafka` |
+
+## 장바구니 레시피 (`cart-recipe`)
+
+| 용어 | 의미 | 코드/문서 근거 |
+|------|------|-----------------|
+| 요리 재료명 (ingredientName) | 상품명에서 브랜드·산지·수량·단위를 걷어낸 한 단어(예: "계란"). 상품 색인 시 LLM(Large Language Model, 거대 언어 모델)으로 1회 계산해 저장. 빈 값은 "아직 모른다"는 뜻이며 추천은 그 상품을 건너뛰고 재색인 대상으로 센다 | `ProductDocument.ingredientName`, [`decisions/002`](../decisions/002-ingredient-name-at-index-time.md) |
+| 보유 재료 | 장바구니 상품들의 요리 재료명 집합(제외 카테고리 제거 후). 레시피 후보 생성의 입력 | `RecipeRecommendService.loadOwnedIngredientNames` |
+| 레시피 제외 카테고리 | 과일 4개 코드(`AGRI_FRUIT*`). 설정 파일로 관리 | `recipe-recommend.yml` |
+| 레시피 후보 | LLM이 한 번에 만드는 서로 다른 스타일의 레시피 3개 | `RecipeCandidates` |
+| 핵심 재료 / 추가 재료 | 요리 정체성을 정하는 3~5개 / 있으면 좋은 1~3개 | `recipeIngredientsCore`·`recipeIngredientsExtra` |
+| 기본 양념 가정 | 소금·후추·식용유·간장 등은 보유로 간주, 재료 목록에 넣지 않음 | 프롬프트 `<정책>` |
+| 부족 핵심 재료 | 핵심 재료 − 보유 재료. LLM 값을 버리고 서버가 정규화 비교로 다시 계산 | `enhanceWithServerValidation`, `subtractNormalized` |
+| 판매 기회 보너스 | 부족 핵심 재료 수가 "한두 개"일 때 가점, 0개이거나 너무 많을 때 감점하는 항(값: [`cart-recipe` 스펙](../specs/cart-recipe/recipe-recommendation.md) 비즈니스 규칙) | `CandidateRecipePlan.calculateScore` |
+| 후보 점수 | 보유 핵심 재료·보유 추가 재료 수를 가중 합산하고 판매 기회 보너스를 더한 값. 동점이면 쉬운 난이도, 그다음 무작위(식: `cart-recipe` 스펙 비즈니스 규칙) | `chooseBest` |
+| 장바구니 스냅샷 (CartInfo) | `baro-shopping` `GET /api/v1/carts`가 `ResponseDto`로 감싸 주는 장바구니. 항목 정보는 조회 시점 재조회, 실패 시 한글 폴백 문자열 | `CartClient`, `baro-shopping` `CartItemInfo` |
+
+## 임베딩 유사도 검색 (`vector-similarity`)
+
+| 용어 | 의미 | 코드/문서 근거 |
+|------|------|-----------------|
+| 상품 벡터 | 상품명을 Gemini `gemini-embedding-001`로 임베딩한 1536차원 벡터. 실패 시 `null` | `ProductEmbeddingService`, `ProductDocument.vector` |
+| 후보 규모 | 다양화 전에 ES에서 가져오는 상품 수. topK의 배수에 상한을 둔다(값: `vector-similarity` 스펙 비즈니스 규칙) | `candidateSize` |
+| 카테고리 일치 보너스 | 기준 카테고리와 같은 후보의 ES 점수에 더하는 고정 가산점. 다양화 후 재정렬에는 반영되지 않음(값: `vector-similarity` 스펙 비즈니스 규칙) | `buildCategoryWeightedScript` |
+| max-min 다양화 (코드명 메도이드) | 1순위를 고정하고 "이미 고른 것들과의 최소 거리가 가장 큰" 후보를 순차 선택하는 greedy. k-medoids가 아니다 | `MedoidDiversityService.selectDiverseMedoids` |
+| script_score 벡터 검색 | 필터를 통과한 문서 전부의 코사인을 계산하는 방식. HNSW 근사 검색(native `knn`)을 쓰지 않는다 | `VectorProductSearchService` |
+
+## 키워드 검색 (`keyword-search`)
+
+| 용어 | 의미 | 코드/문서 근거 |
+|------|------|-----------------|
+| 색인 경로 | `product-events` 수신 → 임베딩 → 재료명 → `product-autocomplete` 저장 → `product` 저장 | `ProductEventConsumer`, `ProductIndexService.indexProduct` |
+| 상품 이벤트 | `baro-shopping`이 생성·수정·삭제 트랜잭션 커밋 후 발행하는 `PRODUCT_CREATED/UPDATED/DELETED`. 키 없음, 수정은 diff 없이 항상 발행 | `ProductTransactionEventListener`, `ProductEventProducer` |
+| 정확 매칭 | `match_phrase` 절(slop·boost: `keyword-search` 스펙) | `applyExactMatch` |
+| 일반 매칭 | `match` OR 절(boost: `keyword-search` 스펙) | `applyNormalMatch` |
+| 오탈자 매칭 | `productName.raw`(keyword) 대상 `fuzziness=AUTO` 절. 상품명 전체를 한 토큰으로 비교한다(길이 조건·boost: `keyword-search` 스펙) | `applyFuzzyMatch` |
+| 자동완성 접두어 | `edge_ngram`으로 색인한 상품명 조각. 조회는 `match_phrase_prefix`(길이 범위: `keyword-search` 스펙) | `autocomplete-analyzer.json`, `ProductAutocompleteRepository` |
+| 자동완성 캐시 | 자동완성 결과를 인스턴스 안에서만 잠시 기억하는 Caffeine 로컬 캐시(크기·TTL: [`keyword-search` 스펙](../specs/keyword-search/product-search-and-autocomplete.md) 비즈니스 규칙) | `CacheConfig`, [`decisions/001`](../decisions/001-autocomplete-caching.md) |
 
 ## 예시
 
-- "이 사용자의 **프로필 벡터**로 **메도이드** 다양성을 적용해서 **topK**=5개를 뽑았는데, 그중 절반이 **선호 카테고리**와 일치해서 **카테고리 일치 보너스**를 받았다."
+- "이 사용자의 **프로필 벡터**로 후보 15개를 뽑고 **max-min 다양화**로 **topK**=5개를 골랐는데, **경험 상품** 2개는 처음부터 제외됐다."
+- "장바구니의 **보유 재료**가 계란·애호박·두부라서 **레시피 후보** 3개 중 **부족 핵심 재료**가 2개인 '애호박 두부전'이 **판매 기회 보너스** +15를 받아 선택됐다."
 
 ## 관련 문서
 
-- [`docs/product/mvp.md`](mvp.md)
-- [`docs/specs/`](../specs/README.md) — 용어가 실제로 쓰이는 스펙들
+- [`docs/product/mvp.md`](mvp.md) · [`docs/specs/README.md`](../specs/README.md)
 - [`docs/ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md`](../ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md)
 
 ## 변경 이력
@@ -41,3 +93,4 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 날짜 | 변경 |
 |------|------|
 | 2026-09-04 | 초안 — 코드베이스에서 실제로 쓰이는 용어 기준으로 작성 |
+| 2026-09-04 | 작업 단위별로 재편. 발행 모듈 전제(이벤트 봉투·주문 확정 시점·게스트 장바구니·상품 상태·카테고리) 추가. "메도이드" 정의를 실제 알고리즘(max-min 다양화)으로 정정. 수치는 각 스펙의 "비즈니스 규칙" 표에만 두고 용어집에서는 뺐다(`doc-reviewer` 지적 — SSOT 이중화 방지) |

@@ -6,7 +6,7 @@ baro-ai에서 캐시를 어디에 적용할지 정리한 결정이다. 기존에
 
 ## 맥락
 
-`ProductIndexService.autocomplete()`에 `@Cacheable`이 붙어 있었지만 `@EnableCaching`이 어디에도 없어 실제로는 아무 효과가 없는 죽은 코드였다(`docs/specs/search/product-search-and-autocomplete.md` 리스크 항목으로 먼저 발견). 이 발견을 계기로 baro-ai 전체에서 캐싱이 실제로 필요한 지점이 어디인지 다시 정리했다.
+`ProductIndexService.autocomplete()`에 `@Cacheable`이 붙어 있었지만 `@EnableCaching`이 어디에도 없어 실제로는 아무 효과가 없는 죽은 코드였다(`docs/specs/keyword-search/product-search-and-autocomplete.md`, 당시 경로 `specs/search/` — 리스크 항목으로 먼저 발견). 이 발견을 계기로 baro-ai 전체에서 캐싱이 실제로 필요한 지점이 어디인지 다시 정리했다.
 
 ## 결정
 

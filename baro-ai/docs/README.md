@@ -25,14 +25,13 @@
 - **이벤트 드리븐**: Kafka를 통한 실시간 데이터 처리
 - **확장성**: 헥사고날 아키텍처 기반의 모듈화된 설계
 
-### 🎪 주요 역할
+### 🎪 작업 단위 (2026-09-04부터 이 4개가 감사·문서·설명의 기본 단위 — 매핑 SSOT: [`specs/README.md`](specs/README.md))
 
-1. **개인화 상품 추천**: 사용자의 검색/장바구니/주문 패턴 분석 → 맞춤 상품 추천
-2. **사용자 프로필 임베딩**: 로그 기반 가중치 적용 벡터 생성 (UserProfileEmbeddingService)
-3. **상품 임베딩**: 상품명 기반 벡터 생성 (ProductEmbeddingService)
-4. **레시피 추천**: 장바구니 상품을 기반으로 한 요리법 제안 및 부족 재료 추천
-5. **비슷한 상품 추천**: 상품 상세 페이지에서 벡터 유사도 기반 유사 상품 추천
-6. **서비스 챗봇**: 정책 기반 질문 답변 (RAG)
+1. **취향 벡터** — 검색/장바구니/주문 로그 → 프로필 벡터 → 개인화 추천 ([스펙](specs/taste-vector/taste-vector-pipeline.md))
+2. **장바구니 레시피** — 장바구니 → 보유 재료 → LLM 레시피 후보 → 서버 검증 → 부족 재료 상품 ([스펙](specs/cart-recipe/recipe-recommendation.md))
+3. **임베딩 유사도 검색** — 상품 임베딩 → 벡터 검색 → 다양화 → 유사 상품 추천 ([스펙](specs/vector-similarity/vector-similarity-search.md))
+4. **키워드 검색** — 상품 이벤트 색인 → 키워드 검색 → 자동완성 ([스펙](specs/keyword-search/product-search-and-autocomplete.md))
+5. 서비스 챗봇 — 미구현 스텁. 리뷰 감정분석·요약은 팀원 소유 도메인
 
 ### 🔄 데이터 플로우
 
@@ -365,7 +364,7 @@ curl "http://localhost:8092/api/v1/recommendations/personalized/550e8400-e29b-41
 
 | 경로 | 무엇이 있나 |
 |------|-------------|
-| [`specs/`](specs/README.md) | 기능 스펙 — 도메인별 폴더, `Draft → Approved → Implemented` |
+| [`specs/`](specs/README.md) | 기능 스펙 — **작업 단위 4개**(취향 벡터·장바구니 레시피·임베딩 유사도 검색·키워드 검색) 폴더, 각 스펙에 발행 모듈 규칙·리스크 포함. `Draft → Approved → Implemented` |
 | [`decisions/`](decisions/README.md) | 아키텍처 결정 기록(ADR) — 되돌리기 비싼 선택의 근거와 트레이드오프 |
 | [`audits/`](audits/README.md) | 아키텍처 감사·리팩터 반영 이력·하네스 회고 백로그 |
 | [`product/`](product/README.md) | MVP 범위·용어 사전·클라이언트 전제 |
