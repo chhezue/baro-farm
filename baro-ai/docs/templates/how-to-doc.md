@@ -121,6 +121,10 @@ Async Processing · Database · Monitoring · Resilience · Security · API 중 
 - 도입 시 장단점 · 구현 난이도 · 우선순위
 - **Now**(지금 도입) / **Later**(트래픽 증가 시) / **Never**(도입 안 하는 게 좋음) 중 하나 + 이유
 
+## 📎 참고: Best Practice·유사 구현 사례 (`researcher` 조사 결과가 있을 때만)
+
+`researcher`가 조사한 업계 사례·유사 구현·Best Practice를 그대로 옮겨 적는다. **A/B 판정 근거가 아니다** — 위 각 항목의 "근거" 필드를 대체하지 않고, 사용자가 판단할 때 참고만 하는 자리다. 이번 라운드에서 `researcher`를 호출하지 않았으면 이 절 자체를 생략한다.
+
 ## 판단이 서지 않는 항목
 
 근거가 부족해 A/B/C/D 어디로도 분류하지 못한 것을 적는다. 추측으로 등급을 매기지 말고 여기에 남긴 뒤,

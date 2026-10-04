@@ -87,3 +87,5 @@ baro-ai는 레시피 추천·리뷰 요약에 LLM을 직접 호출한다 — 일
 - 응답 파싱 안정성 — JSON 스키마 고정 여부, 파싱 실패 시 처리(현재 `RecipeRecommendService`·`ReviewSummaryService` 모두 실패 시 빈 응답으로 조용히 축소)
 - 호출 실패 재시도 유무, 타임아웃 설정
 - 배치화 가능성 — 현재 개별 호출인 지점 중 묶어서 호출하면 비용이 줄어드는 곳이 있는지
+
+**이 항목이 이번 라운드 대상이면 Audit 단계에 `researcher`를 기본으로 포함한다** — Spring AI 공식 문서, 유사 LLM 연동 사례, 프롬프트 엔지니어링 Best Practice를 조사해 감사 문서에 "참고: Best Practice·유사 구현 사례" 절로 남긴다. **A/B 판정 근거는 아니다** — 근거는 여전히 코드로 확인한 사실·재현 가능한 관찰만 인정한다(`baro-ai-performance-refactor.md`).

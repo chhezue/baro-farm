@@ -95,7 +95,7 @@ Claude Code가 이 저장소에서 작업할 때 참조하는 **프로젝트 전
 | `core-workflow.md` | 진입(트랙 분류) · **3 트랙 × 4 게이트 사이클** · 구현 중 지킬 것 | **어떤 순서로 할 것** |
 | `core-workflow-git.md` | Git 브랜치·커밋 메시지·PR·이슈 컨벤션 — 2026-09-04 `core-workflow.md`에서 분리 | **Git 컨벤션** |
 | `core-scope.md` | priority(must/could) 단정 금지 · `[미정]` 문서 표기(중앙 트래커 없음) | 범위·우선순위 |
-| `baro-ai-performance-refactor.md` | **이 저장소 고유, 한시적** — 지금 진행 중인 이니셔티브(캐싱·프롬프트 튜닝·비동기 처리 등 근거 기반 성능 리팩토링)의 범위(search/recommend/embedding/event-log/chat, review 제외)와 근거 기준. 이니셔티브 종료 시 갱신·삭제 | **이 저장소 고유** — 다른 프로젝트로 옮길 때 가져가지 않음 |
+| `baro-ai-performance-refactor.md` | **이 저장소 고유, 한시적** — 지금 진행 중인 이니셔티브(캐싱·프롬프트 튜닝·비동기 처리 등 근거 기반 성능 리팩토링)의 범위(작업 단위 4개: 취향 벡터·장바구니 레시피·임베딩 유사도 검색·키워드 검색 + cross-cutting, review 제외)와 근거 기준. 이니셔티브 종료 시 갱신·삭제 | **이 저장소 고유** — 다른 프로젝트로 옮길 때 가져가지 않음 |
 | `core-followup.md` | 💡 후속 제안 · ✅ Defer 이슈 분리 · 💡 ERD 적극 제안 | 완료 후·범위 미루기 |
 | `core-tools.md` | **도구 우선순위**(Claude Code 기본 > OMC > Superpowers > 프로젝트 문서) · **트랙 × 게이트 → 도구** 매핑 | 워크플로 도구 연동·채택 판단 |
 | `core-reporting.md` | 사용자 보고(채팅·`refactor-log.md`·완료 요약)는 용어 풀어쓰기·비유 위주로 쉽게. **코드 `//` 주석은 대상 아님**(`spring-boot-java.md` Comments가 SSOT) | 사용자 대상 설명 vs 코드 주석 스타일 분리 |

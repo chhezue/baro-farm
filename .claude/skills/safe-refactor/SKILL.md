@@ -35,19 +35,21 @@ description: 기존 도메인 코드를 아키텍처 감사 후 비즈니스 로
 
 ## 도메인 (docs/specs/ 폴더·패키지와 1:1 대응)
 
-전체 매핑은 [`docs/specs/README.md`](../../../baro-ai/docs/specs/README.md)가 SSOT. 현재 이니셔티브의 범위·순서 제안은 [`baro-ai-performance-refactor.md`](../../rules/baro-ai-performance-refactor.md)를 따른다.
+**baro-ai의 도메인은 코드 패키지가 아니라 비즈니스 작업 단위 4개다** (2026-09-04 사용자 결정 — [`baro-ai-performance-refactor.md`](../../rules/baro-ai-performance-refactor.md) 범위 표가 SSOT). 단위 ↔ 클래스 매핑과 각 단위의 용어·흐름·규칙은 [`docs/specs/README.md`](../../../baro-ai/docs/specs/README.md)에 있다. `docs/audits/{unit}/`·`docs/specs/{unit}/` 폴더명도 아래 폴더명을 그대로 쓴다.
 
-| 도메인 | 대응 패키지 | 이 이니셔티브 대상 |
-|--------|-------------|---------------------|
-| `search` | `com.barofarm.ai.search` | ✅ |
-| `recommend` | `com.barofarm.ai.recommend` | ✅ |
-| `embedding` | `com.barofarm.ai.embedding` | ✅ |
-| `event-log` | `com.barofarm.ai.event`, `com.barofarm.ai.log` | ✅ |
-| `chat` | `com.barofarm.ai.chat` | ✅ (단 미구현 — 감사 대상 코드 없음) |
-| `cross-cutting` | `com.barofarm.ai.config` | ✅ (위 5개 도메인에 영향 있을 때만, review 전용 config 제외) |
-| `review` | `com.barofarm.ai.review` | ❌ 팀원 소유 — 코드 변경 안 함 |
+| 작업 단위 | 폴더명 | 이 이니셔티브 대상 |
+|-----------|--------|---------------------|
+| 취향 벡터 (행동 로그 → 프로필 벡터 → 개인화 추천) | `taste-vector` | ✅ |
+| 장바구니 레시피 (장바구니 → LLM 레시피 → 부족 재료 상품) | `cart-recipe` | ✅ |
+| 임베딩 유사도 검색 (상품 임베딩 → 벡터 검색 → 다양화 → 유사 상품) | `vector-similarity` | ✅ |
+| 키워드 검색 (상품 색인 경로 → 키워드 검색 → 자동완성) | `keyword-search` | ✅ |
+| 공유 인프라 (`com.barofarm.ai.config`, `build.gradle`, `application-*.yml`) | `cross-cutting` | ✅ (위 4개 단위에 영향 있을 때만, review 전용 config 제외) |
+| chat (`com.barofarm.ai.chat`) | `chat` | 보류 — 스텁만 존재, 감사 대상 코드 없음 |
+| review (`com.barofarm.ai.review`) | — | ❌ 팀원 소유 — 코드 변경 안 함 |
 
-**한 번에 한 도메인만 진행한다.** 여러 도메인을 동시에 감사·구현하지 않는다. 순서는 사용자가 지정하지 않으면 `baro-ai-performance-refactor.md`의 제안 순서(search → embedding → recommend → event-log → chat)로 제안하되, 확정은 사용자에게 묻는다.
+2026-09-04 이전 감사 문서는 옛 패키지 단위 폴더(`search/`·`recommend/`)에 남아 있다 — 이력이라 옮기지 않으며, 어느 단위에 속하는지는 [`docs/audits/README.md`](../../../baro-ai/docs/audits/README.md)의 대응표를 본다.
+
+**구현은 한 번에 한 단위만 진행한다.** 감사(1단계)는 사용자가 요청하면 여러 단위를 같은 시점에 진행할 수 있지만, 감사 문서는 단위별로 따로 쓰고 승인·구현·검증(2~5단계)은 단위별로 따로 돈다. 순서는 `baro-ai-performance-refactor.md`의 확정 순서를 따르되, 바꾸려면 사용자에게 묻는다.
 
 ## Steps
 
@@ -104,7 +106,7 @@ LLM의 "안 바꿨다"는 자기 보고를 신뢰하지 않고, 아래를 전부
 
 ## 금지
 
-- 여러 도메인 동시 감사·구현
+- 여러 단위의 **구현**을 동시에 진행 (감사는 사용자 요청 시 여러 단위 가능 — 위 "도메인" 절)
 - 승인 없는 A/B 항목 구현, 또는 감사(감사 문서 작성)와 같은 턴에 바로 구현 (승인 단계 생략)
 - **API·ErrorCode·엔드포인트를 감사 문서에 없던 항목으로 즉흥 변경** — baro-ai는 계약 변경 자체는 허용하지만, 그것도 A/B 항목으로 감사·승인을 거쳐야 한다. "고치다 보니 더 나아 보여서" 식 drive-by 계약 변경은 여전히 금지
 - 비즈니스 로직·정책을 "계약이 바뀌니까 김에" 같이 바꾸기 — 계약 변경과 로직 변경은 별개 승인 대상

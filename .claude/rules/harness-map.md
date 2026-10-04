@@ -27,7 +27,7 @@
 | 슬롯 | 이 프로젝트의 경로 | 쓰는 곳 |
 |------|-------------------|---------|
 | `{{문서 루트}}` | `baro-ai/docs/` — 하네스가 만드는 **모든** md 산출물의 중앙 저장소. 무엇이 어디에 어떤 유형으로 쌓이는지는 [`baro-ai/docs/templates/README.md`](../../baro-ai/docs/templates/README.md) 산출물 등록부가 SSOT | `doc-writing` · `templates/README.md` · 아래 모든 문서 슬롯의 상위 경로 |
-| `{{스펙 저장소}}` | `baro-ai/docs/specs/{domain}/` | `core-workflow` A 트랙 · `specify` 스킬 |
+| `{{스펙 저장소}}` | `baro-ai/docs/specs/{unit}/` — 폴더는 작업 단위 4개(`taste-vector`·`cart-recipe`·`vector-similarity`·`keyword-search`) + `cross-cutting`·`chat`. 매핑 SSOT: [`baro-ai/docs/specs/README.md`](../../baro-ai/docs/specs/README.md) | `core-workflow` A 트랙 · `specify` 스킬 |
 | `{{현재동작 요약}}` | (없음) — 필요해지면 `baro-ai/docs/how-it-works.md` 신설 | `core-guardrails` ⛔ §6 |
 | `{{우선순위 SSOT}}` | (없음) — baro-ai 전용 마일스톤 문서 없음 | `core-workflow` 진입 · `core-scope` |
 | `{{아키텍처 개요}}` | `baro-ai/docs/README.md`(아키텍처 설계 절) | `core-guardrails` ⛔ §1·§3 |
@@ -38,7 +38,7 @@
 | `{{클라이언트 전제}}` | `baro-ai/docs/product/platform.md` — 외부 클라이언트 없음, 내부 MSA(다른 모듈의 Feign/Kafka 호출)만 존재 | `core-workflow` 진입 · `specify` 스킬 |
 | `{{용어집}}` | `baro-ai/docs/product/glossary.md` | `core-scope` |
 | `{{결정 기록}}` | `baro-ai/docs/decisions/` | `core-guardrails` ⛔ §1 · `core-workflow` 진입 |
-| `{{감사 로그}}` | `baro-ai/docs/audits/` | `core-workflow` G4 · `safe-refactor` 스킬 |
+| `{{감사 로그}}` | `baro-ai/docs/audits/{unit}/` — 폴더는 스펙과 같은 작업 단위 이름. 옛 `search/`·`recommend/`는 이력 | `core-workflow` G4 · `safe-refactor` 스킬 |
 | `{{배포 SSOT}}` | (없음 — baro-ai 스코프 밖) 저장소 루트 `docs/BARO_DEPLOY_TEST_GUIDE.md`·`k8s/`에 배포 문서가 있으나 이 하네스 스코프(baro-ai) 밖 | `core-guardrails` ⛔ §1 |
 
 ## 명령 슬롯
