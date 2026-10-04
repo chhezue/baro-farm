@@ -9,7 +9,7 @@
 ## 이 프로젝트 특이사항 (2026-09-04)
 
 - **모노레포 하위 모듈, 하네스는 저장소 루트**: `baro-farm-be`는 5인이 같이 쓰는 Gradle 멀티 모듈 저장소이고, `.git`은 저장소 루트 하나뿐이다. `.claude/`는 처음엔 `baro-ai/.claude/`(서브트리)에 뒀었는데, Claude Code가 프로젝트 설정을 **세션이 시작된 작업 디렉터리 기준**으로만 로드해서 저장소 루트에서 세션을 열면 전혀 로드되지 않는 문제가 있었다(2026-09-04 실측 — 세션의 스킬·에이전트 목록에 이 하네스의 것이 하나도 안 뜸). 그래서 **저장소 루트로 이동**했다. 다만 규칙 본문·강제 대상은 여전히 **`baro-ai/`(+ 하네스 자체인 `.claude/`)로 제한** — 참조·조사는 자유롭게 다른 모듈까지 하되, 쓰기는 벗어나면 STOP & 확인한다(`core-guardrails.md` STOP §0, 결정론적 백스톱: `.claude/hooks/deny-out-of-scope-write.sh`). 다른 모듈(`baro-order`, `baro-payment` 등)에 이 하네스의 스택 특정 규칙(ErrorCode 패턴·테스트 명령 등)을 강제하지 않는다 — STOP §0 4번.
-- **`.github/CONTRIBUTING.md` 없음 — 하네스 안에서 해결했다.** 저장소 루트엔 `.github/`가 실제로 있지만(워크플로·이슈 템플릿·PR 템플릿) `CONTRIBUTING.md`는 없다. 루트는 5인 공용 영역이라 STOP §0에 걸려 하네스가 임의로 만들 수 없으므로, 브랜치명·커밋·PR 컨벤션은 [`core-workflow.md`](core-workflow.md) "Git 컨벤션" 절이 SSOT다 — 값은 이 저장소의 실제 커밋·브랜치 이력에서 실측해 채웠다(2026-09-04). 팀이 루트에 `CONTRIBUTING.md`를 만들기로 하면 그때 그 절을 옮기고 링크로 바꾼다.
+- **`.github/CONTRIBUTING.md` 없음 — 하네스 안에서 해결했다.** 저장소 루트엔 `.github/`가 실제로 있지만(워크플로·이슈 템플릿·PR 템플릿) `CONTRIBUTING.md`는 없다. 루트는 5인 공용 영역이라 STOP §0에 걸려 하네스가 임의로 만들 수 없으므로, 브랜치명·커밋·PR 컨벤션은 [`core-workflow-git.md`](core-workflow-git.md)가 SSOT다 — 값은 이 저장소의 실제 커밋·브랜치 이력에서 실측해 채웠다(2026-09-04). 팀이 루트에 `CONTRIBUTING.md`를 만들기로 하면 그때 그 절을 옮기고 링크로 바꾼다.
 - **`scripts/git-hooks` 미설치** — `install-git-hooks.sh`는 `.git/hooks`를 저장소 루트 기준으로 찾는데, 설치하면 이 저장소의 **모든** 커밋(다른 모듈 포함)에 훅이 걸린다. 5인 공용 저장소라 일단 설치를 보류했다 (2026-09-04 사용자 결정). 나중에 필요하면 재논의.
 
 ## 규칙

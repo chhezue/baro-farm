@@ -5,7 +5,7 @@
 작업을 **어떤 순서로** 진행하는지(트랙 1개 선택 → 게이트 4개 통과)는 `core-workflow.md`가 담당한다.
 
 **형제 규칙:** `core-guardrails.md` · `core-workflow.md` · `core-scope.md` · `core-followup.md` · `core-tools.md` · `harness-map.md`(슬롯)
-경로·명령·옵션은 `harness-map.md`가 SSOT · Git 브랜치·커밋·PR 규칙은 `core-workflow.md` "Git 컨벤션" 절
+경로·명령·옵션은 `harness-map.md`가 SSOT · Git 브랜치·커밋·PR 규칙은 `core-workflow-git.md`
 스택 팩(Java·Spring)을 쓰면: `spring-boot-java.md`
 
 ## ⛔ STOP (모든 규칙보다 우선)
@@ -88,5 +88,5 @@ SSOT: {{API 응답 규격}} · `spring-boot-java.md` ErrorCode·AOP 절
 | 축 | 하지 않는다 |
 |----|-------------|
 | **STOP** | §0 `baro-ai/`(+`.claude/`) 밖 쓰기 확인 없이 진행 · §1 문서 충돌 무시 · §2 ErrorCode 미갱신 · §3 마이그레이션 작성 · §4 교체 후 구 경로 방치 · §5(꺼짐, 해당 없음) · §6 `how-it-works.md` 미갱신 |
-| **게이트** | G1 리서치 없이 추측 구현·블로그 인용 · G2 확인 없이 이슈/브랜치/PR 생성 · G3 `doc-reviewer` 생략 · 이슈 번호 없는 브랜치명(`core-workflow.md` Git 컨벤션) |
+| **게이트** | G1 리서치 없이 추측 구현·블로그 인용 · G2 확인 없이 이슈/브랜치/PR 생성 · G3 `doc-reviewer` 생략 · 이슈 번호 없는 브랜치명(`core-workflow-git.md`) |
 | **환경** | `git push --force`(main/master) · `rm -rf` · 운영 DB 파괴 · `.env`·API 키 커밋 |

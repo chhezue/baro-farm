@@ -5,7 +5,7 @@ paths:
 
 # Java Comments
 
-레이어·Entity·SOLID/OOP/ACID는 [`spring-boot-java.md`](spring-boot-java.md), OpenAPI 어노테이션(`@Schema`·`@Operation` 등)은 [`openapi-conventions.md`](openapi-conventions.md) 참고 — 이 파일은 `//`·Javadoc 작성 스타일만 다룬다.
+레이어·Entity는 [`spring-boot-java.md`](spring-boot-java.md), SOLID/OOP/ACID는 [`spring-boot-java-design.md`](spring-boot-java-design.md), OpenAPI 어노테이션(`@Schema`·`@Operation` 등)은 [`openapi-conventions.md`](openapi-conventions.md)·[`openapi-conventions-operation.md`](openapi-conventions-operation.md) 참고 — 이 파일은 `//`·Javadoc 작성 스타일만 다룬다.
 
 **독자:** 신규 서버 개발자. `//`는 구현자 메모·이슈 트래커용 약어가 아니라 **이름만으로 안 드러나는 것**을 평문으로 남긴다.
 필드 의미는 `@Schema`, API 계약·요약은 `@Operation`·`@Parameter`가 SSOT.
@@ -133,6 +133,6 @@ public TripMembersResponse removeMember(...) {
 
 ## Javadoc (`/** */`)
 
-- **Controller 메서드:** `@Operation` `description`을 대체하는 용도로 Javadoc을 쓴다 — `openapi-conventions.md`의 **OpenAPI @Operation · JWT** 절 참고(`therapi-runtime-javadoc`이 Swagger로 읽어감).
+- **Controller 메서드:** `@Operation` `description`을 대체하는 용도로 Javadoc을 쓴다 — `openapi-conventions-operation.md`의 **OpenAPI @Operation · JWT** 절 참고(`therapi-runtime-javadoc`이 Swagger로 읽어감).
 - **Service/Support 등 나머지 레이어:** 역할·Why를 `//`로 쓰거나 Javadoc으로 써도 된다 — **자유롭게 선택한다**(한 메서드에 둘 다 쓸 필요는 없다). 어느 쪽을 쓰든 위 절들의 산문체 원칙(완전한 문장, 화살표·설명 없는 전문용어 금지)은 동일하게 적용된다. 다만 `@param`/`@return`처럼 시그니처가 이미 보여주는 걸 그대로 반복하는 형식 태그는 여전히 쓰지 않는다 — 이름·시그니처로 못 담는 내용을 자유 서술로 담는 게 핵심이다.
 - 어느 쪽이든 `#n`·`BR-*`만으로 쓰지 말 것.
