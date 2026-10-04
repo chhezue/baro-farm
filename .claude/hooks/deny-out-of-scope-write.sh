@@ -21,7 +21,12 @@ except Exception:
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 
 case "$file_path" in
-  /*) rel_path="${file_path#"$repo_root"/}" ;;
+  /*)
+    case "$file_path" in
+      "$repo_root"/*) rel_path="${file_path#"$repo_root"/}" ;;
+      *) exit 0 ;;  # 저장소 밖 절대경로(예: ~/.claude/plans/ 같은 Claude Code 세션 파일) — 이 하네스의 관심사 아님
+    esac
+    ;;
   *) rel_path="$file_path" ;;
 esac
 
