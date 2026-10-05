@@ -143,10 +143,10 @@ public class CartEventConsumer {
 public class UserProfileEmbeddingService {
 
     private static final int MIN_TOTAL_LOGS_FOR_EMBEDDING = 3;
-    private final EmbeddingModel embeddingModel;
     private final CartLogRepository cartLogRepository;
     private final OrderLogRepository orderLogRepository;
     private final SearchLogRepository searchLogRepository;
+    private final ProductSearchRepository productSearchRepository; // 상품 벡터를 읽는다
     private final UserProfileEmbeddingRepository userProfileEmbeddingRepository;
 
     public void updateUserProfileEmbedding(UUID userId) {
@@ -167,24 +167,26 @@ public class UserProfileEmbeddingService {
             return; // 임베딩 건너뜀
         }
 
-        // 3. 가중치 적용 텍스트 생성
-        String representativeText = buildRepresentativeText(searchLogs, cartLogs, orderLogs);
+        // 3. 로그마다 "어떤 상품을 얼마나 좋아하는지" 계산 (비중 0인 삭제·취소는 여기서 빠짐)
+        List<WeightedProduct> interests = ...;
 
-        // 4. 임베딩 벡터 생성
-        List<Double> vector = embedText(representativeText);
+        // 4. 상품 벡터를 한 번에 조회해 비중대로 섞고 길이를 1로 맞춤
+        Map<UUID, float[]> productVectors = loadProductVectors(...);
+        List<Double> profileVector = blendIntoProfileVector(interests, productVectors);
 
         // 5. Elasticsearch에 저장
         UserProfileEmbeddingDocument document = UserProfileEmbeddingDocument.builder()
             .userId(userId)
-            .userProfileVector(vector)
+            .userProfileVector(profileVector)
             .lastUpdatedAt(Instant.now())
+            .sourceProductIds(sourceProductIds)
             .build();
         userProfileEmbeddingRepository.save(document);
     }
 
-    private String buildRepresentativeText(...) {
-        // 수량 × 이벤트 타입 × 시간 가중치를 적용하여 텍스트 생성
-        // 예: "청송사과" × (이벤트:2 × 수량:3 × 시간:2.8) = 17번 반복
+    private double behaviorWeight(HistoryEventType eventType, Integer quantity, Instant occurredAt) {
+        // 이벤트 종류 × 수량(5까지) × 시간(7일마다 절반)
+        // 예: 담기 × 수량 3 × 1시간 전 = 2 × 3 × 2.99 = 17.93
     }
 }
 ```
@@ -395,28 +397,23 @@ public class PersonalizedRecommendService {
         }
 
         // 2. 이미 경험한 상품 ID 목록 가져오기
-        List<String> experiencedProductIds = profile.getSourceProductIds() != null
+        List<UUID> experiencedProductIds = profile.getSourceProductIds() != null
             ? profile.getSourceProductIds()
             : List.of();
 
         // 3. List<Double>을 float[]로 변환
         float[] userVector = convertToFloatArray(profile.getUserProfileVector());
 
-        // 4. Elasticsearch 벡터 유사도 검색
-        List<UUID> excludeProductIds = experiencedProductIds.stream()
-            .map(UUID::fromString)
-            .toList();
-
-        String preferredCategoryCode = profile.getPreferredCategoryCode();
+        // 4. Elasticsearch 벡터 유사도 검색 (카테고리 보너스 없음)
         int candidateSize = Math.min(topK * 3, 100);
 
         List<ProductDocument> candidates =
             vectorProductSearchService.findSimilarProductDocumentsByVector(
                 userVector,
                 candidateSize,
-                excludeProductIds,
-                preferredCategoryCode,
-                preferredCategoryCode != null ? 0.3 : null
+                experiencedProductIds,
+                null,
+                null
             );
 
         List<ProductDocument> medoids =

@@ -28,16 +28,16 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 용어 | 의미 | 코드/문서 근거 |
 |------|------|-----------------|
 | 행동 로그 | 검색어·장바구니 변경·주문 확정 1건을 ES에 저장한 문서 | `SearchLogDocument`·`CartLogDocument`·`OrderLogDocument` |
-| 대표 텍스트 | 행동 로그의 상품명·검색어를 가중치만큼 반복해 이어 붙인 문자열. 임베딩 입력. **2026-09-05 승인된 재설계에서 폐지 예정**(상품 벡터 가중 평균으로 대체 — `taste-vector` 스펙 "승인된 재설계") | `buildRepresentativeText` |
-| 프로필 벡터 (취향 벡터) | 대표 텍스트를 임베딩한 1536차원 벡터. 문서 ID는 userId | `UserProfileEmbeddingDocument.userProfileVector` |
-| 행동 가중치 | 행동 종류(주문 확정 > 장바구니 담기 > 검색, 취소·삭제는 0)에 따라 대표 텍스트 반복 횟수에 곱하는 계수. 2026-09-04 기준 장바구니 쪽은 저장값과 비교값의 문자열이 달라 의도와 다르게 전부 1로 동작한다(값·상세: [`taste-vector` 스펙](../specs/taste-vector/taste-vector-pipeline.md) 비즈니스 규칙) | `calculateCartEventWeight`, `calculateOrderEventWeight` |
-| 수량 가중치 | 이벤트의 `quantity`를 그대로 곱하는 계수(최소 1). 이벤트마다 `quantity` 의미가 다르다(ADD 증분·UPDATE 새 총량·REMOVE 전량) | `expandCartProductWithFullWeight` |
-| 시간 가중치 | 최근 로그일수록 크게 반영하는 지수 감쇠 계수. 상·하한이 있다(식과 값: `taste-vector` 스펙 비즈니스 규칙) | `calculateTimeWeight` |
-| 반복 횟수 | 행동·수량·시간 가중치의 곱을 반올림한 값만큼 상품명·검색어를 대표 텍스트에 반복한다. 상한이 없고 최소 1회다(식: `taste-vector` 스펙 비즈니스 규칙) | `Stream.generate(...).limit(...)` |
+| 상위 결과 상품 (topProductIds) | 검색 1건에서 상위에 나온 상품 ID 최대 3개. 검색어 문자열 대신 이 상품들의 벡터로 취향을 읽는다 | `SearchLogDocument.topProductIds` |
+| 프로필 벡터 (취향 벡터) | 행동 로그에 등장한 상품들의 벡터를 행동 비중대로 섞어 길이를 1로 맞춘 1536차원 벡터. 문서 ID는 userId. 외부 임베딩 API를 부르지 않는다 | `UserProfileEmbeddingDocument.userProfileVector` |
+| 행동 비중 | 로그 1건이 취향에 기여하는 정도. `행동 종류 × 수량 × 경과 시간`(값: [`taste-vector` 스펙](../specs/taste-vector/taste-vector-pipeline.md) 비즈니스 규칙) | `behaviorWeight` |
+| 행동 가중치 | 행동 종류별 계수. 주문 확정 > 장바구니 담기 > 수량 변경·검색 순이고, 취소·삭제는 0이라 취향에 전혀 반영되지 않는다 | `calculateEventWeight` |
+| 수량 가중치 | 이벤트의 `quantity`를 곱하되 5까지만 반영한다. 상한이 없으면 수량이 큰 로그 하나가 가중 평균을 거의 혼자 결정한다 | `quantityWeight` |
+| 시간 가중치 | 최근 로그일수록 크게 반영하는 지수 감쇠 계수. 7일마다 절반이 되고 상·하한이 있다(식: `taste-vector` 스펙 비즈니스 규칙) | `calculateTimeWeight` |
+| 가중 평균 · L2 정규화 | 상품 벡터를 비중대로 더한 뒤 길이를 1로 맞추는 것. 길이를 맞춰야 상품 벡터와 코사인 유사도로 비교할 수 있다 | `blendIntoProfileVector` |
 | 갱신 스킵 게이트 | 조회 기간 안의 로그가 최소 개수에 못 미치면 프로필을 만들지 않는 조건(값: `taste-vector` 스펙 비즈니스 규칙) | `MIN_TOTAL_LOGS_FOR_EMBEDDING` |
-| 경험 상품 (Source Product IDs) | 프로필 계산에 쓰인 장바구니·주문 로그의 상품 ID. 개인화 추천에서 제외 | `sourceProductIds` |
-| 선호 카테고리 코드 | 장바구니·주문 로그를 가중치로 합산해 가장 큰 카테고리 1개. **2026-09-05 삭제 결정**(`taste-vector` 스펙 "승인된 재설계") | `calculatePreferredCategoryCode` |
-| 프로필 갱신 트리거 | 검색 1회·장바구니 이벤트 1건·주문 이벤트 1건마다 재계산. 검색 경로만 실제 비동기 | `updateUserProfileAsync` |
+| 경험 상품 (Source Product IDs) | 비중이 0이 아닌 장바구니·주문 로그의 상품 ID. 개인화 추천에서 제외한다. 삭제·취소한 상품은 여기 들어가지 않아 다시 추천될 수 있다 | `sourceProductIds` |
+| 프로필 갱신 트리거 | 검색 1회·장바구니 이벤트 1건·주문 이벤트 1건마다 재계산. 세 경로 모두 전용 빈을 거쳐 실제로 비동기다 | `UserProfileRefreshTrigger` |
 | 주문 확정 시점 | `baro-order`가 `inventory-confirmed`를 받아 `AWAITING_PAYMENT → CONFIRMED`로 바꾸는 순간. `ORDER_CONFIRMED` 이벤트는 여기서만 발행 | `InventoryConfirmedConsumer` |
 | 게스트 장바구니 | `X-Session-Key`만 있는 장바구니. userId가 없어 Kafka 이벤트가 발행되지 않는다 | `HistoryLogWriter.sendToKafka` |
 

@@ -95,11 +95,9 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 - `userId`: `@Id`
 - `userProfileVector`: `dense_vector`, `dims=1536` (타입은 `List<Double>`)
 - `lastUpdatedAt`: `date`
-- `sourceSearchLogIds`: `keyword[]` (최대 5개 의도)
-- `sourceCartLogIds`: `keyword[]` (최대 5개 의도)
-- `sourceOrderLogIds`: `keyword[]` (최대 5개 의도)
-- `sourceProductIds`: `keyword[]` (cart/order 기반, 중복 제거)
-- `preferredCategoryCode`: `keyword`
+- `sourceProductIds`: `keyword[]` — 비중이 0이 아닌 cart/order 로그의 productId(중복 제거). 추천에서 제외할 상품 목록
+
+벡터는 상품 벡터들을 가중 평균한 뒤 L2 정규화한 값이라 길이가 항상 1이다. `product` 인덱스의 `vector`와 차원이 반드시 같아야 한다.
 
 ---
 
@@ -158,7 +156,8 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 `X-User-Id` + 검색어가 있으면:
 
 - 검색 로그 저장
-- 사용자 프로필 임베딩 비동기 갱신 (`updateUserProfileAsync`)
+- 상위 결과 상품 ID 최대 3개를 로그에 함께 저장
+- 사용자 프로필 벡터 비동기 갱신 (`UserProfileRefreshTrigger.refresh`)
 
 검색 실패와 로그 저장 실패를 분리해, 로그 처리 오류가 검색 결과를 깨지 않도록 설계되어 있다.
 
@@ -232,7 +231,7 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 - 개인화 추천: `PersonalizedRecommendService`
   - 사용자 프로필 벡터로 후보 검색
   - 이미 경험한 상품(`sourceProductIds`) 제외
-  - 선호 카테고리 보너스 적용
+  - 카테고리 보너스는 주지 않는다(2026-09-05 재설계 — 유사상품 경로만 유지)
   - 메도이드 다양성 적용
 
 ---
@@ -274,16 +273,16 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 
 ## 8) 사용자 프로필 임베딩 파이프라인 (개인화 추천 보조)
 
-검색 API 호출 후 조건 충족 시 `updateUserProfileAsync(userId)` 실행:
+검색·장바구니·주문 세 경로가 모두 `UserProfileRefreshTrigger.refresh(userId)`를 거쳐 백그라운드로 실행한다:
 
 1. 최근 30일 로그 수집 (search/cart/order, 각 최대 5개)
 2. 로그 수가 최소치(총 3개) 미만이면 스킵
-3. 가중치(이벤트 타입/수량/시간 감쇠) 반영 대표 텍스트 생성
-4. Gemini 임베딩 생성
-5. 선호 카테고리 코드 계산
+3. 로그마다 비중 계산(이벤트 종류 × 수량 × 시간 감쇠). 비중 0(삭제·취소)인 로그는 여기서 빠진다
+4. 로그의 상품 벡터를 `product` 인덱스에서 일괄 조회 (검색 로그는 저장해 둔 `topProductIds` 사용)
+5. 비중대로 더한 뒤 L2 정규화
 6. `user_profile_embeddings` 저장
 
-이 벡터는 개인화 추천 검색 시 query vector로 사용된다.
+이 벡터는 개인화 추천 검색 시 query vector로 사용된다. **외부 임베딩 API를 부르지 않는다** — 상품이 색인 시점에 이미 만들어 둔 벡터를 재사용하므로 갱신 1회의 비용은 ES 조회뿐이다(2026-09-05 재설계, 근거: `docs/audits/taste-vector/001-profile-refresh-path.md`).
 
 ---
 
