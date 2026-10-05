@@ -23,48 +23,56 @@ import org.springframework.util.backoff.FixedBackOff;
 
 /**
  * [Kafka Consumer 설정]
- * ProductEvent, CartEvent, OrderEvent를 각각 처리하기 위한 별도의 ConsumerFactory 설정
- * 실패 메시지 보관 토픽(DLQ)은 두지 않는다. 재처리 절차와 보존할 운영 데이터가 아직 없어서
- * 짧은 재시도 뒤 로그로 남기고 건너뛴다. 근거: docs/audits/search/001-index-path.md D-1
+ * 도메인별 이벤트(ProductEvent, CartLogEvent, OrderLogEvent, ReviewEvent)를 개별적으로
+ * 처리하기 위한 ConsumerFactory 및 ConcurrentKafkaListenerContainerFactory 설정 클래스.
+ *
+ * 각 도메인의 처리 특성(처리 소요 시간, 오프셋 격리 필요성 등)에 맞춰 poll 레코드 수와
+ * 컨슈머 그룹 ID, 재시도 정책을 독립적으로 분리 구성합니다.
  */
 @Configuration
 @EnableKafka
 public class KafkaConsumerConfig {
 
+    /** Kafka 클러스터 접속 주소 */
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
+    /** 기본 컨슈머 그룹 ID */
     @Value("${spring.kafka.consumer.group-id}")
     private String groupId;
 
-    // === Product Event Consumer (기존) ===
+    // === Product Event Consumer 설정 상수 ===
 
-    // 상품 1건 색인에 원격 호출이 2번(임베딩·재료명) 있고 각각 30초 상한이라 최악 60초가 걸린다.
-    // 재시도까지 합치면 한 건이 3분 가까이 붙잡힐 수 있어, 한 번의 poll에 여러 건을 받으면
-    // Kafka 기본 처리 제한(5분)을 넘겨 컨슈머가 그룹에서 쫓겨나고 같은 묶음을 다시 받는 반복에 빠진다.
-    // 한 번에 1건만 받으면 최악의 경우에도 그 제한 안에 든다. 근거: docs/audits/search/001-index-path.md A-1
+    /**
+     * 상품 이벤트 한 번의 poll()에서 가져올 최대 레코드 수 (1건).
+     * 상품 색인 과정에서 외부 API 호출(임베딩 생성, LLM 재료명 정규화)이 포함되어 건당 처리 시간이 길어질 수 있으므로,
+     * 단일 건씩 소비하여 max.poll.interval.ms 초과로 인한 컨슈머 리밸런싱을 방지합니다.
+     */
     private static final int PRODUCT_MAX_POLL_RECORDS = 1;
 
-    // 색인 실패는 대부분 ES·Gemini의 일시 장애라 잠깐 뒤 다시 하면 된다. 1초 간격으로 2번 더 시도한 뒤
-    // 그래도 안 되면 로그를 남기고 건너뛴다. 값이 크면 잘못된 레코드 1건이 컨슈머를 그만큼 붙잡는다.
-    private static final long PRODUCT_RETRY_INTERVAL_MS = 1_000L;
-    private static final long PRODUCT_RETRY_MAX_ATTEMPTS = 2L;
+    /** 처리 실패 시 재시도 대기 간격 (1초) */
+    private static final long RETRY_INTERVAL_MS = 1_000L;
 
+    /** 최대 재시도 횟수 (총 2회 재시도 후 건너뜀) */
+    private static final long RETRY_MAX_ATTEMPTS = 2L;
+
+    /**
+     * 상품 이벤트(ProductEvent) 수신용 ConsumerFactory 빈을 등록합니다.
+     */
     @Bean
     public ConsumerFactory<String, ProductEvent> productEventConsumerFactory() {
         Map<String, Object> config = new HashMap<>();
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+        // 상품 색인 시 외부 모델(임베딩, LLM) 호출 지연으로 인한 max.poll.interval.ms 초과 및 리밸런싱 방지를 위해 1건 제한
         config.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, PRODUCT_MAX_POLL_RECORDS);
 
-        // MSA 환경: 메시지에 포함된 타입 정보를 무시하고 직접 지정한 타입으로 역직렬화
+        // MSA 환경: 메시지 발행 모듈의 클래스 패키지 종속을 제거하기 위해 타입 헤더를 무시하고 ProductEvent로 매핑
         JsonDeserializer<ProductEvent> jsonDeserializer = new JsonDeserializer<>(ProductEvent.class);
-        jsonDeserializer.setRemoveTypeHeaders(true);  // 타입 헤더 제거 (다른 모듈의 클래스 정보 무시)
-        jsonDeserializer.setUseTypeHeaders(false);     // 타입 헤더 사용 안 함
+        jsonDeserializer.setRemoveTypeHeaders(true);
+        jsonDeserializer.setUseTypeHeaders(false);
 
-        // buyer 모듈의 ProductEvent 클래스를 신뢰된 패키지에 추가 (메시지 본문의 @class 필드 처리용)
-        // 와일드카드(*)가 작동하지 않을 수 있으므로 명시적으로 패키지 추가
         jsonDeserializer.addTrustedPackages(
             "*",
             "com.barofarm.shopping.product.event",
@@ -72,95 +80,130 @@ public class KafkaConsumerConfig {
             "com.barofarm"
         );
 
-        // ErrorHandlingDeserializer로 감싸서 역직렬화 실패 시 에러를 무시하고 계속 진행
-        // (오래된 메시지의 타입 정보로 인한 ClassNotFoundException 무시)
+        // 역직렬화 실패 시 파티션 정지(Poison Pill)를 방지하기 위해 null을 반환하여 스킵 처리
         ErrorHandlingDeserializer<ProductEvent> deserializer = new ErrorHandlingDeserializer<>(jsonDeserializer);
-        deserializer.setFailedDeserializationFunction(record -> null);  // 실패 시 null 반환하여 건너뛰기
+        deserializer.setFailedDeserializationFunction(record -> null);
 
         return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
     }
 
+    /**
+     * 상품 이벤트 리스너 컨테이너 팩토리를 등록합니다.
+     */
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, ProductEvent> productEventListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, ProductEvent> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(productEventConsumerFactory());
 
-        // 색인 중 예외가 나면 같은 레코드를 잠깐 뒤 다시 처리하고, 횟수를 다 쓰면 건너뛴다.
-        // 역직렬화 실패는 위 팩토리가 null로 바꿔 넘기므로 여기까지 오지 않는다.
+        // 색인 또는 외부 호출 실패 시 1초 간격으로 최대 2회 추가 재시도(FixedBackOff) 적용
         CommonErrorHandler errorHandler = new DefaultErrorHandler(
-            new FixedBackOff(PRODUCT_RETRY_INTERVAL_MS, PRODUCT_RETRY_MAX_ATTEMPTS)
+            new FixedBackOff(RETRY_INTERVAL_MS, RETRY_MAX_ATTEMPTS)
         );
         factory.setCommonErrorHandler(errorHandler);
 
         return factory;
     }
 
-    // === 개인화 추천을 위한 이벤트 Consumer들 ===
+    // === 개인화 추천 로그 수집 Consumer 설정 (장바구니, 주문, 리뷰) ===
 
+    /**
+     * 장바구니 행동 로그 이벤트(CartLogEvent) 수신용 ConsumerFactory 빈을 등록합니다.
+     */
     @Bean
     public ConsumerFactory<String, CartLogEvent> cartEventConsumerFactory() {
         Map<String, Object> config = new HashMap<>();
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId + "-cart"); // 별도 그룹으로 분리
-        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); // 개인화 데이터는 처음부터 수집
+        // 장바구니 전용 독립 컨슈머 그룹으로 분리하여 오프셋 격리
+        config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId + "-cart");
+        // 개인화 데이터 누적 수집을 위해 최초 시작 시 처음부터 수집
+        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
-        // MSA 환경: 메시지에 포함된 타입 정보를 무시하고 직접 지정한 타입으로 역직렬화
-        JsonDeserializer<CartLogEvent> deserializer = new JsonDeserializer<>(CartLogEvent.class);
-        deserializer.setRemoveTypeHeaders(true);  // 타입 헤더 제거
-        deserializer.setUseTypeHeaders(false);     // 타입 헤더 사용 안 함
-        deserializer.addTrustedPackages("*");
+        JsonDeserializer<CartLogEvent> jsonDeserializer = new JsonDeserializer<>(CartLogEvent.class);
+        jsonDeserializer.setRemoveTypeHeaders(true);
+        jsonDeserializer.setUseTypeHeaders(false);
+        jsonDeserializer.addTrustedPackages("*");
 
-        return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
+        // 역직렬화 에러 발생 시 파티션이 멈추지 않고 에러 핸들러로 위임되도록 래핑
+        return new DefaultKafkaConsumerFactory<>(
+            config, new StringDeserializer(), new ErrorHandlingDeserializer<>(jsonDeserializer));
     }
 
+    /**
+     * 장바구니 이벤트 리스너 컨테이너 팩토리를 등록합니다.
+     */
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, CartLogEvent> cartEventListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, CartLogEvent> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(cartEventConsumerFactory());
+
+        // 일시적 장애 시 1초 간격 최대 2회 재시도 적용
+        factory.setCommonErrorHandler(
+            new DefaultErrorHandler(new FixedBackOff(RETRY_INTERVAL_MS, RETRY_MAX_ATTEMPTS)));
+
         return factory;
     }
 
+    /**
+     * 주문 행동 로그 이벤트(OrderLogEvent) 수신용 ConsumerFactory 빈을 등록합니다.
+     */
     @Bean
     public ConsumerFactory<String, OrderLogEvent> orderEventConsumerFactory() {
         Map<String, Object> config = new HashMap<>();
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId + "-order"); // 별도 그룹으로 분리
-        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); // 개인화 데이터는 처음부터 수집
+        // 주문 전용 독립 컨슈머 그룹으로 분리하여 오프셋 격리
+        config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId + "-order");
+        // 과거 주문 이력 누락 없이 수집
+        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
-        // MSA 환경: 메시지에 포함된 타입 정보를 무시하고 직접 지정한 타입으로 역직렬화
-        JsonDeserializer<OrderLogEvent> deserializer = new JsonDeserializer<>(OrderLogEvent.class);
-        deserializer.setRemoveTypeHeaders(true);  // 타입 헤더 제거
-        deserializer.setUseTypeHeaders(false);     // 타입 헤더 사용 안 함
-        deserializer.addTrustedPackages("*");
+        JsonDeserializer<OrderLogEvent> jsonDeserializer = new JsonDeserializer<>(OrderLogEvent.class);
+        jsonDeserializer.setRemoveTypeHeaders(true);
+        jsonDeserializer.setUseTypeHeaders(false);
+        jsonDeserializer.addTrustedPackages("*");
 
-        return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
+        // 역직렬화 실패 메시지로 인한 파티션 정지 방지
+        return new DefaultKafkaConsumerFactory<>(
+            config, new StringDeserializer(), new ErrorHandlingDeserializer<>(jsonDeserializer));
     }
 
+    /**
+     * 주문 이벤트 리스너 컨테이너 팩토리를 등록합니다.
+     */
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, OrderLogEvent> orderEventListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, OrderLogEvent> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(orderEventConsumerFactory());
+
+        // 1초 간격 최대 2회 재시도 정책 적용
+        factory.setCommonErrorHandler(
+            new DefaultErrorHandler(new FixedBackOff(RETRY_INTERVAL_MS, RETRY_MAX_ATTEMPTS)));
+
         return factory;
     }
 
+    /**
+     * 리뷰 이벤트(ReviewEvent) 수신용 ConsumerFactory 빈을 등록합니다.
+     */
     @Bean
     public ConsumerFactory<String, ReviewEvent> reviewEventConsumerFactory() {
         Map<String, Object> config = new HashMap<>();
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId + "-review"); // 별도 그룹으로 분리
-        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); // 개인화 데이터는 처음부터 수집
+        config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId + "-review");
+        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
         JsonDeserializer<ReviewEvent> deserializer = new JsonDeserializer<>(ReviewEvent.class);
-        deserializer.setRemoveTypeHeaders(true);  // 타입 헤더 제거 (다른 모듈의 클래스 정보 무시)
-        deserializer.setUseTypeHeaders(false);     // 타입 헤더 사용 안 함
+        deserializer.setRemoveTypeHeaders(true);
+        deserializer.setUseTypeHeaders(false);
         deserializer.addTrustedPackages("*");
 
         return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
     }
 
+    /**
+     * 리뷰 이벤트 리스너 컨테이너 팩토리.
+     */
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, ReviewEvent> reviewEventListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, ReviewEvent> factory =
