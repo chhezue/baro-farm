@@ -11,10 +11,13 @@ import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 
 /**
- * Elasticsearch 'user_profile_embeddings' 인덱스에 매핑되는 사용자 취향 프로필 문서 엔티티.
+ * Elasticsearch 사용자 취향 프로필 인덱스(`user_profile_embeddings`)에 매핑되는 문서 엔티티입니다.
  *
- * 사용자의 최근 행동 로그를 기반으로 산출된 1536차원 취향 임베딩 벡터와,
- * 추천 시 기경험 상품을 배제하기 위한 메타데이터(sourceProductIds)를 보관합니다.
+ * [주요 보관 데이터]
+ * - userId: 사용자 고유 식별자 (문서 @Id)
+ * - userProfileVector: 사용자의 최근 30일간 행동 로그(장바구니/주문/검색)를 종합하여 산출된 1536차원 L2 정규화 취향 벡터
+ * - lastUpdatedAt: 프로필 벡터가 마지막으로 계산·저장된 시각
+ * - sourceProductIds: 취향 벡터 산출 시 반영된 기경험(장바구니/주문) 상품 ID 목록 (개인화 추천 시 제외 필터로 사용)
  */
 @Getter
 @Builder
@@ -27,19 +30,19 @@ public class UserProfileEmbeddingDocument {
 
     /**
      * 1536차원 사용자 취향 임베딩 벡터.
-     * 상품 임베딩 모델(Gemini)과 동일한 차원 규격을 유지하며,
-     * 개인화 추천 시 상품 벡터와의 코사인 유사도 검색 기준으로 활용됩니다.
+     * 상품 임베딩 모델(Gemini)과 동일한 1536차원 규격을 가지며,
+     * 개인화 상품 추천 시 상품 벡터들과의 코사인 유사도(Cosine Similarity) 비교 기준으로 활용됩니다.
      */
     @Field(type = FieldType.Dense_Vector, dims = 1536)
-    private List<Double> userProfileVector;
+    private float[] userProfileVector;
 
-    /** 프로필 벡터 최종 계산 및 갱신 일시 */
+    /** 프로필 벡터가 최종 계산되어 갱신된 일시 */
     @Field(type = FieldType.Date)
     private Instant lastUpdatedAt;
 
     /**
-     * 취향 벡터 산출 시 반영된 기경험(장바구니 담기, 주문 확정) 상품 ID 목록.
-     * 개인화 상품 추천 시 이미 구매했거나 담은 상품을 추천 후보에서 배제하기 위한 필터로 사용됩니다.
+     * 취향 벡터 산출에 기여한 기경험(장바구니 담기, 주문 확정) 상품 ID 목록.
+     * 개인화 추천 시 사용자가 이미 경험한 상품을 추천 목록에서 중복 노출하지 않기 위한 제외 필터(`mustNot ids`)로 사용됩니다.
      */
     @Field(type = FieldType.Keyword)
     private List<UUID> sourceProductIds;

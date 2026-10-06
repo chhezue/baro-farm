@@ -12,7 +12,6 @@ import com.barofarm.ai.search.infrastructure.elasticsearch.ProductSearchReposito
 import com.barofarm.log.history.model.HistoryEventType;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -139,7 +138,7 @@ public class UserProfileEmbeddingService {
 
         // [5단계: 벡터 가중 평균 합산 및 L2 정규화 (단위 벡터 변환)]
         // 각 상품 벡터에 관심도 가중치를 곱해 누적 합산한 뒤, 전체 유클리드 길이(L2 Norm)로 나누어 길이가 1인 단위 벡터를 생성합니다.
-        List<Double> profileVector = blendIntoProfileVector(interests, productVectors);
+        float[] profileVector = blendIntoProfileVector(interests, productVectors);
         if (profileVector == null) {
             log.info("사용자 ID {}의 로그에 등장한 상품 중 벡터를 가진 것이 없어 프로필을 저장하지 않습니다.", userId);
             return;
@@ -263,15 +262,16 @@ public class UserProfileEmbeddingService {
     }
 
     /**
-     * 여러 상품 벡터를 각 가중치에 비례하여 합산하고 단위 벡터(길이 1)로 L2 정규화합니다.
+     * 여러 상품의 임베딩 벡터를 각 가중치에 비례하여 누적 합산하고 단위 벡터(길이 1)로 L2 정규화합니다.
+     * 누적 과정의 부동소수점 오차를 최소화하기 위해 double 정밀도로 합산한 후 최종 float[]으로 반환합니다.
      */
-    private List<Double> blendIntoProfileVector(
+    private float[] blendIntoProfileVector(
         List<WeightedProduct> interests,
         Map<UUID, float[]> productVectors
     ) {
         double[] blended = null;
 
-        // 1. 각 관심 상품의 1536차원 벡터에 가중치를 곱해 blended 배열에 차원별로 누적 합산합니다.
+        // [1단계: 각 관심 상품 벡터의 가중치 비례 차원별 누적 합산]
         for (WeightedProduct interest : interests) {
             float[] vector = productVectors.get(interest.productId());
             if (vector == null) {
@@ -295,22 +295,23 @@ public class UserProfileEmbeddingService {
             return null;
         }
 
-        // 2. 누적된 벡터의 유클리드 노름(L2 Norm = sqrt(sum(x_i^2)))을 계산합니다.
+        // [2단계: 누적 벡터의 유클리드 노름(L2 Norm = sqrt(sum(x_i^2))) 계산 및 유효성 검증]
         double length = 0.0;
         for (double value : blended) {
             length += value * value;
         }
         length = Math.sqrt(length);
 
-        // 벡터 길이가 임계값(MIN_VECTOR_LENGTH) 미만인 경우(상쇄되어 방향이 소실된 경우) null 반환
+        // 벡터 길이가 임계값(MIN_VECTOR_LENGTH) 미만인 경우(상쇄되어 방향이 소실된 영벡터) null 반환
         if (length < MIN_VECTOR_LENGTH) {
             return null;
         }
 
-        // 3. 각 차원 요소를 전체 길이로 나누어 코사인 유사도 검색용 단위 벡터(길이 1)로 정규화합니다.
-        List<Double> normalized = new ArrayList<>(blended.length);
-        for (double value : blended) {
-            normalized.add(value / length);
+        // [3단계: 단위 벡터(길이 1.0)로 L2 정규화]
+        // 각 차원을 전체 길이로 나누어 크기를 1로 통일함으로써 후속 코사인 유사도 검색에서 공정한 비교가 가능하게 합니다.
+        float[] normalized = new float[blended.length];
+        for (int i = 0; i < blended.length; i++) {
+            normalized[i] = (float) (blended[i] / length);
         }
         return normalized;
     }
