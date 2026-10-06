@@ -47,8 +47,8 @@
 | 경로 | 용도 |
 |------|------|
 | `src/main/java/com/barofarm/ai/` | 애플리케이션·도메인 코드 |
-| `src/main/resources/` | `application.yml`(포트 8092), 카테고리별 설정(`recipe-recommend.yml` 등) |
-| `src/test/` | 현재 `application-test.yml`만 존재, 테스트 클래스 없음 |
+| `src/main/resources/` | `application.yml` 하나(포트 8092) — 프로필별 파일 없음. 카테고리별 설정(`recipe-recommend.yml` 등)은 여기서 import |
+| `src/test/` | 비어 있음 — 테스트 클래스 0개(쓰이지 않던 `application-test.yml`은 2026-09-05 삭제) |
 | [`.claude/rules/harness-map.md`](../.claude/rules/harness-map.md) | **슬롯 SSOT** — 규칙이 부르는 역할 → 실제 경로 |
 | [`docs/README.md`](docs/README.md) | **문서 SSOT** — 기능·아키텍처 개요 |
 | [`.claude/rules/README.md`](../.claude/rules/README.md) | 규칙·스킬·훅 구조 |

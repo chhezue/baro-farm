@@ -6,11 +6,11 @@
 
 ## 목표
 
-[미정] — `ChatbotController`/`ChatService`가 클래스로만 존재하고 실제 목적(범용 Q&A, 레시피 상담, 고객 지원 등)이 아직 정해지지 않았다.
+[미정] — 실제 목적(범용 Q&A, 레시피 상담, 고객 지원 등)이 아직 정해지지 않았다. 자리만 잡고 있던 빈 클래스 4개는 2026-09-05에 지웠고, 이 문서가 백로그 기록을 대신한다.
 
 ## 배경
 
-- 코드: [`ChatbotController.java`](../../../src/main/java/com/barofarm/ai/chat/presentation/ChatbotController.java)(엔드포인트 0개), [`ChatService.java`](../../../src/main/java/com/barofarm/ai/chat/application/ChatService.java)(로직 0줄) — 둘 다 "구현 예정" 주석만 있음
+- 코드: **없다.** 엔드포인트 0개·로직 0줄이던 스텁 4개(`ChatbotController`·`ChatService`·`ChatRequest`·`ChatResponse`)를 2026-09-05에 삭제했다 — 빈 컨트롤러가 Swagger에 경로 접두사만 만들고 있었다. 목적이 정해지면 이 문서를 근거로 새로 만든다
 - 참고할 수 있는 기존 LLM 연동 사례: `review.application.summary.ReviewSummaryService`(`ChatClient` 사용), `recommend.infrastructure.llm.RecipeCandidateGenerator`
 
 ## 요구사항

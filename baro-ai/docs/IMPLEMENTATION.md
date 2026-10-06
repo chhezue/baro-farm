@@ -47,7 +47,7 @@ dependencies {
 ### 환경 설정
 
 ```yaml
-# application-prod.yml 기준 (로컬은 env 값으로 오버라이드)
+# application.yml (프로필별 파일 없음 — 환경 차이는 전부 환경변수)
 server:
   port: ${SERVER_PORT:8092}
 
@@ -85,11 +85,14 @@ spring:
 # 1. 인프라 서비스 실행
 docker-compose -f docker-compose.data.yml up -d
 
-# 1.1. (필수) 프로필/환경변수 설정
-export SPRING_PROFILES_ACTIVE=prod
+# 1.1. (필수) 환경변수 설정
+# 프로필을 지정할 필요가 없다 — 설정 파일이 application.yml 하나다(2026-09-05).
+# Config Server도 쓰지 않으므로 SPRING_CLOUD_CONFIG_* 를 따로 끌 필요가 없다.
 export BARO_AI_GEMINI_KEY="YOUR_GEMINI_API_KEY"
 export ELASTICSEARCH_URIS="http://localhost:9200"
 export KAFKA_BOOTSTRAP_SERVERS="localhost:9092"
+# baro-shopping을 함께 띄웠다면 (레시피 추천 확인용)
+export SHOPPING_SERVICE_URL="http://localhost:8082"
 
 # 2. 애플리케이션 빌드 및 실행
 ./gradlew build
@@ -225,6 +228,7 @@ public class ProductIndexService {
     private final ProductSearchRepository repository;
     private final ProductAutocompleteRepository autocompleteRepository;
     private final ProductEmbeddingService productEmbeddingService;
+    private final ProductIngredientNormalizer ingredientNormalizer;
 
     public ProductDocument indexProduct(ProductIndexRequest request) {
         float[] vector = null;
@@ -237,13 +241,23 @@ public class ProductIndexService {
             log.error("❌ Product embedding failed. productId=" + request.productId(), e);
         }
 
+        // 레시피 추천이 읽을 표준 재료명을 색인 시점에 1회 추출
+        String ingredientName =
+            ingredientNormalizer.normalize(request.productName(), request.productCategoryName());
+
+        // 정렬 2순위인 updatedAt은 "상품이 바뀐 시각"이어야 하므로 이벤트 값을 그대로 쓴다
+        Instant updatedAt = request.updatedAt() != null ? request.updatedAt() : Instant.now();
+
         ProductDocument doc = new ProductDocument(
             request.productId(),
             request.productName(),
-            request.productCategory(),
+            request.productCategoryId(),
+            request.productCategoryCode(),
+            request.productCategoryName(),
             request.price(),
             request.status(),
-            Instant.now(),
+            updatedAt,
+            ingredientName,
             vector
         );
 
@@ -280,11 +294,12 @@ public class RecipeRecommendService {
         List<String> ownedNames = loadOwnedIngredientNames(eligibleItems, userIdentifier);
 
         // 3. 레시피 후보 생성 — 요청 경로에 남은 유일한 LLM 호출
+        //    후보 중 무엇을 쓸지는 서버가 점수로 다시 고르지 않고 LLM이 낸 순서를 존중한다
         RecipeCandidates candidates = recipeCandidateGenerator.generateRecipeCandidates(ownedNames);
-        CandidateRecipePlan plan = candidates.chooseBest(ownedNames).orElseThrow(...);
+        CandidateRecipePlan plan = candidates.chooseFirst().orElseThrow(...);
 
-        // 4. 부족한 재료는 RecipeCandidateGenerator가 서버 계산으로 채워 둔 값을 그대로 쓴다
-        List<String> missingCore = IngredientProcessingUtil.normalizeList(plan.getMissingIngredientsCore());
+        // 4. 부족한 재료는 CandidateRecipePlan.from이 서버 계산으로 채워 둔 값을 그대로 쓴다
+        List<String> missingCore = plan.missingIngredientsCore();
 
         // 5. 부족 재료별로 대체 상품을 ES에서 검색
         ...
@@ -383,8 +398,7 @@ public final class IngredientProcessingUtil {
 public class PersonalizedRecommendService {
 
     private final UserProfileEmbeddingRepository userProfileEmbeddingRepository;
-    private final VectorProductSearchService vectorProductSearchService;
-    private final MedoidDiversityService medoidDiversityService;
+    private final VectorRecommendPipeline vectorRecommendPipeline;
 
     public List<ProductRecommendResponse> recommendProducts(UUID userId, int topK) {
         // 1. 사용자 프로필 벡터 조회
@@ -392,7 +406,9 @@ public class PersonalizedRecommendService {
             userProfileEmbeddingRepository.findById(userId)
                 .orElse(null);
 
-        if (profile == null || profile.getUserProfileVector() == null) {
+        if (profile == null
+            || profile.getUserProfileVector() == null
+            || profile.getUserProfileVector().length == 0) {
             return List.of();
         }
 
@@ -401,32 +417,9 @@ public class PersonalizedRecommendService {
             ? profile.getSourceProductIds()
             : List.of();
 
-        // 3. List<Double>을 float[]로 변환
-        float[] userVector = convertToFloatArray(profile.getUserProfileVector());
-
-        // 4. Elasticsearch 벡터 유사도 검색 (카테고리 보너스 없음)
-        int candidateSize = Math.min(topK * 3, 100);
-
-        List<ProductDocument> candidates =
-            vectorProductSearchService.findSimilarProductDocumentsByVector(
-                userVector,
-                candidateSize,
-                experiencedProductIds,
-                null,
-                null
-            );
-
-        List<ProductDocument> medoids =
-            medoidDiversityService.selectDiverseMedoids(userVector, candidates, topK);
-
-        return medoids.stream()
-            .map(product -> new ProductRecommendResponse(
-                product.getProductId(),
-                product.getProductName(),
-                product.getProductCategoryName(),
-                product.getPrice()
-            ))
-            .toList();
+        // 3. 후보 조회 → 다양화 → 응답 변환은 공통 경로가 맡는다
+        return vectorRecommendPipeline.recommend(
+            profile.getUserProfileVector(), experiencedProductIds, topK);
     }
 }
 ```
@@ -448,57 +441,62 @@ public class PersonalizedRecommendService {
 public class SimilarProductRecommendService {
 
     private final ProductSearchRepository productSearchRepository;
-    private final VectorProductSearchService vectorProductSearchService;
-    private final MedoidDiversityService medoidDiversityService;
+    private final VectorRecommendPipeline vectorRecommendPipeline;
 
     public List<ProductRecommendResponse> recommendSimilarProducts(UUID productId, int topK) {
         // 1. 기준 상품 조회 및 벡터 추출
+        // 상품 디테일 페이지의 다른 부분이 함께 죽지 않도록 예외 대신 빈 목록을 돌려준다.
         ProductDocument product = productSearchRepository.findById(productId)
-            .orElseThrow(() -> {
-                log.warn("유사 상품 추천을 위한 기준 상품을 찾을 수 없습니다. productId: {}", productId);
-                return new CustomException(RecommendErrorCode.PRODUCT_NOT_FOUND);
-            });
+            .orElse(null);
+
+        if (product == null) {
+            log.warn("유사 상품 추천을 위한 기준 상품을 찾을 수 없습니다. productId: {}", productId);
+            return List.of();
+        }
 
         if (product.getVector() == null) {
             log.warn("기준 상품 '{}'의 벡터가 존재하지 않습니다. 임베딩이 필요합니다.", product.getProductName());
             return List.of();
         }
 
-        float[] productVector = product.getVector();
-        String originalCategoryCode = product.getProductCategoryCode();
-
-        // 2. 벡터 유사도 검색 실행
-        return findSimilarProducts(productVector, productId, originalCategoryCode, topK);
+        // 2. 기준 상품 자신을 뺀 후보에서 벡터 유사도 검색 + 다양화
+        return vectorRecommendPipeline.recommend(product.getVector(), List.of(productId), topK);
     }
+}
+```
 
-    private List<ProductRecommendResponse> findSimilarProducts(
-        float[] vector, 
-        UUID originalProductId, 
-        String originalCategoryCode,
-        int topK
+### 추천 공통 경로
+
+> **[Application Layer]** 유사 상품·개인화 추천이 공유하는 후보 조회 → 다양화 → 응답 변환 경로입니다.
+
+```java
+// recommend/application/VectorRecommendPipeline.java
+
+@Service
+@RequiredArgsConstructor
+public class VectorRecommendPipeline {
+
+    private static final int CANDIDATE_MULTIPLIER = 3;
+    private static final int MAX_CANDIDATE_SIZE = 100;
+
+    private final VectorProductSearchService vectorProductSearchService;
+    private final MaxMinDiversityService maxMinDiversityService;
+
+    public List<ProductRecommendResponse> recommend(
+        float[] queryVector, List<UUID> excludeProductIds, int topK
     ) {
-        Double categoryMatchBonus = originalCategoryCode != null ? 0.3 : null;
-        int candidateSize = Math.min(topK * 3, 100);
+        int candidateSize = Math.min(topK * CANDIDATE_MULTIPLIER, MAX_CANDIDATE_SIZE);
 
         List<ProductDocument> candidates =
             vectorProductSearchService.findSimilarProductDocumentsByVector(
-                vector,
-                candidateSize,
-                List.of(originalProductId),
-                originalCategoryCode,
-                categoryMatchBonus
-            );
+                queryVector, candidateSize, excludeProductIds);
 
-        List<ProductDocument> medoids =
-            medoidDiversityService.selectDiverseMedoids(vector, candidates, topK);
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
 
-        return medoids.stream()
-            .map(product -> new ProductRecommendResponse(
-                product.getProductId(),
-                product.getProductName(),
-                product.getProductCategoryName(),
-                product.getPrice()
-            ))
+        return maxMinDiversityService.selectDiverse(queryVector, candidates, topK).stream()
+            .map(ProductRecommendResponse::from)
             .toList();
     }
 }
@@ -521,9 +519,7 @@ public class VectorProductSearchService {
     public List<ProductDocument> findSimilarProductDocumentsByVector(
         float[] queryVector,
         int candidateSize,
-        List<UUID> excludeProductIds,
-        String targetCategoryCode,
-        Double categoryMatchBonus
+        List<UUID> excludeProductIds
     ) {
         // Elasticsearch script_score 쿼리를 사용한 코사인 유사도 계산
         NativeQuery query = NativeQuery.builder()
@@ -531,17 +527,8 @@ public class VectorProductSearchService {
                 .scriptScore(ss -> ss
                     .query(q2 -> q2
                         .bool(b -> b
-                            // 자기 자신 제외
-                            .mustNot(mn -> {
-                                if (excludeProductIds != null && !excludeProductIds.isEmpty()) {
-                                    mn.ids(i -> i.values(
-                                        excludeProductIds.stream()
-                                            .map(UUID::toString)
-                                            .toList()
-                                    ));
-                                }
-                                return mn;
-                            })
+                            // 자기 자신 또는 이미 경험한 상품 제외
+                            .mustNot(mn -> { /* excludeProductIds -> ids 쿼리 */ return mn; })
                             // 판매 중인 상품만 필터링
                             .filter(f -> f
                                 .terms(t -> t
@@ -551,6 +538,8 @@ public class VectorProductSearchService {
                                     ))
                                 )
                             )
+                            // 벡터 없는 문서 제외 — cosineSimilarity가 오류를 던지는 것을 막는다
+                            .filter(f -> f.exists(e -> e.field("vector")))
                         )
                     )
                     .script(s -> s
@@ -566,7 +555,7 @@ public class VectorProductSearchService {
 
         // 검색 실행 및 결과 변환
         SearchHits<ProductDocument> hits = elasticsearchOperations.search(query, ProductDocument.class);
-        // ... 결과 처리 및 필터링
+        // ... 결과 처리, 실패 시 빈 목록
         return List.of();
     }
 }
@@ -590,10 +579,13 @@ public class UserProfileEmbeddingDocument {
     private UUID userId; // 사용자 ID를 문서 ID로 사용
 
     @Field(type = FieldType.Dense_Vector, dims = 1536)
-    private List<Double> userProfileVector; // 1536차원 벡터
+    private float[] userProfileVector; // 1536차원 벡터 (상품 벡터와 동일한 타입)
 
     @Field(type = FieldType.Date)
     private Instant lastUpdatedAt;
+
+    @Field(type = FieldType.Keyword)
+    private List<UUID> sourceProductIds; // 추천에서 제외할 기경험 상품
 }
 ```
 

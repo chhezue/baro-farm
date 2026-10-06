@@ -307,3 +307,22 @@ B-1에서 설명했다 — baro-common이 JPA 스타터를 `implementation`으�
 사용자가 A·B 전 항목을 승인했다. 판단 항목 답: **1번 `chat` 스텁 4개 삭제**(스펙 `chatbot.md`는 백로그 기록으로 유지) · **4번 review 팩토리는 건드리지 않는다** — A-2 방어는 cart·order 팩토리에만 넣고, B-6 공통 메서드로 review까지 합치는 것은 review 팀원 동의 후로 미룬다 · 8번 ES 버전은 인프라 담당자 확인 요청(팀 전달) · 7·9·10번은 팀 전달. 나머지는 구현 세션에서 결정한다.
 
 원래 승인 대기 문구: 사용자 승인 후 A/B 항목만 우선순위 순으로 구현한다. 제안 순서: A-1 → A-2(B-6과 한 변경) → B-3 → B-4 → B-1 → B-7 → B-5 → B-2(cart-recipe/001 A-2 반영 확인 후) → B-8(review 컴파일 STOP 게이트). C/D는 이번 라운드에서 수정하지 않는다. 판단 항목 1·3·4·5·6은 구현 전에 답이 필요하다.
+
+### 구현 결과 (2026-09-05)
+
+A 2건·B 8건 중 **B-8을 뺀 9건**을 반영했다. 무엇을 바꿨고 무엇을 남겼는지, 검증 결과는 [`refactor-log.md`](refactor-log.md) 2026-09-05 두 번째 항목에 있다.
+
+| 번호 | 결정 | 반영 위치 |
+|------|------|-----------|
+| 1 | **`chat` 스텁 4개 삭제**(승인 결과에서 이미 결정). 스펙 `chatbot.md`는 백로그 기록으로 유지하고 "코드 없음"으로 갱신 | `chat` 패키지 삭제 · `specs/README.md` |
+| 2 | **`org.springframework.ai: DEBUG`를 끈다.** 대신 `loggers` actuator 엔드포인트를 열어 필요할 때 재배포 없이 켰다 끈다 — 상시 로깅은 장바구니 재료가 계속 남는 반면, 확인은 어쩌다 한 번이기 때문(사용자 결정) | `application.yml` 로깅·management 절 |
+| 3 | **컨슈머 그룹은 `ai-service` 계열로 통일**(사용자 결정 — dev 모드라 offset 초기화 부담 없음). `ProductEventConsumer`의 `groupId = "search-service"` 어노테이션 값을 지워 팩토리 값만 남겼다. `spring.kafka.consumer`의 죽은 키 3개는 삭제하고 `producer` 블록은 review 소유라 두었다 | `ProductEventConsumer` · `application.yml` |
+| 4 | **review 팩토리는 건드리지 않는다**(승인 결과에서 이미 결정). 공통 메서드는 product·cart·order 3개만 쓴다 | `KafkaConsumerConfig` |
+| 5 | **`spring-dotenv` 삭제** — Gemini를 아직 연결하지 않아 `.env`를 쓰고 있지 않다(사용자 확인). 필요해지면 한 줄로 되돌린다 | `build.gradle` |
+| 6 | **프로필을 없앤다**(a안, 감사자 권고 = 사용자 결정). `application-prod.yml`을 `application.yml`로 합쳐 파일 하나로 만들었다. 프로필 지정 없이 기동되고, `recipe-recommend.yml` import가 항상 로드된다([`cart-recipe/001`](../cart-recipe/001-cart-integration-and-request-path.md) C-6도 함께 해소) | `application.yml` · `IMPLEMENTATION.md` |
+| 7·9·10 | **팀 전달**(승인 결과에서 이미 결정) | — |
+| 8 | **B-8 보류** — 아래 참고 | — |
+
+**B-8은 반영하지 않았다.** 버전 고정을 풀자 `elasticsearch-java`가 8.18.x로, `spring-data-elasticsearch`가 5.5.6으로 올라가면서 baro-ai 코드 3곳이 컴파일에 실패했다(`FetchSourceFilter.of`·`RangeQuery.Builder.field`·`Script.Builder.inline` 시그니처 변경). 마이그레이션 자체는 3곳이라 작지만, **[`vector-similarity/001`](../vector-similarity/001-vector-search-and-diversity.md) 승인 결과가 "ES 서버 9.1.2 ↔ 클라이언트 호환은 인프라 담당자 답변 전까지 버전 고정을 바꾸지 않는다"로 정해 둔 항목**이라 되돌렸다. 답이 오면 이 3곳 마이그레이션과 함께 다시 시도한다. 고정 이유를 `build.gradle` 주석에 남겨 다음 사람이 근거를 찾을 수 있게 했다.
+
+**B-6에서 감사안과 다르게 간 곳**: 감사는 product 팩토리의 `setFailedDeserializationFunction(record -> null)`을 유지하라고 했으나 삭제했다. 셋 다 같은 실패 동작(에러 핸들러가 로그 후 건너뜀)을 갖는 편이 낫고, 그래야 "product만 다르다"는 이 항목의 문제의식과도 맞기 때문이다. 도달할 수 없게 된 `ProductEventConsumer`의 `event == null` 분기도 같은 변경에서 정리했다.

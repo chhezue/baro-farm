@@ -89,3 +89,8 @@
 ## 승인 대기
 
 A 항목이 없고 B-1(주석 2줄 정리)만 있다. C-1(모델 tier 근거 문서화, search와 동일 결론 참조)·D-1(few-shot 도입 안 함)·D-2(배치화 불가)·D-3(프롬프트 길이 유지)는 사용자에게 보고만 하고 **코드 변경 없이 이번 라운드를 종료할 것을 제안한다.** 사용자가 B-1만이라도 반영을 원하면 그건 위험도 Low·2줄짜리 주석 수정이라 별도로 짧게 처리할 수 있다.
+
+## 구현 결과 (2026-09-05)
+
+B-1을 반영했다. 다만 이 항목만 따로 고친 것이 아니라, [`cart-recipe/001`](../cart-recipe/001-cart-integration-and-request-path.md) B-3이 `CandidateRecipePlan`을 record로 재작성하면서 필드 주석을 실제 계약값으로 다시 썼다 — `cookingMethod`는 `"ONE_POT"`·`"STIR_FRY"`·`"NO_COOK"`·`"OVEN_BAKE"`, `mealType`은 `"MAIN"`·`"SIDE"`·`"SOUP"`. 같은 라운드에서 `RecipeCandidateGenerator`의 "LLM #2"·"한식/일식/양식 각 1개씩" 주석(3회 호출 시절의 잔재)도 함께 정정했다. 반영 이력은 [`cart-recipe/refactor-log.md`](../cart-recipe/refactor-log.md)에 있다.
+

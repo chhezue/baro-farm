@@ -52,7 +52,7 @@
 |--------|------|------|------|
 | GET | `/api/v1/recommendations/personalized/{userId}` | 없음(경로의 userId를 신뢰) | `topK` 쿼리, 기본 5. 프로필이 없으면 빈 배열 |
 
-응답은 `ProductRecommendResponse[]`(productId·productName·productCategoryName·price)를 **envelope 없이** 그대로 돌려준다. 검색 API가 `ResponseDto`로 감싸는 것과 다르다.
+응답은 `ResponseDto<ProductRecommendResponse[]>`(data에 productId·productName·productCategoryName·price)다. 2026-09-05에 검색 API와 envelope를 통일해, 성공·실패 응답 모양이 같아졌다.
 
 성공:
 
@@ -110,8 +110,8 @@
 | 비동기 실행 | `profileUpdateExecutor`(core 2 · max 5 · queue 100). 세 경로 모두 `UserProfileRefreshTrigger`라는 **다른 빈**을 거치므로 실제로 비동기다 | `AsyncConfig`, `UserProfileRefreshTrigger` |
 | 대기열 초과 처리 | 큐가 가득 차면 그 갱신을 버리고 WARN만 남긴다. 호출한 쪽(이벤트 처리·검색)은 영향을 받지 않는다 | `AsyncConfig`의 거절 핸들러 |
 | 추천 후보 규모 · 상태 필터 | [`vector-similarity`](../vector-similarity/vector-similarity-search.md) 비즈니스 규칙과 같다(후보 규모·상태 필터는 그쪽이 SSOT) | `PersonalizedRecommendService` |
-| 카테고리 일치 보너스 | **개인화 경로에는 없다.** 취향 벡터가 이미 선호 카테고리 쪽으로 기울어 있어 정보가 중복되고, 후보가 한 카테고리로 쏠리면 다양화가 그 안에서만 고르게 된다. 유사 상품 추천 경로의 보너스는 그대로 | `PersonalizedRecommendService`, `SimilarProductRecommendService` |
-| 다양화 | max-min 다양화를 적용한다. 값·동작은 `vector-similarity` 비즈니스 규칙이 SSOT | `MedoidDiversityService` |
+| 카테고리 일치 보너스 | **없다.** 취향 벡터가 이미 선호 카테고리 쪽으로 기울어 있어 정보가 중복되고, 후보가 한 카테고리로 쏠리면 다양화가 그 안에서만 고르게 된다. 유사 상품 추천 경로의 보너스도 2026-09-05에 함께 삭제됐다 | `VectorRecommendPipeline` |
+| 다양화 | max-min 다양화를 적용한다. 값·동작은 `vector-similarity` 비즈니스 규칙이 SSOT | `MaxMinDiversityService` |
 | 컨슈머 실패 처리 | 로그 저장 예외는 다시 던지고, 1초 간격 2회 재시도 뒤 건너뛴다. 값을 이벤트로 못 바꾸는 레코드는 재시도 없이 한 번 기록하고 건너뛴다(`ErrorHandlingDeserializer`) | `KafkaConsumerConfig` cart·order 팩토리 |
 | 재시도의 안전성 | 로그 문서 ID가 `{파티션}-{오프셋}`이라 같은 레코드를 다시 처리해도 같은 문서를 덮어쓴다. 재시도가 로그를 중복 저장하지 않는다 | `CartLogDocument.id`, `OrderLogDocument.id` |
 | 프로필 갱신 실패 | 예외를 삼키고 WARN. 이벤트 처리·검색 결과에 영향 없음 | `UserProfileRefreshTrigger.refresh` |
@@ -174,7 +174,7 @@
 | 수량 가중치 | `max(1, quantity)` — 상한 없음 | `min(max(1, quantity), 5)` — 수량이 큰 로그 하나가 평균을 독차지하지 못하게 |
 | 시간 가중치 | `3.0 × e^(−h/168)` — 주석("7일에 0.5배")과 달리 7일에 0.37배 | `3.0 × 2^(−h/168)` — 주석대로 7일에 정확히 0.5배 |
 | 이벤트 종류 저장 | 컨슈머가 `"ADD"` 등 별도 문자열로 옮겨 적음 → 계산 쪽 비교값과 불일치 | 발행 측 `HistoryEventType` enum을 그대로 저장 |
-| 선호 카테고리·카테고리 보너스 | 계산·저장하고 개인화 후보 검색에 +0.3 | 개인화 경로에서 삭제. 유사 상품 경로는 유지 |
+| 선호 카테고리·카테고리 보너스 | 계산·저장하고 개인화 후보 검색에 +0.3 | 개인화 경로에서 삭제(유사 상품 경로도 2026-09-05 `vector-similarity` 라운드에서 삭제) |
 | 프로필 문서 필드 | userId·벡터·lastUpdatedAt·source*LogIds 3종·sourceProductIds·preferredCategoryCode | userId·벡터·lastUpdatedAt·sourceProductIds |
 | 비동기 실행 | 컨슈머 두 곳은 자기 클래스 호출이라 동기 실행 | 세 경로 모두 `UserProfileRefreshTrigger`를 거쳐 실제 비동기 |
 | 컨슈머 내구성 | 역직렬화 보호·재시도 간격 없음, 재시도가 로그 중복 생성 | `ErrorHandlingDeserializer` + 1초 간격 2회 + 결정적 문서 ID |

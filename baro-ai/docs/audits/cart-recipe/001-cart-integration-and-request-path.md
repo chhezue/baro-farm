@@ -291,3 +291,19 @@ Feign 클라이언트가 하나, 메서드가 하나다. 범용 언래핑 디코
 사용자가 A·B 전 항목을 승인했다. 채점식 단순화([`recommend/002`](../recommend/002-recipe-scoring.md) C-1)는 이 단위가 구현 순서상 마지막이라 **착수 시점에 결정**하기로 했다. 판단 항목 1·2·4는 팀 전달, 나머지는 구현 세션에서 결정한다.
 
 원래 승인 대기 문구: 사용자 승인 후 A/B 항목만 우선순위 순으로 구현한다 — 제안 순서는 **A-2 → A-1**(둘 다 High, A-2가 요청 경로에서 먼저 실패하고 yml만 만진다) → B-5(같은 yml 블록) → B-1 → B-4 → B-2 → B-3. C/D는 이번 라운드에서 수정하지 않는다. A-1·A-2·B-5의 검증은 baro-shopping을 로컬에 띄워야 하므로, 구현 후 사용자가 직접 실행할 수동 절차로 `refactor-log.md`에 남긴다.
+
+### 구현 결과 (2026-09-05)
+
+A 2건·B 5건을 전부 반영했다. 무엇을 바꿨고 무엇을 남겼는지, 검증 결과는 [`refactor-log.md`](refactor-log.md) 2026-09-05 항목에 있다. 착수 시점에 정하기로 한 것과 구현 세션에서 정해진 것은 아래와 같다.
+
+| 항목 | 결정 | 반영 위치 |
+|------|------|-----------|
+| 채점식([`recommend/002`](../recommend/002-recipe-scoring.md) C-1) | **삭제한다**(사용자 결정). 점수·판매 기회 보너스·동점 셔플을 걷어내고 LLM이 낸 순서의 첫 번째 유효 후보를 쓴다. `safe-refactor` 절대 원칙 2(정책 불변)를 사용자 승인으로 벗어난 유일한 변경이다 | `RecipeCandidates.chooseFirst` · 스펙 비즈니스 규칙 |
+| 3 (테스트 엔드포인트) | **삭제**(a안, 사용자 결정) | `RecommendationController` · `FEATURES.md` · `README.md` |
+| 5 (B-5 타임아웃 값) | **연결 1초 · 읽기 3초**(감사 잠정 제안값, 사용자 결정). baro-shopping 정상 응답 시간은 재지 못했다 — 담은 상품이 많을 때 정상 조회가 3초를 넘길 위험이 남는다 | `application-prod.yml` |
+| 7 (record 스키마 생성) | **해소** — `spring-ai-model` 1.1.8이 쓰는 `jsonschema-generator` 4.38.0으로 같은 구조의 record를 만들어 스키마 생성과 JSON→record 변환을 로컬에서 실행해 확인했다(`spring-reviewer` 2026-09-05). 다만 실제 Gemini 응답으로의 end-to-end 확인은 아직이다 | `RecipeCandidateDraft` |
+| 1·2·4·6 | **미해결** — 게이트웨이·배포 담당자 확인 또는 운영 재개 후 측정이 필요하다 | 스펙 리스크 표 |
+
+**채점식 삭제의 되돌릴 수 없는 성격**: 삭제 전에도 후보별 점수를 로그로 남기지 않아, 삭제 전후의 추천 품질을 비교할 자료가 없다. 되돌리려면 [`recommend/002`](../recommend/002-recipe-scoring.md) C-1에 적힌 가중치(핵심 ×10, 추가 ×3, 부족 0개 −10 / 1~2개 +15 / 3개 이상 −5)를 근거로 복원해야 한다.
+
+**B-1의 부수 효과**: `RecommendErrorCode.CART_NOT_FOUND`를 지우자 남은 상수가 0개가 됐다(나머지 6개는 [`vector-similarity/001`](../vector-similarity/001-vector-search-and-diversity.md) B-1에서 이미 삭제). 상수 없는 enum을 남기지 않고 파일째 지웠다.

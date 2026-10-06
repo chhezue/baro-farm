@@ -16,7 +16,7 @@
 핵심 특징:
 
 - 키워드 검색: `match_phrase` + `match` + `fuzzy` 가중치 조합
-- 자동완성: `edge_ngram` analyzer + `match_phrase_prefix`
+- 자동완성: `edge_ngram` analyzer 색인 + `match`(`operator=and`) 조회
 - 벡터 검색: `dense_vector(1536)` + `script_score(cosineSimilarity)`
 - 인덱싱 트리거: `product-events` Kafka 소비 기반 실시간 반영
 
@@ -26,19 +26,18 @@
 
 ### 2.1 연결 설정
 
-- `spring.elasticsearch.uris`를 통해 ES 엔드포인트를 주입 (`application-prod.yml`)
-- `ElasticsearchConfig`에서 `RestClient`, `ClientConfiguration` Bean 구성
+- `spring.elasticsearch.*`(`application.yml`)만으로 구성한다. Spring Boot 자동설정이 그 값을 읽어 `RestClient` → `ElasticsearchTemplate`까지 만든다 — 별도 설정 클래스는 없다(2026-09-05 `ElasticsearchConfig` 삭제)
 
 운영 설정 포인트:
 
 - 기본 URI: `http://elasticsearch:9200`
-- connect timeout: 10초
+- connect timeout: 1초
 - socket timeout: 30초
 
 ### 2.2 Spring AI VectorStore 설정과 실제 사용 방식
 
 Spring AI의 VectorStore 추상화는 쓰지 않는다. 예전에는 `spring-ai-elasticsearch-store` 의존성을 두고
-`application-prod.yml`에서 그 자동설정을 제외했는데, 실제로 쓰는 코드가 없어 2026-09-04에 의존성과
+`application.yml`에서 그 자동설정을 제외했는데, 실제로 쓰는 코드가 없어 2026-09-04에 의존성과
 제외 설정을 함께 제거했다.
 
 즉, 현재 구조는 Spring AI의 VectorStore 추상화 자동구성이 아니라,  
@@ -55,7 +54,7 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 - `productId`: `@Id` (UUID)
 - `productName`: `@MultiField`
   - main: `text` + `nori` analyzer (일반 검색용)
-  - subfield: `productName.raw` = `keyword` (fuzzy 검색용)
+  - subfield: `productName.word` = `text` + `standard` analyzer (오탈자 검색용 — 띄어쓰기 단위 토큰)
 - `productCategoryId`: `keyword`
 - `productCategoryCode`: `keyword`
 - `productCategoryName`: `keyword`
@@ -93,7 +92,7 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 매핑 클래스: `UserProfileEmbeddingDocument` (`@Document(indexName = "user_profile_embeddings")`)
 
 - `userId`: `@Id`
-- `userProfileVector`: `dense_vector`, `dims=1536` (타입은 `List<Double>`)
+- `userProfileVector`: `dense_vector`, `dims=1536` (타입은 `float[]` — 상품 벡터와 동일)
 - `lastUpdatedAt`: `date`
 - `sourceProductIds`: `keyword[]` — 비중이 0이 아닌 cart/order 로그의 productId(중복 제거). 추천에서 제외할 상품 목록
 
@@ -130,9 +129,9 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 - boost: `1.0`
 
 3. 오탈자 허용 (`fuzzy match`)
-- 조건: 검색어 길이 3 이상일 때만
-- field: `productName.raw` (`keyword`)
-- `fuzziness=AUTO`
+- 조건: 검색어 길이 2 이상일 때만
+- field: `productName.word` (`text`, standard analyzer)
+- `fuzziness=1` (단어마다 한 글자)
 - `prefixLength=1`
 - boost: `0.3`
 
@@ -178,11 +177,15 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 
 `ProductAutocompleteRepository.findByPrefix`의 `@Query`:
 
-- `must`: `match_phrase_prefix(productName, query=?0, max_expansions=10)`
+- `must`: `match(productName, query=?0, operator=and)`
 - `filter`: `status` in `ON_SALE`, `DISCOUNTED`
 
-`ProductIndexService.autocomplete()`:
+색인 쪽 `edge_ngram`이 접두어 조각을 이미 토큰으로 갖고 있어 조회에서 다시 확장하지 않는다.
+`match_phrase_prefix`는 조각마다 위치가 밀려 두 단어 입력("청송 사과")에서 0건이 됐다.
 
+`ProductSearchService.autocomplete()`:
+
+- `size` 범위 검증(1~20), 벗어나면 400
 - 2글자 미만 입력 시 빈 결과 반환
 - `PageRequest.of(0, size)`로 상위 N개
 - `@Cacheable("autocomplete", key = "#query + '-' + #size")`
@@ -190,7 +193,7 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 ## 5.3 Completion Suggester 사용 여부
 
 현재 코드 기준으로 Elasticsearch `completion` field / completion suggester는 사용하지 않는다.  
-자동완성은 `edge_ngram` + `match_phrase_prefix` 전략이다.
+자동완성은 `edge_ngram` 색인 + `match` 조회 전략이다.
 
 ---
 
@@ -203,22 +206,21 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 벡터 생성은 `ProductEmbeddingService.embedProduct(productName)`에서 수행:
 
 - 모델 빈: `googleGenAiTextEmbedding`
-- 기본 모델명: `gemini-embedding-001`, 출력 차원 1536 고정 (`application-prod.yml`)
+- 기본 모델명: `gemini-embedding-001`, 출력 차원 1536 고정 (`application.yml`)
 - 실패 시 예외를 던지며, 호출부(`ProductIndexService`)에서 캐치하여 인덱싱은 계속 진행
 
 ## 6.2 벡터 검색 쿼리 (`VectorProductSearchService`)
 
 벡터 유사도 검색은 ES `script_score` 사용:
 
-- 기본 스크립트:
+- 스크립트(하나뿐이다):
   - `cosineSimilarity(params.query_vector, 'vector') + 1.0`
 - bool 필터:
   - `status` in `ON_SALE`, `DISCOUNTED`
+  - `exists` on `vector` — 벡터 없는 문서에서 `cosineSimilarity`가 오류를 던지므로 후보 단계에서 걷어낸다
   - 제외 상품 ID는 `mustNot ids`
 
-카테고리 보너스가 있는 경우:
-
-- `productCategoryCode == target_category_code`일 때 추가 점수(`category_bonus`) 부여
+카테고리 보너스는 두 추천 경로 모두 없다(2026-09-05 재설계).
 
 주의:
 
@@ -226,13 +228,14 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 
 ## 6.3 추천 서비스와 연계
 
+두 경로 모두 기준 벡터만 다르고 그 뒤(후보 조회 → max-min 다양화 → 응답 변환)는 `VectorRecommendPipeline` 하나를 공유한다.
+
 - 유사상품 추천: `SimilarProductRecommendService`
-  - 기준 상품 벡터로 후보(topK*3) 검색 후 메도이드 다양성 적용
+  - 기준 상품 벡터로 후보(`min(topK×3, 100)`) 검색, 기준 상품 자신은 제외
 - 개인화 추천: `PersonalizedRecommendService`
   - 사용자 프로필 벡터로 후보 검색
   - 이미 경험한 상품(`sourceProductIds`) 제외
-  - 카테고리 보너스는 주지 않는다(2026-09-05 재설계 — 유사상품 경로만 유지)
-  - 메도이드 다양성 적용
+- 두 경로 모두 카테고리 보너스는 주지 않는다(2026-09-05 재설계)
 
 ---
 
@@ -252,7 +255,7 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 
 1. 상품명 임베딩 생성 시도 (`embedProduct`)
 2. 요리 재료명 추출 시도 (`ProductIngredientNormalizer.normalize`) — LLM 1회, 실패·빈 답이면 `ingredientName`을 빈 값으로 두고 재색인 대상으로 남긴다
-3. `ProductDocument` 생성 (`updatedAt=now`, `ingredientName`·`vector` 포함)
+3. `ProductDocument` 생성 (`updatedAt`은 이벤트 값, 없으면 현재 시각. `ingredientName`·`vector` 포함)
 4. `ProductAutocompleteDocument` 생성
 5. `product-autocomplete` 저장
 6. `product` 저장
@@ -311,7 +314,7 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 
 ## 11) 관련 코드 위치 모음
 
-- ES 설정: `src/main/java/com/barofarm/ai/config/ElasticsearchConfig.java`
+- ES 설정: `src/main/resources/application.yml`의 `spring.elasticsearch.*` (설정 클래스 없음)
 - 상품 스키마: `src/main/java/com/barofarm/ai/search/domain/ProductDocument.java`
 - 자동완성 스키마: `src/main/java/com/barofarm/ai/search/domain/ProductAutocompleteDocument.java`
 - 자동완성 analyzer: `src/main/resources/settings/autocomplete-analyzer.json`
@@ -323,5 +326,5 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 - 상품 이벤트 소비: `src/main/java/com/barofarm/ai/search/infrastructure/event/ProductEventConsumer.java`
 - 사용자 프로필 벡터: `src/main/java/com/barofarm/ai/embedding/domain/UserProfileEmbeddingDocument.java`
 - 사용자 프로필 임베딩 서비스: `src/main/java/com/barofarm/ai/embedding/application/UserProfileEmbeddingService.java`
-- 운영 설정: `src/main/resources/application-prod.yml`
+- 설정: `src/main/resources/application.yml` (프로필별 파일 없음 — 환경 차이는 전부 환경변수)
 - 의존성: `build.gradle`

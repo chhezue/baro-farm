@@ -190,35 +190,9 @@ ProductEmbeddingService.embedProduct(productName)
 
 장바구니 상품을 기반으로 레시피를 추천하고 부족 재료를 제안하는 기능입니다.
 
-### API
+### GET /api/v1/recommendations/recipes/{userId}
 
-### POST /api/v1/recommendations/recipes/test
-
-테스트용으로 장바구니 정보를 직접 입력받아 레시피를 추천합니다.
-
-#### 요청 본문
-```json
-{
-  "cartId": "123e4567-e89b-12d3-a456-426614174000",
-  "buyerId": "550e8400-e29b-41d4-a716-446655440000",
-  "items": [
-    {
-      "itemId": "223e4567-e89b-12d3-a456-426614174001",
-      "productId": "323e4567-e89b-12d3-a456-426614174002",
-      "productName": "곰곰 무항생제 신선한 대란, 30구, 1개",
-      "productCategoryName": "신선식품",
-      "quantity": 1,
-      "unitPrice": 8000,
-      "lineTotalPrice": 8000,
-      "inventoryId": "423e4567-e89b-12d3-a456-426614174003",
-      "unit": 1
-    }
-  ],
-  "totalPrice": 8000,
-  "createdAt": "2024-01-21T10:00:00",
-  "updatedAt": "2024-01-21T10:00:00"
-}
-```
+사용자의 실제 장바구니를 `baro-shopping`에서 Feign으로 가져와 레시피를 추천합니다.
 
 #### 응답 형식
 ```json
@@ -249,10 +223,6 @@ ProductEmbeddingService.embedProduct(productName)
 - `missingCoreIngredients`: 부족한 핵심 재료 목록
 - `missingRecommendations`: 부족한 재료별 추천 상품 목록(각 항목에 `products` 포함)
 - `instructions`: 조리법 (줄바꿈으로 구분)
-
-### GET /api/v1/recommendations/recipes/{userId}
-
-실제 사용자의 장바구니 정보를 기반으로 레시피를 추천합니다.
 
 ---
 
@@ -341,7 +311,7 @@ GET /api/v1/search/autocomplete?q=사과&size=5
 
 ## 💬 챗봇 API
 
-> ⚠️ 현재 상태: `ChatbotController`는 존재하지만, 현재는 엔드포인트 메서드가 없어 `/api/v1/chatbot/*`로 호출 가능한 API 스펙이 없습니다.
+> ⚠️ 현재 상태: 코드가 없습니다. 엔드포인트가 하나도 없던 빈 클래스 4개를 2026-09-05에 삭제했고, `/api/v1/chatbot/*`로 호출 가능한 API도 없습니다.
 
 ---
 

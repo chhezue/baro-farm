@@ -74,7 +74,7 @@ graph LR
   - `IngredientProcessingUtil`: 재료 정규화 및 비교
 - **재료명 계산 시점**: 상품 색인 시점 1회 (`ProductIngredientNormalizer`) — 근거: [`decisions/002-ingredient-name-at-index-time.md`](decisions/002-ingredient-name-at-index-time.md)
 - **출력**: 레시피 정보 + 부족 재료 + 추천 상품
-- **API**: `GET /api/v1/recommendations/recipes/{userId}` (주 경로), `POST /api/v1/recommendations/recipes/test` (테스트용)
+- **API**: `GET /api/v1/recommendations/recipes/{userId}`
 
 ### 3. **비슷한 상품 추천** ✅ 구현 완료
 
@@ -91,7 +91,7 @@ graph LR
 
 ### 4. **서비스 챗봇** ⚠️ 미구현
 
-> 현재 미구현 상태입니다. `ChatbotController`는 빈 클래스입니다.
+> 현재 미구현 상태입니다. 자리만 잡고 있던 빈 클래스 4개는 2026-09-05에 삭제했고, 목적이 정해지면 [`specs/chat/chatbot.md`](specs/chat/chatbot.md)를 근거로 새로 만듭니다.
 
 **정책 문서 기반 RAG**로 정확한 답변 제공
 
@@ -209,7 +209,6 @@ src/main/java/com/barofarm/ai/
 src/main/java/com/barofarm/ai/
 ├── presentation/              # REST 컨트롤러
 │   ├── RecommendationController.java
-│   ├── ChatbotController.java
 │   └── ...
 ├── search/
 │   ├── presentation/         # 검색 관련 컨트롤러
@@ -224,8 +223,7 @@ src/main/java/com/barofarm/ai/
 │   ├── infrastructure/       # 외부 연동
 │   │   ├── client/           # Cart API 클라이언트
 │   │   └── llm/              # LLM 서비스 (RecipeCandidateGenerator)
-│   ├── presentation/          # 추천 컨트롤러 (RecommendationController)
-│   └── exception/            # 추천 에러 코드 (RecommendErrorCode)
+│   └── presentation/          # 추천 컨트롤러 (RecommendationController)
 ├── embedding/
 │   ├── application/           # 임베딩 서비스
 │   ├── domain/               # 임베딩 도메인 모델

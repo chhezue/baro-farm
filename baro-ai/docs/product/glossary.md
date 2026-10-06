@@ -18,7 +18,7 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 상품 상태 (ProductStatus) | `ON_SALE`·`DISCOUNTED`·`SOLD_OUT`·`HIDDEN`·`DELETED`. 판매자 수정으로만 바뀌고 재고 0이 자동으로 `SOLD_OUT`을 만들지 않는다 | `baro-shopping` `ProductStatus` |
 | 카테고리 코드 | 3단계 22개, 전부 `AGRI_*`(농산물). 리프 코드가 이벤트·문서의 `productCategoryCode` | `scripts/init-db/02-init-categories.sql` |
 | dense_vector | Elasticsearch 벡터 필드 타입. baro-ai는 1536차원 고정 | `ProductDocument.vector`, `UserProfileEmbeddingDocument.userProfileVector` |
-| 코사인 유사도 | 두 벡터의 방향 유사도(−1~1). 벡터 검색·다양화의 공통 기준 | ES `script_score(cosineSimilarity)`, `MedoidDiversityService` |
+| 코사인 유사도 | 두 벡터의 방향 유사도(−1~1). 벡터 검색·다양화의 공통 기준 | ES `script_score(cosineSimilarity)`, `MaxMinDiversityService` |
 | topK | 추천 API가 최종 반환하는 개수. 후보는 이보다 넉넉히 가져온 뒤 다양화로 줄인다(값: [`vector-similarity` 스펙](../specs/vector-similarity/vector-similarity-search.md) 비즈니스 규칙) | `RecommendationController` |
 | `X-User-Id` | 게이트웨이가 넣어 주기로 한 사용자 식별 헤더. prod 라우트에는 인증 필터가 없어 클라이언트 값이 그대로 전달된다 | `baro-gateway` `application-prod.yml`, [`platform.md`](platform.md) |
 | Sentiment · 베스트 리뷰 | review 도메인(팀원 소유) 용어 — `POSITIVE`/`NEGATIVE`/`MIXED`, 매일 배치로 갱신되는 대표 리뷰 목록 | `Sentiment.java`, `BestReviewListDocument` |
@@ -51,9 +51,8 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 레시피 후보 | LLM이 한 번에 만드는 서로 다른 스타일의 레시피 3개 | `RecipeCandidates` |
 | 핵심 재료 / 추가 재료 | 요리 정체성을 정하는 3~5개 / 있으면 좋은 1~3개 | `recipeIngredientsCore`·`recipeIngredientsExtra` |
 | 기본 양념 가정 | 소금·후추·식용유·간장 등은 보유로 간주, 재료 목록에 넣지 않음 | 프롬프트 `<정책>` |
-| 부족 핵심 재료 | 핵심 재료 − 보유 재료. LLM 값을 버리고 서버가 정규화 비교로 다시 계산 | `enhanceWithServerValidation`, `subtractNormalized` |
-| 판매 기회 보너스 | 부족 핵심 재료 수가 "한두 개"일 때 가점, 0개이거나 너무 많을 때 감점하는 항(값: [`cart-recipe` 스펙](../specs/cart-recipe/recipe-recommendation.md) 비즈니스 규칙) | `CandidateRecipePlan.calculateScore` |
-| 후보 점수 | 보유 핵심 재료·보유 추가 재료 수를 가중 합산하고 판매 기회 보너스를 더한 값. 동점이면 쉬운 난이도, 그다음 무작위(식: `cart-recipe` 스펙 비즈니스 규칙) | `chooseBest` |
+| 부족 핵심 재료 | 핵심 재료 − 보유 재료. LLM 값을 버리고 서버가 정규화 비교로 다시 계산 | `CandidateRecipePlan.from`, `subtractNormalized` |
+| 후보 원본 | LLM이 돌려주는 그대로의 레시피 후보. 서버가 계산하는 보유·부족 재료 두 필드가 없다 | `RecipeCandidateDraft` |
 | 장바구니 스냅샷 (CartInfo) | `baro-shopping` `GET /api/v1/carts`가 `ResponseDto`로 감싸 주는 장바구니. 항목 정보는 조회 시점 재조회, 실패 시 한글 폴백 문자열 | `CartClient`, `baro-shopping` `CartItemInfo` |
 
 ## 임베딩 유사도 검색 (`vector-similarity`)
@@ -62,8 +61,8 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 |------|------|-----------------|
 | 상품 벡터 | 상품명을 Gemini `gemini-embedding-001`로 임베딩한 1536차원 벡터. 실패 시 `null` | `ProductEmbeddingService`, `ProductDocument.vector` |
 | 후보 규모 | 다양화 전에 ES에서 가져오는 상품 수. topK의 배수에 상한을 둔다(값: `vector-similarity` 스펙 비즈니스 규칙) | `candidateSize` |
-| 카테고리 일치 보너스 | 기준 카테고리와 같은 후보의 ES 점수에 더하는 고정 가산점. 다양화 후 재정렬에는 반영되지 않음(값: `vector-similarity` 스펙 비즈니스 규칙) | `buildCategoryWeightedScript` |
-| max-min 다양화 (코드명 메도이드) | 1순위를 고정하고 "이미 고른 것들과의 최소 거리가 가장 큰" 후보를 순차 선택하는 greedy. k-medoids가 아니다 | `MedoidDiversityService.selectDiverseMedoids` |
+| max-min 다양화 | 1순위를 고정하고 "이미 고른 것들과의 최소 거리가 가장 큰" 후보를 순차 선택하는 greedy. k-medoids가 아니다 | `MaxMinDiversityService.selectDiverse` |
+| 추천 공통 경로 | 기준 벡터 하나로 후보 조회 → 다양화 → 응답 변환까지 수행하는 경로. 유사 상품·개인화 추천이 함께 쓴다 | `VectorRecommendPipeline.recommend` |
 | script_score 벡터 검색 | 필터를 통과한 문서 전부의 코사인을 계산하는 방식. HNSW 근사 검색(native `knn`)을 쓰지 않는다 | `VectorProductSearchService` |
 
 ## 키워드 검색 (`keyword-search`)
@@ -74,8 +73,8 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 상품 이벤트 | `baro-shopping`이 생성·수정·삭제 트랜잭션 커밋 후 발행하는 `PRODUCT_CREATED/UPDATED/DELETED`. 키 없음, 수정은 diff 없이 항상 발행 | `ProductTransactionEventListener`, `ProductEventProducer` |
 | 정확 매칭 | `match_phrase` 절(slop·boost: `keyword-search` 스펙) | `applyExactMatch` |
 | 일반 매칭 | `match` OR 절(boost: `keyword-search` 스펙) | `applyNormalMatch` |
-| 오탈자 매칭 | `productName.raw`(keyword) 대상 `fuzziness=AUTO` 절. 상품명 전체를 한 토큰으로 비교한다(길이 조건·boost: `keyword-search` 스펙) | `applyFuzzyMatch` |
-| 자동완성 접두어 | `edge_ngram`으로 색인한 상품명 조각. 조회는 `match_phrase_prefix`(길이 범위: `keyword-search` 스펙) | `autocomplete-analyzer.json`, `ProductAutocompleteRepository` |
+| 오탈자 매칭 | `productName.word`(띄어쓰기 단위 text) 대상 fuzzy 절. 단어마다 한 글자 오타를 허용한다(길이 조건·boost: `keyword-search` 스펙) | `applyFuzzyMatch` |
+| 자동완성 접두어 | `edge_ngram`으로 색인한 상품명 조각. 조회는 확장 없이 `match`(`operator=and`)로 찾는다(길이 범위: `keyword-search` 스펙) | `autocomplete-analyzer.json`, `ProductAutocompleteRepository` |
 | 자동완성 캐시 | 자동완성 결과를 인스턴스 안에서만 잠시 기억하는 Caffeine 로컬 캐시(크기·TTL: [`keyword-search` 스펙](../specs/keyword-search/product-search-and-autocomplete.md) 비즈니스 규칙) | `CacheConfig`, [`decisions/001`](../decisions/001-autocomplete-caching.md) |
 
 ## 예시
@@ -94,3 +93,6 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 |------|------|
 | 2026-09-04 | 초안 — 코드베이스에서 실제로 쓰이는 용어 기준으로 작성 |
 | 2026-09-04 | 작업 단위별로 재편. 발행 모듈 전제(이벤트 봉투·주문 확정 시점·게스트 장바구니·상품 상태·카테고리) 추가. "메도이드" 정의를 실제 알고리즘(max-min 다양화)으로 정정. 수치는 각 스펙의 "비즈니스 규칙" 표에만 두고 용어집에서는 뺐다(`doc-reviewer` 지적 — SSOT 이중화 방지) |
+| 2026-09-05 | "카테고리 일치 보너스" 항목 삭제(두 추천 경로 모두 제거됨). "메도이드" 코드명 병기를 빼고 `MaxMinDiversityService`로 갱신. "추천 공통 경로" 추가 |
+| 2026-09-05 | "오탈자 매칭"의 대상 필드를 `productName.word`로, "자동완성 접두어"의 조회 방식을 `match`로 갱신 |
+| 2026-09-05 | "판매 기회 보너스"·"후보 점수" 삭제(서버 채점 로직 제거). "후보 원본" 추가 |

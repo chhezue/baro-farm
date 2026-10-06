@@ -159,14 +159,16 @@ P3은 비중이 0이라 평균에서 빠질 뿐 아니라 경험 상품 목록�
 
 ```java
 UserProfileEmbeddingDocument profile = userProfileEmbeddingRepository.findById(userId).orElse(null);
-float[] userVector = convertToFloatArray(profile.getUserProfileVector());
+float[] userVector = profile.getUserProfileVector();
 
 // 경험 상품을 뺀 뒤 코사인 유사도로 후보를 뽑고, 다양화로 topK개를 고른다.
-List<ProductDocument> candidates = vectorProductSearchService.findSimilarProductDocumentsByVector(
-    userVector, candidateSize, profile.getSourceProductIds(), null, null);
+List<ProductRecommendResponse> recommendations =
+    vectorRecommendPipeline.recommend(userVector, profile.getSourceProductIds(), topK);
 ```
 
 이 예시의 프로필은 P1 쪽으로 강하게 기울어 있으므로, 추천에는 P1·P2를 뺀 나머지 중 사과·과일과 가까운 상품이 먼저 올라온다. 카테고리 보너스는 주지 않는다 — 벡터 자체가 이미 그 방향으로 기울어 있어 같은 정보를 두 번 주는 셈이기 때문이다.
+
+> 저장 타입은 `float[]`이다(2026-09-05 상품 벡터와 통일). ES에 들어가는 JSON은 숫자 배열 그대로라 이미 만들어진 프로필 문서는 그대로 읽힌다.
 
 ## 관련 문서
 
