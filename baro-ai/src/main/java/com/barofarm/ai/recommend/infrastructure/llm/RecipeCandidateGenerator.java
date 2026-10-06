@@ -1,12 +1,9 @@
 package com.barofarm.ai.recommend.infrastructure.llm;
 
 import com.barofarm.ai.recommend.domain.CandidateRecipePlan;
-import com.barofarm.ai.recommend.domain.IngredientProcessingUtil;
 import com.barofarm.ai.recommend.domain.RecipeCandidates;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -15,38 +12,56 @@ import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
+/**
+ * Gemini LLM(구글 생성형 AI)을 호출하여 사용자가 보유한 장바구니 식재료를 활용할 수 있는
+ * 맞춤형 요리 레시피 후보군을 생성하는 생성기 컴포넌트입니다.
+ *
+ * [주요 특징]
+ * 1. Structured Outputs: Gemini API의 JSON 스키마 강제 기능(responseSchema)을 적용하여
+ *    마크다운 코드펜스나 추가 텍스트 없이 100% 신뢰할 수 있는 JSON 형태로 응답을 수신합니다.
+ * 2. 서버 측 재료 정합성 계산: 부족한 핵심 재료 및 사용된 재료는 LLM의 환각(Hallucination)에 의존하지 않고,
+ *    서버(CandidateRecipePlan.from)에서 보유 재료 목록과 대조하여 정확히 계산합니다.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class RecipeCandidateGenerator {
 
-    // 응답 형식을 프롬프트 문구로 부탁하지 않고 Gemini API에 JSON 스키마로 못 박는다.
-    // 모델이 설명 문장이나 코드펜스를 붙여 파싱이 깨지는 경우를 없애기 위한 것.
-    // 근거: docs/audits/cross-cutting/001-llm-call-infra.md A-2
-    private static final BeanOutputConverter<RecipeCandidates> RESPONSE_CONVERTER =
-        new BeanOutputConverter<>(RecipeCandidates.class);
+    /**
+     * Gemini API로부터 수신할 JSON 응답을 Java DTO(RecipeCandidateDrafts) 객체로 파싱하고,
+     * API 호출 시 JSON 스키마를 제공하는 변환기.
+     */
+    private static final BeanOutputConverter<RecipeCandidateDrafts> RESPONSE_CONVERTER =
+        new BeanOutputConverter<>(RecipeCandidateDrafts.class);
 
+    /** Spring AI를 통해 Gemini LLM과 통신하는 대화형 클라이언트 */
     private final ChatClient chatClient;
 
-    // LLM #2: ownedIngredients -> candidates (Korean/Japanese/Western)
-    // -------------------------
     /**
-     * [LLM #2] 보유 재료로 레시피 후보 생성
-     * 보유 재료를 바탕으로 한식/일식/양식 각 1개씩 총 3개의 레시피 생성
+     * 사용자가 보유한 식재료 목록을 기반으로 요리 레시피 후보 목록을 생성합니다.
      *
-     * @param ownedIngredients 보유 재료 목록 (예: ["계란", "애호박", "두부"])
-     * @return 3개의 레시피 후보
+     * @param ownedIngredients 장바구니에서 추출된 보유 식재료명 목록 (예: ["계란", "애호박", "양파"])
+     * @return 부족한 재료 및 사용 재료가 계산된 레시피 후보군 객체 (호출 실패 시 안전하게 빈 목록 반환)
      */
     public RecipeCandidates generateRecipeCandidates(List<String> ownedIngredients) {
         try {
+            // [1단계: 프롬프트 템플릿 조립]
+            // 보유 재료 목록을 주입하고, 현실적인 요리 및 부족한 재료 유도 규칙이 포함된 시스템 프롬프트를 작성합니다.
             String templateString = buildRecipeCandidateTemplate(ownedIngredients);
-            RecipeCandidates result = callRecipeCandidateLLM(templateString);
 
-            if (result != null && result.candidates() != null) {
-                return processRecipeCandidates(result, ownedIngredients);
+            // [2단계: Gemini LLM 호출 및 구조화된 JSON 응답 획득]
+            // ChatClient를 통해 JSON 스키마를 전달하고 Gemini 모델로부터 레시피 초안 목록(Drafts)을 수신합니다.
+            RecipeCandidateDrafts drafts = callRecipeCandidateLLM(templateString);
+
+            // [3단계: LLM 응답 유효성 검증]
+            // 응답이 null이거나 후보 목록이 비어 있는 경우 빈 후보군 객체를 반환합니다.
+            if (drafts == null || drafts.candidates() == null) {
+                return new RecipeCandidates(List.of());
             }
 
-            return result != null ? result : new RecipeCandidates(List.of());
+            // [4단계: 도메인 모델 변환 및 서버 측 재료 매칭 연산]
+            // LLM이 반환한 초안(Draft)과 보유 재료를 대조하여 '실제 사용된 재료'와 '부족한 핵심 재료'를 서버에서 계산합니다.
+            return toCandidates(drafts, ownedIngredients);
         } catch (Exception e) {
             log.error("레시피 후보 생성 실패: {}", e.getMessage(), e);
             return new RecipeCandidates(List.of());
@@ -54,7 +69,16 @@ public class RecipeCandidateGenerator {
     }
 
     /**
-     * 레시피 후보 생성을 위한 템플릿 문자열 생성
+     * Gemini LLM에 전달할 시스템 지침 및 보유 식재료 기반 레시피 추천 프롬프트 템플릿을 생성합니다.
+     *
+     * [주요 프롬프트 정책]
+     * 1. 보유 재료 목록을 줄 단위로 포맷팅하여 프롬프트의 `{ownedIngredients}` 위치에 주입합니다.
+     * 2. 기본 양념(소금, 간장, 물 등)은 사용자가 이미 보유하고 있다고 가정하여 필수 재료에서 제외하도록 지시합니다.
+     * 3. 판매 기회 창출: 핵심 재료 중 30~50%는 보유하지 않은 새로운 식재료를 요구하도록 하여 자연스러운 추가 구매를 유도합니다.
+     * 4. 현실성 검증: 억지 조합을 배제하고 실제로 조리 가능한 현실적인 요리명을 도출하도록 강제합니다.
+     *
+     * @param ownedIngredients 장바구니에서 추출된 보유 식재료명 목록
+     * @return 완성된 LLM 사용자 프롬프트 텍스트
      */
     private String buildRecipeCandidateTemplate(List<String> ownedIngredients) {
         String ownedText = ownedIngredients.stream()
@@ -103,16 +127,19 @@ public class RecipeCandidateGenerator {
             - recipeIngredientsExtra: 있으면 더 좋은 추가 재료 (1~3개).
             - instructions: 3~6 단계의 간단한 조리법.
             - staplesAssumed: 기본 양념을 가정했는지 여부 (항상 true로 설정).
-            - usedOwnedIngredients, missingIngredientsCore: 빈 배열로 두세요. 서버가 다시 계산합니다.
             """.replace("{ownedIngredients}", ownedText);
     }
 
     /**
-     * LLM을 호출하여 레시피 후보를 생성
+     * Gemini LLM을 호출하여 정형화된 JSON 형태의 레시피 초안 목록(RecipeCandidateDrafts)을 수신합니다.
+     *
+     * @param templateString 완성된 사용자 및 시스템 프롬프트 텍스트
+     * @return 파싱된 레시피 초안 객체
      */
-    private RecipeCandidates callRecipeCandidateLLM(String templateString) {
-        // .entity() 대신 content()+convert()를 쓴다. .entity()는 프롬프트 끝에 스키마 지시문을 한 번 더
-        // 붙이는데, 스키마를 API 옵션으로 넘기므로 그 지시문은 토큰만 쓰는 중복이다.
+    private RecipeCandidateDrafts callRecipeCandidateLLM(String templateString) {
+        // [구조화 출력 설정]
+        // BeanOutputConverter를 통해 JSON Schema를 LLM 옵션에 등록하고 application/json MIME 타입을 지정합니다.
+        // 이를 통해 모델이 마크다운이나 잡담 없이 순수 JSON만 출력하도록 보장합니다.
         String json = chatClient.prompt()
             .options(GoogleGenAiChatOptions.builder()
                 .responseMimeType(MediaType.APPLICATION_JSON_VALUE)
@@ -121,76 +148,41 @@ public class RecipeCandidateGenerator {
             .user(p -> p.text(templateString))
             .call()
             .content();
+
+        // JSON 응답을 DTO 객체로 변환하여 반환
         return RESPONSE_CONVERTER.convert(json);
     }
 
     /**
-     * LLM 응답을 처리하고 서버 검증을 적용
+     * LLM이 생성한 원시 초안(Draft)을 받아, 서버 측 보유 재료 정합성 검증을 거친 최종 CandidateRecipePlan 목록으로 변환합니다.
+     *
+     * @param drafts           LLM이 생성한 레시피 초안 래퍼
+     * @param ownedIngredients 사용자가 장바구니에 담아둔 실제 보유 식재료 목록
+     * @return 서버 검증이 완료된 레시피 후보군 일급 컬렉션
      */
-    private RecipeCandidates processRecipeCandidates(RecipeCandidates result, List<String> ownedIngredients) {
-        // LLM 응답을 서버 계산으로 보정
-        List<CandidateRecipePlan> enhancedCandidates = result.candidates().stream()
-            .map(candidate -> enhanceWithServerValidation(candidate, ownedIngredients))
+    private RecipeCandidates toCandidates(RecipeCandidateDrafts drafts, List<String> ownedIngredients) {
+        // [1단계: 초안 목록 순회 및 서버 측 재료 정합성 계산]
+        // CandidateRecipePlan.from()에서 보유 재료와의 교집합(used) 및 차집합(missing)을 직접 연산합니다.
+        List<CandidateRecipePlan> candidates = drafts.candidates().stream()
+            .filter(draft -> draft != null)
+            .map(draft -> CandidateRecipePlan.from(draft, ownedIngredients))
             .toList();
 
-        RecipeCandidates enhancedResult = new RecipeCandidates(enhancedCandidates);
-
-        log.info("레시피 후보 생성 완료. 후보 개수: {}", enhancedResult.candidates().size());
-        enhancedResult.candidates().forEach(candidate ->
-            log.info("  - 후보: {} ({}/{}/{}), core: {}, extra: {}, used: {}, missing: {}",
-                candidate.getRecipeName(),
-                candidate.getCookingMethod(),
-                candidate.getDifficulty(),
-                candidate.getMealType(),
-                candidate.getRecipeIngredientsCore(),
-                candidate.getRecipeIngredientsExtra(),
-                candidate.getUsedOwnedIngredients(),
-                candidate.getMissingIngredientsCore())
+        // [2단계: 생성 결과 상세 로깅]
+        log.info("레시피 후보 생성 완료. 후보 개수: {}", candidates.size());
+        candidates.forEach(candidate ->
+            log.debug("  - 후보: {} ({}/{}/{}), core: {}, extra: {}, used: {}, missing: {}",
+                candidate.recipeName(),
+                candidate.cookingMethod(),
+                candidate.difficulty(),
+                candidate.mealType(),
+                candidate.recipeIngredientsCore(),
+                candidate.recipeIngredientsExtra(),
+                candidate.usedOwnedIngredients(),
+                candidate.missingIngredientsCore())
         );
 
-        return enhancedResult;
-    }
-
-    /**
-     * LLM이 스스로 적어 보낸 "썼다/부족하다" 값을 믿지 않고 서버가 다시 계산해 덮어쓴다.
-     * 비교는 {@link IngredientProcessingUtil#normalizeForCompare}로 통일한다 — 예전에는 여기서만
-     * 공백·대소문자를 그대로 둔 채 비교해서, 같은 재료를 호출부와 다르게 세는 경우가 있었다.
-     */
-    private CandidateRecipePlan enhanceWithServerValidation(
-        CandidateRecipePlan candidate,
-        List<String> ownedIngredients
-    ) {
-        // core + extra에 포함된 재료 중 ownedIngredients에 있는 것들
-        List<String> allIngredients = Stream.concat(
-            candidate.getRecipeIngredientsCore().stream(),
-            candidate.getRecipeIngredientsExtra().stream()
-        ).toList();
-
-        Set<String> ownedNormalized = ownedIngredients.stream()
-            .map(IngredientProcessingUtil::normalizeForCompare)
-            .collect(Collectors.toSet());
-
-        List<String> accurateUsed = allIngredients.stream()
-            .filter(ing -> ownedNormalized.contains(IngredientProcessingUtil.normalizeForCompare(ing)))
-            .distinct()
-            .toList();
-
-        // core 재료 중 보유 재료에 없는 것들
-        List<String> accurateMissing = IngredientProcessingUtil
-            .subtractNormalized(candidate.getRecipeIngredientsCore(), ownedIngredients);
-
-        // 검증된 candidate 반환
-        CandidateRecipePlan verifiedCandidate = new CandidateRecipePlan();
-        verifiedCandidate.setCookingMethod(candidate.getCookingMethod());
-        verifiedCandidate.setDifficulty(candidate.getDifficulty());
-        verifiedCandidate.setMealType(candidate.getMealType());
-        verifiedCandidate.setRecipeName(candidate.getRecipeName());
-        verifiedCandidate.setRecipeIngredientsCore(candidate.getRecipeIngredientsCore());
-        verifiedCandidate.setRecipeIngredientsExtra(candidate.getRecipeIngredientsExtra());
-        verifiedCandidate.setInstructions(candidate.getInstructions());
-        verifiedCandidate.setStaplesAssumed(candidate.isStaplesAssumed());
-        verifiedCandidate.setUsedOwnedIngredients(accurateUsed);
-        verifiedCandidate.setMissingIngredientsCore(accurateMissing);
-        return verifiedCandidate;
+        // [3단계: 일급 컬렉션(RecipeCandidates)으로 포장하여 반환]
+        return new RecipeCandidates(candidates);
     }
 }

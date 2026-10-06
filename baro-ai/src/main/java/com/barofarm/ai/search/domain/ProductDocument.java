@@ -1,6 +1,5 @@
 package com.barofarm.ai.search.domain;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.Getter;
@@ -12,49 +11,75 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 import org.springframework.data.elasticsearch.annotations.InnerField;
 import org.springframework.data.elasticsearch.annotations.MultiField;
 
+/**
+ * Elasticsearch 메인 상품 검색 인덱스(`product`)에 매핑되는 상품 도메인 엔티티입니다.
+ *
+ * [인덱스 매핑 및 검색 필드 구성]
+ * - productId: 상품 고유 식별자 (문서 ID)
+ * - productName: Nori 형태소 분석(기본 검색) 및 Standard 분석(오탈자 단어 매칭용 subfield) 다중 필드 적용
+ * - productCategoryId / Code / Name: 상품 카테고리 필터링 및 응답 노출용 키워드 필드
+ * - price: 가격 범위 검색 및 정렬용 Long 필드
+ * - status: 현재 판매 상태 (ON_SALE, DISCOUNTED 상태만 검색 및 추천에 노출)
+ * - updatedAt: 최신순 정렬에 사용되는 상품 최종 변경 일시
+ * - ingredientName: 레시피 추천을 위해 상품 색인 시점에 사전 추출된 요리 재료 표준명
+ * - vector: Google Gemini 임베딩 모델로 생성된 1536차원 dense_vector (kNN 코사인 유사도 검색용)
+ */
 @Getter
 @Document(indexName = "product")
 public class ProductDocument {
-    @Id
-    private UUID productId; // 검색 결과 식별용
 
-    // productName: nori analyzer로 토큰화 (일반 검색용)
-    // productName.raw: keyword 타입으로 원본 텍스트 저장 (fuzzy search용)
+    /** 상품 고유 식별자 (Elasticsearch 문서의 @Id) */
+    @Id
+    private UUID productId;
+
+    /**
+     * 상품명 다중 필드 (MultiField).
+     * - mainField: 한국어 Nori 형태소 분석기를 적용하여 한글 검색어 형태소 일치(`match`, `match_phrase`) 검색에 사용됩니다.
+     * - word (subfield): Standard 분석기를 적용하여 띄어쓰기 단위로 토큰화하며, 오탈자 보정(`fuzzy`) 검색 시 단어별 1글자 교정에 사용됩니다.
+     */
     @MultiField(
         mainField = @Field(type = FieldType.Text, analyzer = "nori"),
         otherFields = {
             @InnerField(
-                suffix = "raw",
-                type = FieldType.Keyword
+                suffix = "word",
+                type = FieldType.Text,
+                analyzer = "standard"
             )
         }
     )
-    private String productName; // 검색 대상
+    private String productName;
 
+    /** 상품 카테고리 UUID */
     @Field(type = FieldType.Keyword)
-    private UUID productCategoryId; // 카테고리 ID
+    private UUID productCategoryId;
 
+    /** 상품 카테고리 코드 (레시피 추천 제외 카테고리 필터링 등에 사용) */
     @Field(type = FieldType.Keyword)
-    private String productCategoryCode; // 카테고리 코드
+    private String productCategoryCode;
 
+    /** 상품 카테고리 한글 표시명 */
     @Field(type = FieldType.Keyword)
-    private String productCategoryName; // 카테고리 이름
+    private String productCategoryName;
 
+    /** 상품 판매 가격 (가격 범위 필터 및 가격순 정렬에 사용) */
     @Field(type = FieldType.Long)
-    private Long price; // 필터링 & 정렬 기능이 필요하다면 유효 (가격대 필터, 가격순 정렬)
+    private Long price;
 
+    /** 상품 판매 상태 (ON_SALE, DISCOUNTED, SOLD_OUT 등) */
     @Field(type = FieldType.Keyword)
-    private String status; // 검색 결과 반환 로직 내에서 ON_SALE, DISCOUNTED 상태만 결과에 노출
+    private String status;
 
+    /** 상품 정보가 최종 변경된 시각 (검색 결과 최신순 정렬 기준) */
     @Field(type = FieldType.Date, format = DateFormat.date_time)
-    @JsonFormat(pattern = "uuuu-MM-dd'T'HH:mm:ssX", timezone = "UTC")
-    private Instant updatedAt; // 검색 결과 반환 로직 내에서 최신순으로 정렬
+    private Instant updatedAt;
 
+    /** 색인 시점에 LLM으로 정규화하여 저장한 요리 재료 표준명 (레시피 추천 시 즉시 조회됨) */
     @Field(type = FieldType.Keyword)
-    private String ingredientName; // 상품명에서 뽑은 요리 재료명 — 색인 시점에 1회 계산 (레시피 추천이 읽음)
+    private String ingredientName;
 
+    /** Google Gemini 임베딩 모델로 생성된 1536차원 상품 임베딩 벡터 (kNN 유사 상품 및 개인화 추천에 활용) */
     @Field(type = FieldType.Dense_Vector, dims = 1536)
-    private float[] vector; // Gemini 임베딩 벡터 (1536차원 — 출력 차원을 설정으로 고정한다)
+    private float[] vector;
 
     public ProductDocument() {
     }
