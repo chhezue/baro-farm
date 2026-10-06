@@ -13,36 +13,44 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.core.env.Environment;
 
 /**
- * LLM 챗 호출용 {@link ChatClient} 설정.
- * 모델은 Google Gemini를 쓴다 — 근거: docs/decisions/003-gemini-migration.md
- * 기본 옵션(모델·temperature)은 application-prod.yml에 있고, 호출마다 달라야 하는 값은 호출부에서 덮어쓴다.
- * 타임아웃·재시도는 Spring AI 설정(spring.ai.retry.*)이 아니라 여기서 정한다. Spring AI의 재시도는
- * 자기 예외 타입만 대상으로 삼아 Gemini SDK가 던지는 429·5xx 예외에는 걸리지 않고, 실제 재시도는
- * SDK 안의 HTTP 인터셉터가 한다. 근거: docs/audits/cross-cutting/001-llm-call-infra.md A-1
+ * Google Gemini 대화형 LLM 호출을 위한 {@link Client} 및 {@link ChatClient} 빈 설정 클래스입니다.
+ *
+ * [핵심 아키텍처 및 장애 방어]
+ * 1. 호출 타임아웃 제한 (30초): Google GenAI 호출 1회의 상한을 30초로 제한하여, LLM API 지연 시 추천 스레드 및 Kafka 리스너가 무기한 블로킹되는 장애를 원천 차단합니다.
+ * 2. 지수 백오프 재시도 (최대 3회): 순간적인 429(Rate Limit) 또는 5xx 서버 오류에 대응할 수 있도록 SDK 내부 HTTP 인터셉터 수준에서 최대 3회 재시도를 수행합니다.
+ * 3. ChatClient 빈 등록: Spring AI의 고수준 추상화 대화형 클라이언트를 생성하여 레시피 후보 생성기 등에서 주입받아 사용할 수 있도록 제공합니다.
  */
 @Configuration
 public class LlmClientConfig {
 
-    // Gemini 호출 1회의 상한. spring.ai.google.genai.* 설정에는 타임아웃 속성이 없어서
-    // Client 빈을 직접 만들어 넣어야 한다. 상한이 없으면 Gemini가 응답하지 않을 때
-    // 추천 요청 스레드와 Kafka 리스너 스레드가 무기한 붙잡힌다.
+    /** Gemini API 호출 1회의 최대 대기 시간 상한선 (30초) */
     private static final Duration CALL_TIMEOUT = Duration.ofSeconds(30);
 
-    // 재시도를 포함한 총 시도 횟수. SDK 기본값은 5회에 지연 상한 60초라, 아무 값도 안 주면
-    // 한 번의 요청이 최악 5 × 30초 + 지연으로 몇 분까지 늘어질 수 있었다.
-    // 3회면 429(무료 한도)·5xx 같은 순간 장애는 넘기면서 최악 시간이 약 3 × 30초 + 3초에 머문다.
-    // 재시도 대상 상태 코드는 SDK 기본(408·429·500·502·503·504)을 그대로 쓴다.
+    /** 일시적 오류(429, 5xx) 발생 시 재시도를 포함한 총 최대 시도 횟수 (3회) */
     private static final int RETRY_TOTAL_ATTEMPTS = 3;
+
+    /** 첫 번째 재시도 전 초기 대기 시간 (1.0초) */
     private static final double RETRY_INITIAL_DELAY_SECONDS = 1.0;
+
+    /** 지수 백오프로 증가하는 재시도 대기 시간의 최대 상한선 (10.0초) */
     private static final double RETRY_MAX_DELAY_SECONDS = 10.0;
 
+    /**
+     * Google GenAI 공식 Java SDK의 저수준 통신 클라이언트({@link Client}) 빈을 등록합니다.
+     *
+     * @param environment 애플리케이션 프로퍼티 환경 객체
+     * @return 타임아웃과 재시도 정책이 바인딩된 Google GenAI Client 객체
+     */
     @Bean
     Client googleGenAiClient(Environment environment) {
+        // [1단계: HTTP 지수 백오프 재시도 옵션 구성]
         HttpRetryOptions retryOptions = HttpRetryOptions.builder()
             .attempts(RETRY_TOTAL_ATTEMPTS)
             .initialDelay(RETRY_INITIAL_DELAY_SECONDS)
             .maxDelay(RETRY_MAX_DELAY_SECONDS)
             .build();
+
+        // [2단계: 타임아웃 및 API 키를 적용한 Google GenAI Client 인스턴스 빌드]
         return Client.builder()
             .apiKey(environment.getRequiredProperty("spring.ai.google.genai.api-key"))
             .httpOptions(HttpOptions.builder()
@@ -52,6 +60,12 @@ public class LlmClientConfig {
             .build();
     }
 
+    /**
+     * Spring AI의 대화형 추상화 클라이언트({@link ChatClient}) 빈을 등록합니다.
+     *
+     * @param chatModel Google GenAI 대화 모델 구현체 (googleGenAiChatModel)
+     * @return 애플리케이션 전역에서 주입받아 사용할 ChatClient 인스턴스
+     */
     @Bean
     @Primary
     public ChatClient chatClient(@Qualifier("googleGenAiChatModel") ChatModel chatModel) {

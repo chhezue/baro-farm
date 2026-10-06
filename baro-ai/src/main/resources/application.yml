@@ -7,5 +7,108 @@ api:
 spring:
   application:
     name: ai-service
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:local}
+  config:
+    import:
+      - classpath:review-sentiment.yml
+      - classpath:review-negative-keywords.yml
+      - classpath:recipe-recommend.yml
+  # baro-common이 JPA 스타터를 끌어오므로, baro-ai에 엔티티가 없어도 자동설정이 DataSource를 찾다 기동에 실패한다.
+  # baro-ai는 Elasticsearch만 쓰므로 두 자동설정을 끈다.
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+
+  # Elasticsearch 설정
+  # 타임아웃은 RestClient 기본값과 같은 값을 명시한 것이다 — 값을 바꾸려면 여기만 고치면 된다.
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://elasticsearch:9200}
+    connection-timeout: 1s
+    socket-timeout: 30s
+
+  # 다른 모듈 호출(Feign) 설정
+  # Eureka가 꺼져 있어 서비스 이름만으로는 주소를 찾지 못한다 — k8s Service 주소를 직접 준다.
+  # 타임아웃은 게이트웨이 응답 상한(5초)보다 짧게 둔다. 그보다 오래 붙잡고 있어 봐야
+  # 사용자는 이미 게이트웨이에서 끊긴 뒤라 의미가 없다.
+  cloud:
+    openfeign:
+      client:
+        config:
+          shopping-service:
+            url: ${SHOPPING_SERVICE_URL:http://baro-shopping:8080}
+            connectTimeout: 1000
+            readTimeout: 3000
+
+  # Kafka 설정
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    # 아래 두 값만 KafkaConsumerConfig가 @Value로 읽는다.
+    # 역직렬화기·offset 정책은 리스너마다 지정한 커스텀 팩토리가 정하므로 여기 두지 않는다.
+    consumer:
+      group-id: ai-service
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+  # Spring AI 설정 (Google Gemini — 근거: docs/decisions/003-gemini-migration.md)
+  # 타임아웃·재시도는 spring.ai.retry.*가 아니라 LlmClientConfig가 Gemini SDK 클라이언트에 직접 건다.
+  # spring.ai.retry.*는 SDK가 던지는 429·5xx 예외에 반응하지 않는 죽은 설정이라 두지 않는다.
+  ai:
+    google:
+      genai:
+        api-key: ${BARO_AI_GEMINI_KEY:}
+        chat:
+          options:
+            model: ${SPRING_AI_GEMINI_MODEL:gemini-2.5-flash-lite}
+            # 레시피 후보 생성용 기본값. 결정적 추출이 필요한 호출은 호출부에서 0으로 덮어쓴다
+            temperature: 0.7
+        embedding:
+          api-key: ${BARO_AI_GEMINI_KEY:}
+          text:
+            options:
+              model: ${SPRING_AI_GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
+              # ES 매핑(dims=1536)을 유지하려고 출력 차원을 고정한다
+              dimensions: 1536
+
+# 로깅 설정
+logging:
+  level:
+    root: INFO
+    com.barofarm.ai: DEBUG
+    org.springframework.kafka: INFO
+    # 프레임워크 패키지는 INFO(root)를 따른다. 요청 1건마다 로그가 4줄 이상 붙고
+    # 응답 본문 일부가 로그에 남기 때문이다.
+    # LLM 요청 본문을 봐야 할 때는 재배포 없이 런타임에 켠다:
+    #   curl -X POST .../actuator/loggers/org.springframework.ai \
+    #     -H 'Content-Type: application/json' -d '{"configuredLevel":"DEBUG"}'
+    # 확인이 끝나면 {"configuredLevel":null}로 되돌린다.
+
+# Swagger/OpenAPI 설정
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+
+management:
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  endpoints:
+    web:
+      exposure:
+        # prometheus: ServiceMonitor가 30초마다 /actuator/prometheus를 긁어 간다
+        # loggers: 특정 패키지 로그 레벨을 재배포 없이 켰다 끄기 위한 손잡이
+        # 게이트웨이 라우트 밖(클러스터 내부)이라 외부에는 열리지 않는다 — 배포 설정에서 확인
+        include: health,metrics,prometheus,loggers
+  endpoint:
+    health:
+      show-details: always
+      enabled: true
+  health:
+    elasticsearch:
+      enabled: false  # Elasticsearch Java client 8.13.3과 호환성 문제로 비활성화

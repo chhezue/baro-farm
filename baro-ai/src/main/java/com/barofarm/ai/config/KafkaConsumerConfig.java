@@ -28,6 +28,9 @@ import org.springframework.util.backoff.FixedBackOff;
  *
  * 각 도메인의 처리 특성(처리 소요 시간, 오프셋 격리 필요성 등)에 맞춰 poll 레코드 수와
  * 컨슈머 그룹 ID, 재시도 정책을 독립적으로 분리 구성합니다.
+ *
+ * 팩토리 4개가 타입·그룹 접미사·offset 초기값만 다르고 나머지가 같아 공통 메서드로 모았다.
+ * 다만 리뷰 팩토리는 팀원 소유라 이번 정리에서 제외했다 — 실패 동작이 바뀌기 때문이다.
  */
 @Configuration
 @EnableKafka
@@ -57,129 +60,104 @@ public class KafkaConsumerConfig {
     private static final long RETRY_MAX_ATTEMPTS = 2L;
 
     /**
-     * 상품 이벤트(ProductEvent) 수신용 ConsumerFactory 빈을 등록합니다.
+     * 컨슈머 팩토리 공통 생성.
+     *
+     * 발행 모듈의 클래스명 헤더를 무시하고 지정한 타입으로 읽는다 — 모듈끼리 패키지 경로를 공유하지 않기 위해서다.
+     * 역직렬화에 실패한 메시지는 {@link ErrorHandlingDeserializer}가 헤더로 바꿔 주고,
+     * 컨테이너의 기본 에러 핸들러가 재시도 없이 건너뛴다. 감싸지 않으면 같은 레코드를 무한히 다시 읽어
+     * 그 파티션의 뒤 이벤트가 영영 처리되지 않는다.
      */
-    @Bean
-    public ConsumerFactory<String, ProductEvent> productEventConsumerFactory() {
+    private <T> ConsumerFactory<String, T> consumerFactory(
+        Class<T> eventType,
+        String groupSuffix,
+        String autoOffsetReset,
+        Map<String, Object> extraConfig
+    ) {
         Map<String, Object> config = new HashMap<>();
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
-        // 상품 색인 시 외부 모델(임베딩, LLM) 호출 지연으로 인한 max.poll.interval.ms 초과 및 리밸런싱 방지를 위해 1건 제한
-        config.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, PRODUCT_MAX_POLL_RECORDS);
+        config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId + groupSuffix);
+        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetReset);
+        config.putAll(extraConfig);
 
-        // MSA 환경: 메시지 발행 모듈의 클래스 패키지 종속을 제거하기 위해 타입 헤더를 무시하고 ProductEvent로 매핑
-        JsonDeserializer<ProductEvent> jsonDeserializer = new JsonDeserializer<>(ProductEvent.class);
+        JsonDeserializer<T> jsonDeserializer = new JsonDeserializer<>(eventType);
         jsonDeserializer.setRemoveTypeHeaders(true);
         jsonDeserializer.setUseTypeHeaders(false);
 
-        jsonDeserializer.addTrustedPackages(
-            "*",
-            "com.barofarm.shopping.product.event",
-            "com.barofarm.shopping",
-            "com.barofarm"
-        );
+        return new DefaultKafkaConsumerFactory<>(
+            config, new StringDeserializer(), new ErrorHandlingDeserializer<>(jsonDeserializer));
+    }
 
-        // 역직렬화 실패 시 파티션 정지(Poison Pill)를 방지하기 위해 null을 반환하여 스킵 처리
-        ErrorHandlingDeserializer<ProductEvent> deserializer = new ErrorHandlingDeserializer<>(jsonDeserializer);
-        deserializer.setFailedDeserializationFunction(record -> null);
-
-        return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
+    /** 1초 간격으로 최대 2회 다시 시도한 뒤 건너뛰는 공통 에러 핸들러. */
+    private CommonErrorHandler retryingErrorHandler() {
+        return new DefaultErrorHandler(new FixedBackOff(RETRY_INTERVAL_MS, RETRY_MAX_ATTEMPTS));
     }
 
     /**
-     * 상품 이벤트 리스너 컨테이너 팩토리를 등록합니다.
+     * 상품 이벤트(ProductEvent) 수신용 ConsumerFactory.
+     * 색인 시 임베딩·재료명 LLM 호출이 끼어 건당 처리 시간이 길어지므로 poll당 1건으로 제한한다.
      */
+    @Bean
+    public ConsumerFactory<String, ProductEvent> productEventConsumerFactory() {
+        return consumerFactory(
+            ProductEvent.class,
+            "",
+            "latest",
+            Map.of(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, PRODUCT_MAX_POLL_RECORDS));
+    }
+
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, ProductEvent> productEventListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, ProductEvent> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(productEventConsumerFactory());
-
-        // 색인 또는 외부 호출 실패 시 1초 간격으로 최대 2회 추가 재시도(FixedBackOff) 적용
-        CommonErrorHandler errorHandler = new DefaultErrorHandler(
-            new FixedBackOff(RETRY_INTERVAL_MS, RETRY_MAX_ATTEMPTS)
-        );
-        factory.setCommonErrorHandler(errorHandler);
-
+        factory.setCommonErrorHandler(retryingErrorHandler());
         return factory;
     }
 
-    // === 개인화 추천 로그 수집 Consumer 설정 (장바구니, 주문, 리뷰) ===
+    // === 개인화 추천 로그 수집 Consumer 설정 (장바구니, 주문) ===
+    // 두 팩토리 모두 전용 그룹으로 오프셋을 격리하고, 개인화 데이터를 처음부터 모으기 위해 earliest로 읽는다.
 
     /**
-     * 장바구니 행동 로그 이벤트(CartLogEvent) 수신용 ConsumerFactory 빈을 등록합니다.
+     * 장바구니 이벤트(CartLogEvent) 수신용 ConsumerFactory 빈 등록.
+     * 오프셋 격리를 위해 그룹 ID에 '-cart' 접미사를 부여하고, 누적 이력을 모두 반영하기 위해 auto.offset.reset=earliest를 적용합니다.
      */
     @Bean
     public ConsumerFactory<String, CartLogEvent> cartEventConsumerFactory() {
-        Map<String, Object> config = new HashMap<>();
-        config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        // 장바구니 전용 독립 컨슈머 그룹으로 분리하여 오프셋 격리
-        config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId + "-cart");
-        // 개인화 데이터 누적 수집을 위해 최초 시작 시 처음부터 수집
-        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-
-        JsonDeserializer<CartLogEvent> jsonDeserializer = new JsonDeserializer<>(CartLogEvent.class);
-        jsonDeserializer.setRemoveTypeHeaders(true);
-        jsonDeserializer.setUseTypeHeaders(false);
-        jsonDeserializer.addTrustedPackages("*");
-
-        // 역직렬화 에러 발생 시 파티션이 멈추지 않고 에러 핸들러로 위임되도록 래핑
-        return new DefaultKafkaConsumerFactory<>(
-            config, new StringDeserializer(), new ErrorHandlingDeserializer<>(jsonDeserializer));
+        return consumerFactory(CartLogEvent.class, "-cart", "earliest", Map.of());
     }
 
     /**
-     * 장바구니 이벤트 리스너 컨테이너 팩토리를 등록합니다.
+     * 장바구니 이벤트 리스너 컨테이너 팩토리 빈 등록.
+     * 1초 간격 최대 2회 재시도(retryingErrorHandler) 정책을 적용합니다.
      */
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, CartLogEvent> cartEventListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, CartLogEvent> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(cartEventConsumerFactory());
-
-        // 일시적 장애 시 1초 간격 최대 2회 재시도 적용
-        factory.setCommonErrorHandler(
-            new DefaultErrorHandler(new FixedBackOff(RETRY_INTERVAL_MS, RETRY_MAX_ATTEMPTS)));
-
+        factory.setCommonErrorHandler(retryingErrorHandler());
         return factory;
     }
 
     /**
-     * 주문 행동 로그 이벤트(OrderLogEvent) 수신용 ConsumerFactory 빈을 등록합니다.
+     * 주문 이벤트(OrderLogEvent) 수신용 ConsumerFactory 빈 등록.
+     * 오프셋 격리를 위해 그룹 ID에 '-order' 접미사를 부여하고, auto.offset.reset=earliest를 적용합니다.
      */
     @Bean
     public ConsumerFactory<String, OrderLogEvent> orderEventConsumerFactory() {
-        Map<String, Object> config = new HashMap<>();
-        config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        // 주문 전용 독립 컨슈머 그룹으로 분리하여 오프셋 격리
-        config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId + "-order");
-        // 과거 주문 이력 누락 없이 수집
-        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-
-        JsonDeserializer<OrderLogEvent> jsonDeserializer = new JsonDeserializer<>(OrderLogEvent.class);
-        jsonDeserializer.setRemoveTypeHeaders(true);
-        jsonDeserializer.setUseTypeHeaders(false);
-        jsonDeserializer.addTrustedPackages("*");
-
-        // 역직렬화 실패 메시지로 인한 파티션 정지 방지
-        return new DefaultKafkaConsumerFactory<>(
-            config, new StringDeserializer(), new ErrorHandlingDeserializer<>(jsonDeserializer));
+        return consumerFactory(OrderLogEvent.class, "-order", "earliest", Map.of());
     }
 
     /**
-     * 주문 이벤트 리스너 컨테이너 팩토리를 등록합니다.
+     * 주문 이벤트 리스너 컨테이너 팩토리 빈 등록.
+     * 1초 간격 최대 2회 재시도(retryingErrorHandler) 정책을 적용합니다.
      */
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, OrderLogEvent> orderEventListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, OrderLogEvent> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(orderEventConsumerFactory());
-
-        // 1초 간격 최대 2회 재시도 정책 적용
-        factory.setCommonErrorHandler(
-            new DefaultErrorHandler(new FixedBackOff(RETRY_INTERVAL_MS, RETRY_MAX_ATTEMPTS)));
-
+        factory.setCommonErrorHandler(retryingErrorHandler());
         return factory;
     }
 
