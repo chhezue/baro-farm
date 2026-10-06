@@ -20,6 +20,7 @@
 | 아키텍처 감사 | `safe-refactor` 스킬 (Audit 단계) | `docs/audits/{unit}/{NNN}-{kebab-topic}.md` (작업 단위 안에서 001부터 증가, 규칙은 [`audits/README.md`](../audits/README.md)) | 문제 해결 | [`how-to-doc.md`](how-to-doc.md) |
 | 리팩터 반영 이력 | `safe-refactor` 스킬 (G4 Report) | `docs/audits/{unit}/refactor-log.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
 | 하네스 회고 백로그 | `retro` 스킬 | `docs/audits/harness-retro.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
+| 미결 항목 색인 | 사용자 승인 후 수동 작성(리팩터 라운드 종료 시 갱신) | `docs/audits/open-items.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
 | 아키텍처 결정 (ADR) | 사용자 승인 후 수동 작성 | `docs/decisions/{번호}-{kebab-case}.md` | 설명 | [`explanation-doc.md`](explanation-doc.md) |
 | 제품 범위·용어 | 사용자 승인 후 수동 작성 | `docs/product/mvp.md` · `glossary.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
 | 클라이언트 전제 | 사용자 승인 후 수동 작성 | `docs/product/platform.md` | 설명 | [`explanation-doc.md`](explanation-doc.md) |
