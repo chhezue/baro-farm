@@ -29,7 +29,7 @@ baro-ai와 ssoss를 아래 8개 축으로 비교했다. 각 항목은 `파일:�
 1. **구조화 출력을 API 레벨로 강제한다.** ssoss의 `GoogleGenAiChatOptions.responseMimeType(APPLICATION_JSON_VALUE)` + `.responseSchema(...)` 패턴을 baro-ai의 세 `.entity()` 호출에도 적용한다. 지금은 프롬프트 문구에만 의존해, 파싱 실패가 나면 `catch (Exception e)`로 조용히 빈 값이 반환된다. 같은 Spring AI 버전(1.1.8)에 이미 있는 기능이라 도입 비용이 낮다.
 2. **실패 분류 enum + 예외 타입을 둔다.** `GenerationResultStatus` + 전용 예외 패턴을 도입하면, 지금 `catch (Exception e)` 한 줄로 뭉개지는 rate limit·timeout·파싱실패를 구분해 로그·모니터링에 남길 수 있다.
 3. **전체 요청 단위 타임아웃 예산을 둔다.** ssoss의 `Generation.DEADLINE` 패턴처럼, baro-ai도 호출당 30초 캡(`LlmClientConfig.java:25`)만이 아니라 요청 전체(추천 API 응답까지)의 상한을 명시적으로 관리해야 한다 — 특히 동기 HTTP 엔드포인트인 `RecommendationController`에 가치가 크다.
-4. **자유 입력 텍스트를 프롬프트에 넣을 때 "가져오지 말 것"을 명시한다.** ssoss의 `[참고 범위]` 절 패턴. baro-ai는 지금 자유 입력을 프롬프트에 넣는 지점이 없어 시급하지 않지만, `chat/application/ChatService.java`(현재 빈 스텁)를 구현할 때 반드시 참고해야 한다.
+4. **자유 입력 텍스트를 프롬프트에 넣을 때 "가져오지 말 것"을 명시한다.** ssoss의 `[참고 범위]` 절 패턴. baro-ai는 지금 자유 입력을 프롬프트에 넣는 지점이 없어 시급하지 않지만, 챗봇을 구현하게 되면 반드시 참고해야 한다(빈 스텁 4개는 2026-09-05에 삭제했다 — [`specs/chat/chatbot.md`](../specs/chat/chatbot.md)).
 5. **프롬프트 조립을 순수 함수로 분리해 단위테스트를 붙인다.** `GenerationPromptComposerTest`처럼, 프롬프트에 어떤 문구가 포함/제외되는지를 문자열 assert로 검증한다. baro-ai는 프롬프트가 서비스 메서드에 인라인돼 있어 테스트가 전무한데, `buildRecipeCandidateTemplate`/`buildPrompt`를 별도 메서드로 분리해 두면 테스트 추가 비용이 낮아진다.
 
 ## baro-ai가 이미 더 나은 점
@@ -48,7 +48,7 @@ LLM을 실제로 호출하는 지점은 `chat`을 포함해 정확히 4곳(`chat
 | [`recommend/infrastructure/llm/RecipeCandidateGenerator.java`](../../src/main/java/com/barofarm/ai/recommend/infrastructure/llm/RecipeCandidateGenerator.java) | 유일하게 동기 HTTP 요청 경로(`RecommendationController` → `RecipeRecommendService`)에서 호출되는 LLM. 구조화 출력·실패분류·테스트 부재가 가장 체감되는 지점 — **1순위** |
 | [`search/infrastructure/llm/ProductIngredientNormalizer.java`](../../src/main/java/com/barofarm/ai/search/infrastructure/llm/ProductIngredientNormalizer.java) | 유일하게 `.param()`으로 Spring AI 템플릿 렌더러를 실제로 타는 호출. temperature를 호출부에서 override하는 유일한 사례이기도 해 "호출 단위 옵션 분리" 비교축의 기준 |
 | [`review/application/summary/ReviewSummaryService.java`](../../src/main/java/com/barofarm/ai/review/application/summary/ReviewSummaryService.java) | `review`는 `baro-ai-performance-refactor.md` 범위 밖(팀원 소유)이지만, 자유 입력 텍스트를 프롬프트에 삽입하는 유일한 사례라 "프롬프팅 인젝션 방어" 비교축의 기준으로는 유효 — **코드 변경 제안은 팀원 확인 필요** |
-| [`chat/application/ChatService.java`](../../src/main/java/com/barofarm/ai/chat/application/ChatService.java) | 완전 빈 스텁 — ssoss와 1:1 비교 대상은 아니지만, 인젝션 방어·구조화 출력 패턴을 **설계 시점에 미리 참고**할 유일한 신규 도메인 |
+| 챗봇 (코드 없음 — [`specs/chat/chatbot.md`](../specs/chat/chatbot.md)) | 감사 당시에는 빈 스텁 `chat/application/ChatService.java`가 있었고 2026-09-05에 삭제했다. ssoss와 1:1 비교 대상은 아니지만, 인젝션 방어·구조화 출력 패턴을 **설계 시점에 미리 참고**할 유일한 신규 도메인 |
 | [`config/LlmClientConfig.java`](../../src/main/java/com/barofarm/ai/config/LlmClientConfig.java) | 4개 호출 지점이 공유하는 유일한 인프라 설정. 타임아웃·재시도 정책을 바꾸면 전부에 영향 |
 
 `embedding`·`event`·`log` 도메인은 LLM을 직접 호출하지 않아(임베딩은 별도 API 경로) 이번 비교 기준에서 제외한다.

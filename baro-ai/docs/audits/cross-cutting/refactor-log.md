@@ -84,7 +84,7 @@
 - **로그를 줄이고 개인 정보가 새는 경로를 닫았다** — 프레임워크 상세 로그 3종을 끄고, AI 요청 내용은 필요할 때만 켠다.
 - **설정 파일을 하나로 합치고 안 쓰는 인프라 의존성을 걷어냈다** — 프로필 없이 그냥 실행하면 뜬다.
 - **빌드 파일을 실제 스택과 맞췄다** — DB·검증·OkHttp·죽은 버전 강제 제거.
-- **이벤트 수신 설정 네 벌을 공통 메서드로 모으고, 빈 껍데기 4개를 지웠다.**
+- **이벤트 수신 설정을 공통 메서드로 모으고, 빈 껍데기 4개를 지웠다.** 네 벌 중 세 벌(상품·장바구니·주문)만 합쳤다. 나머지 한 벌은 리뷰 기능 것이라 팀원 소유이고, 합치면 실패했을 때의 동작이 바뀌어 그대로 두었다. 그래서 읽히지도 않던 "믿을 수 있는 패키지" 설정도 그 한 곳에는 남아 있다. 중복 설정 줄은 줄었지만 설명 주석을 함께 보강해 파일 전체 길이는 171줄에서 192줄로 늘었다.
 - **추천 API 응답을 검색 API와 같은 형태로 통일했다.**
 
 아래 표는 개발자 참조용이다.
@@ -95,9 +95,9 @@
 |------|--------|-------|
 | A-1 지표 노출 | `include: health,metrics` — `/actuator/prometheus`가 404, ServiceMonitor가 30초마다 헛수고 | `health,metrics,prometheus,loggers` |
 | A-2·B-6 컨슈머 팩토리 | 12줄짜리 팩토리 4벌, 역직렬화 방어는 product에만 | 공통 메서드 1개(product·cart·order). review 팩토리는 팀원 소유라 그대로 |
-| B-6 신뢰 패키지 | `addTrustedPackages(...)` 4곳 + 사실과 반대인 주석 2줄 | 삭제(타입 헤더를 무시하므로 읽히지 않던 설정) |
+| B-6 신뢰 패키지 | `addTrustedPackages(...)` 4곳 + 사실과 반대인 주석 2줄 | 공통 메서드로 옮긴 3곳(product·cart·order)에서 삭제(타입 헤더를 무시하므로 읽히지 않던 설정). review 팩토리의 1곳은 팀원 소유라 남아 있다 |
 | B-6 죽은 yml | `spring.kafka.consumer`의 역직렬화기·offset 3줄 | 삭제(`group-id`·`bootstrap-servers`만 유지) |
-| 판단 3 그룹 이름 | 어노테이션 `search-service`가 팩토리 `ai-service`를 덮음 | 어노테이션 값 삭제 → `ai-service` 계열로 통일 |
+| 판단 3 그룹 이름 | `ProductEventConsumer`의 어노테이션 `search-service`가 팩토리 `ai-service`를 덮음 | 그 어노테이션 값만 삭제 → 팩토리가 정한 `ai-service`를 쓴다. cart·order·review 컨슈머는 어노테이션 값(`ai-service-cart` 등)이 팩토리 값과 같아 그대로 뒀다 |
 | B-1 DB 의존성 | `starter-data-jpa`·`mysql-connector-j` + H2용 테스트 yml(키가 잘못 중첩돼 어차피 무효) | 삭제. 자동설정 제외 2줄은 유지(baro-common이 JPA를 끌어옴) + 이유 주석 |
 | B-2 인프라 클라이언트 | `starter-config`·`eureka-client`·`@EnableDiscoveryClient`·`eureka.client.enabled: false` | 삭제 |
 | B-3 빈 덮어쓰기 | `allow-bean-definition-overriding: true` | 삭제(이름 충돌을 기동 시점에 잡는다) |
@@ -115,7 +115,7 @@
 - 삭제: `src/main/resources/application-prod.yml`, `src/test/resources/application-test.yml`, `chat` 패키지 4개 파일
 - `build.gradle` — JPA·MySQL·validation·okhttp·dotenv·eureka·config 스타터, swagger force 6줄 삭제
 - `AiApplication.java` — `@EnableDiscoveryClient` 삭제
-- `config/KafkaConsumerConfig.java` — 공통 팩토리 메서드(171줄 → 149줄)
+- `config/KafkaConsumerConfig.java` — product·cart·order 팩토리 3개를 공통 메서드 하나로
 - `search/infrastructure/event/ProductEventConsumer.java` — `groupId` 어노테이션 값·도달 불가 분기 삭제
 - `recommend/presentation/RecommendationController.java` — 응답 3개를 `ResponseDto`로
 
@@ -151,3 +151,135 @@
 - **컨슈머 그룹 이름이 바뀌었다** — 상품 이벤트 그룹이 `search-service`에서 `ai-service`로 바뀌므로 읽던 위치가 초기화된다. `latest`라 과거 이벤트는 건너뛴다. dev 모드라 문제없다는 사용자 확인을 받았다
 - **review 소유 항목은 손대지 않았다** — `reviewEventConsumerFactory`(공통 메서드에서 제외), `KafkaProducerConfig`의 중복 `@EnableKafka`, `spring.kafka.producer` yml, `ReviewBatchController`의 응답 형식. 전부 팀원 확인 대상
 - **C 항목은 손대지 않았다** — 설정 클래스 패키지 이원화(C-1) 등
+
+## 2026-09-05 — 주석·Javadoc 정비 (감사 항목 아님 · 사용자 결정)
+
+**감사에서 나온 항목이 아니다.** 리팩터 4라운드와 같은 시기에 `baro-ai/` 코드 전반의 주석을 다시 썼고, 어느 감사 문서도 이 변경을 지시하지 않았다. 별도 세션의 교차 검토에서 "어느 refactor-log에도 기록이 없다"는 지적을 받아 여기 남긴다.
+
+### 왜 문제였나 (쉬운 말로)
+
+**코드를 처음 보는 사람이 기댈 곳이 코드밖에 없습니다.** 이 저장소에는 자동화 테스트가 하나도 없어서, 어떤 기능이 무엇을 하는지 확인하려면 코드를 직접 따라 읽는 수밖에 없습니다. 인수인계와 포트폴리오 설명도 같은 코드를 근거로 삼습니다. 그래서 클래스·필드·메서드마다 설명을 달고 긴 메서드는 단계별로 구획을 나눠, 읽는 것만으로 흐름이 잡히게 했습니다.
+
+**대신 두 가지가 딸려 왔습니다.** 첫째, 이 방식은 이 저장소의 주석 규칙이 "쓰지 말라"고 적어 둔 것들과 정면으로 부딪힙니다. 둘째, 주석을 다시 쓰는 과정에서 **사실과 달라지거나 근거가 사라진 곳**이 생겼습니다 — 동기로 도는 작업을 "비동기"라 적거나, 이 라운드에서 지운 인프라를 아직 쓰는 것처럼 적은 곳들입니다. 첫 번째는 규칙 쪽을 고쳐 정리했고, 두 번째는 스타일과 무관한 결함이라 하나씩 되돌렸습니다.
+
+### 무엇을 바꿨나
+
+- **코드만 읽어도 흐름이 잡히게 했다** — 클래스·필드·메서드에 Javadoc을 빠짐없이 달고, 긴 메서드 본문은 `// [1단계: …]` 구획으로 나눴다. record 컴포넌트는 `@param`으로 의미를 적었다.
+- **규칙과의 충돌을 규칙 쪽에서 정리했다** — [`java-comments.md`](../../../../.claude/rules/java-comments.md)의 "쓰지 않음" 목록(단순 `@param`/`@return`, 필드명과 겹치는 설명, Controller에서 Service 설명 반복, 자명한 1라이너 생략)과 어긋나는 방식이다. 사용자가 baro-ai에서는 이 스타일을 유지하기로 결정해 규칙에 baro-ai 예외 절을 명시했다. 다른 모듈에는 적용하지 않는다.
+- **사실과 달라진 곳 10건을 되돌렸다** — 아래 표.
+
+> 아래 표는 개발자 참조용이다. 쉬운 설명은 바로 위 절에 있다.
+
+### Before / After
+
+| 무엇 | Before (주석이 주장하던 것) | After |
+|------|---------------|------|
+| `updatedAt` | "상품이 바뀐 시각"이라 적었으나 발행 측은 `Instant.now()`를 보낸다 | 코드·문서 8곳 정정, 남은 한계는 [`open-items.md`](../open-items.md) B-11 |
+| `CartClient` | "Eureka에 등록된 `shopping-service`" — Eureka 의존성은 이 라운드에서 삭제했다 | 실제 주소 결정 경로로 교체 |
+| `script_score` | 11곳에서 native `knn`이라 불렀다. 아키텍처 문서는 "knn이 아니다"라고 명시하고 있었다 | 전부 정정 |
+| 검색 로그 적재 | "비동기로 기록"이라 적었으나 `saveSearchLog`는 동기다(유일한 `@Async`는 프로필 갱신 트리거) | 3곳 정정 — 응답 시간에 포함된다는 점을 명시 |
+| 다양화 기준 | "카테고리가 편중되지 않은"이라 적었으나 기준은 벡터 거리이고 카테고리 가산점은 삭제됐다 | 정정 |
+| 다양화 비용 | "단일 패스로 빠르게 수렴, 지연 시간이 매우 낮다" — 실제는 topK회 반복이고 측정한 적 없다 | 연산량 서술로 교체 |
+| 구조화 출력 | "100% 신뢰할 수 있는 JSON" | 파싱 실패 대비가 여전히 필요하다는 사실로 교체 |
+| 역직렬화 실패 처리 | "컨테이너의 기본 에러 핸들러가 건너뛴다" — 실제로는 설정한 `DefaultErrorHandler`가 재시도 불가로 분류해 건너뛴다 | 메커니즘대로 교체 |
+| `product-autocomplete` | 인덱스명을 `product_autocomplete`(밑줄)로 적었다 | 3곳 정정 |
+| 검색 대상 필드 | "상품명, 설명, 카테고리 멀티 매치" — 설명 필드는 없고 텍스트 매칭은 `productName` 하나다 | 정정 |
+
+**되돌리지 않은 것:** `LlmClientConfig`의 재시도 값 근거(SDK 기본 5회·60초 대비 3회로 줄인 이유)와 `decisions/001`·`002` 링크가 Javadoc으로 교체되며 코드에서 사라졌다. 사용자 판단으로 코드에는 복원하지 않는다 — 근거는 이 문서 2026-09-04 항목과 [`001-llm-call-infra.md`](001-llm-call-infra.md)에 남아 있다.
+
+### 변경 파일
+
+**코드** — `com.barofarm.ai` 아래 **`review`를 제외한 전 패키지**(`config`·`search`·`recommend`·`embedding`·`log`·`event` + `AiApplication`). 파일을 하나씩 세지 않는 이유는 실행 코드가 하나도 바뀌지 않았기 때문이다 — 전부 주석·Javadoc 추가·교체이고, `git diff`에서 주석 줄을 빼면 변경이 남지 않는다.
+
+사실 정정(위 Before/After 표)이 실제로 닿은 파일은 아래 10개다.
+
+- `search/application/ProductSearchService.java`·`presentation/SearchController.java` — 검색 로그가 동기임을 명시, 검색 대상 필드 정정
+- `search/application/ProductIndexService.java`·`domain/ProductDocument.java`·`application/dto/product/ProductIndexRequest.java` — `updatedAt`의 뜻, 자동완성 인덱스명
+- `search/infrastructure/elasticsearch/ProductAutocompleteRepository.java` — 인덱스명
+- `recommend/infrastructure/client/CartClient.java`·`application/RecipeRecommendService.java` — Eureka 서술 삭제, 모듈명
+- `recommend/application/VectorRecommendPipeline.java`·`SimilarProductRecommendService.java`·`PersonalizedRecommendService.java`·`MaxMinDiversityService.java` — `knn` 표기, 다양화 기준·비용
+- `recommend/infrastructure/llm/RecipeCandidateGenerator.java` — 구조화 출력 서술
+- `config/KafkaConsumerConfig.java` — 역직렬화 실패 처리 메커니즘
+
+**문서 (2개)**
+
+- `.claude/rules/java-comments.md` — baro-ai 예외 절 신설
+- 이 문서 — 이 절
+
+### 검증
+
+- `./gradlew :baro-ai:build` 통과 (컴파일 · spotless · checkstyle)
+- 동작 변경 없음 — 주석·Javadoc만 바뀌었고 실행 코드는 그대로다
+- `grep`으로 `kNN`·`product_autocomplete`·`baro-cart`·Eureka 서술 잔존 0건 확인
+
+## 2026-09-05 — 라운드 사이에 빠진 것 정리 (감사 항목 아님 · 교차 검토 결과)
+
+**감사에서 나온 항목이 아니다.** 다른 세션이 5개 라운드를 통째로 다시 읽고 "한 라운드에서 고친 것이 같은 이유가 성립하는 다른 자리에는 적용되지 않았다"고 지적한 것들이다. 라운드를 단위별로 끊어 돌면 경계에 걸친 코드가 아무 라운드에도 안 잡힌다는 게 공통 원인이다.
+
+### 왜 문제였나 (쉬운 말로)
+
+**레시피를 만들 때 필요 없는 짐을 매번 들고 왔다.** 장바구니에 담긴 상품에서 알아야 하는 건 "재료명" 한 줄인데, 검색 엔진에서 상품 서류를 통째로 받아 오고 있었습니다. 그 서류에는 추천용으로 저장해 둔 숫자 1,536개 묶음이 붙어 있어서, 상품 하나가 21KB입니다. 장바구니에 10개가 담겨 있으면 210KB를 받아 재료명 10개만 쓰고 나머지는 버립니다. 검색 기능에서는 이미 같은 이유로 벡터를 빼고 받도록 고쳐 뒀는데, 레시피 쪽은 아무도 보지 않았습니다.
+
+**추천 개수에 아무 제한이 없었다.** 검색은 페이지 번호와 개수를 검증해 이상한 값이면 400으로 끊도록 고쳤는데, 같은 성격의 추천 API `topK`는 무검증으로 남았습니다. 지금은 내부 상한 덕분에 서버 오류가 나지는 않지만, `topK=0`이나 음수를 넣으면 "추천할 게 없나 보다"처럼 보이는 빈 목록이 조용히 나가 원인을 알 수 없습니다.
+
+**컨슈머 그룹 이름이 두 곳에 적혀 있었다.** 이벤트를 받는 그룹 이름을 설정 코드가 만들어 주는데, 리스너 쪽에도 같은 이름을 손으로 적어 두고 그 값이 설정을 덮어쓰고 있었습니다. 지금은 두 값이 같아서 문제가 없지만, 환경변수로 그룹 이름을 바꾸면 상품 쪽만 따라가고 장바구니·주문은 옛 이름에 남습니다.
+
+**값이 빈 이벤트가 오면 그 자리에서 죽었다.** 앞선 라운드에서 역직렬화 방어를 정리하며 "이벤트가 통째로 비어 있는 경우"를 보던 한 줄을 지웠습니다. 지금 그런 이벤트를 보내는 곳은 없지만, 생기면 원인을 알 수 없는 오류로만 남습니다.
+
+### 무엇을 바꿨나
+
+- **레시피 경로도 벡터를 빼고 받는다** — 검색 경로와 같은 방식으로 맞췄다. 결과는 그대로다.
+- **추천 개수에 1~50 상한을 뒀다** — 벗어나면 한글 안내와 함께 400으로 끊는다.
+- **컨슈머 그룹 이름을 한 곳에서만 정한다** — 장바구니·주문 리스너의 중복 표기를 지웠다.
+- **값이 빈 이벤트를 걸러내는 한 줄을 되살렸다.**
+- **실패 로그 문구를 실제 감싸는 범위대로 고쳤다.**
+
+### Before / After
+
+| 항목 | Before | After |
+|------|--------|-------|
+| 레시피 보유 재료 조회 | `findAllById` — `_source` 전체(문서당 약 21KB) | `ids` 쿼리 + `_source`에서 `vector` 제외(약 371바이트) |
+| 추천 `topK` | 무검증. 0·음수는 빈 목록, 큰 값은 내부 상한으로 흡수 | 1~50. 벗어나면 400 `RecommendErrorCode.INVALID_TOP_K` |
+| `RecommendErrorCode` | 파일 없음(cart-recipe 라운드에서 상수 0개가 되어 삭제) | 상수 1개로 재생성 |
+| 컨슈머 그룹 이름 | `ProductEventConsumer`만 어노테이션 값 삭제, cart·order는 중복 유지 | cart·order도 삭제 — 팩토리 한 곳에서만 정한다 |
+| 상품 이벤트 null | `event.getData()`를 바로 호출 → 빈 레코드면 NPE | `event == null` 검사 복원 |
+| 검색 부가 작업 실패 로그 | "검색 로그 저장 실패" — 프로필 갱신 요청도 함께 감싸는데 문구는 로그만 가리킴 | "검색 부가 작업 실패(로그 저장·프로필 갱신 요청)" |
+
+### 변경 파일
+
+**코드 (7개 · 신규 1)**
+
+- `recommend/application/RecipeRecommendService.java` — `ProductSearchRepository` 주입을 `ElasticsearchOperations`로 교체, `_source` 필터
+- `recommend/exception/RecommendErrorCode.java` — 신규(`INVALID_TOP_K`)
+- `recommend/application/VectorRecommendPipeline.java` — `validateTopK` 추가
+- `recommend/application/PersonalizedRecommendService.java`·`SimilarProductRecommendService.java` — 조회 전에 `validateTopK` 호출
+- `recommend/presentation/RecommendationController.java` — `@Parameter` 설명에 허용 범위
+- `event/consumer/CartEventConsumer.java`·`OrderEventConsumer.java` — `@KafkaListener`의 `groupId` 삭제
+- `search/infrastructure/event/ProductEventConsumer.java` — `event == null` 복원
+- `search/application/ProductSearchService.java` — 실패 로그 문구
+
+**문서 (5개)**
+
+- `specs/vector-similarity/*` — 에러 표 신설, `topK` 비즈니스 규칙·검증 시나리오·변경 이력
+- `specs/taste-vector/*` — 개인화 추천 API의 `topK` 범위
+- `specs/cart-recipe/*` — 보유 재료 조회 방식, 변경 이력
+- `specs/keyword-search/*` — 컨슈머 그룹 이름의 출처
+- `audits/open-items.md` — B-7(review 팩토리 방어 없음)·B-9(k8s 환경변수 3개로 확장)
+
+### 검증
+
+- `./gradlew :baro-ai:build` 통과 (컴파일 · spotless · checkstyle)
+- `./gradlew :baro-ai:test`는 `NO-SOURCE`
+- **기동·수동 확인은 못 했다** — 아래 항목이 [`open-items.md`](../open-items.md) A절에 더해진다
+
+### 기동 확인이 필요하다 (사람이 직접 실행)
+
+1. `GET /api/v1/recommendations/similar/{id}?topK=0` → 400 + `"추천 개수는 1 이상 50 이하여야 합니다."`, `topK=3` → 정상
+2. 장바구니 상품이 있는 상태로 레시피 추천 1회 → `ownedIngredients`가 전과 같은지(벡터 제외가 재료명 조회에 영향이 없어야 한다)
+3. 장바구니·주문 이벤트를 1건씩 발행 → `/actuator/beans` 또는 Kafka 컨슈머 그룹 목록에서 `ai-service-cart`·`ai-service-order`가 그대로인지
+
+### 남긴 것 · 알려진 제약
+
+- **review 컨슈머는 손대지 않았다** — `ReviewConsumer`의 중복 `groupId`, `reviewEventConsumerFactory`의 역직렬화 방어·에러 핸들러 부재. 팀원 소유라 [`open-items.md`](../open-items.md) B-7로 넘겼다
+- **`topK` 상한 50은 근거가 얇다** — 화면에 그만큼 노출할 일이 없고 다양화 반복이 그만큼 늘어난다는 판단이지, 측정한 값이 아니다. 실제 사용 패턴이 보이면 조정한다
+- **`RecommendErrorCode`를 다시 만들었다** — cart-recipe 라운드에서 "던지는 곳이 없어" 지운 파일이다. 이번에 실제로 던지는 분기가 생겨 복구했고, 추천 실패를 빈 목록으로 흘리는 정책은 그대로다

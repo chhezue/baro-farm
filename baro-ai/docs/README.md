@@ -154,7 +154,10 @@ graph LR
 
 ### DDD 계층형 아키텍처 기반 구조
 
-`recommend`, `search`, `chatbot` 등 혼재된 도메인 관심사를 명확히 분리하고, 계층별 역할을 명확히 하기 위해 다음과 같은 구조를 제안합니다.
+`recommend`, `search` 등 혼재된 도메인 관심사를 명확히 분리하고, 계층별 역할을 명확히 하기 위해 다음과 같은 구조를 제안합니다.
+
+> 아래 트리는 **아직 채택하지 않은 제안**이다. 현재 구조는 아래 "현재 구조 (As-Is)" 절이 SSOT다.
+> 트리에 보이는 `chatbot`은 코드가 없다 — 빈 클래스 4개를 2026-09-05에 삭제했다([`specs/chat/chatbot.md`](specs/chat/chatbot.md)).
 
 ```text
 src/main/java/com/barofarm/ai/
@@ -207,14 +210,12 @@ src/main/java/com/barofarm/ai/
 
 ```text
 src/main/java/com/barofarm/ai/
-├── presentation/              # REST 컨트롤러
-│   ├── RecommendationController.java
-│   └── ...
 ├── search/
 │   ├── presentation/         # 검색 관련 컨트롤러
 │   ├── application/          # 검색 서비스 로직
 │   ├── domain/               # 검색 도메인 모델
-│   └── infrastructure/       # Elasticsearch 리포지토리
+│   ├── infrastructure/       # Elasticsearch 리포지토리·Kafka 컨슈머·LLM
+│   └── exception/            # 검색 에러 코드 (SearchErrorCode)
 ├── recommend/
 │   ├── application/           # 추천 서비스 (PersonalizedRecommendService, RecipeRecommendService)
 │   │   ├── config/           # 추천 설정 (RecommendProperties)
@@ -234,8 +235,7 @@ src/main/java/com/barofarm/ai/
 │   ├── domain/               # 로그 도메인 모델
 │   ├── infrastructure/       # Elasticsearch 리포지토리
 │   │   └── elasticsearch/
-│   ├── application/          # 로그 서비스
-│   └── exception/            # 로그 에러 코드
+│   └── application/          # 로그 서비스
 ├── event/
 │   ├── consumer/              # Kafka 이벤트 컨슈머
 │   └── model/                # 이벤트 모델
@@ -254,23 +254,19 @@ src/main/java/com/barofarm/ai/
 | `recommend/domain` | `recommend/domain` | 도메인 모델 (완료) |
 | `recommend/infrastructure` | `recommend/infrastructure` | 외부 연동 (완료) |
 | `recommend/application/dto` | `recommend/application/dto` | DTO (완료) |
-| `recommend/exception` | `recommend/exception` | 에러 코드 (완료) |
 | `search/presentation` | `search/presentation` | REST 컨트롤러 (유지) |
 | `search/application` | `search/application` | 유스케이스 서비스 (유지) |
 | `search/domain` | `search/domain` | 도메인 모델 (유지) |
 | `search/infrastructure` | `search/infrastructure` | 리포지토리 구현체 (유지) |
+| `search/exception` | `search/exception` | 에러 코드 — `SearchErrorCode` (2026-09-05 신설) |
 | `log/domain` | `log/domain` | 도메인 모델 (유지) |
 | `log/infrastructure/elasticsearch` | `log/infrastructure/elasticsearch` | 리포지토리 구현체 (완료) |
 | `log/application` | `log/application` | 로그 서비스 (유지) |
-| `log/exception` | `log/exception` | 에러 코드 (완료) |
 | `event` | `event` | Kafka 관련 로직 (공통 유지) |
 | `embedding/application` | `embedding/application` | 임베딩 서비스 (완료) |
 | `embedding/domain` | `embedding/domain` | 도메인 모델 (유지) |
 | `embedding/infrastructure/elasticsearch` | `embedding/infrastructure/elasticsearch` | 리포지토리 구현체 (완료) |
 | `embedding/exception` | `embedding/exception` | 에러 코드 (완료) |
-| `chat/application` | `chat/application` | 챗봇 서비스 (완료) |
-| `chat/presentation` | `chat/presentation` | 챗봇 컨트롤러 (유지) |
-| `chat/exception` | `chat/exception` | 에러 코드 (완료) |
 | `config` | `config` | Spring, 모듈 설정 (유지) |
 | `common` | `common` | 공통 유틸리티 (유지) |
 

@@ -1,5 +1,9 @@
 # Layer 4 — API Contract Safety (프론트와의 계약을 독립 검증)
 
+> **⚠️ 이 레이어는 baro-ai에 설치돼 있지 않습니다.** [`harness-map.md`](../../../.claude/rules/harness-map.md) 스택 옵션의 "OpenAPI 계약 보호"가 꺼져 있고, `core-guardrails.md` STOP §5도 그에 맞춰 비어 있습니다. 아래에 나오는 CI 워크플로·스크립트·기준 스냅샷은 **이 저장소에 존재하지 않으며**(그래서 링크가 아니라 파일명만 적었습니다), 이 하네스를 물려받은 원본 저장소의 구성입니다.
+>
+> 이 문서는 **도입을 결정할 때 읽는 설계 배경**으로 남겨 둡니다. 실제로 켜려면 아래 구성요소를 이 저장소에 새로 만들고, `harness-map.md`에서 옵션을 켜고, STOP §5와 `warn-breaking-change.sh` 훅 등록을 함께 되살려야 합니다.
+
 > 분류: **CI 워크플로 + shell script** (`.github/workflows/ci-cd.yml` + `scripts/notify-api-breaking-change.sh`) · 짝이 되는 규칙: `core-guardrails.md` STOP §5 · 대응 다이어그램: "API Contract Safety"
 
 ## 1. 기본 사항
@@ -16,10 +20,12 @@
 |---|---|---|---|
 | 트레일러 규칙 | [`.claude/rules/core-guardrails.md`](../../../.claude/rules/core-guardrails.md) STOP §5 | rule | 커밋 시 `Breaking-Change-Reason:` 작성 강제 |
 | 로컬 경고 훅 | [`.claude/hooks/warn-breaking-change.sh`](../../../.claude/hooks/warn-breaking-change.sh) | hook | 트레일러 누락 시 advisory 경고 (막지 않음) |
-| CI 파이프라인 | [`.github/workflows/ci-cd.yml`](../../.github/workflows/ci-cd.yml) | CI | 스펙 export → base 비교 → 알림 |
-| 감지·알림 스크립트 | [`scripts/notify-api-breaking-change.sh`](../../scripts/notify-api-breaking-change.sh) | script | 3중 감지 + Discord 웹훅 |
-| 기준 스냅샷 | [`docs/api/openapi.json`](../api/openapi.json) | 산출물 | `main` push마다 CI가 자동 갱신 (**손편집 금지**) |
-| 상세·사고 이력 | [`docs/api/README.md`](../api/README.md) | 문서 | 트레일러 형식·사각지대 기록 |
+| CI 파이프라인 | `.github/workflows/ci-cd.yml` (**없음** — 이 저장소는 모듈별 `baro-*-deploy.yml`만 있다) | CI | 스펙 export → base 비교 → 알림 |
+| 감지·알림 스크립트 | `scripts/notify-api-breaking-change.sh` (**없음**) | script | 3중 감지 + Discord 웹훅 |
+| 기준 스냅샷 | `docs/api/openapi.json` (**없음**) | 산출물 | `main` push마다 CI가 자동 갱신 (**손편집 금지**) |
+| 상세·사고 이력 | `docs/api/README.md` (**없음**) | 문서 | 트레일러 형식·사각지대 기록 |
+
+> `warn-breaking-change.sh` 훅 파일 자체는 있지만 `settings.json`에 등록돼 있지 않아 동작하지 않습니다.
 
 ## 2. 언제 발동하고, 어떤 흐름을 타는가
 

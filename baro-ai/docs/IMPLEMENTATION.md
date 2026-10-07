@@ -26,23 +26,32 @@
 ### 의존성 설정
 
 ```gradle
-// build.gradle
+// build.gradle (핵심만 발췌 — 전체는 baro-ai/build.gradle)
 dependencies {
     // AI/ML
     implementation 'org.springframework.ai:spring-ai-starter-model-google-genai'
     implementation 'org.springframework.ai:spring-ai-starter-model-google-genai-embedding'
 
-    // 데이터/검색
+    // 데이터/검색 — 이 모듈은 RDB를 쓰지 않는다(JPA·MySQL 드라이버 없음)
     implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
     // 메시징
     implementation 'org.springframework.kafka:spring-kafka'
 
-    // 웹/검증
+    // 웹
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // 다른 모듈 호출
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+
+    // 캐시(자동완성 전용) · 지표
+    implementation 'com.github.ben-manes.caffeine:caffeine'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
 }
 ```
+
+> `baro-common`이 JPA 스타터를 끌어오므로 Hibernate는 여전히 클래스패스에 있다.
+> `application.yml`이 `DataSourceAutoConfiguration`·`HibernateJpaAutoConfiguration`을 제외해 기동을 막지 않는다.
 
 ### 환경 설정
 
@@ -245,7 +254,8 @@ public class ProductIndexService {
         String ingredientName =
             ingredientNormalizer.normalize(request.productName(), request.productCategoryName());
 
-        // 정렬 2순위인 updatedAt은 "상품이 바뀐 시각"이어야 하므로 이벤트 값을 그대로 쓴다
+        // 정렬 2순위인 updatedAt에는 이벤트가 실어 보낸 값(= 발행 시각)을 그대로 쓴다.
+        // 색인 시각을 넣으면 위의 임베딩·LLM 호출 시간만큼 상품마다 제각각 밀린다.
         Instant updatedAt = request.updatedAt() != null ? request.updatedAt() : Instant.now();
 
         ProductDocument doc = new ProductDocument(
@@ -322,17 +332,29 @@ public class ProductIngredientNormalizer {
 
     private final ChatClient chatClient;
 
-    public String normalize(String productName) {
+    // 카테고리는 상품명만으로 애매한 경우를 좁혀 주는 힌트다
+    public String normalize(String productName, String categoryName) {
         if (productName == null || productName.isBlank()) {
             return "";
         }
+        String category = categoryName == null || categoryName.isBlank() ? NO_CATEGORY : categoryName;
         try {
-            NormalizationResponse response = chatClient.prompt()
+            String json = chatClient.prompt()
+                // 응답 형식은 프롬프트로 부탁하지 않고 Gemini의 responseSchema로 강제한다
+                // (docs/audits/cross-cutting/001-llm-call-infra.md A-2)
+                .options(GoogleGenAiChatOptions.builder()
+                    .temperature(DETERMINISTIC_TEMPERATURE)
+                    .responseMimeType(MediaType.APPLICATION_JSON_VALUE)
+                    .responseSchema(RESPONSE_CONVERTER.getJsonSchema())
+                    .build())
                 // 상품명은 .param()으로 넘긴다 — 문자열에 직접 이어붙이면 상품명 안의 중괄호가
                 // 템플릿 문법으로 해석돼 렌더링이 실패한다
-                .user(u -> u.text(PROMPT).param("productName", productName))
+                .user(u -> u.text(PROMPT)
+                    .param("productName", productName)
+                    .param("categoryName", category))
                 .call()
-                .entity(new ParameterizedTypeReference<NormalizationResponse>() {});
+                .content();
+            NormalizationResponse response = RESPONSE_CONVERTER.convert(json);
 
             String normalized = response == null || response.normalizedIngredient() == null
                 ? "" : response.normalizedIngredient().trim();

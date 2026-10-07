@@ -30,24 +30,28 @@
 
 #### 응답 형식
 ```json
-[
-  {
-    "productId": "550e8400-e29b-41d4-a716-446655440001",
-    "productName": "청송사과 프리미엄 1kg",
-    "productCategoryName": "과일",
-    "price": 15000
-  },
-  {
-    "productId": "550e8400-e29b-41d4-a716-446655440002",
-    "productName": "바나나 1송이",
-    "productCategoryName": "과일",
-    "price": 5000
-  }
-]
+{
+  "status": 200,
+  "data": [
+    {
+      "productId": "550e8400-e29b-41d4-a716-446655440001",
+      "productName": "청송사과 프리미엄 1kg",
+      "productCategoryName": "과일",
+      "price": 15000
+    },
+    {
+      "productId": "550e8400-e29b-41d4-a716-446655440002",
+      "productName": "바나나 1송이",
+      "productCategoryName": "과일",
+      "price": 5000
+    }
+  ],
+  "message": null
+}
 ```
 
 #### 응답 필드 설명
-- 응답은 추천 상품 배열입니다.
+- `data`는 추천 상품 배열입니다.
   - `productId`: 상품 ID (UUID)
   - `productName`: 상품명
   - `productCategoryName`: 상품 카테고리 이름
@@ -143,24 +147,28 @@ ProductEmbeddingService.embedProduct(productName)
 
 #### 응답 형식
 ```json
-[
-  {
-    "productId": "550e8400-e29b-41d4-a716-446655440002",
-    "productName": "청송사과 프리미엄 2kg",
-    "productCategoryName": "과일",
-    "price": 28000
-  },
-  {
-    "productId": "550e8400-e29b-41d4-a716-446655440003",
-    "productName": "부사 사과 1kg",
-    "productCategoryName": "과일",
-    "price": 12000
-  }
-]
+{
+  "status": 200,
+  "data": [
+    {
+      "productId": "550e8400-e29b-41d4-a716-446655440002",
+      "productName": "청송사과 프리미엄 2kg",
+      "productCategoryName": "과일",
+      "price": 28000
+    },
+    {
+      "productId": "550e8400-e29b-41d4-a716-446655440003",
+      "productName": "부사 사과 1kg",
+      "productCategoryName": "과일",
+      "price": 12000
+    }
+  ],
+  "message": null
+}
 ```
 
 #### 응답 필드 설명
-- 유사 상품 목록(배열) (기본값: 3개)
+- `data`는 유사 상품 목록(배열)입니다. (기본값: 3개)
   - `productId`: 상품 ID (UUID)
   - `productName`: 상품명
   - `productCategoryName`: 상품 카테고리 이름
@@ -197,23 +205,27 @@ ProductEmbeddingService.embedProduct(productName)
 #### 응답 형식
 ```json
 {
-  "recipeName": "계란찜",
-  "ownedIngredients": ["계란"],
-  "missingCoreIngredients": ["대파", "소금"],
-  "missingRecommendations": [
-    {
-      "ingredientName": "대파",
-      "products": [
-        {
-          "productId": "550e8400-e29b-41d4-a716-446655440001",
-          "productName": "대파 1단",
-          "productCategoryName": "채소",
-          "price": 2500
-        }
-      ]
-    }
-  ],
-  "instructions": "1. 계란을 풀어 소금을 넣고 섞는다...\n2. 대파를 썰어 넣는다..."
+  "status": 200,
+  "data": {
+    "recipeName": "계란찜",
+    "ownedIngredients": ["계란"],
+    "missingCoreIngredients": ["대파", "소금"],
+    "missingRecommendations": [
+      {
+        "ingredientName": "대파",
+        "products": [
+          {
+            "productId": "550e8400-e29b-41d4-a716-446655440001",
+            "productName": "대파 1단",
+            "productCategoryName": "채소",
+            "price": 2500
+          }
+        ]
+      }
+    ],
+    "instructions": "1. 계란을 풀어 소금을 넣고 섞는다...\n2. 대파를 썰어 넣는다..."
+  },
+  "message": null
 }
 ```
 
@@ -317,9 +329,9 @@ GET /api/v1/search/autocomplete?q=사과&size=5
 
 ## 🔄 공통 응답 형식
 
-전역 예외 처리(`BaseExceptionHandler`)는 `ResponseDto` 형태로 에러 응답을 반환합니다.
-또한, `search`/`autocomplete` 엔드포인트는 성공 응답도 `ResponseDto.ok(...)`로 래핑해서 반환합니다.
-그 외 추천/레시피 일부 엔드포인트는 컨트롤러 반환 타입(배열/오브젝트/문자열) 그대로 반환됩니다.
+검색·자동완성·추천·레시피 **모든 엔드포인트**가 성공 응답을 `ResponseDto.ok(...)`로 감싸 반환합니다(2026-09-05 통일).
+전역 예외 처리(`BaseExceptionHandler`)도 같은 `ResponseDto` 형태로 에러 응답을 반환하므로, 호출하는 쪽은 성공과 실패에서 같은 봉투를 받습니다.
+`review` 도메인의 배치 API는 팀원 소유라 이 통일 대상에서 빠져 있습니다.
 
 ### 성공 응답
 ```json
