@@ -9,7 +9,7 @@ OpenAPI 어노테이션(`@Schema`·`@Operation`·`@Parameter`·`@ApiResponses`) 
 
 ## Package Layout (Domain-Driven Layered Architecture)
 
-최상위는 **도메인 단위**(`auth`, `trip`, `user`, `notification`, `common`)로 분리하고, 각 도메인 내부는 **계층형 레이어**(`controller/dto/service/domain/repository`, 필요 시 `client/exception/config`)를 일관되게 유지한다. **전체 패키지 트리 SSOT는 [`docs/architecture.md`](../../baro-ai/docs/architecture.md)** — 여기서 중복 유지하지 않는다.
+최상위는 **도메인 단위**로 분리하고(baro-ai는 `search`, `recommend`, `embedding`, `log`, `event`, `review`, `common`), 각 도메인 내부는 **계층형 레이어**(baro-ai 실제 이름: `presentation/application/domain/infrastructure`, 필요 시 `exception/config`)를 일관되게 유지한다. **전체 패키지 트리 SSOT는 [`docs/README.md`](../../baro-ai/docs/README.md)의 "현재 구조 (As-Is)" 절** — 여기서 중복 유지하지 않는다.
 
 가이드: `docs/decisions/003-architecture-guide.md`.
 **풀 DDD 미적용** — JPA 연관관계·객체 그래프 탐색 허용.
