@@ -35,8 +35,8 @@ baro-ai에는 RDB가 없다. 상품의 원본은 `baro-shopping`(MySQL)이고, b
 | 단계 | 어디서 | 무엇을 | 근거 |
 |------|--------|--------|------|
 | 1. 상품 이벤트 발행 | `baro-shopping` `ProductService.createProduct`·`updateProduct`·`deleteProduct` | 트랜잭션 **커밋 후**(`AFTER_COMMIT`) `product-events`에 발행. 키 없음, 값은 `ProductEvent{type, data}` JSON(타입 헤더 없음). `updatedAt`은 발행 시각 | `ProductTransactionEventListener.java:17-46`, `ProductEventPublisher.java:42-57`, `ProductEventProducer.java:26` |
-| 2. 소비 | `ProductEventConsumer` | 그룹 `search-service`, poll당 1건, 실패 시 1초 간격 2회 재시도 후 건너뜀. 역직렬화 실패 레코드는 `null`로 받아 WARN 후 건너뜀 | [`KafkaConsumerConfig.java`](../../../src/main/java/com/barofarm/ai/config/KafkaConsumerConfig.java), [`ProductEventConsumer.java`](../../../src/main/java/com/barofarm/ai/search/infrastructure/event/ProductEventConsumer.java) |
-| 3. 색인 | `ProductIndexService.indexProduct` | 임베딩(Gemini, 실패 시 `null`) → 요리 재료명(LLM(Large Language Model, 거대 언어 모델), 실패 시 `""`) → `product-autocomplete` 저장 → `product` 저장. `updatedAt`은 이벤트 값을 그대로 쓰고 없을 때만 현재 시각. CREATED·UPDATED 모두 전체 덮어쓰기 | [`ProductIndexService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductIndexService.java) |
+| 2. 소비 | `ProductEventConsumer` | 그룹 `ai-service`(팩토리가 정한다 — 리스너 어노테이션에는 적지 않는다), poll당 1건, 실패 시 1초 간격 2회 재시도 후 건너뜀. 역직렬화 실패 레코드는 리스너에 닿기 전에 `DefaultErrorHandler`가 재시도 없이 건너뜀 | [`KafkaConsumerConfig.java`](../../../src/main/java/com/barofarm/ai/config/KafkaConsumerConfig.java), [`ProductEventConsumer.java`](../../../src/main/java/com/barofarm/ai/search/infrastructure/event/ProductEventConsumer.java) |
+| 3. 색인 | `ProductIndexService.indexProduct` | 임베딩(Gemini, 실패 시 `null`) → 요리 재료명(LLM(Large Language Model, 거대 언어 모델), 실패 시 `""`) → `product-autocomplete` 저장 → `product` 저장. `updatedAt`은 이벤트 값(발행 시각)을 그대로 쓰고 없을 때만 현재 시각. CREATED·UPDATED 모두 전체 덮어쓰기 | [`ProductIndexService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductIndexService.java) |
 | 4. 삭제 | `ProductIndexService.deleteProduct` | 두 인덱스에서 삭제 | 동일 |
 | 5. 검색 | `GET /api/v1/search` | 페이징 파라미터 검증 → `bool` 쿼리(should 3 + filter) → `_score desc, updatedAt desc` → 벡터를 뺀 `_source`만 받아 `CustomPage`. `X-User-Id`와 검색어가 있으면 검색 로그 저장 + 프로필 갱신([`taste-vector`](../taste-vector/taste-vector-pipeline.md)) | [`ProductSearchService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductSearchService.java) |
 | 6. 자동완성 | `GET /api/v1/search/autocomplete` | `size` 검증 → 2글자 미만 빈 배열 → Caffeine 캐시(키 `query-size`, 1,000개·5분) → `match`(`operator=and`) + 상태 필터 | `ProductSearchService.autocomplete`, `ProductAutocompleteRepository` |
@@ -98,7 +98,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 | 정확 매칭 | `match_phrase`, `slop=1`, boost 2.0 | `applyExactMatch` |
 | 일반 매칭 | `match`, `OR`, boost 1.0 | `applyNormalMatch` |
 | 오탈자 매칭 | 검색어 2글자 이상일 때만, `productName.word`(standard text) 대상, `fuzziness=1`(단어마다 한 글자), `prefixLength=1`, boost 0.3 | `applyFuzzyMatch` |
-| 정렬 | `_score desc` → `updatedAt desc` 고정. `updatedAt`은 상품이 바뀐 시각(이벤트 값) | `search` |
+| 정렬 | `_score desc` → `updatedAt desc` 고정. `updatedAt`은 이벤트 **발행 시각**(발행 측이 찍어 보낸 값)이지 상품이 바뀐 시각이 아니다 | `search` |
 | 검색 응답 조회 | `_source`에서 `vector` 제외 | `search` |
 | 페이징 상한 | `page ≥ 0`, `size` 1~100, `(page + 1) × size ≤ 10,000` | `toPageable` |
 | 상태 필터 | `ON_SALE`·`DISCOUNTED` | `applyStatusFilter` |
@@ -164,6 +164,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 | 로컬 ES에 nori 플러그인 없음 | 확정 | 로컬에서 `product` 인덱스 자동 생성이 실패할 수 있음 `[불확실]`. 오탈자 매칭은 nori와 무관한 `productName.word`를 쓰므로 이 리스크의 영향을 받지 않는다 |
 | ES 서버 9.1.2 vs 클라이언트 8.13.3 | 확정 | 헬스 인디케이터가 꺼져 있는 이유. 인프라 소유자 확인 `[미정]` |
 | `spring.kafka.consumer.*` yml 값이 커스텀 팩토리에 안 읽힘 | 확정 | [`audits/search/001`](../../audits/search/001-index-path.md) C-1 |
+| `updatedAt`이 "상품이 바뀐 시각"이 아님 | 확정 | 발행 측이 `Instant.now()`를 찍어 보낸다(`ProductEventPublisher.java:53`). 색인 시각을 쓰던 흔들림은 2026-09-05에 없앴지만, 재발행으로 전체를 다시 색인하면 최신순이 무의미해진다. 발행 모듈 담당자 확인 `[미정]` — [`open-items.md`](../../audits/open-items.md) B-11 |
 | 재색인·재정규화 경로 없음 | 확정 | Track A `specify` 대상 |
 | `application-local.yml` 없음 | 확정 | 로컬 기동 시 Gemini 키·Kafka 주소를 env로만 줘야 함 |
 
@@ -182,3 +183,4 @@ SSOT: `search/exception/SearchErrorCode.java`
 | 2026-09-04 | 초안 — 기존 구현을 코드 기준으로 역작성(retro-spec) |
 | 2026-09-04 | `search/`에서 작업 단위 `keyword-search/`로 이동. 발행 모듈(`baro-shopping`) 규칙·게이트웨이·인프라 전제·오탈자 매칭 리스크 추가 |
 | 2026-09-05 | 감사 001 A·B 전 항목 반영 — 오탈자 매칭 필드·허용 범위·최소 길이 변경, 자동완성 쿼리 단순화, `_source`에서 벡터 제외, 페이징 검증·`SearchErrorCode` 신설, 자동완성 조회를 `ProductSearchService`로 이동, `updatedAt`을 이벤트 값으로 |
+| 2026-09-05 | `updatedAt` 서술 정정 — 이벤트 값은 "상품이 바뀐 시각"이 아니라 **발행 시각**이다(발행 측 `Instant.now()`). 비즈니스 규칙·흐름 행을 고치고 남은 한계를 리스크 표에 추가 |

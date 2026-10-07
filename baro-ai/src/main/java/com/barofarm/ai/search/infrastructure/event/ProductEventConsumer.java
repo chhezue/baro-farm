@@ -36,10 +36,12 @@ public class ProductEventConsumer {
     )
     public void onMessage(ProductEvent event) {
         // [1단계: 이벤트 본문(data) 유효성 검증]
-        // 역직렬화 실패는 KafkaConsumerConfig의 ErrorHandlingDeserializer가 사전 차단하므로,
-        // 여기서는 데이터 페이로드가 null인 비정상 이벤트를 감지하여 안전하게 스킵합니다.
-        if (event.getData() == null) {
-            log.warn("⚠️ [CONSUMER] 본문이 없는 상품 이벤트를 건너뜁니다 - 종류: {}", event.getType());
+        // 역직렬화 실패는 KafkaConsumerConfig의 ErrorHandlingDeserializer가 사전 차단하므로 여기까지 오지 않는다.
+        // 다만 값이 비어 있는 레코드(tombstone)가 들어오면 event 자체가 null이라 바로 NPE가 난다.
+        // 지금 이 토픽에 tombstone을 쓰는 발행자는 없지만, 그때 원인을 알 수 있게 한 줄로 걸러 둔다.
+        if (event == null || event.getData() == null) {
+            log.warn("⚠️ [CONSUMER] 본문이 없는 상품 이벤트를 건너뜁니다 - 종류: {}",
+                event == null ? "(레코드 값 없음)" : event.getType());
             return;
         }
 

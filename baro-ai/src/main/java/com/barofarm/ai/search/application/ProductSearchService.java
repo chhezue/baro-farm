@@ -34,7 +34,9 @@ import org.springframework.stereotype.Service;
  *
  * Elasticsearch를 활용하여 키워드 유사도 매칭(정확 구문, 형태소 분절, 오탈자 보정)과
  * 다중 필터(판매 상태, 카테고리, 가격 범위)를 조합한 복합 상품 검색을 수행하며,
- * 검색 성공 시 사용자 취향 분석을 위한 검색 로그 기록 및 프로필 벡터 갱신을 비동기로 연계합니다.
+ * 검색 성공 시 사용자 취향 분석을 위한 검색 로그를 남기고 프로필 벡터 갱신을 요청합니다.
+ * 이 중 검색 로그 적재는 Elasticsearch 쓰기를 응답 스레드에서 그대로 수행하는 동기 작업이고,
+ * 프로필 벡터 갱신만 {@link UserProfileRefreshTrigger}를 거쳐 별도 스레드로 넘어갑니다.
  * 상품명 접두어 자동완성 조회도 같은 조회 경로라 여기에 둡니다.
  */
 @Slf4j
@@ -150,9 +152,11 @@ public class ProductSearchService {
         CustomPage<ProductSearchResponse> resultPage =
             CustomPage.of(hits.getTotalHits(), items, pageable);
 
-        // [4단계: 비동기 부가 작업 (검색 로그 적재 및 취향 벡터 갱신 트리거)]
-        // 회원 검색이면서 검색어가 존재하는 경우, 상위 검색 결과 상품 ID(최대 3개)를 포함하여 로그를 남기고 취향 벡터를 비동기 갱신합니다.
-        // 로그 저장 또는 갱신 실패가 메인 검색 응답에 영향을 주지 않도록 try-catch로 예외를 격리합니다.
+        // [4단계: 부가 작업 (검색 로그 적재 및 취향 벡터 갱신 트리거)]
+        // 회원 검색이면서 검색어가 존재하는 경우, 상위 검색 결과 상품 ID(최대 3개)를 포함하여 로그를 남기고 취향 벡터 갱신을 요청합니다.
+        // saveSearchLog는 Elasticsearch 쓰기를 여기서 그대로 수행하는 동기 호출이라 검색 응답 시간에 포함된다.
+        // 뒤이은 refresh만 별도 스레드로 넘어가고 즉시 반환한다.
+        // 로그 저장 실패가 메인 검색 응답에 영향을 주지 않도록 try-catch로 예외를 격리합니다.
         if (userId != null && request.keyword() != null && !request.keyword().isBlank()) {
             try {
                 // 취향 벡터 산출 시 검색어 대신 활용할 상위 노출 상품 ID(최대 3개) 추출
@@ -169,7 +173,8 @@ public class ProductSearchService {
                 );
                 userProfileRefreshTrigger.refresh(userId);
             } catch (Exception e) {
-                log.warn("❌ 검색 로그 저장 실패 - 사용자: {}, 검색어: {}, 원인: {}",
+                // 검색 로그 저장과 프로필 갱신 요청을 함께 감싸므로 문구도 그 범위로 적는다.
+                log.warn("❌ 검색 부가 작업 실패(로그 저장·프로필 갱신 요청) - 사용자: {}, 검색어: {}, 원인: {}",
                     userId, request.keyword(), e.getMessage(), e);
             }
         }

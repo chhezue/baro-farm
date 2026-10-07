@@ -20,9 +20,9 @@ import org.springframework.data.elasticsearch.annotations.MultiField;
  * - productCategoryId / Code / Name: 상품 카테고리 필터링 및 응답 노출용 키워드 필드
  * - price: 가격 범위 검색 및 정렬용 Long 필드
  * - status: 현재 판매 상태 (ON_SALE, DISCOUNTED 상태만 검색 및 추천에 노출)
- * - updatedAt: 최신순 정렬에 사용되는 상품 최종 변경 일시
+ * - updatedAt: 최신순 정렬(2순위)에 쓰는 이벤트 발행 시각 — 상품이 바뀐 시각이 아니다
  * - ingredientName: 레시피 추천을 위해 상품 색인 시점에 사전 추출된 요리 재료 표준명
- * - vector: Google Gemini 임베딩 모델로 생성된 1536차원 dense_vector (kNN 코사인 유사도 검색용)
+ * - vector: Google Gemini 임베딩 모델로 생성된 1536차원 dense_vector (`script_score` 코사인 유사도 검색용)
  */
 @Getter
 @Document(indexName = "product")
@@ -69,7 +69,7 @@ public class ProductDocument {
     @Field(type = FieldType.Keyword)
     private String status;
 
-    /** 상품 정보가 최종 변경된 시각 (검색 결과 최신순 정렬 기준) */
+    /** baro-shopping이 상품 이벤트를 발행한 시각. 검색 결과 최신순 정렬(2순위)의 기준이다. */
     @Field(type = FieldType.Date, format = DateFormat.date_time)
     private Instant updatedAt;
 
@@ -77,7 +77,7 @@ public class ProductDocument {
     @Field(type = FieldType.Keyword)
     private String ingredientName;
 
-    /** Google Gemini 임베딩 모델로 생성된 1536차원 상품 임베딩 벡터 (kNN 유사 상품 및 개인화 추천에 활용) */
+    /** Google Gemini 임베딩 모델로 생성된 1536차원 상품 임베딩 벡터. 유사 상품·개인화 추천의 코사인 유사도 계산에 쓴다. */
     @Field(type = FieldType.Dense_Vector, dims = 1536)
     private float[] vector;
 

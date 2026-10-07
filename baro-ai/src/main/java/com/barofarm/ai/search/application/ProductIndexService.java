@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 /**
  * 상품 색인 서비스.
  *
- * Elasticsearch 메인 상품 인덱스('product')와 자동완성 인덱스('product_autocomplete')에
+ * Elasticsearch 메인 상품 인덱스(`product`)와 자동완성 인덱스(`product-autocomplete`)에
  * 상품 문서를 쓰고 지우며, 색인 시 상품 임베딩 생성 및 LLM 기반 재료명 정규화를 수행합니다.
  * 조회(자동완성 검색)는 {@link ProductSearchService}가 담당합니다.
  */
@@ -62,8 +62,10 @@ public class ProductIndexService {
         String ingredientName = ingredientNormalizer.normalize(request.productName(), request.productCategoryName());
 
         // [3단계: 메인 상품 검색 문서(ProductDocument) 생성 및 저장]
-        // 정렬 2순위인 updatedAt은 "상품이 바뀐 시각"이어야 하므로 이벤트가 실어 보낸 값을 그대로 쓴다.
-        // 값이 없는 이벤트(옛 발행분 등)만 현재 시각으로 대신한다.
+        // 정렬 2순위인 updatedAt에는 이벤트가 실어 보낸 값을 그대로 쓴다. 색인 시각을 넣으면
+        // 바로 위의 임베딩·재료명 LLM 호출에 걸린 시간만큼 상품마다 제각각 밀려 순서가 흔들린다.
+        // 다만 이 값은 baro-shopping이 이벤트를 내보낸 시각이지 상품이 바뀐 시각은 아니다
+        // (ProductEventPublisher가 Instant.now()를 찍는다). 값이 없는 이벤트만 현재 시각으로 대신한다.
         Instant updatedAt = request.updatedAt() != null ? request.updatedAt() : Instant.now();
 
         ProductDocument doc =
@@ -80,7 +82,7 @@ public class ProductIndexService {
                 vector);
 
         // [4단계: 자동완성 전용 인덱스(ProductAutocompleteDocument) 동기화 저장]
-        // 접두어 자동완성 검색 및 상태 필터링에 활용하기 위해 'product_autocomplete' 인덱스에도 상품명과 상태를 저장합니다.
+        // 접두어 자동완성 검색 및 상태 필터링에 활용하기 위해 'product-autocomplete' 인덱스에도 상품명과 상태를 저장합니다.
         ProductAutocompleteDocument autocompleteDoc =
             new ProductAutocompleteDocument(request.productId(), request.productName(), request.status());
         autocompleteRepository.save(autocompleteDoc);

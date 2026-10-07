@@ -16,7 +16,7 @@ import java.util.UUID;
  * @param productCategoryName 상품 카테고리 한글 표시명
  * @param price               상품 판매 가격 (가격 필터링 및 가격 정렬용)
  * @param status              현재 상품 상태 (ON_SALE, DISCOUNTED 등)
- * @param updatedAt           상품 정보 최근 변경 일시 (최신순 정렬 기준)
+ * @param updatedAt           이벤트 발행 시각 (최신순 정렬 기준). 값이 없으면 색인 시각으로 대신한다
  */
 public record ProductIndexRequest(
     UUID productId,

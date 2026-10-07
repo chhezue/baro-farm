@@ -8,7 +8,7 @@ import org.springframework.data.elasticsearch.annotations.Query;
 import org.springframework.data.elasticsearch.repository.ElasticsearchRepository;
 
 /**
- * 실시간 검색어 자동완성 전용 Elasticsearch 인덱스(`product_autocomplete`)에 접근하는 레포지토리 인터페이스입니다.
+ * 실시간 검색어 자동완성 전용 Elasticsearch 인덱스(`product-autocomplete`)에 접근하는 레포지토리 인터페이스입니다.
  *
  * [색인 및 쿼리 동작 원리]
  * - 색인: `ProductAutocompleteDocument`의 `productName` 필드는 `edge_ngram` 분석기를 사용하여
