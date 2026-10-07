@@ -35,9 +35,10 @@ public class CartEventConsumer {
      * @param partition 수신된 Kafka 파티션 번호
      * @param offset 수신된 Kafka 오프셋
      */
+    // 그룹 ID는 여기 적지 않는다. cartEventConsumerFactory가 spring.kafka.consumer.group-id에 '-cart'를 붙여
+    // 만들고, 어노테이션에 값을 쓰면 그 값이 팩토리 설정을 덮어써 두 곳을 같이 고쳐야 하기 때문이다.
     @KafkaListener(
         topics = "cart-events",
-        groupId = "ai-service-cart",
         containerFactory = "cartEventListenerContainerFactory"
     )
     public void onMessage(CartLogEvent event,

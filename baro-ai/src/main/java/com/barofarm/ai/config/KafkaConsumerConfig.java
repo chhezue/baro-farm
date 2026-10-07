@@ -63,8 +63,9 @@ public class KafkaConsumerConfig {
      * 컨슈머 팩토리 공통 생성.
      *
      * 발행 모듈의 클래스명 헤더를 무시하고 지정한 타입으로 읽는다 — 모듈끼리 패키지 경로를 공유하지 않기 위해서다.
-     * 역직렬화에 실패한 메시지는 {@link ErrorHandlingDeserializer}가 헤더로 바꿔 주고,
-     * 컨테이너의 기본 에러 핸들러가 재시도 없이 건너뛴다. 감싸지 않으면 같은 레코드를 무한히 다시 읽어
+     * 역직렬화에 실패한 메시지는 {@link ErrorHandlingDeserializer}가 예외를 헤더에 담아 넘기고, 컨테이너가
+     * 리스너를 부르기 전에 그 헤더를 보고 예외를 던진다. 아래 {@link #retryingErrorHandler()}는 역직렬화 예외를
+     * 재시도해도 소용없는 종류로 분류하므로 그 레코드만 건너뛴다. 감싸지 않으면 같은 레코드를 무한히 다시 읽어
      * 그 파티션의 뒤 이벤트가 영영 처리되지 않는다.
      */
     private <T> ConsumerFactory<String, T> consumerFactory(
