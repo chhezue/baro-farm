@@ -40,11 +40,16 @@ public class ProductIngredientNormalizer {
      * "대란" 같은 틀린 재료명이 정상 값처럼 남으므로 폴백은 두지 않는다.
      */
     public String normalize(String productName, String categoryName) {
+        // [1단계: 상품명 유효성 검증]
+        // 상품명이 비어있는 경우 재료를 추출할 수 없으므로 즉시 빈 문자열을 반환합니다.
         if (productName == null || productName.isBlank()) {
             return "";
         }
         String category = categoryName == null || categoryName.isBlank() ? NO_CATEGORY : categoryName;
+
         try {
+            // [2단계: Gemini LLM 호출을 통한 재료명 추출]
+            // temperature=0.0(결정적 추출) 및 JSON 스키마를 강제하여 상품명과 카테고리로부터 재료명을 추출합니다.
             String json = chatClient.prompt()
                 .options(GoogleGenAiChatOptions.builder()
                     .temperature(DETERMINISTIC_TEMPERATURE)
@@ -56,6 +61,8 @@ public class ProductIngredientNormalizer {
                     .param("categoryName", category))
                 .call()
                 .content();
+
+            // [3단계: JSON 응답 파싱 및 문자열 정제]
             NormalizationResponse response = RESPONSE_CONVERTER.convert(json);
 
             String normalized = response == null || response.normalizedIngredient() == null
@@ -67,9 +74,12 @@ public class ProductIngredientNormalizer {
                 log.warn("재료명 추출 결과가 비어 빈 값으로 색인합니다. 재색인 대상: '{}'", productName);
                 return "";
             }
+
+            // [4단계: 정규화된 재료명 반환]
             log.debug("상품명 정규화: '{}'에서 '{}'을(를) 추출", productName, normalized);
             return normalized;
         } catch (Exception e) {
+            // 외부 AI API 호출 실패 시 색인 전체 실패를 막기 위해 빈 문자열을 반환하고 경고 로그를 남깁니다.
             log.warn("재료명 추출 실패로 빈 값으로 색인합니다. 재색인 대상: '{}'", productName, e);
             return "";
         }
