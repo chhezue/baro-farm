@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
  * [주요 동작 원리]
  * 1. 기준 상품 문서(ProductDocument)를 Elasticsearch에서 조회하여 사전 계산된 1536차원 임베딩 벡터를 추출합니다.
  * 2. 기준 상품 본인은 추천 목록에 다시 나오지 않도록 제외 목록(excludeProductIds)에 포함합니다.
- * 3. 공통 추천 파이프라인(VectorRecommendPipeline)에 위임하여 kNN 코사인 유사도 검색과 Max-Min 다양성 선별을 거친 추천 상품 목록을 반환합니다.
+ * 3. 공통 추천 파이프라인(VectorRecommendPipeline)에 위임하여 코사인 유사도 검색과 Max-Min 다양성 선별을 거친 추천 상품 목록을 반환합니다.
  */
 @Slf4j
 @Service
@@ -25,7 +25,7 @@ public class SimilarProductRecommendService {
     /** Elasticsearch에 색인된 상품 문서 및 임베딩 벡터를 조회하는 레포지토리 */
     private final ProductSearchRepository productSearchRepository;
 
-    /** 기준 벡터를 받아 kNN 검색 및 다양성 선별을 수행하는 공통 추천 파이프라인 */
+    /** 기준 벡터를 받아 벡터 유사도 검색 및 다양성 선별을 수행하는 공통 추천 파이프라인 */
     private final VectorRecommendPipeline vectorRecommendPipeline;
 
     /**
@@ -36,6 +36,10 @@ public class SimilarProductRecommendService {
      * @return 유사 상품 추천 응답 DTO 목록 (기준 상품 미존재 또는 벡터 미생성 시 빈 리스트)
      */
     public List<ProductRecommendResponse> recommendSimilarProducts(UUID productId, int topK) {
+        // [0단계: 요청 파라미터 검증]
+        // 조회를 시작하기 전에 확인해, 기준 상품이 없어 아래에서 일찍 반환되는 경우에도 같은 400이 나가게 한다.
+        VectorRecommendPipeline.validateTopK(topK);
+
         // [1단계: 기준 상품 문서 조회 및 유효성 검증]
         // Elasticsearch에서 상품 ID로 색인 문서를 조회합니다.
         // 상품이 존재하지 않는 경우 상세 페이지 전체 렌더링 장애를 방지하기 위해 예외를 던지지 않고 빈 리스트를 반환합니다.

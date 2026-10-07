@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
  * [주요 특징]
  * 1. Elasticsearch에 저장된 1536차원 사용자 취향 프로필 벡터를 조회합니다.
  * 2. 이미 구매하거나 담았던 경험 상품(sourceProductIds)은 추천에서 제외합니다.
- * 3. 공통 추천 파이프라인(VectorRecommendPipeline)으로 전달하여 kNN 유사도 검색 및 Max-Min 다양화를 거친 상품을 추천합니다.
+ * 3. 공통 추천 파이프라인(VectorRecommendPipeline)으로 전달하여 벡터 유사도 검색 및 Max-Min 다양화를 거친 상품을 추천합니다.
  */
 @Slf4j
 @Service
@@ -26,7 +26,7 @@ public class PersonalizedRecommendService {
     /** Elasticsearch에 저장된 사용자 취향 프로필 벡터 문서를 조회하는 레포지토리 */
     private final UserProfileEmbeddingRepository userProfileEmbeddingRepository;
 
-    /** 기준 벡터를 받아 후보군 kNN 검색 및 Max-Min 다양성 선별을 수행하는 공통 추천 파이프라인 */
+    /** 기준 벡터를 받아 후보군 벡터 유사도 검색 및 Max-Min 다양성 선별을 수행하는 공통 추천 파이프라인 */
     private final VectorRecommendPipeline vectorRecommendPipeline;
 
     /**
@@ -37,6 +37,10 @@ public class PersonalizedRecommendService {
      * @return 개인화 추천 상품 응답 DTO 목록 (행동 로그 부재로 프로필 미생성 시 빈 목록 반환)
      */
     public List<ProductRecommendResponse> recommendProducts(UUID userId, int topK) {
+        // [0단계: 요청 파라미터 검증]
+        // 조회를 시작하기 전에 확인해, 프로필이 없어 아래에서 일찍 반환되는 경우에도 같은 400이 나가게 한다.
+        VectorRecommendPipeline.validateTopK(topK);
+
         // [1단계: 사용자 프로필 벡터 조회 및 유효성 검증]
         // Elasticsearch에서 사용자 ID로 취향 프로필 문서를 조회합니다.
         // 프로필이 아직 생성되지 않았거나 벡터가 없는 경우(행동 로그 부족),
@@ -61,9 +65,10 @@ public class PersonalizedRecommendService {
         log.debug("사용자 {}의 추천에서 임베딩의 sourceProductIds({}개)로 상품 제외",
                  userId, experiencedProductIds.size());
 
-        // [3단계: 공통 추천 파이프라인 호출 (kNN 검색 및 Greedy Max-Min 다양성 선별)]
+        // [3단계: 공통 추천 파이프라인 호출 (벡터 유사도 검색 및 Greedy Max-Min 다양성 선별)]
         // 사용자 취향 벡터(1536차원)와 기경험 제외 상품 ID 목록, 추천 개수를 파이프라인에 전달하여
-        // 코사인 유사도가 높으면서도 카테고리가 편중되지 않은 다양한 상품 목록을 최종 완성합니다.
+        // 코사인 유사도가 높으면서도 서로 비슷하지 않은 상품 목록을 최종 완성합니다.
+        // 다양화 기준은 벡터 간 거리이지 카테고리가 아니다 — 카테고리 가산점은 2026-09-05에 삭제했다.
         return vectorRecommendPipeline.recommend(
             profile.getUserProfileVector(), experiencedProductIds, topK);
     }

@@ -50,7 +50,7 @@
 
 | Method | Path | 인증 | 설명 |
 |--------|------|------|------|
-| GET | `/api/v1/recommendations/personalized/{userId}` | 없음(경로의 userId를 신뢰) | `topK` 쿼리, 기본 5. 프로필이 없으면 빈 배열 |
+| GET | `/api/v1/recommendations/personalized/{userId}` | 없음(경로의 userId를 신뢰) | `topK` 쿼리, 기본 5, 허용 1~50. 프로필이 없으면 빈 배열 |
 
 응답은 `ResponseDto<ProductRecommendResponse[]>`(data에 productId·productName·productCategoryName·price)다. 2026-09-05에 검색 API와 envelope를 통일해, 성공·실패 응답 모양이 같아졌다.
 
@@ -59,6 +59,16 @@
 ```json
 [{ "productId": "…", "productName": "햇사과 1kg", "productCategoryName": "제철 과일", "price": 23000 }]
 ```
+
+### 에러
+
+범위를 벗어난 추천 개수는 400으로 끊는다(2026-09-05 신설). 그전에는 `topK=0`·음수가 조용히 빈 배열로 나가 원인을 알 수 없었다. 유사 상품 추천 API도 같은 코드를 쓴다 — 상세는 [`vector-similarity`](../vector-similarity/vector-similarity-search.md) "에러" 절.
+
+| 코드 | HTTP | 조건 |
+|------|------|------|
+| `INVALID_TOP_K` | 400 | `topK < 1` 또는 `topK > 50` |
+
+프로필 없음·행동 로그 부족은 에러가 아니라 **200 + 빈 배열**로 나간다.
 
 ## 데이터 모델
 

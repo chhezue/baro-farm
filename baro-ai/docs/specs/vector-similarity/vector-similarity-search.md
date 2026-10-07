@@ -44,9 +44,19 @@
 
 | Method | Path | 인증 | 설명 |
 |--------|------|------|------|
-| GET | `/api/v1/recommendations/similar/{productId}` | 없음 | `topK` 기본 3. 기준 상품이 없거나 벡터가 없으면 빈 배열 |
+| GET | `/api/v1/recommendations/similar/{productId}` | 없음 | `topK` 기본 3, 허용 1~50. 기준 상품이 없거나 벡터가 없으면 빈 배열 |
 
 개인화 추천 API는 [`taste-vector`](../taste-vector/taste-vector-pipeline.md)에 있다.
+
+### 에러
+
+범위를 벗어난 추천 개수는 400으로 끊는다(2026-09-05 신설). 그전에는 `topK=0`·음수가 조용히 빈 배열로 나가 원인을 알 수 없었다. 개인화 추천 API에도 같은 코드가 적용된다.
+
+| 코드 | HTTP | 조건 |
+|------|------|------|
+| `INVALID_TOP_K` | 400 | `topK < 1` 또는 `topK > 50` |
+
+추천 실패(기준 상품 없음·벡터 없음·ES 예외)는 에러가 아니라 **200 + 빈 배열**로 나간다. 이 정책은 그대로다.
 
 ## 데이터 모델
 
@@ -65,6 +75,7 @@
 
 | 규칙 | 값 | 구현 위치 |
 |------|-----|-----------|
+| `topK` 허용 범위 | 1~50. 벗어나면 400 `INVALID_TOP_K`(조회 시작 전에 끊는다) | `VectorRecommendPipeline.validateTopK` |
 | 후보 규모 | `min(topK × 3, 100)` | `VectorRecommendPipeline` |
 | 유사도 점수 | `cosine + 1.0`(0~2 범위) | `VectorProductSearchService` |
 | 상태 필터 | `ON_SALE`·`DISCOUNTED` | 동일 |
@@ -86,7 +97,7 @@
 ### 엣지 · 실패
 
 - [x] 기준 상품 없음 / 벡터 없음 → 빈 배열
-- [x] `topK ≤ 0` → 빈 배열
+- [ ] `topK ≤ 0` 또는 `topK > 50` → 400 `INVALID_TOP_K` (2026-09-05 변경 — 이전에는 빈 배열)
 - [x] ES 예외 → 빈 배열 + ERROR 로그
 
 ### 수동 확인 (로컬)
@@ -134,3 +145,4 @@
 | 2026-09-04 | `recommend/vector-recommendation.md`를 작업 단위 "임베딩 유사도 검색"으로 이동·재작성. 개인화 추천 API는 `taste-vector`로, 상품 임베딩은 `embedding` 스펙에서 이쪽으로 이동 |
 | 2026-09-04 | "메도이드"가 실제로는 max-min 다양화임을 명시. ES 버전·매핑 옵션·이벤트 순서 리스크 추가 |
 | 2026-09-05 | 감사 001 A·B 전 항목 반영 — `exists(vector)` 필터, `ElasticsearchConfig` 삭제·타임아웃 설정 이관, 카테고리 보너스 삭제, `MaxMinDiversityService` 개명, `VectorRecommendPipeline` 공유, 사용자 벡터 `float[]` 통일, 음수 유사도 처리 정정 |
+| 2026-09-05 | `topK` 허용 범위 1~50 신설 — 벗어나면 400 `INVALID_TOP_K`. 감사 항목이 아니라 교차 검토에서 나온 계약 변경이다(검색 API의 `page`·`size` 검증과 같은 기준). 개인화 추천 API도 같이 적용 |
