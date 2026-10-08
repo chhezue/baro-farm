@@ -73,3 +73,7 @@ baro-ai가 쓰던 Spring AI **1.0.0-M5**의 BOM에는 Vertex AI 쪽만 있었다
 | Spring AI 2.0.x로 올리기 | Spring Boot 4.1을 요구한다. 5인 공용 모노레포 전체에 영향을 주는 결정이라 baro-ai 혼자 정할 수 없다 |
 | M5에 머물고 Vertex AI Gemini 사용 | 무료가 아니고, GCP 프로젝트·서비스 계정 세팅이 필요해 목적과 수단이 모두 어긋난다 |
 | OpenAI 유지 | 목적이 비용 0이라 성립하지 않는다. 다만 무료 티어의 한도·데이터 사용 조건이 문제가 되면 되돌릴 수 있다 — 되돌리는 비용은 `build.gradle`·설정·`@Qualifier` 3곳과 재색인이다 |
+
+## 후속 (2026-09-06)
+
+챗 모델 기본값을 `gemini-2.5-flash-lite`에서 **`gemini-3.5-flash-lite`**로 옮겼다. 2.5는 구글이 신규 사용자에게 닫아(`no longer available to new users`) 새로 발급한 키로는 404가 난다 — 이 결정의 전제인 "무료 티어로 계속 쓴다"가 새 키에서 깨지기 때문이다. 임베딩(`gemini-embedding-001`, 1536차원)은 같은 키로 정상 동작을 확인해 그대로 둔다. 교체 후 품질은 골든셋으로 확인했다 — [`audits/cart-recipe/002`](../audits/cart-recipe/002-goldenset-before-after.md).

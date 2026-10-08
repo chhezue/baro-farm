@@ -59,7 +59,11 @@ spring:
         api-key: ${BARO_AI_GEMINI_KEY:}
         chat:
           options:
-            model: ${SPRING_AI_GEMINI_MODEL:gemini-2.5-flash-lite}
+            # gemini-2.5-flash-lite는 신규 발급 키로 404가 난다("no longer available to new users",
+            # 2026-09-06 실측). 구글이 지목한 후속 모델이고, 골든셋 측정도 이 모델로 했다
+            # (docs/audits/cart-recipe/002-goldenset-before-after.md). latest 별칭 대신 버전을 고정해
+            # 다음 라운드에서 같은 조건으로 다시 잴 수 있게 한다.
+            model: ${SPRING_AI_GEMINI_MODEL:gemini-3.5-flash-lite}
             # 레시피 후보 생성용 기본값. 결정적 추출이 필요한 호출은 호출부에서 0으로 덮어쓴다
             temperature: 0.7
         embedding:
