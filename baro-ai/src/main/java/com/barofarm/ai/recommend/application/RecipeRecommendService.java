@@ -14,7 +14,6 @@ import com.barofarm.ai.recommend.infrastructure.llm.RecipeCandidateGenerator;
 import com.barofarm.ai.search.application.ProductSearchService;
 import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
 import com.barofarm.ai.search.domain.ProductDocument;
-import com.barofarm.ai.search.infrastructure.elasticsearch.ProductSearchRepository;
 import com.barofarm.dto.ResponseDto;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +22,11 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.elasticsearch.client.elc.NativeQuery;
+import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
+import org.springframework.data.elasticsearch.core.SearchHit;
+import org.springframework.data.elasticsearch.core.query.FetchSourceFilter;
 import org.springframework.stereotype.Service;
 
 /**
@@ -45,7 +49,10 @@ public class RecipeRecommendService {
     /** 부족한 식재료 1개당 추천하여 함께 노출할 연관 상품 최대 개수 (현재 2건) */
     private static final int MISSING_PRODUCTS_LIMIT_PER_INGREDIENT = 2;
 
-    /** baro-cart 서비스와 통신하여 사용자의 장바구니 품목을 조회하는 Feign 클라이언트 */
+    /** 보유 재료명 조회에는 ingredientName만 쓰므로 Elasticsearch에서 받지 않을 필드 목록 */
+    private static final String[] EXCLUDED_SOURCE_FIELDS = {"vector"};
+
+    /** `baro-shopping`의 장바구니 API를 호출해 사용자의 장바구니 품목을 조회하는 Feign 클라이언트 */
     private final CartClient cartClient;
 
     /** 부족한 재료명을 키워드로 입력받아 실제 판매 중인 상품을 Elasticsearch에서 검색하는 서비스 */
@@ -57,8 +64,8 @@ public class RecipeRecommendService {
     /** 레시피 추천에서 제외할 카테고리 코드 목록 등을 관리하는 설정 프로퍼티 */
     private final RecommendProperties recommendProperties;
 
-    /** 장바구니 상품 ID 목록으로 Elasticsearch 상품 문서를 일괄 조회하여 ingredientName을 읽어오는 레포지토리 */
-    private final ProductSearchRepository productSearchRepository;
+    /** 장바구니 상품 ID 목록으로 상품 문서를 일괄 조회할 때 쓰는 Elasticsearch 쿼리 실행 템플릿 */
+    private final ElasticsearchOperations operations;
 
     /**
      * 특정 사용자의 장바구니 상품을 기반으로 레시피 및 부족한 재료 연관 상품을 추천합니다.
@@ -130,8 +137,7 @@ public class RecipeRecommendService {
         }
 
         CandidateRecipePlan plan = selectedOpt.get();
-        log.info("최종 선택된 레시피: {} ({}/{}/{})", plan.recipeName(),
-            plan.cookingMethod(), plan.difficulty(), plan.mealType());
+        log.info("최종 선택된 레시피: {}", plan.recipeName());
 
         // [5단계: 부족한 핵심 식재료(missingIngredientsCore) 추출 및 연관 상품 검색]
         // RecipeCandidateGenerator가 서버 측에서 계산한 부족한 핵심 재료 목록을 읽어옵니다.
@@ -149,9 +155,12 @@ public class RecipeRecommendService {
                 .toList();
 
         // [6단계: 최종 레시피 및 재료 구매 추천 응답 DTO 조립]
+        // 보유 재료로는 장바구니 전체(ownedNames)가 아니라 이 요리가 실제로 쓰는 것만 내보낸다.
+        // 전체를 내보내면 보유 + 부족 != 핵심 재료가 되어, 11종이 담긴 장바구니에서 김치찌개를
+        // 추천할 때 우유·사과까지 재료인 것처럼 읽힌다.
         return new RecipeRecommendResponse(
             plan.recipeName(),
-            ownedNames,
+            plan.usedOwnedIngredients(),
             missingCore,
             missingRecommendations,
             Optional.ofNullable(plan.instructions()).orElse("")
@@ -219,13 +228,23 @@ public class RecipeRecommendService {
             .distinct()
             .toList();
 
-        // [2단계: Elasticsearch 상품 문서 일괄 조회 (Multi-Get)]
+        // [2단계: Elasticsearch 상품 문서 일괄 조회]
+        // 여기서 쓰는 값은 ingredientName 한 필드뿐인데, 상품 문서에는 추천용 1536차원 벡터가 함께 들어 있다.
+        // 문서 하나가 벡터를 포함하면 약 21KB, 빼면 약 371바이트다(keyword-search/001 A-3 실측).
+        // 장바구니 상품 수만큼 곱해지는 낭비라, 검색 경로와 같이 _source에서 vector를 제외하고 받는다.
+        NativeQuery query = NativeQuery.builder()
+            .withQuery(q -> q.ids(i -> i.values(productIds.stream().map(UUID::toString).toList())))
+            .withSourceFilter(FetchSourceFilter.of(null, EXCLUDED_SOURCE_FIELDS))
+            .withPageable(PageRequest.of(0, productIds.size()))
+            .build();
+
         List<String> ingredientNames = new ArrayList<>();
         int found = 0;
-        for (ProductDocument document : productSearchRepository.findAllById(productIds)) {
+        for (SearchHit<ProductDocument> hit : operations.search(query, ProductDocument.class)) {
             found++;
             // 재료명 문자열 정규화 (공백 제거, 소문자화)
-            String ingredientName = IngredientProcessingUtil.normalizeForCompare(document.getIngredientName());
+            String ingredientName =
+                IngredientProcessingUtil.normalizeForCompare(hit.getContent().getIngredientName());
             if (!ingredientName.isBlank()) {
                 ingredientNames.add(ingredientName);
             }
