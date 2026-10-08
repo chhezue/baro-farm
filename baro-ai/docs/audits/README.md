@@ -29,6 +29,7 @@
 |------|------|------------------|
 | [`taste-vector/001-profile-refresh-path.md`](taste-vector/001-profile-refresh-path.md) | 행동 로그 수집 → 프로필 갱신 → 개인화 추천 | A 5 · B 4 · C 3 · D 4 |
 | [`cart-recipe/001-cart-integration-and-request-path.md`](cart-recipe/001-cart-integration-and-request-path.md) | 장바구니 Feign 연동 → 레시피 요청 경로 (프롬프트·스코어링은 `recommend/001`·`002`) | A 2 · B 5 · C 6 · D 4 |
+| [`cart-recipe/002-goldenset-before-after.md`](cart-recipe/002-goldenset-before-after.md) | 프롬프트 재설계 Before/After 골든셋 측정 (A/B/C/D 아닌 측정 보고서) | 실행 합격 69.0%→78.6% |
 | [`vector-similarity/001-vector-search-and-diversity.md`](vector-similarity/001-vector-search-and-diversity.md) | 상품 임베딩 · 벡터 검색 · 다양화 · ES 설정 | A 2 · B 5 · C 2 · D 5 |
 | [`keyword-search/001-query-path.md`](keyword-search/001-query-path.md) | 검색·자동완성 조회 경로 (색인 경로는 `search/001`) | A 4 · B 4 · C 6 · D 3 |
 | [`cross-cutting/002-dependencies-config-and-dead-code.md`](cross-cutting/002-dependencies-config-and-dead-code.md) | 의존성 · 설정 · Kafka 팩토리 · 죽은 패키지 · 응답 규격 (LLM 인프라는 `001`) | A 2 · B 8 · C 5 · D 4 |
