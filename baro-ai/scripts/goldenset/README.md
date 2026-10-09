@@ -34,7 +34,7 @@ cd baro-ai/scripts/goldenset && python3 run_goldenset.py --arm after
 
 | 옵션 | 기본값 | 쓰임 |
 |------|--------|------|
-| `--arm` | (필수) | `before`=현행 프롬프트, `after`=재설계 초안 |
+| `--arm` | (필수) | `before`=재설계 이전, `after`=현행(운영) 프롬프트, `pantry`=기본 양념 목록을 넓힌 안 |
 | `--repeats` | 3 | 시나리오당 반복 횟수 |
 | `--scenarios` | 전체 | 부분 실행 (예: `--scenarios S4,S11`) |
 | `--delay` | 4.0 | 호출 간 대기 초 |
@@ -47,10 +47,28 @@ cd baro-ai/scripts/goldenset && python3 run_goldenset.py --arm after
 |------|------|
 | `raw-{arm}-{시각}.jsonl` | 원본 응답·토큰 사용량. 재분석용이라 지우지 않는다 |
 | `grading-{arm}-{시각}.md` | 사람이 5축을 손으로 채우는 채점 시트 |
+| `raw-variants-{시각}.jsonl` | `experiment_variants.py`의 원본 (아래) |
+| `raw-normalizer-{arm}-{시각}.jsonl` | `check_normalizer.py`의 원본 — 상품명별 답과 O/X (아래) |
 
 **합격 판정은 스크립트가 하지 않는다.** 스펙이 사람 채점을 명시했고, LLM에게 채점을 시키면 자기 편향·장문 선호 같은 알려진 함정이 붙는다. 42건이면 눈으로 훑을 수 있는 양이다.
 
 자동으로 나오는 건 채점과 무관한 수치뿐이다 — 출력 토큰 합계, 응답 후보 개수, 부족 재료가 0개인 실행 건수.
+
+## 곁다리 스크립트 3개
+
+메인 실행기와 달리 특정 질문 하나에 답하려고 만든 것들이다.
+
+| 스크립트 | 무엇에 답하나 |
+|----------|---------------|
+| [`classify_missing.py`](classify_missing.py) | 부족 재료를 "우리가 파는 것 / 양념·기름 / 가공품"으로 나눠, **살 수 있는 게 하나도 없는 추천이 몇 %인지** 센다. 분류 목록을 코드에 박아 둬서 두 팔을 같은 기준으로 비교할 수 있다 — 손으로 세면 기준이 흔들린다 |
+| [`experiment_variants.py`](experiment_variants.py) | "대파·쪽파·실파처럼 비슷한 재료가 여러 개 담기면 추천이 나빠지는가", "이미 가진 재료의 다른 형태(마늘 vs 다진마늘)를 사라고 하는가"를 잰다. 결과는 [`audits/cart-recipe/003`](../../docs/audits/cart-recipe/003-pantry-staples-and-variants.md) |
+| [`check_normalizer.py`](check_normalizer.py) | 레시피가 아니라 **그 앞단**을 잰다 — 상품명에서 재료명을 뽑는 프롬프트가 상품명 17종에 어떤 답을 내는지. `current` 팔은 프롬프트를 Java 파일에서 직접 읽어 운영과 어긋날 수 없다. 결과는 [`audits/cart-recipe/004`](../../docs/audits/cart-recipe/004-index-time-ingredient-name.md) |
+
+```bash
+python3 classify_missing.py ../../docs/audits/cart-recipe/goldenset/raw-*.jsonl
+python3 experiment_variants.py
+python3 check_normalizer.py --arm current
+```
 
 ## 운영 코드와 맞춰 둔 것
 
@@ -74,3 +92,5 @@ cd baro-ai/scripts/goldenset && python3 run_goldenset.py --arm after
 그래서 채점 시트에는 부족 재료가 등장 횟수와 함께 표로 나오고, 사람이 O/X를 표시하게 돼 있다. 판매 재료명 목록을 확보하면 이 폴더에 `catalog.txt`(한 줄에 하나, `#`는 주석)로 두면 되고, 그때부터는 적중률이 자동 계산된다.
 
 이 수치가 카탈로그 그라운딩(부족 재료를 파는 재료로만 제한) 도입 여부를 정하는 근거다.
+
+**대신 쓰는 방법이 생겼다.** `catalog.txt`가 없어도 [`classify_missing.py`](classify_missing.py)가 카테고리 21종이 전부 농산물이라는 사실에 기대어 근사값을 낸다. 상품 시드가 생기면 `catalog.txt` 쪽이 더 정확하므로 그때 갈아탄다.

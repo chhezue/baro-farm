@@ -123,9 +123,24 @@ AFTER_TEMPLATE = """당신은 '집밥 레시피 추천 AI'입니다.
 """
 
 
+# 후속 라운드(specs/cart-recipe/pantry-staples-and-catalog-coverage.md 갈래 A) 측정용.
+# AFTER_TEMPLATE에서 규칙 4의 기본 양념 목록만 넓힌다 — 나머지 문장은 한 글자도 바꾸지 않아야
+# 이 팔의 차이를 '양념 목록 때문'이라고 말할 수 있다. 그래서 새로 쓰지 않고 치환으로 만든다.
+_PANTRY_OLD_RULE = """4. 기본 양념(물·소금·후추·식용유·설탕·식초·간장 등)은 이미 있다고 가정하고
+   재료 목록에 넣지 않습니다."""
+_PANTRY_NEW_RULE = """4. 기본 양념은 이미 있다고 가정하고 재료 목록에 넣지 않습니다.
+   기본 양념: 물·소금·후추·식용유·설탕·식초·간장·된장·고추장·고춧가루·참기름·들기름·
+   마늘·다진마늘·액젓"""
+
+if _PANTRY_OLD_RULE not in AFTER_TEMPLATE:
+    raise AssertionError("AFTER_TEMPLATE의 규칙 4가 바뀌었다. _PANTRY_OLD_RULE을 맞춰야 한다")
+PANTRY_TEMPLATE = AFTER_TEMPLATE.replace(_PANTRY_OLD_RULE, _PANTRY_NEW_RULE)
+
+
 ARMS = {
     "before": {"template": BEFORE_TEMPLATE, "schema": BEFORE_SCHEMA},
     "after": {"template": AFTER_TEMPLATE, "schema": AFTER_SCHEMA},
+    "pantry": {"template": PANTRY_TEMPLATE, "schema": AFTER_SCHEMA},
 }
 
 

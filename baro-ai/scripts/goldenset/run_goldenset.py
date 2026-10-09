@@ -76,12 +76,17 @@ def normalize(name: str) -> str:
     return "".join(name.split()).lower()
 
 
-def call_gemini(api_key: str, model: str, prompt: str, schema: dict) -> dict:
-    """Gemini를 1회 호출한다. 429·5xx·타임아웃은 지수 백오프로 재시도한다."""
+def call_gemini(api_key: str, model: str, prompt: str, schema: dict,
+                temperature: float = TEMPERATURE) -> dict:
+    """Gemini를 1회 호출한다. 429·5xx·타임아웃은 지수 백오프로 재시도한다.
+
+    temperature 기본값은 레시피 후보 생성에 맞춘 0.7이다. 색인 시점 재료명 추출은
+    운영이 0.0을 쓰므로(`ProductIngredientNormalizer`) 그쪽 검증은 값을 넘겨 맞춘다.
+    """
     body = json.dumps({
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {
-            "temperature": TEMPERATURE,
+            "temperature": temperature,
             "responseMimeType": "application/json",
             "responseSchema": schema,
         },
@@ -326,7 +331,8 @@ def write_grading_sheet(path: Path, args, records: list[dict]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="레시피 추천 골든셋 실행기")
     parser.add_argument("--arm", required=True, choices=sorted(ARMS),
-                        help="before=현행 프롬프트(기준선), after=재설계 초안")
+                        help="before=재설계 이전 프롬프트, after=현행(운영) 프롬프트, "
+                             "pantry=기본 양념 목록을 넓힌 후속 라운드 안")
     parser.add_argument("--repeats", type=int, default=3, help="시나리오당 반복 횟수 (기본 3)")
     parser.add_argument("--scenarios", help="쉼표로 구분한 부분 실행 (예: S4,S11)")
     parser.add_argument("--model", default=os.environ.get("SPRING_AI_GEMINI_MODEL", DEFAULT_MODEL))
