@@ -1,6 +1,6 @@
 # 미결 항목 색인
 
-2026-09-05 리팩터 4라운드를 끝낸 시점에 **아직 닫히지 않은 것들이 어느 문서에 남아 있는지**를 모은 색인이다. 실행하지 못한 검증, 답을 기다리는 질문, 자료가 없어 판단을 미룬 항목이 각각 어디에 있는지 한 번에 찾기 위한 것이다.
+리팩터 라운드를 끝낼 때마다 **아직 닫히지 않은 것들이 어느 문서에 남아 있는지**를 모으는 색인이다. 2026-09-05 4라운드 종료 시점에 만들었고, 2026-09-06 장바구니 레시피 라운드까지 반영했다. 실행하지 못한 검증, 답을 기다리는 질문, 자료가 없어 판단을 미룬 항목이 각각 어디에 있는지 한 번에 찾기 위한 것이다.
 
 **이 문서는 SSOT가 아니다.** 각 항목의 내용·근거·값은 "어디에" 칸이 가리키는 원본 문서가 그대로 소유한다. 여기에는 제목과 위치만 둔다 — 같은 값을 두 곳에 적으면 한쪽만 고쳐져 어긋나기 때문이고, 그래서 폐지된 중앙 트래커(`#2`)와 같은 실수를 반복하지 않기 위해서다(`core-scope.md` `[미정]` 처리 절). 원본이 닫히면 여기 행도 같이 지운다.
 
@@ -34,7 +34,8 @@
 | 묶음 | 건수 | 어디에 |
 |------|------|--------|
 | 공유 인프라 (프로필 없이 기동, 빈 이름 충돌, 지표 노출, 로그 손잡이, 컨슈머 4개, 응답 형식) | 6 | [`audits/cross-cutting/refactor-log.md`](cross-cutting/refactor-log.md) "기동 확인" |
-| 장바구니 레시피 (장바구니 연동, LLM 응답 파싱, 읽기 상한, 네임스페이스) | 4 | [`audits/cart-recipe/refactor-log.md`](cart-recipe/refactor-log.md) "기동 확인" |
+| 장바구니 레시피 (장바구니 연동, LLM 응답 파싱, 읽기 상한, 네임스페이스) | 4 | [`audits/cart-recipe/refactor-log.md`](cart-recipe/refactor-log.md) 2026-09-05 "기동 확인" |
+| 장바구니 레시피 · 취향 벡터 (수신 칸을 줄인 뒤 장바구니·이벤트가 정상 파싱되는지) | 3 | [`audits/cart-recipe/refactor-log.md`](cart-recipe/refactor-log.md) 2026-09-06 "기동 확인" |
 | 임베딩 유사도 검색 (ES 설정 클래스 삭제 후 빈 등록, 덮어쓰기 허용 해제) | 2 | [`audits/vector-similarity/refactor-log.md`](vector-similarity/refactor-log.md) "기동 확인" |
 
 ### A-3. 인덱스 재생성 (5개) — 되돌릴 수 없어 사람이 직접 실행
@@ -68,6 +69,7 @@
 | B-10 | `baro-order`의 `cloud.aws.*` 접두사가 올바른지 | baro-order 담당자 | 이번에 고친 Feign 키와 같은 종류의 문제일 수 있다. 라이브러리 버전에 따라 정상일 수도 있어 확인만 요청 | 이 문서(2026-09-05 관찰) |
 | B-11 | 상품 이벤트의 `updatedAt`을 발행 시각이 아니라 상품이 바뀐 시각으로 보낼 수 있는지 | 발행 모듈 담당자 | 검색 최신순 정렬의 기준값이다. 지금은 `Instant.now()`라, 재색인용 재발행에서 전 상품이 한 시점에 뭉쳐 최신순이 무의미해진다 | [`specs/keyword-search/product-search-and-autocomplete.md`](../specs/keyword-search/product-search-and-autocomplete.md) 리스크 표 · [`audits/keyword-search/001`](keyword-search/001-query-path.md) B-3 근거 정정 |
 | B-12 | `baro-opa`의 ai 공개 라우트 정리 | 게이트웨이·인가 담당자 | `POST /api/v1/recommendations/recipes/test`가 public 라우트로 남아 있다(엔드포인트는 2026-09-05 삭제). 같은 파일에 `/search/product`·`/search/experience`·`/datagen/*` 등 **존재한 적 없는 경로 6개**가 더 있다 — 없는 경로라 지금 뚫리는 건 아니지만, 이 파일이 실제 API 목록과 어긋난 상태로 굳으면 나중에 진짜 위험한 항목을 못 알아본다. baro-ai 쓰기 범위 밖이라 훅이 차단했다 | `baro-opa/policy/data/ai/public.json` · [`audits/cart-recipe/001`](cart-recipe/001-cart-integration-and-request-path.md) B-2 |
+| B-13 | 새 카테고리 4행을 `02-init-categories.sql`에 넣고 상품을 시드하는 것 | 배포·`baro-shopping` 담당자 | **판매 여부는 2026-09-06 결정났다**(김치·두부·장류 — 살 게 없는 추천 50%→10%). 남은 건 실행뿐인데 저장소 루트라 이 하네스의 쓰기 범위 밖이다. 카테고리가 생기기 전까지는 부족 재료로 검색해도 상품이 0건이라 카드가 안 붙는다 | [`specs/cart-recipe/pantry-staples-and-catalog-coverage.md`](../specs/cart-recipe/pantry-staples-and-catalog-coverage.md) 갈래 B "적용할 때 같이 고쳐야 하는 것" |
 
 ## C. 자료가 없어 판단을 미룬 항목
 
@@ -83,6 +85,8 @@
 | C-6 | `quantity`의 의미가 이벤트마다 다른 것 | 발행 모듈의 의도 | [`specs/taste-vector/taste-vector-pipeline.md`](../specs/taste-vector/taste-vector-pipeline.md) 리스크 표 |
 | C-7 | `JsonData.of(float[])`가 스크립트 파라미터로 숫자 배열이 되는지 | 요청 본문 로그(로컬 ES 필요) — 확인되면 변환 코드를 지울 수 있다 | [`audits/vector-similarity/refactor-log.md`](vector-similarity/refactor-log.md) "남긴 것" |
 | C-8 | 챗봇의 목적·사용처 | 기획 결정 | [`specs/chat/chatbot.md`](../specs/chat/chatbot.md) |
+| C-9 | 부족 재료로 상품이 실제로 몇 건 걸리는지 | 로컬 ES + 상품 시드 — 검색이 nori 형태소 분석과 오탈자 교정을 쓰므로 "다진마늘"로도 마늘 상품이 걸릴 수 있다. 그러면 [`003`](cart-recipe/003-pantry-staples-and-variants.md)의 "살 게 없는 추천 45%"가 과대평가가 된다 | [`audits/cart-recipe/003`](cart-recipe/003-pantry-staples-and-variants.md) 곁가지 |
+| C-10 | 장바구니 이벤트의 `categoryCode`를 계속 받을지 | 취향 벡터가 카테고리 선호를 쓸 계획이 있는지 — 지금은 행동 로그에 저장만 되고 읽는 곳이 없다 | [`audits/taste-vector/refactor-log.md`](taste-vector/refactor-log.md) 2026-09-06 "남긴 것" |
 
 ## D. 의도적으로 하지 않기로 한 것
 
