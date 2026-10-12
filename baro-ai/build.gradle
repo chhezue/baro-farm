@@ -72,6 +72,9 @@ dependencies {
     // 근거: docs/decisions/003-gemini-migration.md
     implementation 'org.springframework.ai:spring-ai-starter-model-google-genai'
     implementation 'org.springframework.ai:spring-ai-starter-model-google-genai-embedding'
+
+    // ========= 테스트 (JUnit 5·Mockito·AssertJ — 2026-09-06 감사 cart-recipe/005 B-3) =========
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 
 tasks.named('test') {
