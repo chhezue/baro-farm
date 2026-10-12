@@ -1,0 +1,29 @@
+{
+ "n": 50,
+ "model": "gemini-embedding-001",
+ "dims": 1536,
+ "arms": {
+  "single": {
+   "error": 429,
+   "body": "{'error': {'code': 429, 'message': 'Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.', 'status': 'RESOURCE_EXHAUSTED'}}",
+   "completed": 13
+  },
+  "batch10": {
+   "requests": 5,
+   "total_seconds": 7.381,
+   "per_call_ms": {
+    "n": 5,
+    "p50": 1448.85,
+    "p95": 1608.836,
+    "p99": 1629.3912,
+    "mean": 1475.734,
+    "max": 1634.53
+   }
+  },
+  "batch50": {
+   "error": 429,
+   "body": "{'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for m",
+   "completed_requests": 0
+  }
+ }
+}

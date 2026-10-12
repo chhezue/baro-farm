@@ -36,4 +36,13 @@
 | [`keyword-search/001-query-path.md`](keyword-search/001-query-path.md) | 검색·자동완성 조회 경로 (색인 경로는 `search/001`) | A 4 · B 4 · C 6 · D 3 |
 | [`cross-cutting/002-dependencies-config-and-dead-code.md`](cross-cutting/002-dependencies-config-and-dead-code.md) | 의존성 · 설정 · Kafka 팩토리 · 죽은 패키지 · 응답 규격 (LLM 인프라는 `001`) | A 2 · B 8 · C 5 · D 4 |
 
+## 2026-09-06 비판 평가 후속 라운드 (4개 단위 동시 감사 · 구현은 단위별)
+
+| 문서 | 범위 | 결과 |
+|------|------|------|
+| [`cart-recipe/005-request-path-defects-and-tests.md`](cart-recipe/005-request-path-defects-and-tests.md) | 최상위 catch · 부족 재료 N+1 · 일급 컬렉션 · 첫 단위 테스트 · 응답 `reason` | A 2 · B 3 · 판단 1 — **반영 완료** |
+| [`taste-vector/002-weight-axes-and-tests.md`](taste-vector/002-weight-axes-and-tests.md) | 가중치 3축 실효성 · 테스트 가능화 | A 0 · B 2 · 판단 2 (시간 축 삭제) — **반영 완료** |
+| [`keyword-search/002-index-throughput-and-search-log.md`](keyword-search/002-index-throughput-and-search-log.md) | 색인 배치화 · 검색 로그 비동기 · 페이징 테스트 | A 2 · B 1 · 측정 M-3 — **반영 완료**(묶음 5건·15분) |
+| [`vector-similarity/002-vector-transfer-knn-and-diversity.md`](vector-similarity/002-vector-transfer-knn-and-diversity.md) | 벡터 전송량 · `knn` 전환 실측 · 다양화 효과 실측 | A 1 · B 2 · 측정 M-1·M-2 — **반영 완료**: `knn` 전환 안 함(`decisions/004`), 다양화 ×3 유지(실측 기록) |
+
 같은 클래스를 두 문서가 다룰 때는 한쪽을 SSOT로 정하고 다른 쪽은 참조만 남긴다(`ElasticsearchConfig` → `vector-similarity/001` A-2, cart·order 팩토리 래핑 → `cross-cutting/002` A-2·B-6, 컨슈머 재시도·중복 로그 → `taste-vector/001` A-5, `SimilarProductResponse` → `vector-similarity/001` B-1).

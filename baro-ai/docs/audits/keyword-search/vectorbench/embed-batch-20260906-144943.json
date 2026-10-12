@@ -1,0 +1,29 @@
+{
+ "n": 50,
+ "model": "gemini-embedding-001",
+ "dims": 1536,
+ "arms": {
+  "single": {
+   "requests": 50,
+   "total_seconds": 27.971,
+   "per_call_ms": {
+    "n": 50,
+    "p50": 542.6949999999999,
+    "p95": 673.7834999999999,
+    "p99": 707.7658,
+    "mean": 559.1892,
+    "max": 710.99
+   }
+  },
+  "batch50": {
+   "error": 429,
+   "body": "{'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for m",
+   "completed_requests": 0
+  },
+  "batch25": {
+   "error": 429,
+   "body": "{'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for m",
+   "completed_requests": 1
+  }
+ }
+}
