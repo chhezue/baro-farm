@@ -47,11 +47,19 @@ public class KafkaConsumerConfig {
     // === Product Event Consumer 설정 상수 ===
 
     /**
-     * 상품 이벤트 한 번의 poll()에서 가져올 최대 레코드 수 (1건).
-     * 상품 색인 과정에서 외부 API 호출(임베딩 생성, LLM 재료명 정규화)이 포함되어 건당 처리 시간이 길어질 수 있으므로,
-     * 단일 건씩 소비하여 max.poll.interval.ms 초과로 인한 컨슈머 리밸런싱을 방지합니다.
+     * 상품 이벤트 한 번의 poll()에서 가져올 최대 레코드 수 (5건) — 묶음 리스너가 이 단위로 색인한다.
+     *
+     * 2026-09-06 이전에는 1건이었다. 건당 외부 호출(임베딩·재료명 LLM)이 길어 max.poll.interval.ms를 넘길까 봐였는데,
+     * 그 대신 처리량이 건당 지연의 역수로 고정됐다. 묶으면 임베딩은 묶음당 1회, ES 저장은 인덱스당 1회가 된다.
+     * 5로 정한 근거: 상품 1건의 최악 지연은 임베딩·재료명 호출 각각 30초 × 3회 재시도 = 90초씩 180초다(LlmClientConfig).
+     * 5건이면 최악 900초라 아래 PRODUCT_MAX_POLL_INTERVAL_MS(15분)와 같다 — 1건일 때 지키던 "최악에도 리밸런싱 없음"을
+     * 그대로 유지하는 최대값이다. 정상 지연(임베딩 묶음 1.5초 + 재료명 건당 약 1.5초)에서는 여유가 크다.
+     * 근거: docs/audits/keyword-search/002-index-throughput-and-search-log.md A-1·M-3
      */
-    private static final int PRODUCT_MAX_POLL_RECORDS = 1;
+    private static final int PRODUCT_MAX_POLL_RECORDS = 5;
+
+    /** 상품 묶음 하나를 처리하는 데 허용하는 최대 시간 (15분). 넘기면 브로커가 이 컨슈머를 죽은 것으로 보고 리밸런싱한다 */
+    private static final int PRODUCT_MAX_POLL_INTERVAL_MS = 900_000;
 
     /** 처리 실패 시 재시도 대기 간격 (1초) */
     private static final long RETRY_INTERVAL_MS = 1_000L;
@@ -95,7 +103,7 @@ public class KafkaConsumerConfig {
 
     /**
      * 상품 이벤트(ProductEvent) 수신용 ConsumerFactory.
-     * 색인 시 임베딩·재료명 LLM 호출이 끼어 건당 처리 시간이 길어지므로 poll당 1건으로 제한한다.
+     * 색인 시 임베딩·재료명 LLM 호출이 끼어 처리 시간이 길므로 poll당 건수와 처리 허용 시간을 함께 정한다.
      */
     @Bean
     public ConsumerFactory<String, ProductEvent> productEventConsumerFactory() {
@@ -103,14 +111,22 @@ public class KafkaConsumerConfig {
             ProductEvent.class,
             "",
             "latest",
-            Map.of(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, PRODUCT_MAX_POLL_RECORDS));
+            Map.of(
+                ConsumerConfig.MAX_POLL_RECORDS_CONFIG, PRODUCT_MAX_POLL_RECORDS,
+                ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, PRODUCT_MAX_POLL_INTERVAL_MS));
     }
 
+    /**
+     * 상품 이벤트 리스너 컨테이너 팩토리 — **묶음 리스너**다. 리스너는 `List<ProductEvent>`를 받는다.
+     * 리스너가 {@code BatchListenerFailedException}에 실패 위치를 담아 던지므로, 에러 핸들러는 그 앞 레코드를 커밋하고
+     * 실패 레코드부터 1초 간격 2회 다시 시도한 뒤 그 레코드만 건너뛴다. 색인은 상품 ID로 덮어쓰므로 재처리가 안전하다.
+     */
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, ProductEvent> productEventListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, ProductEvent> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(productEventConsumerFactory());
+        factory.setBatchListener(true);
         factory.setCommonErrorHandler(retryingErrorHandler());
         return factory;
     }

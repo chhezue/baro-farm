@@ -7,7 +7,7 @@ import java.util.UUID;
  * Elasticsearch 상품 검색 및 자동완성 인덱스에 상품 문서를 색인(저장/수정)하기 위한 요청 DTO 레코드입니다.
  *
  * [주요 활용처]
- * - Kafka 상품 이벤트(`ProductEventConsumer`) 수신 시 `ProductIndexService.indexProduct()`로 전달됩니다.
+ * - Kafka 상품 이벤트(`ProductEventConsumer`) 수신 시 `ProductIndexService.indexProducts()`에 묶음으로 전달됩니다.
  *
  * @param productId           색인 대상 상품의 고유 UUID
  * @param productName         상품 명칭 (Nori 형태소 분석 및 1536차원 벡터 임베딩 대상)

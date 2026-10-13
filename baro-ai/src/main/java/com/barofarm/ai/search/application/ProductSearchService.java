@@ -6,7 +6,6 @@ import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
 import co.elastic.clients.json.JsonData;
 import com.barofarm.ai.embedding.application.UserProfileRefreshTrigger;
-import com.barofarm.ai.log.application.LogWriteService;
 import com.barofarm.ai.search.application.dto.product.ProductAutoCompleteResponse;
 import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
 import com.barofarm.ai.search.application.dto.product.ProductSearchResponse;
@@ -34,9 +33,9 @@ import org.springframework.stereotype.Service;
  *
  * Elasticsearch를 활용하여 키워드 유사도 매칭(정확 구문, 형태소 분절, 오탈자 보정)과
  * 다중 필터(판매 상태, 카테고리, 가격 범위)를 조합한 복합 상품 검색을 수행하며,
- * 검색 성공 시 사용자 취향 분석을 위한 검색 로그를 남기고 프로필 벡터 갱신을 요청합니다.
- * 이 중 검색 로그 적재는 Elasticsearch 쓰기를 응답 스레드에서 그대로 수행하는 동기 작업이고,
- * 프로필 벡터 갱신만 {@link UserProfileRefreshTrigger}를 거쳐 별도 스레드로 넘어갑니다.
+ * 검색 성공 시 사용자 취향 분석을 위한 검색 로그 적재와 프로필 벡터 갱신을 {@link UserProfileRefreshTrigger}에
+ * 한 작업으로 넘깁니다 — 둘 다 별도 스레드에서 돌고, 응답 스레드는 제출만 합니다(2026-09-06 이전에는 로그 적재가
+ * 응답 스레드에서 동기로 실행됐다 — docs/audits/keyword-search/002 A-2).
  * 상품명 접두어 자동완성 조회도 같은 조회 경로라 여기에 둡니다.
  */
 @Slf4j
@@ -68,9 +67,6 @@ public class ProductSearchService {
     /** Spring Data Elasticsearch 네이티브 쿼리 실행 템플릿 */
     private final ElasticsearchOperations operations;
 
-    /** 사용자 행동 로그 영속화 서비스 */
-    private final LogWriteService logWriteService;
-
     /** 사용자 프로필 벡터 비동기 갱신 트리거 컴포넌트 */
     private final UserProfileRefreshTrigger userProfileRefreshTrigger;
 
@@ -95,9 +91,97 @@ public class ProductSearchService {
         Pageable pageable = toPageable(page, size);
 
         // [1단계: Elasticsearch NativeQuery 복합 쿼리 빌드]
-        // 키워드 조건(should: 정확 문구, 일반 형태소, 오탈자 보정)과 상태/카테고리/가격 필터(filter)를 조합합니다.
-        NativeQuery query =
-            NativeQuery.builder()
+        NativeQuery query = buildSearchQuery(request, pageable);
+
+        // [2단계: Elasticsearch 쿼리 실행]
+        SearchHits<ProductDocument> hits = operations.search(query, ProductDocument.class);
+
+        // [3단계: 검색 결과 DTO 변환 및 CustomPage 페이징 포장]
+        List<ProductSearchResponse> items = toResponses(hits);
+
+        CustomPage<ProductSearchResponse> resultPage =
+            CustomPage.of(hits.getTotalHits(), items, pageable);
+
+        // [4단계: 부가 작업 제출 (검색 로그 적재 + 취향 벡터 갱신)]
+        // 회원 검색이면서 검색어가 존재하는 경우, 상위 검색 결과 상품 ID(최대 3개)와 함께 트리거에 넘긴다.
+        // 로그 적재와 갱신은 별도 스레드에서 순서대로 돌고, 여기서는 제출만 하므로 검색 응답 시간에 ES 쓰기가 들어가지 않는다.
+        // 여기서 잡는 예외는 제출 실패(실행자 종료 등)뿐이다 — 큐가 찼을 때는 예외 없이 버려진다(AsyncConfig 거부 정책).
+        if (userId != null && request.keyword() != null && !request.keyword().isBlank()) {
+            try {
+                // 취향 벡터 산출 시 검색어 대신 활용할 상위 노출 상품 ID(최대 3개) 추출
+                List<UUID> topProductIds = items.stream()
+                    .map(ProductSearchResponse::productId)
+                    .limit(SEARCH_LOG_TOP_PRODUCT_LIMIT)
+                    .toList();
+
+                userProfileRefreshTrigger.recordSearchAndRefresh(
+                    userId, request.keyword(), topProductIds, Instant.now());
+            } catch (Exception e) {
+                log.warn("❌ 검색 부가 작업 제출 실패(로그 적재·프로필 갱신) - 사용자: {}, 검색어: {}, 원인: {}",
+                    userId, request.keyword(), e.getMessage(), e);
+            }
+        }
+
+        return resultPage;
+    }
+
+    /**
+     * 부족 재료 상품 조회처럼 키워드 여러 개를 한 번에 찾을 때 씁니다. 키워드마다 `search`를 따로 부르면
+     * ES 왕복이 키워드 수만큼 순차로 늘어나므로(2026-09-06 감사 cart-recipe/005 A-2), 같은 쿼리를
+     * 키워드 수만큼 만들어 `_msearch` 한 번으로 보냅니다. 필터·정렬·`_source` 제외는 `search`와 같습니다.
+     * 검색 로그·프로필 갱신은 하지 않습니다 — 사용자의 검색이 아니라 서버 내부 조회이기 때문입니다.
+     *
+     * 배치 안의 쿼리 하나가 실패하면 Spring Data ES는 그 항목을 결과에서 빼고 자리를 당겨 버린다(어느 것이 실패했는지는
+     * 알 수 없다). 그러면 호출자가 순서로 맞추는 대응이 어긋나므로, 결과 수가 키워드 수와 다르면 전부 빈 목록으로 돌려준다 —
+     * 상품 카드 하나를 엉뚱한 재료에 붙이는 것보다 카드가 빠지는 쪽이 낫다.
+     *
+     * @param keywords       찾을 키워드 목록 (빈 목록이면 빈 결과)
+     * @param sizePerKeyword 키워드당 최대 상품 수 (1~100)
+     * @return 요청한 키워드 순서와 1:1로 대응하는 상품 목록의 목록 (길이는 항상 키워드 수와 같다)
+     */
+    public List<List<ProductSearchResponse>> searchByKeywords(List<String> keywords, int sizePerKeyword) {
+        if (keywords == null || keywords.isEmpty()) {
+            return List.of();
+        }
+        Pageable pageable = toPageable(0, sizePerKeyword);
+
+        List<NativeQuery> queries = keywords.stream()
+            .map(keyword -> buildSearchQuery(new ProductSearchRequest(keyword, null, null, null), pageable))
+            .toList();
+
+        List<SearchHits<ProductDocument>> hitsPerKeyword = operations.multiSearch(queries, ProductDocument.class);
+        if (hitsPerKeyword.size() != keywords.size()) {
+            log.warn("multi-search 결과 수({})가 키워드 수({})와 달라 순서를 믿을 수 없어 전부 빈 결과로 돌립니다. keywords={}",
+                hitsPerKeyword.size(), keywords.size(), keywords);
+            return keywords.stream().map(k -> List.<ProductSearchResponse>of()).toList();
+        }
+
+        return hitsPerKeyword.stream()
+            .map(this::toResponses)
+            .toList();
+    }
+
+    /**
+     * 검색 히트를 응답 DTO 목록으로 변환합니다.
+     */
+    private List<ProductSearchResponse> toResponses(SearchHits<ProductDocument> hits) {
+        return hits.getSearchHits().stream()
+            .map(h -> h.getContent())
+            .map(d -> new ProductSearchResponse(
+                d.getProductId(),
+                d.getProductName(),
+                d.getProductCategoryName(),
+                d.getPrice()
+            ))
+            .toList();
+    }
+
+    /**
+     * 키워드 조건(should: 정확 문구, 일반 형태소, 오탈자 보정)과 상태/카테고리/가격 필터(filter)를 조합한
+     * 상품 검색 쿼리를 만듭니다. `search`와 `searchByKeywords`가 같은 쿼리를 쓰도록 여기 한 곳에 둡니다.
+     */
+    private NativeQuery buildSearchQuery(ProductSearchRequest request, Pageable pageable) {
+        return NativeQuery.builder()
                 .withQuery(q -> q.bool(b -> {
 
                     // 키워드가 입력된 경우 3중 가중치 매칭 조건을 should 절에 등록
@@ -133,53 +217,6 @@ public class ProductSearchService {
                 .withSourceFilter(FetchSourceFilter.of(null, EXCLUDED_SOURCE_FIELDS))
                 .withPageable(pageable)
                 .build();
-
-        // [2단계: Elasticsearch 쿼리 실행]
-        SearchHits<ProductDocument> hits = operations.search(query, ProductDocument.class);
-
-        // [3단계: 검색 결과 DTO 변환 및 CustomPage 페이징 포장]
-        List<ProductSearchResponse> items =
-            hits.getSearchHits().stream()
-                .map(h -> h.getContent())
-                .map(d -> new ProductSearchResponse(
-                    d.getProductId(),
-                    d.getProductName(),
-                    d.getProductCategoryName(),
-                    d.getPrice()
-                ))
-                .toList();
-
-        CustomPage<ProductSearchResponse> resultPage =
-            CustomPage.of(hits.getTotalHits(), items, pageable);
-
-        // [4단계: 부가 작업 (검색 로그 적재 및 취향 벡터 갱신 트리거)]
-        // 회원 검색이면서 검색어가 존재하는 경우, 상위 검색 결과 상품 ID(최대 3개)를 포함하여 로그를 남기고 취향 벡터 갱신을 요청합니다.
-        // saveSearchLog는 Elasticsearch 쓰기를 여기서 그대로 수행하는 동기 호출이라 검색 응답 시간에 포함된다.
-        // 뒤이은 refresh만 별도 스레드로 넘어가고 즉시 반환한다.
-        // 로그 저장 실패가 메인 검색 응답에 영향을 주지 않도록 try-catch로 예외를 격리합니다.
-        if (userId != null && request.keyword() != null && !request.keyword().isBlank()) {
-            try {
-                // 취향 벡터 산출 시 검색어 대신 활용할 상위 노출 상품 ID(최대 3개) 추출
-                List<UUID> topProductIds = items.stream()
-                    .map(ProductSearchResponse::productId)
-                    .limit(SEARCH_LOG_TOP_PRODUCT_LIMIT)
-                    .toList();
-
-                logWriteService.saveSearchLog(
-                    userId,
-                    request.keyword(),
-                    topProductIds,
-                    Instant.now()
-                );
-                userProfileRefreshTrigger.refresh(userId);
-            } catch (Exception e) {
-                // 검색 로그 저장과 프로필 갱신 요청을 함께 감싸므로 문구도 그 범위로 적는다.
-                log.warn("❌ 검색 부가 작업 실패(로그 저장·프로필 갱신 요청) - 사용자: {}, 검색어: {}, 원인: {}",
-                    userId, request.keyword(), e.getMessage(), e);
-            }
-        }
-
-        return resultPage;
     }
 
     /**
