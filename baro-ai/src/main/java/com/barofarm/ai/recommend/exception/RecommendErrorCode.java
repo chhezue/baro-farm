@@ -13,6 +13,8 @@ import org.springframework.http.HttpStatus;
  *
  * 추천 실패(프로필 없음, 기준 상품 벡터 없음, LLM 호출 실패 등)는 여기에 넣지 않는다.
  * 그 경우들은 예외가 아니라 빈 목록·빈 응답으로 나가는 것이 이 도메인의 정책이다.
+ * 레시피 추천은 그 빈 응답이 왜 비었는지를 {@link com.barofarm.ai.recommend.application.dto.RecipeRecommendReason}으로
+ * 200 응답 안에 실어 보낸다 — 4xx 에러 코드가 아니라 응답 필드다.
  */
 @Getter
 @AllArgsConstructor

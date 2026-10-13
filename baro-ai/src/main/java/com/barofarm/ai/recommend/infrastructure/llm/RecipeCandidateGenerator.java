@@ -1,8 +1,8 @@
 package com.barofarm.ai.recommend.infrastructure.llm;
 
 import com.barofarm.ai.recommend.domain.CandidateRecipePlan;
-import com.barofarm.ai.recommend.domain.RecipeCandidates;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,12 +15,13 @@ import org.springframework.stereotype.Service;
 /**
  * Gemini LLM(구글 생성형 AI)을 호출하여 사용자가 보유한 장바구니 식재료를 활용할 수 있는
  * 맞춤형 요리 레시피를 생성하는 생성기 컴포넌트입니다.
- * 응답은 배열 형태를 유지하되(빈 이름 방어) 프롬프트는 후보 1개만 요구합니다.
+ * 응답은 배열 형태를 유지하되(빈 이름 방어) 프롬프트는 후보 1개만 요구하고, 이 클래스는 그중
+ * 이름이 채워진 첫 번째 것을 골라 {@link Optional}로 돌려줍니다.
  *
  * [주요 특징]
  * 1. Structured Outputs: Gemini API의 JSON 스키마 강제 기능(responseSchema)을 적용해
  *    마크다운 코드펜스나 설명 문장이 섞이지 않은 JSON을 받습니다. 프롬프트로 부탁하던 방식보다 훨씬 안정적이지만
- *    파싱 실패가 0이 된다는 보장은 아니라서, 아래 호출부는 여전히 예외를 잡아 빈 후보 목록으로 되돌립니다.
+ *    파싱 실패가 0이 된다는 보장은 아니라서, 아래 호출부는 여전히 예외를 잡아 빈 결과로 되돌립니다.
  * 2. 서버 측 재료 정합성 계산: 부족한 핵심 재료 및 사용된 재료는 LLM의 환각(Hallucination)에 의존하지 않고,
  *    서버(CandidateRecipePlan.from)에서 보유 재료 목록과 대조하여 정확히 계산합니다.
  */
@@ -40,12 +41,12 @@ public class RecipeCandidateGenerator {
     private final ChatClient chatClient;
 
     /**
-     * 사용자가 보유한 식재료 목록을 기반으로 요리 레시피 후보 목록을 생성합니다.
+     * 사용자가 보유한 식재료 목록을 기반으로 요리 레시피 1개를 생성합니다.
      *
      * @param ownedIngredients 장바구니에서 추출된 보유 식재료명 목록 (예: ["계란", "애호박", "양파"])
-     * @return 부족한 재료 및 사용 재료가 계산된 레시피 후보군 객체 (호출 실패 시 안전하게 빈 목록 반환)
+     * @return 부족한 재료 및 사용 재료가 계산된 레시피 (호출 실패·빈 응답이면 {@link Optional#empty()})
      */
-    public RecipeCandidates generateRecipeCandidates(List<String> ownedIngredients) {
+    public Optional<CandidateRecipePlan> generateRecipe(List<String> ownedIngredients) {
         try {
             // [1단계: 프롬프트 템플릿 조립]
             // 보유 재료 목록을 주입하고, 현실적인 요리 및 부족한 재료 유도 규칙이 포함된 시스템 프롬프트를 작성합니다.
@@ -55,18 +56,27 @@ public class RecipeCandidateGenerator {
             // ChatClient를 통해 JSON 스키마를 전달하고 Gemini 모델로부터 레시피 초안 목록(Drafts)을 수신합니다.
             RecipeCandidateDrafts drafts = callRecipeCandidateLLM(templateString);
 
-            // [3단계: LLM 응답 유효성 검증]
-            // 응답이 null이거나 후보 목록이 비어 있는 경우 빈 후보군 객체를 반환합니다.
             if (drafts == null || drafts.candidates() == null) {
-                return new RecipeCandidates(List.of());
+                return Optional.empty();
             }
 
-            // [4단계: 도메인 모델 변환 및 서버 측 재료 매칭 연산]
+            // [3단계: 이름이 있는 첫 후보를 골라 서버 측 재료 매칭 연산]
+            // 프롬프트는 1개를 요구하지만 응답은 배열이라, 이름이 빈 항목을 걸러 첫 번째를 택합니다.
             // LLM이 반환한 초안(Draft)과 보유 재료를 대조하여 '실제 사용된 재료'와 '부족한 핵심 재료'를 서버에서 계산합니다.
-            return toCandidates(drafts, ownedIngredients);
+            Optional<CandidateRecipePlan> plan = drafts.candidates().stream()
+                .filter(draft -> draft != null && draft.recipeName() != null && !draft.recipeName().isBlank())
+                .findFirst()
+                .map(draft -> CandidateRecipePlan.from(draft, ownedIngredients));
+
+            plan.ifPresentOrElse(
+                p -> log.debug("레시피 생성 완료: {}, core: {}, used: {}, missing: {}",
+                    p.recipeName(), p.recipeIngredientsCore(), p.usedOwnedIngredients(), p.missingIngredientsCore()),
+                () -> log.info("레시피 응답에 이름이 있는 후보가 없습니다. 후보 수: {}", drafts.candidates().size()));
+
+            return plan;
         } catch (Exception e) {
-            log.error("레시피 후보 생성 실패: {}", e.getMessage(), e);
-            return new RecipeCandidates(List.of());
+            log.error("레시피 생성 실패: {}", e.getMessage(), e);
+            return Optional.empty();
         }
     }
 
@@ -141,34 +151,5 @@ public class RecipeCandidateGenerator {
 
         // JSON 응답을 DTO 객체로 변환하여 반환
         return RESPONSE_CONVERTER.convert(json);
-    }
-
-    /**
-     * LLM이 생성한 원시 초안(Draft)을 받아, 서버 측 보유 재료 정합성 검증을 거친 최종 CandidateRecipePlan 목록으로 변환합니다.
-     *
-     * @param drafts           LLM이 생성한 레시피 초안 래퍼
-     * @param ownedIngredients 사용자가 장바구니에 담아둔 실제 보유 식재료 목록
-     * @return 서버 검증이 완료된 레시피 후보군 일급 컬렉션
-     */
-    private RecipeCandidates toCandidates(RecipeCandidateDrafts drafts, List<String> ownedIngredients) {
-        // [1단계: 초안 목록 순회 및 서버 측 재료 정합성 계산]
-        // CandidateRecipePlan.from()에서 보유 재료와의 교집합(used) 및 차집합(missing)을 직접 연산합니다.
-        List<CandidateRecipePlan> candidates = drafts.candidates().stream()
-            .filter(draft -> draft != null)
-            .map(draft -> CandidateRecipePlan.from(draft, ownedIngredients))
-            .toList();
-
-        // [2단계: 생성 결과 상세 로깅]
-        log.info("레시피 후보 생성 완료. 후보 개수: {}", candidates.size());
-        candidates.forEach(candidate ->
-            log.debug("  - 후보: {}, core: {}, used: {}, missing: {}",
-                candidate.recipeName(),
-                candidate.recipeIngredientsCore(),
-                candidate.usedOwnedIngredients(),
-                candidate.missingIngredientsCore())
-        );
-
-        // [3단계: 일급 컬렉션(RecipeCandidates)으로 포장하여 반환]
-        return new RecipeCandidates(candidates);
     }
 }

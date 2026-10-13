@@ -3,16 +3,16 @@ package com.barofarm.ai.recommend.application;
 import com.barofarm.ai.recommend.application.config.RecommendProperties;
 import com.barofarm.ai.recommend.application.dto.IngredientRecommendResponse;
 import com.barofarm.ai.recommend.application.dto.ProductRecommendResponse;
+import com.barofarm.ai.recommend.application.dto.RecipeRecommendReason;
 import com.barofarm.ai.recommend.application.dto.RecipeRecommendResponse;
 import com.barofarm.ai.recommend.domain.CandidateRecipePlan;
 import com.barofarm.ai.recommend.domain.IngredientProcessingUtil;
-import com.barofarm.ai.recommend.domain.RecipeCandidates;
 import com.barofarm.ai.recommend.infrastructure.client.CartClient;
 import com.barofarm.ai.recommend.infrastructure.client.dto.CartInfo;
 import com.barofarm.ai.recommend.infrastructure.client.dto.CartItemInfo;
 import com.barofarm.ai.recommend.infrastructure.llm.RecipeCandidateGenerator;
 import com.barofarm.ai.search.application.ProductSearchService;
-import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
+import com.barofarm.ai.search.application.dto.product.ProductSearchResponse;
 import com.barofarm.ai.search.domain.ProductDocument;
 import com.barofarm.dto.ResponseDto;
 import java.util.ArrayList;
@@ -38,8 +38,11 @@ import org.springframework.stereotype.Service;
  * 2. 가공식품, 생필품 등 요리와 무관한 카테고리 상품을 필터링하여 제외합니다.
  * 3. Elasticsearch에 사전 색인된 상품 문서의 재료명(ProductDocument.ingredientName)을 일괄 조회하여 보유 재료 목록을 도출합니다.
  *    (요청 시점마다 LLM으로 재료를 파싱하지 않고 색인 시점에 미리 정규화된 재료명을 읽어 지연 시간과 비용을 획기적으로 절감)
- * 4. RecipeCandidateGenerator를 통해 LLM 기반으로 현재 보유 재료로 조리 가능한 최적의 레시피 후보를 생성합니다.
+ * 4. RecipeCandidateGenerator를 통해 LLM 기반으로 현재 보유 재료로 조리 가능한 레시피를 생성합니다.
  * 5. 생성된 레시피에 필요하지만 장바구니에 없는 '부족한 재료'를 Elasticsearch 키워드 검색으로 찾아 구매 후보 상품으로 매핑합니다.
+ *
+ * 레시피를 만들지 못한 경우는 예외가 아니라 200 + 빈 필드로 나가고, 왜 비었는지는
+ * {@link RecipeRecommendReason}이 알린다. 빈 장바구니는 오류가 아니라 사용자 상태이기 때문이다.
  */
 @Slf4j
 @Service
@@ -58,7 +61,7 @@ public class RecipeRecommendService {
     /** 부족한 재료명을 키워드로 입력받아 실제 판매 중인 상품을 Elasticsearch에서 검색하는 서비스 */
     private final ProductSearchService productSearchService;
 
-    /** Gemini LLM 구조화 출력을 활용해 식재료 기반 레시피 후보를 생성하는 제너레이터 */
+    /** Gemini LLM 구조화 출력을 활용해 식재료 기반 레시피를 생성하는 제너레이터 */
     private final RecipeCandidateGenerator recipeCandidateGenerator;
 
     /** 레시피 추천에서 제외할 카테고리 코드 목록 등을 관리하는 설정 프로퍼티 */
@@ -71,32 +74,32 @@ public class RecipeRecommendService {
      * 특정 사용자의 장바구니 상품을 기반으로 레시피 및 부족한 재료 연관 상품을 추천합니다.
      *
      * @param userId 추천을 요청한 사용자의 고유 UUID
-     * @return 레시피 추천 응답 DTO (장바구니 비어있음 또는 오류 발생 시 안전한 빈 응답 반환)
+     * @return 레시피 추천 응답 DTO (만들지 못하면 이유가 담긴 빈 응답)
      */
     public RecipeRecommendResponse recommendFromCartWithMissing(UUID userId) {
         // [1단계: 장바구니 Feign 클라이언트 호출 및 예외 격리]
-        // 장바구니 서비스와의 네트워크 오류 또는 장바구니 미생성 시에도 프론트엔드 오류를 방지하기 위해
-        // 전체 과정을 try-catch로 감싸고, 실패 시 조용히 빈 응답(Empty Response)을 반환합니다.
+        // 장바구니 서비스와의 네트워크 오류 등 외부 연동 실패가 프론트엔드 오류로 번지지 않도록
+        // 전체 과정을 try-catch로 감싸고, 실패 시 UPSTREAM_ERROR로 표시한 빈 응답을 반환합니다.
+        // 이 catch는 기능 전체의 마지막 방어선이라 스택트레이스를 반드시 남깁니다(예외 객체를 마지막 인자로).
         try {
             ResponseDto<CartInfo> response = cartClient.getCart(userId);
             CartInfo cart = response != null ? response.data() : null;
             return recommendFromCart(cart, userId.toString());
         } catch (Exception e) {
-            log.warn("레시피 추천 실패(장바구니 조회·재료 조회·후보 생성 중 예외). userId: {}, error: {}",
-                userId, e.getMessage());
-            return new RecipeRecommendResponse("", List.of(), List.of(), List.of(), "");
+            log.warn("레시피 추천 실패(장바구니 조회·재료 조회·후보 생성 중 예외). userId: {}", userId, e);
+            return RecipeRecommendResponse.empty(RecipeRecommendReason.UPSTREAM_ERROR);
         }
     }
 
     /**
-     * 장바구니 정보(CartInfo)로부터 레시피 후보를 생성하고 부족한 식재료를 검색하는 내부 추천 메서드.
+     * 장바구니 정보(CartInfo)로부터 레시피를 생성하고 부족한 식재료를 검색하는 내부 추천 메서드.
      */
     private RecipeRecommendResponse recommendFromCart(CartInfo cart, String userIdentifier) {
         // [1단계: 장바구니 데이터 유효성 검증]
         // 장바구니 객체가 null이거나 담긴 상품이 없는 경우 레시피 생성이 불가하므로 빈 응답을 반환합니다.
         if (cart == null || cart.items() == null || cart.items().isEmpty()) {
             log.warn("장바구니가 비어있습니다. userId: {}", userIdentifier);
-            return new RecipeRecommendResponse("", List.of(), List.of(), List.of(), "");
+            return RecipeRecommendResponse.empty(RecipeRecommendReason.EMPTY_CART);
         }
 
         // [2단계: 비(非)식재료 카테고리 상품 필터링]
@@ -112,7 +115,7 @@ public class RecipeRecommendService {
 
         if (eligibleItems.isEmpty()) {
             log.warn("유효한 장바구니 상품이 없습니다. userId: {}", userIdentifier);
-            return new RecipeRecommendResponse("", List.of(), List.of(), List.of(), "");
+            return RecipeRecommendResponse.empty(RecipeRecommendReason.NO_ELIGIBLE_ITEMS);
         }
 
         // [3단계: Elasticsearch 사전 색인 재료명(ingredientName) 일괄 조회]
@@ -122,43 +125,32 @@ public class RecipeRecommendService {
 
         if (ownedNames.isEmpty()) {
             log.warn("색인된 재료명이 없어 레시피 추천을 건너뜁니다. userId: {}", userIdentifier);
-            return new RecipeRecommendResponse("", List.of(), List.of(), List.of(), "");
+            return RecipeRecommendResponse.empty(RecipeRecommendReason.INGREDIENTS_NOT_INDEXED);
         }
 
-        // [4단계: Gemini LLM 기반 레시피 후보군 생성 및 최적 1건 선택]
-        // 보유 재료 목록을 전달하여 조리 가능한 요리 후보를 생성하고, 가장 적합한 첫 번째 레시피를 선택합니다.
-        RecipeCandidates candidates = recipeCandidateGenerator.generateRecipeCandidates(ownedNames);
-
-        Optional<CandidateRecipePlan> selectedOpt = candidates.chooseFirst();
+        // [4단계: Gemini LLM 기반 레시피 생성]
+        Optional<CandidateRecipePlan> selectedOpt = recipeCandidateGenerator.generateRecipe(ownedNames);
 
         if (selectedOpt.isEmpty()) {
-            log.warn("레시피 후보 생성/선택 실패. userId: {}", userIdentifier);
-            return new RecipeRecommendResponse("", ownedNames, List.of(), List.of(), "");
+            log.warn("레시피 생성 실패. userId: {}", userIdentifier);
+            return new RecipeRecommendResponse(
+                RecipeRecommendReason.GENERATION_FAILED, "", ownedNames, List.of(), List.of(), "");
         }
 
         CandidateRecipePlan plan = selectedOpt.get();
         log.info("최종 선택된 레시피: {}", plan.recipeName());
 
         // [5단계: 부족한 핵심 식재료(missingIngredientsCore) 추출 및 연관 상품 검색]
-        // RecipeCandidateGenerator가 서버 측에서 계산한 부족한 핵심 재료 목록을 읽어옵니다.
+        // 서버가 계산한 부족 핵심 재료 목록으로 구매 가능한 상품을 한 번의 multi-search로 조회합니다.
         List<String> missingCore = plan.missingIngredientsCore();
-
-        // 각 부족한 재료명으로 Elasticsearch 키워드 검색을 수행하여 구매 가능한 상품 정보를 조회합니다.
-        List<IngredientRecommendResponse> missingRecommendations =
-            missingCore.stream()
-                .map(ingredient -> new IngredientRecommendResponse(
-                    ingredient,
-                    searchProductsByIngredientName(ingredient,
-                        MISSING_PRODUCTS_LIMIT_PER_INGREDIENT)
-                ))
-                .filter(r -> r.products() != null && !r.products().isEmpty())
-                .toList();
+        List<IngredientRecommendResponse> missingRecommendations = searchMissingIngredientProducts(missingCore);
 
         // [6단계: 최종 레시피 및 재료 구매 추천 응답 DTO 조립]
         // 보유 재료로는 장바구니 전체(ownedNames)가 아니라 이 요리가 실제로 쓰는 것만 내보낸다.
         // 전체를 내보내면 보유 + 부족 != 핵심 재료가 되어, 11종이 담긴 장바구니에서 김치찌개를
         // 추천할 때 우유·사과까지 재료인 것처럼 읽힌다.
         return new RecipeRecommendResponse(
+            RecipeRecommendReason.OK,
             plan.recipeName(),
             plan.usedOwnedIngredients(),
             missingCore,
@@ -168,36 +160,39 @@ public class RecipeRecommendService {
     }
 
     /**
-     * 부족한 식재료명을 키워드로 전달하여 Elasticsearch에서 판매 중인 실제 상품을 검색합니다.
+     * 부족한 식재료 전부를 키워드로 묶어 Elasticsearch에 한 번(`_msearch`)만 물어보고, 재료별 상품 카드로 나눕니다.
+     *
+     * 재료마다 검색을 따로 던지면 부족 재료 수만큼 ES 왕복이 순차로 늘어난다(2026-09-06 감사 cart-recipe/005 A-2).
+     * 검색이 통째로 실패하면 레시피 본문은 살리고 상품 카드만 비운다 — 상품이 0건인 재료는 카드가 빠지되
+     * `missingCoreIngredients`에는 그대로 남는다.
      */
-    private List<ProductRecommendResponse> searchProductsByIngredientName(String ingredientName,
-        int size) {
-        if (ingredientName == null || ingredientName.isBlank()) {
+    private List<IngredientRecommendResponse> searchMissingIngredientProducts(List<String> missingCore) {
+        if (missingCore == null || missingCore.isEmpty()) {
             return List.of();
         }
 
         try {
-            // [검색 실행] 상품 검색 서비스를 통해 재료명 키워드 매칭 상품 조회
-            var searchResult = productSearchService.search(
-                null,
-                new ProductSearchRequest(ingredientName, null, null, null),
-                0,
-                size
-            );
+            List<List<ProductSearchResponse>> resultsPerIngredient =
+                productSearchService.searchByKeywords(missingCore, MISSING_PRODUCTS_LIMIT_PER_INGREDIENT);
 
-            // [DTO 변환] 검색된 상품 목록을 추천 응답 규격으로 매핑
-            return searchResult.content().stream()
-                .map(product -> new ProductRecommendResponse(
-                    product.productId(),
-                    product.productName(),
-                    product.productCategoryName(),
-                    product.price()
-                ))
-                .toList();
-
+            // 검색 결과는 요청한 키워드 순서와 1:1로 정렬되어 돌아온다 — 길이가 다르면 ProductSearchService가
+            // 전부 빈 목록으로 맞춰 준다(배치 안 쿼리 하나가 실패하면 순서를 알 수 없어서다).
+            List<IngredientRecommendResponse> recommendations = new ArrayList<>();
+            for (int i = 0; i < missingCore.size(); i++) {
+                List<ProductRecommendResponse> products = resultsPerIngredient.get(i).stream()
+                    .map(product -> new ProductRecommendResponse(
+                        product.productId(),
+                        product.productName(),
+                        product.productCategoryName(),
+                        product.price()))
+                    .toList();
+                if (!products.isEmpty()) {
+                    recommendations.add(new IngredientRecommendResponse(missingCore.get(i), products));
+                }
+            }
+            return recommendations;
         } catch (Exception e) {
-            log.error("ES 재료 상품 검색 실패. ingredientName={}, message={}", ingredientName,
-                e.getMessage(), e);
+            log.error("ES 부족 재료 상품 검색 실패. ingredients={}, message={}", missingCore, e.getMessage(), e);
             return List.of();
         }
     }
@@ -238,10 +233,10 @@ public class RecipeRecommendService {
             .withPageable(PageRequest.of(0, productIds.size()))
             .build();
 
+        List<SearchHit<ProductDocument>> hits = operations.search(query, ProductDocument.class).getSearchHits();
+
         List<String> ingredientNames = new ArrayList<>();
-        int found = 0;
-        for (SearchHit<ProductDocument> hit : operations.search(query, ProductDocument.class)) {
-            found++;
+        for (SearchHit<ProductDocument> hit : hits) {
             // 재료명 문자열 정규화 (공백 제거, 소문자화)
             String ingredientName =
                 IngredientProcessingUtil.normalizeForCompare(hit.getContent().getIngredientName());
@@ -255,7 +250,7 @@ public class RecipeRecommendService {
         int skipped = productIds.size() - ingredientNames.size();
         if (skipped > 0) {
             log.warn("보유 재료로 세지 못한 상품 {}건 (조회된 문서 {}/{}건). 상품 재색인이 필요할 수 있습니다. userId: {}",
-                skipped, found, productIds.size(), userIdentifier);
+                skipped, hits.size(), productIds.size(), userIdentifier);
         }
 
         // 중복 재료명을 제거한 최종 고유 재료 목록 반환
