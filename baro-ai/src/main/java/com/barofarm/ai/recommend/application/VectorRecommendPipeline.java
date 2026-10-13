@@ -26,7 +26,12 @@ public class VectorRecommendPipeline {
 
     /**
      * 다양성 확보를 위해 최종 추천 개수(topK) 대비 조회할 1차 후보군 배수.
-     * 너무 적게 가져오면 서로 다른 특징을 가진 상품을 고를 선택지가 부족해지므로 topK의 3배수를 1차 후보군으로 확보합니다.
+     *
+     * 3은 2026-09-06 실측으로 유지가 결정된 값이다(상품명 154개 임베딩, 기준 상품 20개, k=5):
+     * 다양화를 끄면 추천 5개 중 같은 카테고리 쌍이 45%인데 ×2면 14%, ×3이면 11.5%, ×5면 7.5%다.
+     * 대가인 기준 상품과의 유사도 손실은 ×2 0.024, ×3 0.036, ×5 0.053 — 미리 정한 허용선 0.05를 ×5만 넘는다.
+     * 후보 수는 곧 ES에서 받아 오는 벡터 수(문서당 약 21KB)라, 배수를 올리면 전송량이 같은 비율로 는다.
+     * 근거: docs/audits/vector-similarity/002-vector-transfer-knn-and-diversity.md M-2
      */
     private static final int CANDIDATE_MULTIPLIER = 3;
 

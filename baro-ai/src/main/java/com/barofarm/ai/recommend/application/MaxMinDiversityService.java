@@ -70,13 +70,14 @@ public class MaxMinDiversityService {
         }
 
         List<ProductDocument> selected = new ArrayList<>();
-        // [4단계: 최상위 유사도 1위 상품 시작점 고정]
-        // ES 유사도 검색 결과에서 가장 점수가 높은 0번째 상품을 첫 번째 추천 아이템으로 확정합니다.
-        selected.add(validCandidates.get(0));
+        // 고른 후보는 인덱스 플래그로 표시한다 — ProductDocument에 equals가 없어 List.contains의 참조 비교에 기대지 않는다
+        boolean[] picked = new boolean[validCandidates.size()];
 
-        // [5단계: 각 후보 상품별 '선택된 그룹과의 최소 거리' 배열 초기화]
-        // minDistances[i]는 i번째 후보가 이미 selected에 들어간 상품들과 이루는 거리 중 최솟값을 의미합니다.
-        // 초기값은 무한대(POSITIVE_INFINITY)로 설정합니다.
+        // [4단계: 최상위 유사도 1위 상품 시작점 고정] — ES 점수 1위(0번째)를 첫 추천으로 확정합니다.
+        selected.add(validCandidates.get(0));
+        picked[0] = true;
+
+        // [5단계: 후보별 '선택된 그룹과의 최소 거리' 배열 — minDistances[i]는 i번째 후보와 selected 사이 거리의 최솟값, 초기 무한대]
         double[] minDistances = new double[validCandidates.size()];
         for (int i = 0; i < minDistances.length; i++) {
             minDistances[i] = Double.POSITIVE_INFINITY;
@@ -90,7 +91,7 @@ public class MaxMinDiversityService {
             for (int i = 0; i < validCandidates.size(); i++) {
                 ProductDocument candidate = validCandidates.get(i);
                 // 이미 선별된 상품은 대상에서 제외
-                if (selected.contains(candidate)) {
+                if (picked[i]) {
                     continue;
                 }
 
@@ -118,6 +119,7 @@ public class MaxMinDiversityService {
             }
 
             // 가장 멀리 떨어진 후보 상품을 선택 목록에 추가
+            picked[nextIndex] = true;
             selected.add(validCandidates.get(nextIndex));
         }
 
