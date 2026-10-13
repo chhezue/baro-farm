@@ -15,7 +15,7 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
  * Elasticsearch 'cart_event_logs' 인덱스에 매핑되는 장바구니 행동 로그 엔티티.
  *
  * 사용자의 장바구니 추가, 수량 변경, 삭제 이력을 보관하며,
- * 사용자 취향 프로필 벡터 산출 시 행동 가중치와 시간 감쇠 가중치를 적용하기 위한 원천 데이터로 사용됩니다.
+ * 사용자 취향 프로필 벡터 산출 시 행동 가중치를 적용하기 위한 원천 데이터로 사용됩니다.
  */
 @Getter
 @Document(indexName = "cart_event_logs")
@@ -53,7 +53,7 @@ public class CartLogDocument {
     @Field(type = FieldType.Integer)
     private Integer quantity;
 
-    /** 이벤트 발생 일시 (취향 벡터 계산 시 7일 반감기 지수 감쇠 적용 기준) */
+    /** 이벤트 발생 일시 (취향 벡터 계산의 30일 조회 창·최신순 정렬 기준) */
     @Field(type = FieldType.Date, format = {}, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
     private Instant occurredAt;
 

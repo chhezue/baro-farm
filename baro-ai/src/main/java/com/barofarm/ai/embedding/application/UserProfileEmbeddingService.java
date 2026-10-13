@@ -28,8 +28,12 @@ import org.springframework.stereotype.Service;
  * 사용자 행동 로그 기반 취향 프로필 벡터 생성 및 갱신 서비스.
  *
  * 최근 30일간의 장바구니, 주문, 검색 로그를 분석하여 사용자가 관심을 보인 상품들의 임베딩 벡터를
- * 행동 유형·수량·시간 경과에 따른 가중치로 가중 평균(Weighted Average)하고 L2 정규화하여
+ * 행동 유형·수량에 따른 가중치로 가중 평균(Weighted Average)하고 L2 정규화하여
  * 1536차원 사용자 취향 벡터를 생성 및 저장합니다.
+ *
+ * 시간 감쇠 축은 2026-09-06에 뺐다. 로그를 유형별 최근 5건만 읽는 구조에서는 한 번의 쇼핑으로 생긴 로그가
+ * 전부 같은 시간대라 감쇠값이 같고, 결과를 L2 정규화하므로 같은 배수는 소거된다 — 계산만 하고 결과에 영향이 없었다.
+ * "오래된 행동은 덜 본다"는 의도는 30일 조회 창이 담당한다. 근거: docs/audits/taste-vector/002-weight-axes-and-tests.md F-1·F-2
  */
 @Slf4j
 @Service
@@ -49,16 +53,7 @@ public class UserProfileEmbeddingService {
     private static final double SEARCH_EVENT_WEIGHT = 1.0;
 
     /** 수량 가중치 최대 상한선 (단일 대량 구매로 인한 벡터 왜곡 방지) */
-    private static final int MAX_QUANTITY_WEIGHT = 5;
-
-    /** 시간 경과 가중치 최댓값 (최근 발생 행동) */
-    private static final double MAX_TIME_WEIGHT = 3.0;
-
-    /** 시간 경과 가중치 최솟값 (30일 이내 가장 오래된 행동) */
-    private static final double MIN_TIME_WEIGHT = 0.3;
-
-    /** 시간 가중치 반감기 (168시간 = 7일, 7일 경과마다 가중치가 절반으로 지수 감쇠) */
-    private static final double TIME_WEIGHT_HALF_LIFE_HOURS = 168.0;
+    static final int MAX_QUANTITY_WEIGHT = 5;
 
     /** 벡터 유효성 판정을 위한 최소 노름(norm) 임계값 (0 나누기 및 부동소수점 오차 방지) */
     private static final double MIN_VECTOR_LENGTH = 1e-6;
@@ -110,8 +105,8 @@ public class UserProfileEmbeddingService {
         }
 
         // [3단계: 로그별 가중치를 반영한 관심 상품(WeightedProduct) 산출]
-        // - 장바구니/주문: 행동 종류(주문 3점, 담기 2점, 수량변경 1점, 취소/삭제 0점) × 수량 가중치(최대 5) × 시간 감쇠(7일 반감기) 적용
-        // - 검색: 검색어 자체가 아닌 상위 노출 상품 목록(topProductIds)에 시간 감쇠 가중치 적용
+        // - 장바구니/주문: 행동 종류(주문 3점, 담기 2점, 수량변경 1점, 취소/삭제 0점) × 수량 가중치(최대 5) 적용
+        // - 검색: 검색어 자체가 아닌 상위 노출 상품 목록(topProductIds)에 검색 가중치(1.0) 적용
         // - 가중치가 0(삭제/취소)이거나 상품 정보가 누락된 무효 항목은 filter(WeightedProduct::isUsable)로 제외합니다.
         List<WeightedProduct> cartAndOrderInterests = Stream.concat(
             cartLogs.stream().map(this::toWeightedProduct),
@@ -166,7 +161,7 @@ public class UserProfileEmbeddingService {
     /**
      * 상품 식별자와 해당 상품에 대한 종합 계산 가중치를 보관하는 내부 레코드.
      */
-    private record WeightedProduct(UUID productId, double weight) {
+    record WeightedProduct(UUID productId, double weight) {
         /** 상품 ID가 존재하고 가중치가 양수인 경우에만 유효한 관심도로 판정 */
         private boolean isUsable() {
             return productId != null && weight > 0;
@@ -176,18 +171,18 @@ public class UserProfileEmbeddingService {
     /** 장바구니 로그를 가중치 적용 상품 객체로 변환 */
     private WeightedProduct toWeightedProduct(CartLogDocument cartLog) {
         return new WeightedProduct(cartLog.getProductId(),
-            behaviorWeight(cartLog.getEventType(), cartLog.getQuantity(), cartLog.getOccurredAt()));
+            behaviorWeight(cartLog.getEventType(), cartLog.getQuantity()));
     }
 
     /** 주문 로그를 가중치 적용 상품 객체로 변환 */
     private WeightedProduct toWeightedProduct(OrderLogDocument orderLog) {
         return new WeightedProduct(orderLog.getProductId(),
-            behaviorWeight(orderLog.getEventType(), orderLog.getQuantity(), orderLog.getOccurredAt()));
+            behaviorWeight(orderLog.getEventType(), orderLog.getQuantity()));
     }
 
     /**
      * 검색 로그의 상위 노출 상품들을 가중치 적용 상품 스트림으로 변환.
-     * 검색어 텍스트 대신 상위 노출 상품들의 벡터에 검색 이벤트 가중치와 시간 감쇠 가중치를 적용합니다.
+     * 검색어 텍스트 대신 상위 노출 상품들의 벡터에 검색 이벤트 가중치를 적용합니다.
      */
     private Stream<WeightedProduct> toWeightedProducts(SearchLogDocument searchLog) {
         List<UUID> topProductIds = searchLog.getTopProductIds();
@@ -195,19 +190,20 @@ public class UserProfileEmbeddingService {
             return Stream.empty();
         }
 
-        double weight = SEARCH_EVENT_WEIGHT * calculateTimeWeight(searchLog.getSearchedAt());
-        return topProductIds.stream().map(productId -> new WeightedProduct(productId, weight));
+        return topProductIds.stream().map(productId -> new WeightedProduct(productId, SEARCH_EVENT_WEIGHT));
     }
 
     /**
-     * 단일 행동 로그의 종합 가중치 계산 (행동 가중치 × 수량 가중치 × 시간 감쇠 가중치).
+     * 단일 행동 로그의 종합 가중치 계산 (행동 가중치 × 수량 가중치).
+     * 범위는 0(삭제·취소) 또는 1~15(수량변경 1개 ~ 주문 5개 이상)다.
+     * 테스트에서 직접 부를 수 있게 패키지 접근이다 — 인스턴스 상태를 쓰지 않는다.
      */
-    private double behaviorWeight(HistoryEventType eventType, Integer quantity, Instant occurredAt) {
+    static double behaviorWeight(HistoryEventType eventType, Integer quantity) {
         int eventWeight = calculateEventWeight(eventType);
         if (eventWeight == 0) {
             return 0.0;
         }
-        return eventWeight * quantityWeight(quantity) * calculateTimeWeight(occurredAt);
+        return eventWeight * quantityWeight(quantity);
     }
 
     /**
@@ -217,7 +213,7 @@ public class UserProfileEmbeddingService {
      * - CART_QUANTITY_UPDATED: 1 (관심 유지)
      * - CART_ITEM_REMOVED, ORDER_CANCELLED: 0 (관심 철회로 간주하여 가중 평균에서 제외)
      */
-    private int calculateEventWeight(HistoryEventType eventType) {
+    static int calculateEventWeight(HistoryEventType eventType) {
         return switch (eventType) {
             case ORDER_CONFIRMED -> 3;
             case CART_ITEM_ADDED -> 2;
@@ -229,23 +225,11 @@ public class UserProfileEmbeddingService {
     /**
      * 수량에 따른 가중치 산출 (최소 1, 최대 5로 클램핑).
      */
-    private int quantityWeight(Integer quantity) {
+    static int quantityWeight(Integer quantity) {
         if (quantity == null) {
             return 1;
         }
         return Math.min(Math.max(1, quantity), MAX_QUANTITY_WEIGHT);
-    }
-
-    /**
-     * 시간 경과에 따른 지수 감쇠 가중치 계산 (반감기 7일 = 168시간).
-     * 공식: MAX_TIME_WEIGHT * exp(-시간차 * ln(2) / 168)
-     * 결과는 [MIN_TIME_WEIGHT(0.3), MAX_TIME_WEIGHT(3.0)] 범위로 보정됩니다.
-     */
-    private double calculateTimeWeight(Instant eventTime) {
-        long hoursAgo = ChronoUnit.HOURS.between(eventTime, Instant.now());
-        double decayFactor = Math.exp(-hoursAgo * Math.log(2) / TIME_WEIGHT_HALF_LIFE_HOURS);
-
-        return Math.max(MIN_TIME_WEIGHT, Math.min(MAX_TIME_WEIGHT * decayFactor, MAX_TIME_WEIGHT));
     }
 
     /**
@@ -265,7 +249,7 @@ public class UserProfileEmbeddingService {
      * 여러 상품의 임베딩 벡터를 각 가중치에 비례하여 누적 합산하고 단위 벡터(길이 1)로 L2 정규화합니다.
      * 누적 과정의 부동소수점 오차를 최소화하기 위해 double 정밀도로 합산한 후 최종 float[]으로 반환합니다.
      */
-    private float[] blendIntoProfileVector(
+    static float[] blendIntoProfileVector(
         List<WeightedProduct> interests,
         Map<UUID, float[]> productVectors
     ) {

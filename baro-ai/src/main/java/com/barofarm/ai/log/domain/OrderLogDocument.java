@@ -15,7 +15,7 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
  * Elasticsearch 'order_event_logs' 인덱스에 매핑되는 주문 행동 로그 엔티티.
  *
  * 사용자의 주문 확정 및 취소 이력을 주문 상품 단위로 분할하여 보관하며,
- * 사용자 취향 프로필 벡터 산출 시 가장 높은 중요도(구매 확정 3점)와 시간 감쇠를 적용하기 위한 원천 데이터로 사용됩니다.
+ * 사용자 취향 프로필 벡터 산출 시 가장 높은 중요도(구매 확정 3점)를 적용하기 위한 원천 데이터로 사용됩니다.
  */
 @Getter
 @Document(indexName = "order_event_logs")
@@ -53,7 +53,7 @@ public class OrderLogDocument {
     @Field(type = FieldType.Integer)
     private Integer quantity;
 
-    /** 주문 발생 일시 (취향 벡터 계산 시 7일 반감기 지수 감쇠 적용 기준) */
+    /** 주문 발생 일시 (취향 벡터 계산의 30일 조회 창·최신순 정렬 기준) */
     @Field(type = FieldType.Date, format = {}, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
     private Instant occurredAt;
 

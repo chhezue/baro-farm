@@ -42,7 +42,7 @@ public class SearchLogDocument {
     @Field(type = FieldType.Keyword)
     private List<UUID> topProductIds;
 
-    /** 검색 수행 일시 (취향 벡터 계산 시 7일 반감기 지수 감쇠 적용 기준) */
+    /** 검색 수행 일시 (취향 벡터 계산의 30일 조회 창·최신순 정렬 기준) */
     @Field(type = FieldType.Date, format = {}, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
     private Instant searchedAt;
 
