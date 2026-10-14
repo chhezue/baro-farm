@@ -30,6 +30,8 @@
 | ES 인덱스 매핑 | 사용자 승인 후 수동 작성 | `docs/ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
 | 임베딩 입출력 예시 | 사용자 승인 후 수동 작성 | `docs/EMBEDDING_EXAMPLE.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
 | 구현·기능 설명 | 사용자 승인 후 수동 작성 | `docs/IMPLEMENTATION.md` · `FEATURES.md` · `REVIEW_ANALYSIS_PHASES.md` | 설명 | [`explanation-doc.md`](explanation-doc.md) |
+| 기능·기술 문서 (주제별) | 사용자 승인 후 수동 작성 | `docs/features/{unit}.md` — 절 구성·참고 자료는 [`features/README.md`](../features/README.md) | 설명 (Google 설계 문서의 목표·비목표·대안·교차 관심사 절을 더함) | [`explanation-doc.md`](explanation-doc.md) 골격 + `features/README.md` 절 표 |
+| 포트폴리오 케이스 스터디 | 사용자 승인 후 수동 작성 | `docs/portfolio/{unit}.md` — 절 구성은 [`portfolio/README.md`](../portfolio/README.md) | 설명 (배경 → 분석 → 대안 → 해결 → 자평 → 한계 → 회고) | [`explanation-doc.md`](explanation-doc.md) 골격 + `portfolio/README.md` 절 표 |
 | 기술 비교·분석 메모 | 사용자 승인 후 수동 작성 | `docs/audits/{주제}.md` (예: `ssoss-llm-comparison.md`) | 설명 | [`explanation-doc.md`](explanation-doc.md) |
 | 모듈 README·폴더 인덱스 | 사용자 승인 후 수동 작성 | `docs/README.md` · 하위 `README.md` | 참조(인덱스) | [`reference-doc.md`](reference-doc.md) |
 
