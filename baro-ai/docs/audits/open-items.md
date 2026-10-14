@@ -1,6 +1,6 @@
 # 미결 항목 색인
 
-리팩터 라운드를 끝낼 때마다 **아직 닫히지 않은 것들이 어느 문서에 남아 있는지**를 모으는 색인이다. 2026-09-05 4라운드 종료 시점에 만들었고, 2026-09-06 장바구니 레시피 라운드까지 반영했다. 실행하지 못한 검증, 답을 기다리는 질문, 자료가 없어 판단을 미룬 항목이 각각 어디에 있는지 한 번에 찾기 위한 것이다.
+리팩터 라운드를 끝낼 때마다 **아직 닫히지 않은 것들이 어느 문서에 남아 있는지**를 모으는 색인이다. 2026-09-05 4라운드 종료 시점에 만들었고, 2026-09-06 장바구니 레시피 라운드와 같은 날의 비판 평가 후속 라운드(4개 단위)까지 반영했다. 실행하지 못한 검증, 답을 기다리는 질문, 자료가 없어 판단을 미룬 항목이 각각 어디에 있는지 한 번에 찾기 위한 것이다.
 
 **이 문서는 SSOT가 아니다.** 각 항목의 내용·근거·값은 "어디에" 칸이 가리키는 원본 문서가 그대로 소유한다. 여기에는 제목과 위치만 둔다 — 같은 값을 두 곳에 적으면 한쪽만 고쳐져 어긋나기 때문이고, 그래서 폐지된 중앙 트래커(`#2`)와 같은 실수를 반복하지 않기 위해서다(`core-scope.md` `[미정]` 처리 절). 원본이 닫히면 여기 행도 같이 지운다.
 
@@ -27,7 +27,7 @@
 | 키워드 검색 | 6 | [`specs/keyword-search/product-search-and-autocomplete.md`](../specs/keyword-search/product-search-and-autocomplete.md) |
 | 장바구니 레시피 | 6 | [`specs/cart-recipe/recipe-recommendation.md`](../specs/cart-recipe/recipe-recommendation.md) |
 
-### A-2. 기동해야만 드러나는 확인 (12건)
+### A-2. 기동해야만 드러나는 확인 (17건)
 
 컴파일이 통과했다고 서버가 뜬다는 뜻은 아니다. 특히 공유 인프라 라운드는 프로필 제거·의존성 6종 삭제·빈 덮어쓰기 허용 해제처럼 **기동 시점에만 결과가 나오는** 변경이 몰려 있다.
 
@@ -37,6 +37,8 @@
 | 장바구니 레시피 (장바구니 연동, LLM 응답 파싱, 읽기 상한, 네임스페이스) | 4 | [`audits/cart-recipe/refactor-log.md`](cart-recipe/refactor-log.md) 2026-09-05 "기동 확인" |
 | 장바구니 레시피 · 취향 벡터 (수신 칸을 줄인 뒤 장바구니·이벤트가 정상 파싱되는지) | 3 | [`audits/cart-recipe/refactor-log.md`](cart-recipe/refactor-log.md) 2026-09-06 "기동 확인" |
 | 임베딩 유사도 검색 (ES 설정 클래스 삭제 후 빈 등록, 덮어쓰기 허용 해제) | 2 | [`audits/vector-similarity/refactor-log.md`](vector-similarity/refactor-log.md) "기동 확인" |
+| 키워드 검색 (묶음 리스너 실제 소비, `DefaultErrorHandler`의 묶음 재시도 동작, 상품 100건 재발행 시간 Before/After) | 3 | [`audits/keyword-search/refactor-log.md`](keyword-search/refactor-log.md) 2026-09-06 "검증"·"남긴 것" |
+| 장바구니 레시피 (`_msearch` 1건 확인) · 취향 벡터 (검색 1회 + 담기 2건 뒤 프로필 생성) | 2 | 각 단위 `refactor-log.md` 2026-09-06 "검증" |
 
 ### A-3. 인덱스 재생성 (5개) — 되돌릴 수 없어 사람이 직접 실행
 
@@ -49,7 +51,7 @@
 
 ### A-4. 단위 테스트 도입
 
-사용자 결정으로 4라운드 전체에서 제외했다. 저장소에 테스트 클래스가 0개라 `./gradlew :baro-ai:test`는 계속 `NO-SOURCE`다 — "테스트 통과"라고 말할 근거가 없다는 뜻이다. 기준은 [`.claude/rules/testing.md`](../../../.claude/rules/testing.md)("유의미한 테스트만").
+**2026-09-06 해소.** 순수 계산·서비스 경계를 대상으로 테스트 10클래스 61건을 들였다(`./gradlew :baro-ai:test` 통과). 남은 것은 ES·Kafka·Gemini가 필요한 통합 테스트뿐이며, 그건 A-1~A-3과 같은 인프라 묶음이다. 기준은 [`.claude/rules/testing.md`](../../../.claude/rules/testing.md) — 그 문서의 "테스트를 처음 들일 때 그때 정한다" 문구가 stale해져 갱신 제안 대상이다.
 
 쓰이지 않던 `src/test/resources/application-test.yml`은 2026-09-05에 지웠으므로, 테스트를 들일 때 새로 만든다.
 
@@ -77,7 +79,7 @@
 
 | # | 무엇이 | 무엇이 있어야 닫히는지 | 어디에 |
 |---|--------|------------------------|--------|
-| C-1 | `script_score` 전수 계산을 native `knn`으로 바꿀지 | 상품 수·초당 요청 추정치 | [`audits/vector-similarity/001`](vector-similarity/001-vector-search-and-diversity.md) C-1 |
+| C-1 | ~~`script_score` 전수 계산을 native `knn`으로 바꿀지~~ **닫힘(2026-09-06)** — 1천·1만·10만 건 실측으로 "전환 안 함" 결정. 상품이 수만 건을 넘으면 재개 | [`decisions/004`](../decisions/004-script-score-over-knn.md) |
 | C-2 | 상태·가격만 바뀐 수정에도 임베딩·LLM을 다시 부르는 것 | 수정 이벤트 빈도 | [`audits/keyword-search/001`](keyword-search/001-query-path.md) C-1 |
 | C-3 | 검색 히트가 10,000건을 넘을 때 총계가 잘리는 것 | 상품 총수 | [`audits/keyword-search/001`](keyword-search/001-query-path.md) 판단 항목 3 |
 | C-4 | 장바구니 조회 읽기 상한이 적절한지 | `baro-shopping` 정상 응답 시간 | [`audits/cart-recipe/refactor-log.md`](cart-recipe/refactor-log.md) "남긴 것" |
@@ -87,6 +89,9 @@
 | C-8 | 챗봇의 목적·사용처 | 기획 결정 | [`specs/chat/chatbot.md`](../specs/chat/chatbot.md) |
 | C-9 | 부족 재료로 상품이 실제로 몇 건 걸리는지 | 로컬 ES + 상품 시드 — 검색이 nori 형태소 분석과 오탈자 교정을 쓰므로 "다진마늘"로도 마늘 상품이 걸릴 수 있다. 그러면 [`003`](cart-recipe/003-pantry-staples-and-variants.md)의 "살 게 없는 추천 45%"가 과대평가가 된다 | [`audits/cart-recipe/003`](cart-recipe/003-pantry-staples-and-variants.md) 곁가지 |
 | C-10 | 장바구니 이벤트의 `categoryCode`를 계속 받을지 | 취향 벡터가 카테고리 선호를 쓸 계획이 있는지 — 지금은 행동 로그에 저장만 되고 읽는 곳이 없다 | [`audits/taste-vector/refactor-log.md`](taste-vector/refactor-log.md) 2026-09-06 "남긴 것" |
+| C-11 | 행동 × 수량 가중치의 15배 범위가 의도인지 | 개인화 추천 골든셋 — 지금은 `UserProfileEmbeddingServiceTest`가 숫자만 고정한다 | [`audits/taste-vector/002`](taste-vector/002-weight-axes-and-tests.md) 판단 항목 2 |
+| C-12 | Gemini 무료 티어 한도에서 전체 재색인이 가능한지 | 상품 총수·티어 결정. 실측: 임베딩 1건씩은 13회 뒤 429, 10건 묶음은 통과, 25건 이상 묶음은 분당 한도 초과 | [`audits/keyword-search/refactor-log.md`](keyword-search/refactor-log.md) 2026-09-06 M-3 |
+| C-13 | 다양화 실측을 실제 상품 벡터로 다시 볼지 | 상품 시드(154개 벤치 상품명이 아니라 실제 카탈로그). 결론(×3 유지)은 벤치 상품명 기준이다 | [`audits/vector-similarity/002`](vector-similarity/002-vector-transfer-knn-and-diversity.md) M-2 |
 
 ## D. 의도적으로 하지 않기로 한 것
 

@@ -94,3 +94,78 @@
 - **`ingredientName`은 `_source`에서 빼지 않았다** — 수십 바이트라 벡터 하나만 제외해도 충분하다(감사 A-3 판정)
 - **C 항목은 손대지 않았다** — 상태만 바뀐 수정에도 임베딩·LLM을 다시 부르는 문제(C-1)는 운영 재개 후 빈도 측정이 먼저다. 응답 envelope 불일치(C-2), 운영 DEBUG 로깅(C-3), yml 컨슈머 설정 미적용(C-4), 자동완성 캐시 키 정규화(C-5)도 그대로다
 - **`VectorProductSearchService.processSearchResults`(C-6)는 이미 없다** — `vector-similarity/001` B-1에서 삭제했다
+
+## 2026-09-06 — 상품 묶음 색인 · 검색 로그 비동기화 · 단위 테스트 (감사 002 A-1·A-2·B-1 + 측정 M-3)
+
+**반영 항목**: [`002-index-throughput-and-search-log.md`](002-index-throughput-and-search-log.md)의 A 2건·B 1건 전부. 판단 항목 1(묶음 크기 N)은 M-3 수치와 최악 지연 계산으로 **5건·15분**으로 정했다. C·D 항목은 손대지 않았다.
+
+### 왜 문제였나 (쉬운 말로)
+
+**하나. 상품을 한 번에 하나씩만 색인했다.** 상품이 들어올 때마다 외부 AI에 두 번(벡터 만들기, 재료명 뽑기) 물어보고 검색 엔진에 두 번 저장했다. 벡터 만들기는 한 번에 여러 개를 물어볼 수 있는데도 하나씩 물어봤다. 게다가 무료 요금제에서는 **하나씩 13번 물어보면 그다음부터 거절(429)**당한다는 걸 이번에 실측으로 확인했다 — 상품 수백 건을 다시 색인하려면 하나씩 방식으로는 아예 끝까지 못 간다.
+
+**둘. 검색 응답을 돌려주기 전에 검색 기록을 저장했다.** 회원이 검색하면 취향 분석용 기록을 남기는데, 그 저장이 끝나야 검색 결과가 나갔다. 기록은 부가 데이터라 조금 늦어도 되는데 본 응답을 붙잡고 있었다.
+
+**셋. 페이징 한도 같은 방어 규칙이 테스트 없이 있었다.** 지난 라운드에 넣은 "페이지 크기는 100까지" 같은 규칙이 다시 깨져도 알 방법이 없었다.
+
+### 무엇을 바꿨나
+
+- **상품을 5개씩 묶어 색인한다** — 벡터 만들기는 묶음당 한 번, 검색 엔진 저장도 묶음당 한 번이다. 삭제가 섞여 있으면 그 앞까지 모인 것을 먼저 저장한 뒤 지워서 순서가 뒤집히지 않는다.
+- **묶음 안에서 하나가 실패해도 나머지를 잃지 않는다** — 리뷰(`spring-reviewer`)가 잡은 결함이다. 처음 구현은 실패하면 묶음 전체를 다시 시도하고, 그래도 안 되면 묶음 전체를 버렸다. 지금은 실패한 자리를 알려서 그 앞은 확정하고 그 자리부터만 다시 받는다.
+- **검색 기록 저장이 검색 응답을 붙잡지 않는다** — 기록 저장과 취향 갱신을 한 덩어리로 뒤에서 돌리고, 검색 응답은 바로 나간다.
+- **방어 규칙에 테스트를 붙였다** — 페이지 크기 한도, 자동완성 글자 수, 묶음 색인, 실패 시 폴백이 전부 테스트로 고정됐다.
+
+아래 표는 개발자 참조용이다.
+
+### Before / After
+
+| 항목 | Before | After |
+|------|--------|-------|
+| Kafka 상품 이벤트 소비 | poll당 1건 | 묶음 리스너, poll당 최대 5건, 묶음 처리 허용 15분 |
+| 묶음 내 부분 실패 | (해당 없음 — 1건) | `BatchListenerFailedException`에 실패 위치를 담아 던진다 → 앞 레코드 커밋, 실패 레코드부터 재시도 |
+| 임베딩 호출 | 상품당 1회 | 묶음당 1회(`batchEmbedContents`), 실패 시 상품별 폴백 |
+| ES 저장 | 상품당 `save` 2회 | 묶음당 `saveAll` 2회(인덱스당 bulk 1회) |
+| 삭제 순서 | 건별 | 삭제를 만나면 모인 색인을 먼저 내보낸 뒤 삭제 |
+| 검색 로그 적재 | 응답 스레드에서 동기 | 로그 적재 + 프로필 갱신을 한 비동기 작업으로 제출 |
+| 테스트 | 2건(`multiSearch`) | 24건 (검색 10 · 색인 5 · 임베딩 4 · 컨슈머 5) |
+
+### 측정 (M-3) — 앱 없이 잰 것
+
+| 측정 | 결과 | 원본 |
+|------|------|------|
+| ES 저장: 문서 1,000건(벡터 포함 약 34KB) | 1건씩 4.95초(202건/초) vs bulk 100건씩 **1.16초(860건/초)** — 4.3배 | `vectorbench/bulk-vs-single-20260906-144659.json` |
+| Gemini 임베딩: 상품명 50개 | 1건씩: **13회 성공 뒤 14번째 호출에서 429**(Resource exhausted) · 10건 묶음: 5회 전부 성공, 호출당 p50 1.45초(총 7.4초) · 50건·25건 묶음: 분당 한도(quota exceeded) | `vectorbench/embed-batch-20260906-144722.json`·`-144943.json` |
+
+임베딩 묶음 상한은 공식 문서에 명시가 없어(`ai.google.dev/gemini-api/docs/embeddings`·`/api/embeddings` 2026-09-06 확인) 실측으로 10건은 안전, 25건 이상은 무료 티어 분당 한도에 걸린다고 기록한다. **묶음의 가치는 속도보다 한도다** — 1건씩은 13건 뒤에 막히고, 10건 묶음은 50건을 통과했다.
+
+### 묶음 크기 5를 고른 계산
+
+상품 1건의 최악 지연 = 임베딩(30초 × 3회 재시도) + 재료명(30초 × 3회) = 180초. `max.poll.interval.ms`를 넘기면 브로커가 컨슈머를 죽은 것으로 보고 리밸런싱해 같은 묶음을 다시 받는 악순환이 된다. 1건일 때는 180초 < 기본 300초라 최악에도 안전했다. 이 보장을 유지하려면 N × 180 ≤ interval이어야 하고, interval 15분(900초)에서 N = 5가 최대다. 정상 지연(임베딩 묶음 1.5초 + 재료명 건당 약 1.5초)에서는 5건이 10초 안팎이라 여유가 크다. N을 더 키우려면 interval을 같이 키워야 하고, 그러면 실제로 멈춘 컨슈머를 알아채는 데 그만큼 오래 걸린다 — 그 트레이드오프를 5·15분에서 끊었다.
+
+**솔직한 한계**: 재색인 시간의 대부분은 상품당 1회인 재료명 LLM 호출이다(C-1, 프롬프트 변경이라 별도 라운드). 묶음 색인이 줄이는 건 임베딩 왕복과 ES 왕복이고, 임베딩은 시간(건당 약 0.15초 절감)보다 429 회피가 실익이다.
+
+### 변경 파일
+
+- `config/KafkaConsumerConfig.java` — product 팩토리 `max.poll.records` 1→5, `max.poll.interval.ms` 15분 명시, `setBatchListener(true)`
+- `search/infrastructure/event/ProductEventConsumer.java` — `onMessages(List<ProductEvent>)`, 색인 모으기·삭제 전 flush, 실패 위치를 담은 `BatchListenerFailedException`(리뷰 반영)
+- `search/application/ProductIndexService.java` — `indexProducts(List)`(`indexProduct` 삭제), `saveAll`
+- `embedding/application/ProductEmbeddingService.java` — `embedProducts(List)` 배치 + 상품별 폴백
+- `embedding/application/UserProfileRefreshTrigger.java` — `recordSearchAndRefresh` (`LogWriteService` 의존 추가)
+- `search/application/ProductSearchService.java` — `LogWriteService` 의존 제거, 부가 작업을 트리거 제출 1회로
+- `search/presentation/SearchController.java`·`search/application/dto/product/ProductIndexRequest.java` — stale Javadoc 정정
+- 테스트(신규): `ProductIndexServiceTest`(5)·`ProductEmbeddingServiceTest`(4)·`ProductEventConsumerTest`(5), `ProductSearchServiceTest`에 10건 추가
+- 측정 도구(신규): `scripts/vectorbench/common.py`·`bulk_vs_single.py`·`embed_batch.py`
+- 문서: `specs/keyword-search/product-search-and-autocomplete.md`(흐름 2·3, 규칙 표, 리스크 2행, 변경 이력)
+
+### 검증
+
+- `./gradlew :baro-ai:test` — **61건 통과, 0 실패**(누적)
+- `./gradlew :baro-ai:build` — 통과
+- A-1 단위: `ProductIndexServiceTest` — 상품 3개에 임베딩 1회·`saveAll` 인덱스당 1회, 벡터 실패 상품은 `null`로 색인. `ProductEmbeddingServiceTest` — 묶음 실패 시 상품별 폴백, 실패한 것만 `null`. `ProductEventConsumerTest` — 생성→삭제 순서 보존, 색인 실패 시 묶음 첫 레코드 위치·삭제 실패 시 그 레코드 위치를 담은 예외
+- 리뷰에서 잡힌 결함: 처음 구현은 실패 시 일반 예외를 던졌는데, spring-kafka 3.3 `FallbackBatchErrorHandler`는 그 경우 묶음 전체를 재시도한 뒤 **전부 폐기**한다(리뷰어가 jar 소스로 확인). 실패 지점 뒤의 멀쩡한 이벤트가 사라지는 구조였다 — 1건씩 처리하던 때보다 퇴행. `BatchListenerFailedException(index)`로 바꿔 닫았다
+- A-2 단위: `ProductSearchServiceTest` — 회원 검색에 `recordSearchAndRefresh` 1회(상위 상품 3개), `LogWriteService` 직접 호출 없음, 제출 실패해도 결과 반환
+- 통합(로컬 ES + Kafka, `open-items.md` A절 묶음): 상품 이벤트 100건 재발행 시 색인 완료 시간 Before/After — **미실행**. 로컬 앱 기동 자체가 아직 안 된 상태다
+
+### 남긴 것
+
+- `taste-vector/002` C-1(저장 직후 조회가 1초 refresh 안이면 최신 로그를 놓침): 로그 저장과 갱신이 같은 스레드에서 순서대로 도니 순서 문제는 없어졌고, refresh 지연은 그대로다 — 다음 행동에서 따라잡는다
+- `DefaultErrorHandler`의 위치 기반 재시도(앞 레코드 커밋 → 실패 레코드부터 재시도 → 소진 시 그 레코드만 건너뜀)는 spring-kafka 소스 기준이며 로컬 Kafka로 재현하지 않았다 — 기동 확인 항목

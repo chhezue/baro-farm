@@ -148,3 +148,51 @@
 ### 남긴 것
 
 - **`categoryCode`가 저장만 되고 아무도 안 읽는다** — 이벤트에서도 빼야 할지, 반대로 취향 벡터가 카테고리 선호를 쓰도록 할지는 판단이 필요해 그대로 뒀다
+
+## 2026-09-06 — 시간 감쇠 축 삭제 · 가중치 단위 테스트 (감사 002 B-1·B-2 + 판단 항목 1)
+
+**반영 항목**: [`002-weight-axes-and-tests.md`](002-weight-axes-and-tests.md)의 B 2건과 판단 항목 1(사용자 결정: **(가) 시간 축 삭제**). 판단 항목 2(행동×수량 15배 범위)는 값을 바꾸지 않고 테스트로 숫자만 고정했다.
+
+### 왜 문제였나 (쉬운 말로)
+
+**계산은 하는데 결과에는 아무 영향이 없는 축이 있었다.** 취향 벡터는 "최근 행동일수록 더 세게 반영한다"는 시간 축을 곱하고 있었다. 그런데 로그를 종류별로 최근 5건만 읽기 때문에, 한 번 장을 보면서 생긴 로그 5건은 전부 같은 시간대라 시간 축 값이 똑같다. 마지막에 벡터 길이를 1로 맞추는 단계가 있어서, 모든 로그에 똑같이 곱해진 값은 거기서 사라진다. 결국 상수 3개와 지수 함수 하나가 "있어 보이기만" 하고 있었다. 게다가 30일치를 읽는데 감쇠는 23일에 바닥에 닿아 마지막 일주일은 평지였다.
+
+**그리고 그걸 확인할 테스트가 없었다.** 가중치 함수는 외부 호출이 하나도 없는 순수 계산인데, 외부에서 직접 부를 수 없게 막혀 있고(private) 안에서 현재 시각을 읽어서 테스트로 붙잡을 수 없었다.
+
+### 무엇을 바꿨나
+
+- **시간 축을 뺐다** — 비중은 이제 "어떤 행동인가 × 몇 개인가" 두 가지로만 정해진다. 오래된 행동을 덜 보는 역할은 원래부터 있던 "최근 30일만 읽기"가 그대로 맡는다.
+- **가중치 계산을 밖에서 확인할 수 있게 열었다** — 외부에서 직접 부를 수 없게 막아 둔 상태(private)였던 계산 함수를 같은 패키지에서 부를 수 있게 해 테스트를 붙였다.
+- **"같은 배수는 결과에서 사라진다"를 테스트로 남겼다** — 시간 축을 뺀 근거 자체가 테스트 이름이 됐다.
+
+아래 표는 개발자 참조용이다.
+
+### Before / After
+
+| 항목 | Before | After |
+|------|--------|-------|
+| 행동 비중 | 행동(0~3) × 수량(1~5) × 시간(0.3~3.0) — 범위 0.3~45 | 행동 × 수량 — 범위 0 또는 1~15 |
+| 시간 관련 코드 | 상수 3개 + `calculateTimeWeight` | 삭제. 발생 시각은 30일 조회 창·최신순 5건 컷에만 쓰인다 |
+| 가중치 함수 접근 | `private`, 인스턴스 메서드 | 패키지 `static` (`calculateEventWeight`·`quantityWeight`·`behaviorWeight`·`blendIntoProfileVector`) |
+| 테스트 | 없음 | `UserProfileEmbeddingServiceTest` 9건 |
+
+"오래된 행동은 덜 본다"는 의도는 30일 조회 창이 그대로 담당한다. 창 밖 로그는 애초에 읽지 않는다.
+
+### 변경 파일
+
+- `embedding/application/UserProfileEmbeddingService.java` — 시간 축 삭제, 함수 4개 패키지 `static`, `WeightedProduct` 패키지 접근, 클래스 Javadoc에 삭제 근거
+- `log/domain/CartLogDocument.java`·`OrderLogDocument.java`·`SearchLogDocument.java` — 발생 시각 필드 Javadoc에서 "7일 반감기" 서술 제거
+- 테스트(신규): `embedding/application/UserProfileEmbeddingServiceTest` — 행동 4종, 수량 클램프, 비중 범위 1~15, 삭제·취소 0, 단위 벡터, **같은 배수 소거**(삭제 근거 그 자체), 방향 변화, 영벡터·차원 불일치
+- 문서: `specs/taste-vector/taste-vector-pipeline.md`(비즈니스 규칙·리스크·재설계 표·변경 이력), `product/glossary.md`(시간 가중치 행 삭제), `EMBEDDING_EXAMPLE.md`(예시 숫자 전부 재계산 — P1 41.38→14, P2 21.74→8, P4 2.99→1), `FEATURES.md`(가중치 표·시간 가중치 절 삭제 — 2026-09-05 재설계 전 "Gemini 임베딩 호출" 서술도 같이 정정), `README.md`, `ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md`, `IMPLEMENTATION.md`
+
+### 검증
+
+- `./gradlew :baro-ai:test` — **29건 통과, 0 실패**(장바구니 라운드 20 + 이번 9)
+- `./gradlew :baro-ai:build` — 통과
+- 삭제 근거의 검증: `blend_uniformScalingCancelsOut` — 모든 비중에 3을 곱해도 결과 벡터가 같다. 이 테스트가 통과하는 한, 로그가 같은 시간대일 때 시간 축은 결과에 영향이 없었다는 F-1이 성립한다
+- 로컬 확인(ES 필요, `open-items.md` A절 묶음): 같은 사용자로 검색 1회 + 담기 2건을 흘린 뒤 저장된 프로필 벡터가 생기는지 — 이전 라운드 수동 확인 항목과 동일. **미실행**
+
+### 남긴 것
+
+- 행동×수량의 15배 범위가 의도인지(판단 항목 2)는 개인화 추천 골든셋이 생긴 뒤 잰다. 지금은 `behaviorWeight_rangeIsZeroOrOneToFifteen`이 숫자만 고정한다
+- `taste-vector/002` C-1(저장 직후 조회가 1초 refresh 안에 있으면 최신 로그를 놓침)은 키워드 검색 라운드 A-2에서 순서를 확인한다

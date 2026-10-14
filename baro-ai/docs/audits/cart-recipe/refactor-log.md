@@ -160,3 +160,58 @@
 1. `baro-shopping`을 띄우고 추천 API 1회 호출 — 칸을 줄인 뒤에도 장바구니가 정상 파싱되는지
 2. 같은 호출에서 `ownedIngredients`가 **이 요리가 쓰는 재료만** 담고 있는지
 3. 장바구니 이벤트를 1건 흘려보내 로그 적재가 되는지 — 이벤트 수신 칸도 2개 줄였다
+
+## 2026-09-06 — 요청 경로 결함 수정 · 응답 이유 코드 · 저장소 첫 단위 테스트 (감사 005 A-1·A-2·B-1~B-3 + 판단 항목 1)
+
+**반영 항목**: [`005-request-path-defects-and-tests.md`](005-request-path-defects-and-tests.md)의 A 2건·B 3건 전부와, 판단 항목 1(실패 이유를 응답에 담는다 — 사용자 승인 2026-09-06). C·D 항목은 손대지 않았다.
+
+### 왜 문제였나 (쉬운 말로)
+
+**하나. 장애가 나도 어디서 났는지 알 수 없었다.** 레시피 기능 전체를 감싼 마지막 안전망이 실패 메시지 한 줄만 남기고, 어느 줄에서 무슨 일이 났는지 담긴 상세 정보(예외 객체)를 버리고 있었다. 장바구니 서비스가 죽으면 "실패했다"는 경고만 남고, 어느 줄에서 무슨 예외가 났는지는 사라졌다.
+
+**둘. 다섯 가지 다른 상황이 전부 같은 빈 응답이었다.** 장바구니가 비어 있는 것과 장바구니 서비스가 죽은 것이 클라이언트에는 똑같이 보였다. 화면은 "재료를 담아 보세요"와 "잠시 후 다시 시도"를 나눌 방법이 없었다.
+
+**셋. 부족 재료가 4개면 검색 엔진을 4번 차례로 불렀다.** 한 번에 물어볼 수 있는 걸 순서대로 하나씩 물어봐서, 재료가 늘수록 응답이 그만큼 늘었다.
+
+**넷. 고쳤는지 확인할 방법이 없었다.** 저장소에 테스트가 하나도 없었다. 재료 이름을 비교해 "더 살 것"을 계산하는 함수처럼 인프라 없이도 검증할 수 있는 순수 계산조차 사람 눈으로만 확인하고 있었다.
+
+### 무엇을 바꿨나
+
+| 무엇 | Before | After |
+|------|--------|-------|
+| 최상위 catch 로그 | 메시지만 (스택트레이스 없음) | 예외 객체 포함 |
+| 빈 응답의 이유 | 구분 없음 | `reason` 필드 6종(`OK`·`EMPTY_CART`·`NO_ELIGIBLE_ITEMS`·`INGREDIENTS_NOT_INDEXED`·`GENERATION_FAILED`·`UPSTREAM_ERROR`) |
+| 부족 재료 상품 조회 | 재료마다 `_search` 순차 N회 | `_msearch` 1회 (`ProductSearchService.searchByKeywords`) |
+| 후보 선택 | `RecipeCandidates.chooseFirst` (파일 1개) | 생성기가 `Optional`로 직접 반환, 파일 삭제 |
+| 테스트 | 0개 (`NO-SOURCE`) | 4클래스 20건 통과 |
+
+### 변경 파일
+
+- `build.gradle` — `spring-boot-starter-test` 추가 (B-3)
+- `recommend/application/RecipeRecommendService.java` — catch에 예외 객체, 이유 코드, `searchMissingIngredientProducts`로 교체 (A-1·A-2·판단 1)
+- `recommend/application/dto/RecipeRecommendReason.java`(신규)·`RecipeRecommendResponse.java` — `reason` 필드·`empty(reason)` 팩토리 (판단 1)
+- `recommend/infrastructure/llm/RecipeCandidateGenerator.java` — `generateRecipe` → `Optional<CandidateRecipePlan>` (B-1)
+- `recommend/domain/RecipeCandidates.java` — 삭제 (B-1)
+- `search/application/ProductSearchService.java` — 쿼리 조립을 `buildSearchQuery`로 분리, `searchByKeywords`·`toResponses` 추가 (A-2). 키워드 검색 단위 파일이지만 조회 로직은 그대로다
+- `recommend/exception/RecommendErrorCode.java` — Javadoc에 `reason`과의 관계 한 줄
+- 테스트(신규): `IngredientProcessingUtilTest`(6)·`CandidateRecipePlanTest`(5)·`RecipeRecommendServiceTest`(7)·`ProductSearchServiceTest`(2)
+- 문서: `specs/cart-recipe/recipe-recommendation.md`(흐름 4·6·7·8, API 절 `reason` 표, 실패 규칙, 변경 이력), `recipe-quality-redesign.md`(`RecipeCandidates` 삭제 표기), `docs/README.md`(패키지 트리)
+
+main 6파일 +183/−152, 테스트 4파일 441줄.
+
+### 검증
+
+- `./gradlew :baro-ai:test` — **20건 통과, 0 실패** (저장소 첫 실행 결과. 이전까지는 `NO-SOURCE`)
+- `./gradlew :baro-ai:build` — 통과 (spotless·checkstyle 포함)
+- A-2 단위 검증: `ProductSearchServiceTest` — 키워드 3개에 `multiSearch` 1회·`search` 0회, 결과가 요청 순서와 1:1. `RecipeRecommendServiceTest` — 부족 재료 2개 시나리오에서 `searchByKeywords` 1회
+- 판단 1 단위 검증: `RecipeRecommendServiceTest` — 5가지 실패 상황이 각각 다른 `reason`, `GENERATION_FAILED`는 `ownedIngredients` 유지, 상품 검색 실패는 `OK` + 카드만 비움
+- A-2 로컬 검증(ES 필요, `open-items.md` A절 묶음): 레시피 1회 호출 시 `_msearch` 1건만 나가는지 요청 로그로 확인 — **미실행**
+
+### API 계약 변경 (팀원 참고)
+
+`GET /api/v1/recommendations/recipes/{userId}` 응답의 `RecipeRecommendResponse`에 **`reason` 필드가 추가**됐다(맨 앞). 기존 5개 필드는 이름·타입·순서 그대로다. 빈 응답을 받던 호출자는 이제 `reason`으로 원인을 나눌 수 있고, 무시해도 이전과 같이 동작한다. HTTP 상태·에러 코드는 바뀌지 않았다.
+
+### 남긴 것
+
+- `RecipeCandidateGenerator` 테스트는 넣지 않았다 — `ChatClient` 플루언트 체인을 전부 stub해야 해서 구현에 붙는다(감사 C-1). 프롬프트 품질은 골든셋이 담당한다
+- `.claude/rules/testing.md`의 "테스트를 처음 들일 때 그때 정한다" 문구가 stale해졌다 — 하네스 문서라 사용자 승인 후 갱신 (G4)
