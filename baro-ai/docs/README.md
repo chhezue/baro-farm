@@ -55,7 +55,7 @@ graph LR
 
 - **입력**: 검색/장바구니/주문 로그 (각 타입별 최대 5개씩, 총 최대 15개)
 - **처리**:
-  - 로그마다 이벤트 종류 × 수량 × 시간 가중치 계산 (삭제·취소는 0이라 제외)
+  - 로그마다 이벤트 종류 × 수량 가중치 계산 (삭제·취소는 0이라 제외. 시간 감쇠 축은 2026-09-06에 삭제 — 효과가 없었다)
   - 로그에 등장한 상품이 이미 가진 벡터를 비중대로 가중 평균한 뒤 L2 정규화
   - 1536차원 벡터로 사용자 취향 표현 (외부 임베딩 API 호출 없음)
 - **출력**: Top-K 개인화 상품 리스트 (상품 ID, 이름, 카테고리, 가격 포함)
@@ -220,7 +220,7 @@ src/main/java/com/barofarm/ai/
 │   ├── application/           # 추천 서비스 (PersonalizedRecommendService, RecipeRecommendService)
 │   │   ├── config/           # 추천 설정 (RecommendProperties)
 │   │   └── dto/              # 추천 응답 DTO
-│   ├── domain/               # 도메인 모델 (CandidateRecipePlan, IngredientProcessingUtil, RecipeCandidates)
+│   ├── domain/               # 도메인 모델 (CandidateRecipePlan, IngredientProcessingUtil)
 │   ├── infrastructure/       # 외부 연동
 │   │   ├── client/           # Cart API 클라이언트
 │   │   └── llm/              # LLM 서비스 (RecipeCandidateGenerator)
@@ -358,6 +358,8 @@ curl "http://localhost:8092/api/v1/recommendations/personalized/550e8400-e29b-41
 
 | 경로 | 무엇이 있나 |
 |------|-------------|
+| [`features/`](features/README.md) | **기능·기술 문서** — 주제 4개(검색·임베딩 검색·장바구니 레시피·개인별 추천)마다 목표·흐름·설계 결정·실측·한계를 한 편에. 처음 보는 사람이 스펙 전에 읽는 문서 |
+| [`portfolio/`](portfolio/README.md) | **포트폴리오 케이스 스터디** — 같은 4개 주제를 문제·분석·대안·해결·자평·한계·회고로 |
 | [`specs/`](specs/README.md) | 기능 스펙 — **작업 단위 4개**(취향 벡터·장바구니 레시피·임베딩 유사도 검색·키워드 검색) 폴더, 각 스펙에 발행 모듈 규칙·리스크 포함. `Draft → Approved → Implemented` |
 | [`decisions/`](decisions/README.md) | 아키텍처 결정 기록(ADR) — 되돌리기 비싼 선택의 근거와 트레이드오프 |
 | [`audits/`](audits/README.md) | 아키텍처 감사·리팩터 반영 이력·하네스 회고 백로그 |
@@ -367,7 +369,7 @@ curl "http://localhost:8092/api/v1/recommendations/personalized/550e8400-e29b-41
 
 ### 단일 문서
 
-- [**기능 명세**](FEATURES.md) — 각 기능의 상세 설명
+- [**기능 명세**](FEATURES.md) — 각 기능의 상세 설명(작업 단위 재편 이전 문서 — 최신 설명은 [`features/`](features/README.md))
 - [**구현 가이드**](IMPLEMENTATION.md) — 코드 예시 및 설정
 - [**검색·임베딩 아키텍처**](ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md) — Elasticsearch 인덱스 매핑 SSOT
 - [**임베딩 예시**](EMBEDDING_EXAMPLE.md) — 사용자 프로필 임베딩 생성 예시

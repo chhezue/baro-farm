@@ -640,7 +640,7 @@ public class CartLogDocument {
     private Integer quantity; // 관심 강도
 
     @Field(type = FieldType.Date)
-    private Instant occurredAt; // 시간 가중치 계산용
+    private Instant occurredAt; // 30일 조회 창·최신순 정렬 기준
 }
 ```
 
