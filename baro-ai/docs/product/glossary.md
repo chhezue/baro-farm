@@ -30,10 +30,9 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 행동 로그 | 검색어·장바구니 변경·주문 확정 1건을 ES에 저장한 문서 | `SearchLogDocument`·`CartLogDocument`·`OrderLogDocument` |
 | 상위 결과 상품 (topProductIds) | 검색 1건에서 상위에 나온 상품 ID 최대 3개. 검색어 문자열 대신 이 상품들의 벡터로 취향을 읽는다 | `SearchLogDocument.topProductIds` |
 | 프로필 벡터 (취향 벡터) | 행동 로그에 등장한 상품들의 벡터를 행동 비중대로 섞어 길이를 1로 맞춘 1536차원 벡터. 문서 ID는 userId. 외부 임베딩 API를 부르지 않는다 | `UserProfileEmbeddingDocument.userProfileVector` |
-| 행동 비중 | 로그 1건이 취향에 기여하는 정도. `행동 종류 × 수량 × 경과 시간`(값: [`taste-vector` 스펙](../specs/taste-vector/taste-vector-pipeline.md) 비즈니스 규칙) | `behaviorWeight` |
+| 행동 비중 | 로그 1건이 취향에 기여하는 정도. `행동 종류 × 수량`(2026-09-06까지는 경과 시간도 곱했다. 값: [`taste-vector` 스펙](../specs/taste-vector/taste-vector-pipeline.md) 비즈니스 규칙) | `behaviorWeight` |
 | 행동 가중치 | 행동 종류별 계수. 주문 확정 > 장바구니 담기 > 수량 변경·검색 순이고, 취소·삭제는 0이라 취향에 전혀 반영되지 않는다 | `calculateEventWeight` |
 | 수량 가중치 | 이벤트의 `quantity`를 곱하되 5까지만 반영한다. 상한이 없으면 수량이 큰 로그 하나가 가중 평균을 거의 혼자 결정한다 | `quantityWeight` |
-| 시간 가중치 | 최근 로그일수록 크게 반영하는 지수 감쇠 계수. 7일마다 절반이 되고 상·하한이 있다(식: `taste-vector` 스펙 비즈니스 규칙) | `calculateTimeWeight` |
 | 가중 평균 · L2 정규화 | 상품 벡터를 비중대로 더한 뒤 길이를 1로 맞추는 것. 길이를 맞춰야 상품 벡터와 코사인 유사도로 비교할 수 있다 | `blendIntoProfileVector` |
 | 갱신 스킵 게이트 | 조회 기간 안의 로그가 최소 개수에 못 미치면 프로필을 만들지 않는 조건(값: `taste-vector` 스펙 비즈니스 규칙) | `MIN_TOTAL_LOGS_FOR_EMBEDDING` |
 | 경험 상품 (Source Product IDs) | 비중이 0이 아닌 장바구니·주문 로그의 상품 ID. 개인화 추천에서 제외한다. 삭제·취소한 상품은 여기 들어가지 않아 다시 추천될 수 있다 | `sourceProductIds` |
@@ -48,8 +47,8 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 요리 재료명 (ingredientName) | 상품명에서 브랜드·산지·수량·단위를 걷어낸 한 단어(예: "계란"). 상품 색인 시 LLM(Large Language Model, 거대 언어 모델)으로 1회 계산해 저장. 빈 값은 "아직 모른다"는 뜻이며 추천은 그 상품을 건너뛰고 재색인 대상으로 센다 | `ProductDocument.ingredientName`, [`decisions/002`](../decisions/002-ingredient-name-at-index-time.md) |
 | 보유 재료 | 장바구니 상품들의 요리 재료명 집합(제외 카테고리 제거 후). 레시피 후보 생성의 입력 | `RecipeRecommendService.loadOwnedIngredientNames` |
 | 레시피 제외 카테고리 | 과일 4개 코드(`AGRI_FRUIT*`). 설정 파일로 관리 | `recipe-recommend.yml` |
-| 레시피 후보 | LLM이 한 번에 만드는 서로 다른 스타일의 레시피 3개 | `RecipeCandidates` |
-| 핵심 재료 / 추가 재료 | 요리 정체성을 정하는 3~5개 / 있으면 좋은 1~3개 | `recipeIngredientsCore`·`recipeIngredientsExtra` |
+| 레시피 후보 | LLM이 만드는 레시피. 2026-09-06부터 1개(응답은 배열, 이름이 있는 첫 항목을 쓴다) | `RecipeCandidateGenerator.generateRecipe` |
+| 핵심 재료 | 요리 정체성을 정하는 3~5개. "추가 재료"(`recipeIngredientsExtra`)는 2026-09-06에 삭제했다 | `recipeIngredientsCore` |
 | 기본 양념 가정 | 소금·후추·식용유·간장 등은 보유로 간주, 재료 목록에 넣지 않음 | 프롬프트 `<정책>` |
 | 부족 핵심 재료 | 핵심 재료 − 보유 재료. LLM 값을 버리고 서버가 정규화 비교로 다시 계산 | `CandidateRecipePlan.from`, `subtractNormalized` |
 | 후보 원본 | LLM이 돌려주는 그대로의 레시피 후보. 서버가 계산하는 보유·부족 재료 두 필드가 없다 | `RecipeCandidateDraft` |

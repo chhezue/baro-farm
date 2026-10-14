@@ -75,7 +75,7 @@
 
 **남는 필드:** `RecipeCandidateDraft`는 8개 → **3개**(`recipeName`·`recipeIngredientsCore`·`instructions`), `CandidateRecipePlan`은 10개 → **4개**(앞의 셋 + 서버가 계산하는 `missingIngredientsCore`).
 
-`RecipeCandidates`·`chooseFirst`는 유지한다 — LLM이 여전히 배열로 응답하므로 이름이 빈 응답을 걸러야 한다.
+`RecipeCandidates`·`chooseFirst`는 이 재설계에서는 유지했다 — LLM이 여전히 배열로 응답하므로 이름이 빈 응답을 걸러야 한다. (2026-09-06 감사 [`005`](../../audits/cart-recipe/005-request-path-defects-and-tests.md) B-1에서 삭제 — 그 한 줄 방어는 `RecipeCandidateGenerator.generateRecipe` 안으로 들어갔다)
 
 ### 지우지 않는 것 (근거 있음)
 
@@ -177,7 +177,7 @@
 | `RecipeCandidateDraft` (LLM 응답) | 8필드 | **3필드** — `recipeName`, `recipeIngredientsCore`, `instructions` |
 | `CandidateRecipePlan` (도메인) | 10필드 | **5필드** — 위 셋 + 서버가 계산하는 `missingIngredientsCore`·`usedOwnedIngredients` |
 | `RecipeRecommendResponse` (API) | 5필드 | 5필드 — 개수는 같고 `ownedIngredients`의 의미가 바뀐다(위 API 절) |
-| `RecipeCandidates` | 그대로 | 그대로 |
+| `RecipeCandidates` | 그대로 | 그대로 → 2026-09-06 삭제([`005`](../../audits/cart-recipe/005-request-path-defects-and-tests.md) B-1) |
 
 `RecipeCandidateDraft`가 곧 LLM 응답 스키마이므로, 필드가 줄면 **모델이 만들어야 할 출력도 그만큼 줄어든다.**
 

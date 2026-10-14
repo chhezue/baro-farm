@@ -24,7 +24,7 @@ baro-ai에는 RDB가 없다. 상품의 원본은 `baro-shopping`(MySQL)이고, b
 
 | 용어 | 뜻 | 상세 |
 |------|-----|------|
-| 색인 경로 | `product-events` 수신부터 `product`·`product-autocomplete` 저장까지 | `ProductEventConsumer` → `ProductIndexService.indexProduct` |
+| 색인 경로 | `product-events` 수신부터 `product`·`product-autocomplete` 저장까지 | `ProductEventConsumer` → `ProductIndexService.indexProducts` |
 | 정확·일반·오탈자 매칭 | `match_phrase` · `match` OR · fuzzy 세 `should` 절(boost·조건은 아래 비즈니스 규칙) | `ProductSearchService` |
 | 단어 서브필드 | 상품명을 띄어쓰기 단위로 토큰화한 `productName.word`. 오탈자 매칭 전용이며 형태소 분석기 결과에 좌우되지 않는다 | `ProductDocument` |
 | 상태 필터 | `ON_SALE`·`DISCOUNTED`만 노출 | 검색·자동완성·벡터 검색 공통 |
@@ -35,10 +35,10 @@ baro-ai에는 RDB가 없다. 상품의 원본은 `baro-shopping`(MySQL)이고, b
 | 단계 | 어디서 | 무엇을 | 근거 |
 |------|--------|--------|------|
 | 1. 상품 이벤트 발행 | `baro-shopping` `ProductService.createProduct`·`updateProduct`·`deleteProduct` | 트랜잭션 **커밋 후**(`AFTER_COMMIT`) `product-events`에 발행. 키 없음, 값은 `ProductEvent{type, data}` JSON(타입 헤더 없음). `updatedAt`은 발행 시각 | `ProductTransactionEventListener.java:17-46`, `ProductEventPublisher.java:42-57`, `ProductEventProducer.java:26` |
-| 2. 소비 | `ProductEventConsumer` | 그룹 `ai-service`(팩토리가 정한다 — 리스너 어노테이션에는 적지 않는다), poll당 1건, 실패 시 1초 간격 2회 재시도 후 건너뜀. 역직렬화 실패 레코드는 리스너에 닿기 전에 `DefaultErrorHandler`가 재시도 없이 건너뜀 | [`KafkaConsumerConfig.java`](../../../src/main/java/com/barofarm/ai/config/KafkaConsumerConfig.java), [`ProductEventConsumer.java`](../../../src/main/java/com/barofarm/ai/search/infrastructure/event/ProductEventConsumer.java) |
-| 3. 색인 | `ProductIndexService.indexProduct` | 임베딩(Gemini, 실패 시 `null`) → 요리 재료명(LLM(Large Language Model, 거대 언어 모델), 실패 시 `""`) → `product-autocomplete` 저장 → `product` 저장. `updatedAt`은 이벤트 값(발행 시각)을 그대로 쓰고 없을 때만 현재 시각. CREATED·UPDATED 모두 전체 덮어쓰기 | [`ProductIndexService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductIndexService.java) |
+| 2. 소비 | `ProductEventConsumer` | 그룹 `ai-service`(팩토리가 정한다 — 리스너 어노테이션에는 적지 않는다), **묶음 리스너 — poll당 최대 5건, 묶음 처리 허용 15분**(2026-09-06), 실패 시 실패 레코드 위치를 담아 던져(`BatchListenerFailedException`) 앞 레코드는 커밋, 실패 레코드부터 1초 간격 2회 재시도 후 그 레코드만 건너뜀. 생성·수정은 모아서 한 번에 색인하고, 삭제를 만나면 모인 색인을 먼저 내보낸 뒤 삭제한다(같은 상품의 생성→삭제 순서 보존). 역직렬화 실패 레코드는 리스너에 닿기 전에 `DefaultErrorHandler`가 재시도 없이 건너뜀 | [`KafkaConsumerConfig.java`](../../../src/main/java/com/barofarm/ai/config/KafkaConsumerConfig.java), [`ProductEventConsumer.java`](../../../src/main/java/com/barofarm/ai/search/infrastructure/event/ProductEventConsumer.java) |
+| 3. 색인 | `ProductIndexService.indexProducts` | 묶음 임베딩(Gemini `batchEmbedContents` 1회, 실패 시 상품별 폴백 → 실패한 상품만 `null`) → 요리 재료명(상품별 1회)(LLM(Large Language Model, 거대 언어 모델), 실패 시 `""`) → `product-autocomplete` `saveAll` → `product` `saveAll`(인덱스당 bulk 1회). `updatedAt`은 이벤트 값(발행 시각)을 그대로 쓰고 없을 때만 현재 시각. CREATED·UPDATED 모두 전체 덮어쓰기 | [`ProductIndexService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductIndexService.java) |
 | 4. 삭제 | `ProductIndexService.deleteProduct` | 두 인덱스에서 삭제 | 동일 |
-| 5. 검색 | `GET /api/v1/search` | 페이징 파라미터 검증 → `bool` 쿼리(should 3 + filter) → `_score desc, updatedAt desc` → 벡터를 뺀 `_source`만 받아 `CustomPage`. `X-User-Id`와 검색어가 있으면 검색 로그 저장 + 프로필 갱신([`taste-vector`](../taste-vector/taste-vector-pipeline.md)) | [`ProductSearchService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductSearchService.java) |
+| 5. 검색 | `GET /api/v1/search` | 페이징 파라미터 검증 → `bool` 쿼리(should 3 + filter) → `_score desc, updatedAt desc` → 벡터를 뺀 `_source`만 받아 `CustomPage`. `X-User-Id`와 검색어가 있으면 검색 로그 적재 + 프로필 갱신을 비동기 작업 하나로 제출([`taste-vector`](../taste-vector/taste-vector-pipeline.md)) | [`ProductSearchService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductSearchService.java) |
 | 6. 자동완성 | `GET /api/v1/search/autocomplete` | `size` 검증 → 2글자 미만 빈 배열 → Caffeine 캐시(키 `query-size`, 1,000개·5분) → `match`(`operator=and`) + 상태 필터 | `ProductSearchService.autocomplete`, `ProductAutocompleteRepository` |
 
 ## API / 인터페이스
@@ -91,9 +91,9 @@ SSOT: `search/exception/SearchErrorCode.java`
 
 | 규칙 | 값 | 구현 위치 |
 |------|-----|-----------|
-| poll당 건수 · 재시도 | 1건 · 1초 간격 2회 | `KafkaConsumerConfig` product 팩토리 ([`audits/search/001`](../../audits/search/001-index-path.md) A-1) |
-| 색인 시 원격 호출 | 임베딩 1회 + 재료명 LLM 1회, 각 30초 상한·SDK 재시도 총 3회 | `LlmClientConfig` |
-| 임베딩 실패 | 벡터 `null`로 색인 계속 | `indexProduct` |
+| poll당 건수 · 처리 허용 · 재시도 | 최대 5건(묶음) · 15분 · 실패 레코드부터 1초 간격 2회 | `KafkaConsumerConfig` product 팩토리. 5는 상품 1건 최악 지연 180초(임베딩·재료명 각 30초×3회) × 5 = 15분에서 나왔다 — 1건일 때 지키던 "최악에도 리밸런싱 없음"을 유지하는 최대값([`audits/keyword-search/002`](../../audits/keyword-search/002-index-throughput-and-search-log.md) A-1) |
+| 색인 시 원격 호출 | 묶음당 임베딩 1회 + 상품당 재료명 LLM 1회, 각 30초 상한·SDK 재시도 총 3회 | `LlmClientConfig` |
+| 임베딩 실패 | 묶음이 실패하면 상품별로 다시 시도, 그래도 실패한 상품만 벡터 `null`로 색인 계속 | `ProductEmbeddingService.embedProducts` |
 | 재료명 실패 | `""`로 색인, "재색인 대상" WARN. 정규식 폴백 없음 | [`decisions/002`](../../decisions/002-ingredient-name-at-index-time.md) |
 | 정확 매칭 | `match_phrase`, `slop=1`, boost 2.0 | `applyExactMatch` |
 | 일반 매칭 | `match`, `OR`, boost 1.0 | `applyNormalMatch` |
@@ -107,7 +107,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 | 자동완성 캐시 | Caffeine 최대 1,000개·TTL 5분·인스턴스별 | `CacheConfig`, [`decisions/001`](../../decisions/001-autocomplete-caching.md) |
 | 자동완성 접두어 길이 | `edge_ngram` 1~20자, `token_chars` letter·digit | `settings/autocomplete-analyzer.json` |
 | 자동완성 쿼리 | `match`(`operator=and`) + 상태 필터. 색인 쪽 `edge_ngram`이 이미 접두어를 갖고 있어 조회에서 다시 확장하지 않는다 | `ProductAutocompleteRepository` |
-| 검색 로그 | `X-User-Id` + 검색어 있을 때만. 저장 실패는 검색 응답에 영향 없음 | `search` 말미 |
+| 검색 로그 | `X-User-Id` + 검색어 있을 때만. 로그 적재와 프로필 갱신을 **한 비동기 작업**으로 제출하고 응답 스레드는 기다리지 않는다(2026-09-06). 실행자 큐(100건)가 차면 로그도 갱신과 함께 버려진다 — 취향 분석용 부가 데이터라 허용 | `UserProfileRefreshTrigger.recordSearchAndRefresh` |
 
 ### 배포 전제 (게이트웨이·인프라)
 
@@ -166,6 +166,8 @@ SSOT: `search/exception/SearchErrorCode.java`
 | `spring.kafka.consumer.*` yml 값이 커스텀 팩토리에 안 읽힘 | 확정 | [`audits/search/001`](../../audits/search/001-index-path.md) C-1 |
 | `updatedAt`이 "상품이 바뀐 시각"이 아님 | 확정 | 발행 측이 `Instant.now()`를 찍어 보낸다(`ProductEventPublisher.java:53`). 색인 시각을 쓰던 흔들림은 2026-09-05에 없앴지만, 재발행으로 전체를 다시 색인하면 최신순이 무의미해진다. 발행 모듈 담당자 확인 `[미정]` — [`open-items.md`](../../audits/open-items.md) B-11 |
 | 재색인·재정규화 경로 없음 | 확정 | Track A `specify` 대상 |
+| 검색 로그 유실 가능 | 확정(허용) | 2026-09-06 비동기화로 실행자 큐(100건) 초과 시 로그가 버려진다. 이전엔 갱신만 버려졌다. 취향 벡터는 다음 행동에서 재계산되므로 허용 — [`audits/keyword-search/002`](../../audits/keyword-search/002-index-throughput-and-search-log.md) A-2 |
+| Gemini 무료 티어 한도 | 확정 | 2026-09-06 실측: 임베딩을 1건씩 보내면 13번째부터 429, 10건 묶음은 연속 성공. 재색인 규모가 크면 유료 티어 또는 묶음 크기 조정이 필요 `[미정]` |
 | `application-local.yml` 없음 | 확정 | 로컬 기동 시 Gemini 키·Kafka 주소를 env로만 줘야 함 |
 
 ## 관련 문서
@@ -184,3 +186,4 @@ SSOT: `search/exception/SearchErrorCode.java`
 | 2026-09-04 | `search/`에서 작업 단위 `keyword-search/`로 이동. 발행 모듈(`baro-shopping`) 규칙·게이트웨이·인프라 전제·오탈자 매칭 리스크 추가 |
 | 2026-09-05 | 감사 001 A·B 전 항목 반영 — 오탈자 매칭 필드·허용 범위·최소 길이 변경, 자동완성 쿼리 단순화, `_source`에서 벡터 제외, 페이징 검증·`SearchErrorCode` 신설, 자동완성 조회를 `ProductSearchService`로 이동, `updatedAt`을 이벤트 값으로 |
 | 2026-09-05 | `updatedAt` 서술 정정 — 이벤트 값은 "상품이 바뀐 시각"이 아니라 **발행 시각**이다(발행 측 `Instant.now()`). 비즈니스 규칙·흐름 행을 고치고 남은 한계를 리스크 표에 추가 |
+| 2026-09-06 | 감사 002 반영 — 상품 이벤트 묶음 소비(poll당 5건·15분)와 묶음 색인(임베딩 1회·인덱스당 bulk 1회, 실패 시 상품별 폴백), 검색 로그 적재를 비동기 작업으로 이동, 페이징·자동완성·색인 단위 테스트 도입. 측정 M-3 근거 |

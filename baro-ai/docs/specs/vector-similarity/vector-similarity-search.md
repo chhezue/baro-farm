@@ -109,7 +109,7 @@
 - [ ] 라우팅되지 않는 주소로 기동해 `spring.elasticsearch.connection-timeout` 값대로 응답이 지연되는지(설정이 살아 있다는 증거)
 - [ ] 기존 프로필 문서가 있는 사용자로 개인화 API 호출 결과가 재색인 없이 그대로 읽히는지(`float[]` 전환 확인)
 - [ ] `GET product/_mapping`으로 `vector` 필드에 `index`·`similarity` 기본값이 실제로 붙어 있는지 확인
-- [ ] 같은 기준 상품으로 `script_score`와 native `knn` 쿼리 결과·응답 시간을 비교(상품 수는 `[미정]`이라 결론은 측정 후)
+- [x] `script_score`와 native `knn`의 응답 시간을 상품 1천·1만·10만 건에서 비교 — 2026-09-06 난수 벡터로 실측, 전환 안 함([`decisions/004`](../../decisions/004-script-score-over-knn.md)). 실제 상품 벡터로 일치율을 다시 보는 것은 상품 수가 수만 건을 넘을 때
 
 ## 완료 기준
 
@@ -121,10 +121,10 @@
 
 | 항목 | 상태 | 비고 |
 |------|------|------|
-| `script_score` 전수 계산 | 확정 | HNSW를 쓰지 않는다. 상품 수 `[미정]`이라 native kNN 전환은 측정 후 결정. 감사 대상 |
+| `script_score` 전수 계산 | 확정(유지) | HNSW를 쓰지 않는다. 2026-09-06 실측: 1만 건 p95 7.4ms로 `knn`과 지연이 같고, 10만 건에서야 92ms vs 32ms로 갈린다. 상품이 수만 건을 넘으면 다시 연다 — [`decisions/004`](../../decisions/004-script-score-over-knn.md) |
 | 카테고리 보너스 | 해소 | 2026-09-05 두 경로 모두 삭제 |
 | "메도이드" 명칭 | 해소 | 2026-09-05 `MaxMinDiversityService`로 개명 |
-| 후보 조회가 벡터 포함 `_source` 전체 | 확정 | 다양화에 벡터가 필요하므로 이 경로는 필요. 키워드 검색·`findAllById`의 벡터 조회는 [`keyword-search`](../keyword-search/product-search-and-autocomplete.md) 리스크 |
+| 후보 조회가 벡터 포함 `_source` 전체 | 확정(허용) | 다양화에 벡터가 필요하므로 이 경로는 필요. 2026-09-06 실측: k=30 응답이 벡터 포함 약 1,030KB·제외 약 2KB, 기본 topK 5면 후보 15건 ≈ 315KB. 그 대가로 같은 카테고리 쌍이 45%→11.5%(k=5)라 유지 — [`audits/vector-similarity/002`](../../audits/vector-similarity/002-vector-transfer-knn-and-diversity.md) M-2. 키워드 검색·`findAllById`의 벡터 조회는 [`keyword-search`](../keyword-search/product-search-and-autocomplete.md) 리스크 |
 | ES 서버 버전 불일치 | 확정 | 로컬 8.12.0 / 운영 이미지 9.1.2 / Java 클라이언트 8.13.3. 운영 헬스 인디케이터가 호환 문제로 꺼져 있다. 인프라 소유자 확인 `[미정]` |
 | 사용자 벡터 `List<Double>` vs 상품 벡터 `float[]` | 해소 | 2026-09-05 `float[]`로 통일. 다만 ES 스크립트 파라미터로 넘길 때의 `List<Double>` 변환은 남아 있다 — `JsonData.of(float[])`가 숫자 배열로 직렬화되는지 로컬에서 확인하지 못했다 |
 | 임베딩 실패 상품의 재색인 경로 없음 | 확정 | [`audits/search/001`](../../audits/search/001-index-path.md) 개선 제안 1 (Track A) |
@@ -146,3 +146,4 @@
 | 2026-09-04 | "메도이드"가 실제로는 max-min 다양화임을 명시. ES 버전·매핑 옵션·이벤트 순서 리스크 추가 |
 | 2026-09-05 | 감사 001 A·B 전 항목 반영 — `exists(vector)` 필터, `ElasticsearchConfig` 삭제·타임아웃 설정 이관, 카테고리 보너스 삭제, `MaxMinDiversityService` 개명, `VectorRecommendPipeline` 공유, 사용자 벡터 `float[]` 통일, 음수 유사도 처리 정정 |
 | 2026-09-05 | `topK` 허용 범위 1~50 신설 — 벗어나면 400 `INVALID_TOP_K`. 감사 항목이 아니라 교차 검토에서 나온 계약 변경이다(검색 API의 `page`·`size` 검증과 같은 기준). 개인화 추천 API도 같이 적용 |
+| 2026-09-06 | 감사 002 반영 — `knn` 전환 여부를 실측으로 닫음(유지, `decisions/004`), 다양화 효과 실측(유지, 후보 배수 3 확정), `MaxMinDiversityService` 참조 비교 제거, 다양화·topK 단위 테스트 |
