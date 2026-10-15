@@ -1,0 +1,49 @@
+{
+ "measuredAt": "2026-09-06T22:00:02+0900",
+ "executor": {
+  "core": 2,
+  "max": 5,
+  "queueCapacity": 100
+ },
+ "rounds": [
+  {
+   "concurrency": 1,
+   "requests": 300,
+   "logged": 190,
+   "rejected": 110,
+   "accounted": 300,
+   "loss_rate": 0.3667,
+   "latency_ms": {
+    "p50": 4.9,
+    "p95": 10.0,
+    "max": 83.5
+   }
+  },
+  {
+   "concurrency": 10,
+   "requests": 300,
+   "logged": 110,
+   "rejected": 190,
+   "accounted": 300,
+   "loss_rate": 0.6333,
+   "latency_ms": {
+    "p50": 10.3,
+    "p95": 34.5,
+    "max": 86.7
+   }
+  },
+  {
+   "concurrency": 30,
+   "requests": 300,
+   "logged": 105,
+   "rejected": 195,
+   "accounted": 300,
+   "loss_rate": 0.65,
+   "latency_ms": {
+    "p50": 25.8,
+    "p95": 75.5,
+    "max": 89.3
+   }
+  }
+ ]
+}
