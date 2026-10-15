@@ -1,0 +1,47 @@
+# baro-ai 통합 확인 전용 로컬 환경. 팀 공용 docker-compose.data.yml과 이름·포트가 겹치지 않게
+# 별도 접두사와 포트를 쓴다(9200/9092는 이미 다른 용도로 쓰일 수 있다).
+# 사용법: docs/../scripts/local-env.md 대신 이 파일 주석이 SSOT다.
+#   기동: docker compose -f baro-ai/docker/local/docker-compose.yml up -d
+#   정리: docker compose -f baro-ai/docker/local/docker-compose.yml down
+services:
+  es:
+    build:
+      context: .
+      dockerfile: Dockerfile.es-nori
+    container_name: baro-ai-local-es
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - cluster.name=baro-ai-local
+    ports:
+      - "9201:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: baro-ai-local-kafka
+    environment:
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qg"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_HEAP_OPTS: -Xmx512m -Xms256m
+    ports:
+      - "9093:9092"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
