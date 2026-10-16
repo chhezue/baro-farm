@@ -29,6 +29,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.query.Query;
 
 /**
@@ -139,6 +140,37 @@ class ProductSearchServiceTest {
         assertThat(result.get(0)).extracting(ProductSearchResponse::productName).containsExactly("대파 1단");
         assertThat(result.get(1)).isEmpty();
         assertThat(result.get(2)).extracting(ProductSearchResponse::productName).containsExactly("새우젓 500g");
+    }
+
+    @Test
+    @DisplayName("searchByKeywords — 색인해 둔 재료명(ingredientName) 정확 일치 절을 상품명보다 높은 가중치로 넣는다")
+    void searchByKeywords_includesIngredientNameTermClause() {
+        // 이 절이 빠지면 상품명이 재료를 다른 말로 부르는 상품(한우 등심 300g ← 소고기)을 영영 못 찾는다.
+        // 감사 cart-recipe/006 A-1이 "검증 방법"으로 고정하기로 한 계약이다.
+        List<SearchHits<ProductDocument>> perKeyword = List.of(hits());
+        when(operations.multiSearch(anyList(), eq(ProductDocument.class))).thenReturn(perKeyword);
+
+        service.searchByKeywords(List.of("소고기"), 2);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<? extends Query>> captor = ArgumentCaptor.forClass(List.class);
+        verify(operations).multiSearch(captor.capture(), eq(ProductDocument.class));
+
+        NativeQuery built = (NativeQuery) captor.getValue().get(0);
+        List<co.elastic.clients.elasticsearch._types.query_dsl.Query> shoulds =
+            built.getQuery().bool().should();
+
+        var term = shoulds.stream()
+            .filter(co.elastic.clients.elasticsearch._types.query_dsl.Query::isTerm)
+            .map(co.elastic.clients.elasticsearch._types.query_dsl.Query::term)
+            .filter(t -> "ingredientName".equals(t.field()))
+            .findFirst();
+
+        assertThat(term).as("ingredientName term 절이 있어야 한다").isPresent();
+        assertThat(term.get().value().stringValue()).isEqualTo("소고기");
+        assertThat(term.get().boost())
+            .as("상품명 정확 문구 매칭(2.0)보다 높아야 정답이 1위로 온다")
+            .isNotNull().isGreaterThan(2.0f);
     }
 
     @Test

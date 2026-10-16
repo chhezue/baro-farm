@@ -39,6 +39,29 @@ public final class IngredientProcessingUtil {
     }
 
     /**
+     * 상품을 찾을 때 쓸 검색어를 재료명에서 뽑습니다. 공백이 있으면 마지막 어절만 씁니다 —
+     * `"국거리용 소고기"`는 `"소고기"`가 됩니다.
+     *
+     * <p>프롬프트는 재료명을 "일반적인 한 단어 명사"로 쓰라고 요구하지만 LLM이 늘 지키지는 않습니다.
+     * 그 어긋남이 그대로 Elasticsearch 키워드가 되면 색인된 재료 표준명(`소고기`)과 정확 일치하지 않아
+     * 부족 재료 상품 카드가 통째로 비어 버립니다. 실제로 `"국거리용 소고기"`가 그렇게 나왔습니다.
+     * 근거: docs/audits/cart-recipe/006-missing-ingredient-product-match.md A-2
+     *
+     * <p>이 변환은 **상품 검색어를 만들 때만** 씁니다. 재료끼리 비교하는 {@link #normalizeForCompare}
+     * 경로에는 쓰지 않습니다 — 거기서 `"돼지 고기"`를 `"고기"`로 줄이면 `"돼지고기"`와 같은 재료라는
+     * 판정이 깨집니다(`CandidateRecipePlanTest`가 이 경우를 고정하고 있습니다). 사용자에게 보이는
+     * `missingCoreIngredients`도 원문 그대로 둡니다 — "국거리용 소고기"가 더 친절한 안내라서입니다.
+     */
+    public static String toSearchKeyword(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String trimmed = raw.trim();
+        int lastSpace = trimmed.lastIndexOf(' ');
+        return lastSpace < 0 ? trimmed : trimmed.substring(lastSpace + 1);
+    }
+
+    /**
      * 재료명 동등 비교를 위해 소문자로 변환하고 내부의 모든 공백(띄어쓰기)을 제거합니다.
      *
      * <p>예: `"돼지 고기"` -> `"돼지고기"`, `"Kimchi "` -> `"kimchi"`

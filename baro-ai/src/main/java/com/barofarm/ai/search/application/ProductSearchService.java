@@ -113,7 +113,7 @@ public class ProductSearchService {
         Pageable pageable = toPageable(0, sizePerKeyword);
 
         List<NativeQuery> queries = keywords.stream()
-            .map(keyword -> buildSearchQuery(new ProductSearchRequest(keyword, null, null, null), pageable))
+            .map(keyword -> buildIngredientQuery(keyword, pageable))
             .toList();
 
         List<SearchHits<ProductDocument>> hitsPerKeyword = operations.multiSearch(queries, ProductDocument.class);
@@ -144,8 +144,57 @@ public class ProductSearchService {
     }
 
     /**
+     * 부족 재료 하나를 상품에 잇는 전용 쿼리를 만듭니다. 상품명 매칭 세 가지는 일반 검색과 같고,
+     * 여기에 **색인 시점에 뽑아 둔 재료 표준명(`ingredientName`) 정확 일치**를 가장 높은 가중치로 더합니다.
+     *
+     * 이 절이 없으면 상품명이 재료를 다른 말로 부르는 상품을 영영 못 찾는다 — `한우 등심 300g`은
+     * `ingredientName`이 `소고기`인데 상품명 어디에도 `소고기`가 없다. 상품 20건 표본에서 18건 중 1건이
+     * 그랬고, 나머지가 맞은 것은 상품명에 재료 단어가 우연히 들어 있어서지 설계가 아니었다.
+     * 근거: docs/audits/cart-recipe/006-missing-ingredient-product-match.md A-1
+     *
+     * `term`에는 정규화하지 않은 원문을 넣습니다. 색인값이 LLM 원문을 `trim()`만 한 것이고 그 필드에
+     * `normalizer`가 없어서, 비교용 정규화(소문자화·공백 제거)를 태우면 오히려 어긋납니다. 표기가 흔들리는
+     * 경우는 색인 시점 프롬프트 준수에 맡깁니다 — ES 쪽 정규화는 매핑 변경과 전체 재색인을 부르는데,
+     * 이 저장소에 아직 재색인 경로가 없습니다.
+     *
+     * 일반 검색(`search`)은 이 절을 쓰지 않습니다. 사용자가 "소고기"를 검색했을 때 한우 등심이 나와야
+     * 하는지는 별개 판단이라 이번 변경 범위 밖입니다.
+     */
+    private NativeQuery buildIngredientQuery(String ingredientName, Pageable pageable) {
+        return NativeQuery.builder()
+                .withQuery(q -> q.bool(b -> {
+                    if (ingredientName != null && !ingredientName.isBlank()) {
+                        // 재료 표준명 정확 일치 — 상품명 매칭(2.0)보다 높게 둬 정답이 1위로 오게 한다
+                        b.should(sh -> sh.term(t -> t
+                            .field("ingredientName")
+                            .value(ingredientName)
+                            .boost(4.0f)));
+                        applyKeywordShouldClauses(b, ingredientName);
+                        b.minimumShouldMatch("1");
+                    }
+                    applyStatusFilter(b);
+                    return b;
+                }))
+                .withSourceFilter(FetchSourceFilter.of(null, EXCLUDED_SOURCE_FIELDS))
+                .withPageable(pageable)
+                .build();
+    }
+
+    /**
+     * 상품명 기반 매칭 세 가지(정확 문구 2.0 · Nori 형태소 1.0 · 오탈자 0.3)를 should 절에 등록합니다.
+     * 일반 검색과 부족 재료 조회가 이 부분을 공유합니다.
+     */
+    private void applyKeywordShouldClauses(BoolQuery.Builder b, String keyword) {
+        applyExactMatch(b, keyword);
+        applyNormalMatch(b, keyword);
+        if (keyword.length() >= MIN_FUZZY_KEYWORD_LENGTH) {
+            applyFuzzyMatch(b, keyword);
+        }
+    }
+
+    /**
      * 키워드 조건(should: 정확 문구, 일반 형태소, 오탈자 보정)과 상태/카테고리/가격 필터(filter)를 조합한
-     * 상품 검색 쿼리를 만듭니다. `search`와 `searchByKeywords`가 같은 쿼리를 쓰도록 여기 한 곳에 둡니다.
+     * 상품 검색 쿼리를 만듭니다.
      */
     private NativeQuery buildSearchQuery(ProductSearchRequest request, Pageable pageable) {
         return NativeQuery.builder()
@@ -153,17 +202,7 @@ public class ProductSearchService {
 
                     // 키워드가 입력된 경우 3중 가중치 매칭 조건을 should 절에 등록
                     if (request.keyword() != null && !request.keyword().isBlank()) {
-                        String keyword = request.keyword();
-
-                        // 1) 정확 문구 일치 (가장 높은 가중치: boost 2.0)
-                        applyExactMatch(b, keyword);
-                        // 2) Nori 형태소 일치 (기본 가중치: boost 1.0)
-                        applyNormalMatch(b, keyword);
-
-                        // 3) 2글자 이상인 경우 오탈자 교정 매칭 허용 (가장 낮은 가중치: boost 0.3)
-                        if (keyword.length() >= MIN_FUZZY_KEYWORD_LENGTH) {
-                            applyFuzzyMatch(b, keyword);
-                        }
+                        applyKeywordShouldClauses(b, request.keyword());
 
                         // should 절에 등록된 조건 중 최소 1개 이상 만족하는 상품만 검색 대상에 포함
                         b.minimumShouldMatch("1");

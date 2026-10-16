@@ -62,4 +62,21 @@ class IngredientProcessingUtilTest {
         assertThat(IngredientProcessingUtil.subtractNormalized(needed, List.of()))
             .containsExactly("양파", "마늘");
     }
+
+    // ---- 상품 검색어 변환 (감사 cart-recipe/006 A-2) ----
+
+    @Test
+    @DisplayName("검색어 변환 — 수식어가 붙으면 마지막 어절만 쓴다")
+    void toSearchKeyword_takesHeadNoun() {
+        assertThat(IngredientProcessingUtil.toSearchKeyword("국거리용 소고기")).isEqualTo("소고기");
+        assertThat(IngredientProcessingUtil.toSearchKeyword("다진 마늘")).isEqualTo("마늘");
+        assertThat(IngredientProcessingUtil.toSearchKeyword("  볶음용 대파  ")).isEqualTo("대파");
+    }
+
+    @Test
+    @DisplayName("검색어 변환 — 공백이 없으면 그대로 두고, null은 빈 문자열")
+    void toSearchKeyword_passesThroughSingleWord() {
+        assertThat(IngredientProcessingUtil.toSearchKeyword("소고기")).isEqualTo("소고기");
+        assertThat(IngredientProcessingUtil.toSearchKeyword(null)).isEmpty();
+    }
 }

@@ -173,7 +173,11 @@ public class RecipeRecommendService {
 
         try {
             List<List<ProductSearchResponse>> resultsPerIngredient =
-                productSearchService.searchByKeywords(missingCore, MISSING_PRODUCTS_LIMIT_PER_INGREDIENT);
+                productSearchService.searchByKeywords(
+                    // 검색어는 핵심 명사만 쓴다 — "국거리용 소고기"로는 색인된 재료명 "소고기"와 일치하지 않는다.
+                    // 사용자에게 보이는 missingCoreIngredients는 원문 그대로 두므로 순서·개수는 그대로다.
+                    missingCore.stream().map(IngredientProcessingUtil::toSearchKeyword).toList(),
+                    MISSING_PRODUCTS_LIMIT_PER_INGREDIENT);
 
             // 검색 결과는 요청한 키워드 순서와 1:1로 정렬되어 돌아온다 — 길이가 다르면 ProductSearchService가
             // 전부 빈 목록으로 맞춰 준다(배치 안 쿼리 하나가 실패하면 순서를 알 수 없어서다).
