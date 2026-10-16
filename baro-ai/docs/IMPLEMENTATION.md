@@ -157,24 +157,21 @@ public class UserProfileEmbeddingService {
     private static final int MIN_TOTAL_LOGS_FOR_EMBEDDING = 3;
     private final CartLogRepository cartLogRepository;
     private final OrderLogRepository orderLogRepository;
-    private final SearchLogRepository searchLogRepository;
     private final ProductSearchRepository productSearchRepository; // 상품 벡터를 읽는다
     private final UserProfileEmbeddingRepository userProfileEmbeddingRepository;
 
     public void updateUserProfileEmbedding(UUID userId) {
-        // 1. 최근 30일간의 로그를 각 타입별로 최대 5개씩 가져옴
+        // 1. 최근 30일간의 장바구니·주문 로그를 각각 최대 5개씩 가져옴 (검색은 2026-09-07에 신호에서 뺐다)
         Instant thirtyDaysAgo = Instant.now().minus(30, ChronoUnit.DAYS);
         Pageable top5 = PageRequest.of(0, 5);
 
-        List<SearchLogDocument> searchLogs = searchLogRepository
-            .findAllByUserIdAndSearchedAtAfterOrderBySearchedAtDesc(userId, thirtyDaysAgo, top5);
         List<CartLogDocument> cartLogs = cartLogRepository
             .findAllByUserIdAndOccurredAtAfterOrderByOccurredAtDesc(userId, thirtyDaysAgo, top5);
         List<OrderLogDocument> orderLogs = orderLogRepository
             .findAllByUserIdAndOccurredAtAfterOrderByOccurredAtDesc(userId, thirtyDaysAgo, top5);
 
         // 2. 품질 검증 (최소 3개 이상 필요)
-        int totalLogCount = searchLogs.size() + cartLogs.size() + orderLogs.size();
+        int totalLogCount = cartLogs.size() + orderLogs.size();
         if (totalLogCount < MIN_TOTAL_LOGS_FOR_EMBEDDING) {
             return; // 임베딩 건너뜀
         }
@@ -196,9 +193,10 @@ public class UserProfileEmbeddingService {
         userProfileEmbeddingRepository.save(document);
     }
 
-    private double behaviorWeight(HistoryEventType eventType, Integer quantity, Instant occurredAt) {
-        // 이벤트 종류 × 수량(5까지) × 시간(7일마다 절반)
-        // 예: 담기 × 수량 3 × 1시간 전 = 2 × 3 × 2.99 = 17.93
+    static int calculateEventWeight(HistoryEventType eventType) {
+        // 이벤트 종류 하나로 정해진다 — 곱하는 축이 없다.
+        // 주문 확정 3 · 담기 2 · 수량 변경 1 · 삭제·취소 0
+        // (수량 축은 2026-09-07, 시간 축은 2026-09-06에 삭제했다)
     }
 }
 ```
@@ -637,7 +635,7 @@ public class CartLogDocument {
     private String eventType; // CART_ITEM_ADDED, CART_QUANTITY_UPDATED, CART_ITEM_REMOVED
 
     @Field(type = FieldType.Integer)
-    private Integer quantity; // 관심 강도
+    private Integer quantity; // 로그에 남기지만 취향 계산에는 쓰지 않는다 (2026-09-07 수량 축 삭제)
 
     @Field(type = FieldType.Date)
     private Instant occurredAt; // 30일 조회 창·최신순 정렬 기준

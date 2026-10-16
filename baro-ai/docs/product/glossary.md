@@ -27,16 +27,14 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 
 | 용어 | 의미 | 코드/문서 근거 |
 |------|------|-----------------|
-| 행동 로그 | 검색어·장바구니 변경·주문 확정 1건을 ES에 저장한 문서 | `SearchLogDocument`·`CartLogDocument`·`OrderLogDocument` |
-| 상위 결과 상품 (topProductIds) | 검색 1건에서 상위에 나온 상품 ID 최대 3개. 검색어 문자열 대신 이 상품들의 벡터로 취향을 읽는다 | `SearchLogDocument.topProductIds` |
+| 행동 로그 | 장바구니 변경·주문 확정 1건을 ES에 저장한 문서 | `CartLogDocument`·`OrderLogDocument` |
 | 프로필 벡터 (취향 벡터) | 행동 로그에 등장한 상품들의 벡터를 행동 비중대로 섞어 길이를 1로 맞춘 1536차원 벡터. 문서 ID는 userId. 외부 임베딩 API를 부르지 않는다 | `UserProfileEmbeddingDocument.userProfileVector` |
-| 행동 비중 | 로그 1건이 취향에 기여하는 정도. `행동 종류 × 수량`(2026-09-06까지는 경과 시간도 곱했다. 값: [`taste-vector` 스펙](../specs/taste-vector/taste-vector-pipeline.md) 비즈니스 규칙) | `behaviorWeight` |
-| 행동 가중치 | 행동 종류별 계수. 주문 확정 > 장바구니 담기 > 수량 변경·검색 순이고, 취소·삭제는 0이라 취향에 전혀 반영되지 않는다 | `calculateEventWeight` |
-| 수량 가중치 | 이벤트의 `quantity`를 곱하되 5까지만 반영한다. 상한이 없으면 수량이 큰 로그 하나가 가중 평균을 거의 혼자 결정한다 | `quantityWeight` |
+| 행동 비중 | 로그 1건이 취향에 기여하는 정도 = **행동 종류 그 자체**(주문 3·담기 2·수량 변경 1·삭제 0). 곱하는 축이 더 없다 — 경과 시간은 2026-09-06, 수량은 2026-09-07에 뺐다. 값: [`taste-vector` 스펙](../specs/taste-vector/taste-vector-pipeline.md) 비즈니스 규칙 | `calculateEventWeight` |
+| 행동 가중치 | 행동 종류별 계수. 주문 확정 > 장바구니 담기 > 수량 변경 순이고, 취소·삭제는 0이라 취향에 전혀 반영되지 않는다 | `calculateEventWeight` |
 | 가중 평균 · L2 정규화 | 상품 벡터를 비중대로 더한 뒤 길이를 1로 맞추는 것. 길이를 맞춰야 상품 벡터와 코사인 유사도로 비교할 수 있다 | `blendIntoProfileVector` |
 | 갱신 스킵 게이트 | 조회 기간 안의 로그가 최소 개수에 못 미치면 프로필을 만들지 않는 조건(값: `taste-vector` 스펙 비즈니스 규칙) | `MIN_TOTAL_LOGS_FOR_EMBEDDING` |
 | 경험 상품 (Source Product IDs) | 비중이 0이 아닌 장바구니·주문 로그의 상품 ID. 개인화 추천에서 제외한다. 삭제·취소한 상품은 여기 들어가지 않아 다시 추천될 수 있다 | `sourceProductIds` |
-| 프로필 갱신 트리거 | 검색 1회·장바구니 이벤트 1건·주문 이벤트 1건마다 재계산. 세 경로 모두 전용 빈을 거쳐 실제로 비동기다 | `UserProfileRefreshTrigger` |
+| 프로필 갱신 트리거 | 장바구니 이벤트 1건·주문 이벤트 1건마다 재계산. 두 경로 모두 전용 빈을 거쳐 실제로 비동기다 | `UserProfileRefreshTrigger` |
 | 주문 확정 시점 | `baro-order`가 `inventory-confirmed`를 받아 `AWAITING_PAYMENT → CONFIRMED`로 바꾸는 순간. `ORDER_CONFIRMED` 이벤트는 여기서만 발행 | `InventoryConfirmedConsumer` |
 | 게스트 장바구니 | `X-Session-Key`만 있는 장바구니. userId가 없어 Kafka 이벤트가 발행되지 않는다 | `HistoryLogWriter.sendToKafka` |
 
@@ -95,3 +93,4 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 2026-09-05 | "카테고리 일치 보너스" 항목 삭제(두 추천 경로 모두 제거됨). "메도이드" 코드명 병기를 빼고 `MaxMinDiversityService`로 갱신. "추천 공통 경로" 추가 |
 | 2026-09-05 | "오탈자 매칭"의 대상 필드를 `productName.word`로, "자동완성 접두어"의 조회 방식을 `match`로 갱신 |
 | 2026-09-05 | "판매 기회 보너스"·"후보 점수" 삭제(서버 채점 로직 제거). "후보 원본" 추가 |
+| 2026-09-07 | 감사 taste-vector/005 반영 — '수량 가중치'·'상위 결과 상품' 용어 삭제(축·신호 자체가 없어짐), '행동 가중치'·'프로필 갱신 트리거'에서 검색 제거 |

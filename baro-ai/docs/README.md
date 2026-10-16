@@ -27,7 +27,7 @@
 
 ### 🎪 작업 단위 (2026-09-04부터 이 4개가 감사·문서·설명의 기본 단위 — 매핑 SSOT: [`specs/README.md`](specs/README.md))
 
-1. **취향 벡터** — 검색/장바구니/주문 로그 → 프로필 벡터 → 개인화 추천 ([스펙](specs/taste-vector/taste-vector-pipeline.md))
+1. **취향 벡터** — 장바구니/주문 로그 → 프로필 벡터 → 개인화 추천 ([스펙](specs/taste-vector/taste-vector-pipeline.md))
 2. **장바구니 레시피** — 장바구니 → 보유 재료 → LLM 레시피 후보 → 서버 검증 → 부족 재료 상품 ([스펙](specs/cart-recipe/recipe-recommendation.md))
 3. **임베딩 유사도 검색** — 상품 임베딩 → 벡터 검색 → 다양화 → 유사 상품 추천 ([스펙](specs/vector-similarity/vector-similarity-search.md))
 4. **키워드 검색** — 상품 이벤트 색인 → 키워드 검색 → 자동완성 ([스펙](specs/keyword-search/product-search-and-autocomplete.md))
@@ -53,9 +53,9 @@ graph LR
 
 **사용자 행동 로그 → 행동 비중 → 상품 벡터 가중 평균 → 상품 매칭** 방식의 추천 엔진
 
-- **입력**: 검색/장바구니/주문 로그 (각 타입별 최대 5개씩, 총 최대 15개)
+- **입력**: 장바구니/주문 로그 (각 타입별 최대 5개씩, 총 최대 10개)
 - **처리**:
-  - 로그마다 이벤트 종류 × 수량 가중치 계산 (삭제·취소는 0이라 제외. 시간 감쇠 축은 2026-09-06에 삭제 — 효과가 없었다)
+  - 로그마다 이벤트 종류로 비중 계산 (삭제·취소는 0이라 제외. 시간 감쇠 축은 2026-09-06에, 수량 축은 2026-09-07에 삭제 — 앞은 효과가 없었고 뒤는 선호가 아니라 소비량이었다)
   - 로그에 등장한 상품이 이미 가진 벡터를 비중대로 가중 평균한 뒤 L2 정규화
   - 1536차원 벡터로 사용자 취향 표현 (외부 임베딩 API 호출 없음)
 - **출력**: Top-K 개인화 상품 리스트 (상품 ID, 이름, 카테고리, 가격 포함)
@@ -167,8 +167,7 @@ src/main/java/com/barofarm/ai/
 │   │   ├── search/
 │   │   └── chatbot/
 │   ├── repository/         # 리포지토리 인터페이스 (영속성 추상화)
-│   │   ├── RecommendationRepository.java
-│   │   └── SearchLogRepository.java
+│   │   └── RecommendationRepository.java
 │   └── service/            # 도메인 서비스 (선택적)
 │
 ├── 📁 application/          # 🚀 애플리케이션 계층: 유스케이스 구현

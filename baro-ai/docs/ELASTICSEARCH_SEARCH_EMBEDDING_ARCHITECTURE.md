@@ -11,7 +11,7 @@
 - 검색 인덱스: `product`
 - 자동완성 인덱스: `product-autocomplete`
 - 사용자 프로필 벡터 인덱스: `user_profile_embeddings`
-- 로그 인덱스: 검색/장바구니/주문 로그 전용 도큐먼트 인덱스
+- 로그 인덱스: 장바구니/주문 로그 전용 도큐먼트 인덱스
 
 핵심 특징:
 
@@ -276,12 +276,12 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 
 ## 8) 사용자 프로필 임베딩 파이프라인 (개인화 추천 보조)
 
-검색·장바구니·주문 세 경로가 모두 `UserProfileRefreshTrigger.refresh(userId)`를 거쳐 백그라운드로 실행한다:
+장바구니·주문 두 경로가 `UserProfileRefreshTrigger.refresh(userId)`를 거쳐 백그라운드로 실행한다(검색은 2026-09-07에 신호에서 빠졌다):
 
-1. 최근 30일 로그 수집 (search/cart/order, 각 최대 5개)
+1. 최근 30일 로그 수집 (cart/order, 각 최대 5개)
 2. 로그 수가 최소치(총 3개) 미만이면 스킵
-3. 로그마다 비중 계산(이벤트 종류 × 수량). 비중 0(삭제·취소)인 로그는 여기서 빠진다
-4. 로그의 상품 벡터를 `product` 인덱스에서 일괄 조회 (검색 로그는 저장해 둔 `topProductIds` 사용)
+3. 로그마다 비중 계산(이벤트 종류 하나로 결정 — 주문 3·담기 2·수량 변경 1). 비중 0(삭제·취소)인 로그는 여기서 빠진다
+4. 로그의 상품 벡터를 `product` 인덱스에서 일괄 조회
 5. 비중대로 더한 뒤 L2 정규화
 6. `user_profile_embeddings` 저장
 

@@ -11,7 +11,7 @@ baro-ai가 지금 무엇을 제공하고, 무엇을 아직 제공하지 않는�
 
 | 작업 단위 | 제공하는 것 | 스펙 |
 |-----------|-------------|------|
-| 취향 벡터 | 검색·장바구니·주문 로그 수집, 프로필 벡터 생성, 개인화 추천 API | [`taste-vector-pipeline.md`](../specs/taste-vector/taste-vector-pipeline.md) |
+| 취향 벡터 | 장바구니·주문 로그 수집, 프로필 벡터 생성, 개인화 추천 API | [`taste-vector-pipeline.md`](../specs/taste-vector/taste-vector-pipeline.md) |
 | 장바구니 레시피 | 장바구니 기반 레시피 1개 + 부족 재료 상품 추천 API | [`recipe-recommendation.md`](../specs/cart-recipe/recipe-recommendation.md) |
 | 임베딩 유사도 검색 | 상품 임베딩, 벡터 유사도 검색, 다양화, 유사 상품 추천 API | [`vector-similarity-search.md`](../specs/vector-similarity/vector-similarity-search.md) |
 | 키워드 검색 | 상품 이벤트 색인, 키워드 검색 API, 자동완성 API | [`product-search-and-autocomplete.md`](../specs/keyword-search/product-search-and-autocomplete.md) |

@@ -38,7 +38,7 @@ baro-ai에는 RDB가 없다. 상품의 원본은 `baro-shopping`(MySQL)이고, b
 | 2. 소비 | `ProductEventConsumer` | 그룹 `ai-service`(팩토리가 정한다 — 리스너 어노테이션에는 적지 않는다), **묶음 리스너 — poll당 최대 5건, 묶음 처리 허용 15분**(2026-09-06), 실패 시 실패 레코드 위치를 담아 던져(`BatchListenerFailedException`) 앞 레코드는 커밋, 실패 레코드부터 1초 간격 2회 재시도 후 그 레코드만 건너뜀. 생성·수정은 모아서 한 번에 색인하고, 삭제를 만나면 모인 색인을 먼저 내보낸 뒤 삭제한다(같은 상품의 생성→삭제 순서 보존). 역직렬화 실패 레코드는 리스너에 닿기 전에 `DefaultErrorHandler`가 재시도 없이 건너뜀 | [`KafkaConsumerConfig.java`](../../../src/main/java/com/barofarm/ai/config/KafkaConsumerConfig.java), [`ProductEventConsumer.java`](../../../src/main/java/com/barofarm/ai/search/infrastructure/event/ProductEventConsumer.java) |
 | 3. 색인 | `ProductIndexService.indexProducts` | 묶음 임베딩(Gemini `batchEmbedContents` 1회, 실패 시 상품별 폴백 → 실패한 상품만 `null`) → 요리 재료명(상품별 1회)(LLM(Large Language Model, 거대 언어 모델), 실패 시 `""`) → `product-autocomplete` `saveAll` → `product` `saveAll`(인덱스당 bulk 1회). `updatedAt`은 이벤트 값(발행 시각)을 그대로 쓰고 없을 때만 현재 시각. CREATED·UPDATED 모두 전체 덮어쓰기 | [`ProductIndexService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductIndexService.java) |
 | 4. 삭제 | `ProductIndexService.deleteProduct` | 두 인덱스에서 삭제 | 동일 |
-| 5. 검색 | `GET /api/v1/search` | 페이징 파라미터 검증 → `bool` 쿼리(should 3 + filter) → `_score desc, updatedAt desc` → 벡터를 뺀 `_source`만 받아 `CustomPage`. `X-User-Id`와 검색어가 있으면 검색 로그 적재 + 프로필 갱신을 비동기 작업 하나로 제출([`taste-vector`](../taste-vector/taste-vector-pipeline.md)) | [`ProductSearchService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductSearchService.java) |
+| 5. 검색 | `GET /api/v1/search` | 페이징 파라미터 검증 → `bool` 쿼리(should 3 + filter) → `_score desc, updatedAt desc` → 벡터를 뺀 `_source`만 받아 `CustomPage`. **조회만 하고 아무것도 기록하지 않는다** — 2026-09-07까지는 검색 로그를 남겼으나 검색이 취향 신호에서 빠지며 제거됐다 | [`ProductSearchService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductSearchService.java) |
 | 6. 자동완성 | `GET /api/v1/search/autocomplete` | `size` 검증 → 2글자 미만 빈 배열 → Caffeine 캐시(키 `query-size`, 1,000개·5분) → `match`(`operator=and`) + 상태 필터 | `ProductSearchService.autocomplete`, `ProductAutocompleteRepository` |
 
 ## API / 인터페이스
@@ -107,7 +107,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 | 자동완성 캐시 | Caffeine 최대 1,000개·TTL 5분·인스턴스별 | `CacheConfig`, [`decisions/001`](../../decisions/001-autocomplete-caching.md) |
 | 자동완성 접두어 길이 | `edge_ngram` 1~20자, `token_chars` letter·digit | `settings/autocomplete-analyzer.json` |
 | 자동완성 쿼리 | `match`(`operator=and`) + 상태 필터. 색인 쪽 `edge_ngram`이 이미 접두어를 갖고 있어 조회에서 다시 확장하지 않는다 | `ProductAutocompleteRepository` |
-| 검색 로그 | `X-User-Id` + 검색어 있을 때만. 로그 적재와 프로필 갱신을 **한 비동기 작업**으로 제출하고 응답 스레드는 기다리지 않는다(2026-09-06). 실행자 큐(100건)가 차면 로그도 갱신과 함께 버려진다 — 취향 분석용 부가 데이터라 허용 | `UserProfileRefreshTrigger.recordSearchAndRefresh` |
+| 검색 로그 | **없다.** 검색 API는 부작용이 없는 조회다. `X-User-Id` 헤더도 더 이상 읽지 않는다(2026-09-07, [`audits/taste-vector/005`](../../audits/taste-vector/005-signal-and-weight-simplification.md) A-1) | — |
 
 ### 배포 전제 (게이트웨이·인프라)
 
@@ -132,7 +132,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 
 - [x] 자동완성 1글자 → 빈 배열
 - [x] 임베딩·재료명 실패해도 상품 색인 유지
-- [x] 검색 로그 저장 실패 → 검색 응답 정상
+- [x] 검색에 부가 작업이 없다 — 회원 검색 963회에서 비동기 제출 0건(2026-09-07 로컬 확인)
 - [ ] `"청송사고"`(오탈자) 검색 → `productName.word` 전환 후 `"청송사과 프리미엄 1kg"`이 나와야 한다 (2026-09-05 리팩터, 로컬 ES 미기동으로 미확인)
 
 ### 수동 확인 (로컬)
@@ -166,7 +166,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 | `spring.kafka.consumer.*` yml 값이 커스텀 팩토리에 안 읽힘 | 확정 | [`audits/search/001`](../../audits/search/001-index-path.md) C-1 |
 | `updatedAt`이 "상품이 바뀐 시각"이 아님 | 확정 | 발행 측이 `Instant.now()`를 찍어 보낸다(`ProductEventPublisher.java:53`). 색인 시각을 쓰던 흔들림은 2026-09-05에 없앴지만, 재발행으로 전체를 다시 색인하면 최신순이 무의미해진다. 발행 모듈 담당자 확인 `[미정]` — [`open-items.md`](../../audits/open-items.md) B-11 |
 | 재색인·재정규화 경로 없음 | 확정 | Track A `specify` 대상 |
-| 검색 로그 유실 가능 | 확정(허용) | 2026-09-06 비동기화로 실행자 큐(100건) 초과 시 로그가 버려진다. 이전엔 갱신만 버려졌다. 취향 벡터는 다음 행동에서 재계산되므로 허용 — [`audits/keyword-search/002`](../../audits/keyword-search/002-index-throughput-and-search-log.md) A-2 |
+| ~~검색 로그 유실 가능~~ | **해소(2026-09-07)** | 실측에서 유실률이 37~65%로 확인됐고([`audits/taste-vector/004`](../../audits/taste-vector/004-executor-fix-measurement.md)), 그 뒤 검색 로그 자체를 없애 리스크가 사라졌다 |
 | Gemini 무료 티어 한도 | 확정 | 2026-09-06 실측: 임베딩을 1건씩 보내면 13번째부터 429, 10건 묶음은 연속 성공. 재색인 규모가 크면 유료 티어 또는 묶음 크기 조정이 필요 `[미정]` |
 | `application-local.yml` 없음 | 확정 | 로컬 기동 시 Gemini 키·Kafka 주소를 env로만 줘야 함 |
 
@@ -174,7 +174,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 
 - [`vector-similarity-search.md`](../vector-similarity/vector-similarity-search.md) — 색인 시 만드는 상품 벡터
 - [`cart-recipe/recipe-recommendation.md`](../cart-recipe/recipe-recommendation.md) — 색인 시 만드는 요리 재료명
-- [`taste-vector-pipeline.md`](../taste-vector/taste-vector-pipeline.md) — 검색 로그가 흘러가는 곳
+- [`taste-vector-pipeline.md`](../taste-vector/taste-vector-pipeline.md) — 개인화 추천. 2026-09-07부터 검색과 코드 의존이 없다
 - [`audits/search/001-index-path.md`](../../audits/search/001-index-path.md) · [`002-llm-prompt-tuning.md`](../../audits/search/002-llm-prompt-tuning.md) — 이전 라운드 감사
 - [`decisions/001`](../../decisions/001-autocomplete-caching.md) · [`002`](../../decisions/002-ingredient-name-at-index-time.md)
 
@@ -187,3 +187,4 @@ SSOT: `search/exception/SearchErrorCode.java`
 | 2026-09-05 | 감사 001 A·B 전 항목 반영 — 오탈자 매칭 필드·허용 범위·최소 길이 변경, 자동완성 쿼리 단순화, `_source`에서 벡터 제외, 페이징 검증·`SearchErrorCode` 신설, 자동완성 조회를 `ProductSearchService`로 이동, `updatedAt`을 이벤트 값으로 |
 | 2026-09-05 | `updatedAt` 서술 정정 — 이벤트 값은 "상품이 바뀐 시각"이 아니라 **발행 시각**이다(발행 측 `Instant.now()`). 비즈니스 규칙·흐름 행을 고치고 남은 한계를 리스크 표에 추가 |
 | 2026-09-06 | 감사 002 반영 — 상품 이벤트 묶음 소비(poll당 5건·15분)와 묶음 색인(임베딩 1회·인덱스당 bulk 1회, 실패 시 상품별 폴백), 검색 로그 적재를 비동기 작업으로 이동, 페이징·자동완성·색인 단위 테스트 도입. 측정 M-3 근거 |
+| 2026-09-07 | 검색 로그 적재를 **제거**. 검색이 취향 신호에서 빠지면서 소비자가 없어졌다(감사 [`taste-vector/005`](../../audits/taste-vector/005-signal-and-weight-simplification.md) A-1). 검색 API는 이제 부작용 없는 조회이고 `X-User-Id`를 읽지 않는다 |

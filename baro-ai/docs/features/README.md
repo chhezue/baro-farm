@@ -17,7 +17,7 @@ baro-ai의 기능을 **주제 4개**로 나누고, 주제마다 "무엇을 왜 �
 | **검색** | `keyword-search` | 상품 이벤트로 검색 인덱스를 채우고, 키워드 검색과 자동완성을 제공한다 | [`keyword-search.md`](keyword-search.md) |
 | **임베딩 검색** | `vector-similarity` | 상품명을 벡터로 만들어 "비슷한 상품"을 찾고, 서로 겹치지 않게 고른다 | [`vector-similarity.md`](vector-similarity.md) |
 | **장바구니 레시피** | `cart-recipe` | 장바구니 재료로 LLM이 레시피를 만들고, 부족한 재료를 살 수 있는 상품으로 연결한다 | [`cart-recipe.md`](cart-recipe.md) |
-| **개인별 추천** | `taste-vector` | 검색·장바구니·주문 행동을 취향 벡터로 바꿔 개인화 추천을 한다 | [`taste-vector.md`](taste-vector.md) |
+| **개인별 추천** | `taste-vector` | 장바구니·주문 행동을 취향 벡터로 바꿔 개인화 추천을 한다 | [`taste-vector.md`](taste-vector.md) |
 
 경계에서 헷갈리기 쉬운 것 두 가지:
 

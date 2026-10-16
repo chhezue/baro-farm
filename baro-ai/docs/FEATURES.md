@@ -72,18 +72,21 @@
 
 1. **로그 수집** (각 타입별 최대 5개씩)
    ```java
-   List<SearchLogDocument> searchLogs;  // 최대 5개
    List<CartLogDocument> cartLogs;      // 최대 5개
    List<OrderLogDocument> orderLogs;    // 최대 5개
    ```
+   검색 로그는 2026-09-07에 신호에서 뺐다 — 사용자가 고른 상품이 아니라 검색 결과 상위에 뜬
+   상품을 취향으로 삼는 방식이었다(`docs/audits/taste-vector/005-signal-and-weight-simplification.md`).
 
 2. **품질 검증**
    - 총 로그 개수가 3개 미만이면 임베딩 생성 건너뜀
 
-3. **로그별 비중 계산**
-   - 검색: 상위 노출 상품 최대 3개에 각각 1.0
-   - 장바구니: 이벤트 타입 × 수량(최대 5)
-   - 주문: 이벤트 타입 × 수량(최대 5)
+3. **로그별 비중 계산** — 이벤트 타입 하나로 정해진다(곱하는 축이 없다)
+   - 장바구니: 담기 2 · 수량 변경 1 · 삭제 0
+   - 주문: 확정 3 · 취소 0
+
+   수량 축은 2026-09-07에 뺐다. 수량은 선호의 세기가 아니라 소비량이고, `quantity`의 의미가
+   이벤트마다 달라(담기는 증분, 수량 변경은 새 총량) 같은 식에 넣을 수 없는 값이었다.
 
 4. **프로필 벡터 계산**
    - 로그 상품이 이미 가진 `ProductDocument.vector`를 비중대로 가중 평균 후 L2 정규화
@@ -95,16 +98,17 @@
 
 #### 가중치 계산 규칙
 
-| 로그 타입 | 이벤트 타입 | 가중치 | 수량 |
-|----------|------------|--------|------|
-| 검색 | - | 1.0 | - |
-| 장바구니 | CART_ITEM_ADDED | 2 | `min(max(1, 수량), 5)` |
-| 장바구니 | CART_QUANTITY_UPDATED | 1 | `min(max(1, 수량), 5)` |
-| 장바구니 | CART_ITEM_REMOVED | 0 | - (제외) |
-| 주문 | ORDER_CONFIRMED | 3 | `min(max(1, 수량), 5)` |
-| 주문 | ORDER_CANCELLED | 0 | - (제외) |
+| 로그 타입 | 이벤트 타입 | 비중 |
+|----------|------------|------|
+| 장바구니 | CART_ITEM_ADDED | 2 |
+| 장바구니 | CART_QUANTITY_UPDATED | 1 |
+| 장바구니 | CART_ITEM_REMOVED | 0 (제외) |
+| 주문 | ORDER_CONFIRMED | 3 |
+| 주문 | ORDER_CANCELLED | 0 (제외) |
 
-시간 감쇠 축(7일 반감기)은 2026-09-06에 삭제했다 — 유형별 최근 5건만 읽는 구조에서는 한 번의 쇼핑으로 생긴 로그가 전부 같은 시간대라 감쇠값이 같고, L2 정규화가 그 배수를 소거해 결과에 영향이 없었다. 근거: `docs/audits/taste-vector/002-weight-axes-and-tests.md`.
+이 값이 곧 로그 1건의 최종 비중이다 — 곱하는 축이 더 없어서 범위가 0 또는 1~3이다.
+
+한때 여기에 두 축을 더 곱했으나 둘 다 뺐다. **시간 감쇠**(7일 반감기, 2026-09-06 삭제)는 유형별 최근 5건만 읽는 구조에서 한 번의 쇼핑 로그가 전부 같은 시간대라 감쇠값이 같고, L2 정규화가 그 배수를 소거해 결과에 영향이 없었다(`docs/audits/taste-vector/002-weight-axes-and-tests.md`). **수량**(2026-09-07 삭제)은 선호의 세기가 아니라 소비량이었다(`docs/audits/taste-vector/005-signal-and-weight-simplification.md`).
 
 #### 상품 임베딩 생성
 
@@ -250,7 +254,7 @@ GET /api/v1/search?q=사과&categories=AGRI_FRUIT_SEASONAL&priceMin=1000&priceMa
 - `size`: 페이지 크기 (기본값: 10)
 
 #### 요청 헤더
-- `X-User-Id` (선택): 사용자 ID. 존재하는 경우에만 검색 행동 로그를 남깁니다.
+- `X-User-Id`: 검색 API는 2026-09-07부터 이 헤더를 읽지 않습니다 — 검색이 취향 신호에서 빠지며 로그 적재 경로가 사라졌습니다.
 
 #### 응답 형식
 ```json
