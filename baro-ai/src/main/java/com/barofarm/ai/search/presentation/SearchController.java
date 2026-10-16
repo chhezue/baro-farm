@@ -10,10 +10,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,8 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
  * 1. 상품 키워드 검색: `GET /api/v1/search`
  *    - 검색 대상 텍스트는 상품명(`productName`) 하나이고, 카테고리·가격은 매칭이 아니라 필터로만 쓰입니다.
  *      상품 문서에 설명 필드는 없습니다. 페이징을 지원합니다.
- *    - 로그인 사용자의 경우 취향 벡터 갱신을 위한 검색 로그가 함께 기록됩니다.
- *      로그 적재와 취향 벡터 재계산은 한 작업으로 별도 스레드에 넘어가고, 응답 스레드는 제출만 합니다.
+ *    - 조회만 하고 아무것도 기록하지 않습니다. 2026-09-07까지는 회원 검색마다 취향 분석용 로그를
+ *      남겼으나, 검색을 취향 신호에서 빼면서 그 경로를 지웠습니다.
  * 2. 실시간 검색어 자동완성: `GET /api/v1/search/autocomplete`
  *    - 사용자가 검색창에 키워드를 타이핑할 때 Edge N-gram 역색인을 통해 연관 상품명을 최대 size건 추천.
  */
@@ -42,7 +40,6 @@ public class SearchController {
     /**
      * 키워드, 카테고리, 가격 범위를 조건으로 상품 목록을 페이지네이션 검색합니다.
      *
-     * @param userId     요청 헤더(X-User-Id)에서 추출한 로그인 사용자 UUID (비회원 검색 시 null 가능)
      * @param q          사용자 입력 검색어 (비어있을 경우 전체 상품 목록 조회)
      * @param categories 필터링할 상품 카테고리 목록 (선택)
      * @param priceMin   최소 상품 가격 필터 (원)
@@ -54,7 +51,6 @@ public class SearchController {
     @Operation(summary = "검색", description = "키워드로 상품 검색. 카테고리/가격 필터 선택 가능.")
     @GetMapping
     public ResponseDto<CustomPage<ProductSearchResponse>> search(
-        @RequestHeader(value = "X-User-Id", required = false) UUID userId,
         @Parameter(description = "검색어", example = "토마토", required = false) @RequestParam(required = false) String q,
         @Parameter(description = "카테고리 (복수 가능)") @RequestParam(required = false) List<String> categories,
         @Parameter(description = "최소 가격") @RequestParam(required = false) Long priceMin,
@@ -67,8 +63,8 @@ public class SearchController {
         ProductSearchRequest request = new ProductSearchRequest(q, categories, priceMin, priceMax);
 
         // [2단계: 검색 서비스 호출 및 응답 반환]
-        // Elasticsearch 역색인 검색 수행 및 비동기 검색 행동 로그 적재
-        return ResponseDto.ok(productSearchService.search(userId, request, page, size));
+        // Elasticsearch 역색인 검색 수행 (기록·부가 작업 없음 — 조회만 한다)
+        return ResponseDto.ok(productSearchService.search(request, page, size));
     }
 
     /**

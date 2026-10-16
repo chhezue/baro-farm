@@ -13,7 +13,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.barofarm.ai.embedding.application.UserProfileRefreshTrigger;
 import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
 import com.barofarm.ai.search.application.dto.product.ProductSearchResponse;
 import com.barofarm.ai.search.domain.ProductDocument;
@@ -33,23 +32,23 @@ import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.query.Query;
 
 /**
- * 검색 서비스의 ES 앞단 계약을 고정한다 — 페이징·자동완성 입력 검증(ES를 부르기 전에 400으로 끊는다),
- * 키워드 여러 개 조회가 `multiSearch` 한 번으로 끝나는 것, 검색 로그·프로필 갱신이 응답 스레드가 아니라
- * 트리거 제출 한 번으로 끝나는 것. ES·리포지토리는 전부 mock이다.
+ * 검색 서비스의 ES 앞단 계약을 고정한다 — 페이징·자동완성 입력 검증(ES를 부르기 전에 400으로 끊는다)과
+ * 키워드 여러 개 조회가 `multiSearch` 한 번으로 끝나는 것. ES·리포지토리는 전부 mock이다.
+ *
+ * 검색 로그 적재·프로필 갱신 테스트는 2026-09-07에 지웠다 — 검색을 취향 신호에서 빼면서 그 경로 자체가
+ * 없어졌다(docs/audits/taste-vector/005-signal-and-weight-simplification.md).
  */
 class ProductSearchServiceTest {
 
     private ElasticsearchOperations operations;
-    private UserProfileRefreshTrigger trigger;
     private ProductAutocompleteRepository autocompleteRepository;
     private ProductSearchService service;
 
     @BeforeEach
     void setUp() {
         operations = mock(ElasticsearchOperations.class);
-        trigger = mock(UserProfileRefreshTrigger.class);
         autocompleteRepository = mock(ProductAutocompleteRepository.class);
-        service = new ProductSearchService(operations, trigger, autocompleteRepository);
+        service = new ProductSearchService(operations, autocompleteRepository);
     }
 
     // ---- 페이징 검증 (keyword-search/001 A-4 계약) ----
@@ -57,7 +56,7 @@ class ProductSearchServiceTest {
     @Test
     @DisplayName("search — page가 음수면 INVALID_PAGE, ES는 부르지 않는다")
     void search_negativePage_rejected() {
-        assertThatThrownBy(() -> service.search(null, keyword("사과"), -1, 10))
+        assertThatThrownBy(() -> service.search(keyword("사과"), -1, 10))
             .isInstanceOf(CustomException.class)
             .extracting("errorCode").isEqualTo(SearchErrorCode.INVALID_PAGE);
         verifyNoInteractions(operations);
@@ -66,10 +65,10 @@ class ProductSearchServiceTest {
     @Test
     @DisplayName("search — size는 1~100, 0과 101은 INVALID_PAGE_SIZE")
     void search_sizeOutOfRange_rejected() {
-        assertThatThrownBy(() -> service.search(null, keyword("사과"), 0, 0))
+        assertThatThrownBy(() -> service.search(keyword("사과"), 0, 0))
             .isInstanceOf(CustomException.class)
             .extracting("errorCode").isEqualTo(SearchErrorCode.INVALID_PAGE_SIZE);
-        assertThatThrownBy(() -> service.search(null, keyword("사과"), 0, 101))
+        assertThatThrownBy(() -> service.search(keyword("사과"), 0, 101))
             .isInstanceOf(CustomException.class)
             .extracting("errorCode").isEqualTo(SearchErrorCode.INVALID_PAGE_SIZE);
         verifyNoInteractions(operations);
@@ -79,7 +78,7 @@ class ProductSearchServiceTest {
     @DisplayName("search — (page+1)×size가 10,000을 넘으면 PAGE_RANGE_EXCEEDED (ES max_result_window)")
     void search_beyondResultWindow_rejected() {
         // page 99 × size 101은 size에서 먼저 걸리므로, size 100 · page 100 → 10,100
-        assertThatThrownBy(() -> service.search(null, keyword("사과"), 100, 100))
+        assertThatThrownBy(() -> service.search(keyword("사과"), 100, 100))
             .isInstanceOf(CustomException.class)
             .extracting("errorCode").isEqualTo(SearchErrorCode.PAGE_RANGE_EXCEEDED);
         verifyNoInteractions(operations);
@@ -91,50 +90,9 @@ class ProductSearchServiceTest {
         SearchHits<ProductDocument> empty = hits();
         when(operations.search(any(Query.class), eq(ProductDocument.class))).thenReturn(empty);
 
-        service.search(null, keyword("사과"), 99, 100);
+        service.search(keyword("사과"), 99, 100);
 
         verify(operations, times(1)).search(any(Query.class), eq(ProductDocument.class));
-    }
-
-    // ---- 검색 로그·프로필 갱신 (keyword-search/002 A-2) ----
-
-    @Test
-    @DisplayName("search — 회원 검색이면 로그 적재+갱신을 트리거에 한 번 제출하고, 상위 상품 ID는 최대 3개다")
-    void search_memberSubmitsOneAsyncJob() {
-        UUID userId = UUID.randomUUID();
-        SearchHits<ProductDocument> perQuery = hits(document("사과 1"), document("사과 2"), document("사과 3"), document("사과 4"));
-        when(operations.search(any(Query.class), eq(ProductDocument.class))).thenReturn(perQuery);
-
-        service.search(userId, keyword("사과"), 0, 10);
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<UUID>> topIds = ArgumentCaptor.forClass(List.class);
-        verify(trigger, times(1)).recordSearchAndRefresh(eq(userId), eq("사과"), topIds.capture(), any(Instant.class));
-        assertThat(topIds.getValue()).hasSize(3);
-        verify(trigger, never()).refresh(any());
-    }
-
-    @Test
-    @DisplayName("search — 비회원이거나 검색어가 없으면 트리거를 부르지 않는다")
-    void search_guestOrNoKeyword_noSideEffect() {
-        SearchHits<ProductDocument> empty = hits();
-        when(operations.search(any(Query.class), eq(ProductDocument.class))).thenReturn(empty);
-
-        service.search(null, keyword("사과"), 0, 10);
-        service.search(UUID.randomUUID(), new ProductSearchRequest("  ", null, null, null), 0, 10);
-
-        verifyNoInteractions(trigger);
-    }
-
-    @Test
-    @DisplayName("search — 트리거 제출이 실패해도 검색 결과는 정상 반환된다")
-    void search_triggerFailureDoesNotBreakSearch() {
-        SearchHits<ProductDocument> one = hits(document("사과"));
-        when(operations.search(any(Query.class), eq(ProductDocument.class))).thenReturn(one);
-        org.mockito.Mockito.doThrow(new RuntimeException("executor down"))
-            .when(trigger).recordSearchAndRefresh(any(), anyString(), anyList(), any());
-
-        assertThat(service.search(UUID.randomUUID(), keyword("사과"), 0, 10).content()).hasSize(1);
     }
 
     // ---- 자동완성 검증 ----
@@ -181,7 +139,6 @@ class ProductSearchServiceTest {
         assertThat(result.get(0)).extracting(ProductSearchResponse::productName).containsExactly("대파 1단");
         assertThat(result.get(1)).isEmpty();
         assertThat(result.get(2)).extracting(ProductSearchResponse::productName).containsExactly("새우젓 500g");
-        verifyNoInteractions(trigger);
     }
 
     @Test

@@ -5,7 +5,6 @@ import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
 import co.elastic.clients.json.JsonData;
-import com.barofarm.ai.embedding.application.UserProfileRefreshTrigger;
 import com.barofarm.ai.search.application.dto.product.ProductAutoCompleteResponse;
 import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
 import com.barofarm.ai.search.application.dto.product.ProductSearchResponse;
@@ -14,9 +13,7 @@ import com.barofarm.ai.search.exception.SearchErrorCode;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ProductAutocompleteRepository;
 import com.barofarm.dto.CustomPage;
 import com.barofarm.exception.CustomException;
-import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
@@ -33,18 +30,16 @@ import org.springframework.stereotype.Service;
  *
  * Elasticsearch를 활용하여 키워드 유사도 매칭(정확 구문, 형태소 분절, 오탈자 보정)과
  * 다중 필터(판매 상태, 카테고리, 가격 범위)를 조합한 복합 상품 검색을 수행하며,
- * 검색 성공 시 사용자 취향 분석을 위한 검색 로그 적재와 프로필 벡터 갱신을 {@link UserProfileRefreshTrigger}에
- * 한 작업으로 넘깁니다 — 둘 다 별도 스레드에서 돌고, 응답 스레드는 제출만 합니다(2026-09-06 이전에는 로그 적재가
- * 응답 스레드에서 동기로 실행됐다 — docs/audits/keyword-search/002 A-2).
+ * 조회만 하고 아무것도 기록하지 않습니다. 2026-09-07까지는 회원 검색마다 검색 로그를 남기고 취향 벡터
+ * 갱신을 요청했으나, 검색을 취향 신호에서 빼면서 그 경로를 통째로 지웠다 — 검색 결과 상위에 뜬 상품을
+ * 그 사람의 취향으로 삼는 방식이었기 때문이다.
+ * 근거: docs/audits/taste-vector/005-signal-and-weight-simplification.md
  * 상품명 접두어 자동완성 조회도 같은 조회 경로라 여기에 둡니다.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProductSearchService {
-
-    /** 취향 분석용 검색 로그에 보존할 상위 검색 결과 상품 최대 개수 (3건) */
-    private static final int SEARCH_LOG_TOP_PRODUCT_LIMIT = 3;
 
     /** 오탈자 매칭을 적용할 최소 검색어 길이 */
     private static final int MIN_FUZZY_KEYWORD_LENGTH = 2;
@@ -67,23 +62,18 @@ public class ProductSearchService {
     /** Spring Data Elasticsearch 네이티브 쿼리 실행 템플릿 */
     private final ElasticsearchOperations operations;
 
-    /** 사용자 프로필 벡터 비동기 갱신 트리거 컴포넌트 */
-    private final UserProfileRefreshTrigger userProfileRefreshTrigger;
-
     /** 상품명 접두어 자동완성 Elasticsearch 레포지토리 */
     private final ProductAutocompleteRepository autocompleteRepository;
 
     /**
      * 키워드 및 다중 필터 조건에 부합하는 상품 목록을 페이징 조회합니다.
      *
-     * @param userId 검색을 수행한 사용자 ID (비로그인 시 null)
      * @param request 검색 요청 파라미터 (키워드, 카테고리 목록, 가격 범위)
      * @param page 0부터 시작하는 페이지 번호
      * @param size 페이지당 상품 수 (1~100)
      * @return 페이징 처리된 상품 검색 결과 응답
      */
     public CustomPage<ProductSearchResponse> search(
-        UUID userId,
         ProductSearchRequest request,
         int page,
         int size
@@ -99,30 +89,7 @@ public class ProductSearchService {
         // [3단계: 검색 결과 DTO 변환 및 CustomPage 페이징 포장]
         List<ProductSearchResponse> items = toResponses(hits);
 
-        CustomPage<ProductSearchResponse> resultPage =
-            CustomPage.of(hits.getTotalHits(), items, pageable);
-
-        // [4단계: 부가 작업 제출 (검색 로그 적재 + 취향 벡터 갱신)]
-        // 회원 검색이면서 검색어가 존재하는 경우, 상위 검색 결과 상품 ID(최대 3개)와 함께 트리거에 넘긴다.
-        // 로그 적재와 갱신은 별도 스레드에서 순서대로 돌고, 여기서는 제출만 하므로 검색 응답 시간에 ES 쓰기가 들어가지 않는다.
-        // 여기서 잡는 예외는 제출 실패(실행자 종료 등)뿐이다 — 큐가 찼을 때는 예외 없이 버려진다(AsyncConfig 거부 정책).
-        if (userId != null && request.keyword() != null && !request.keyword().isBlank()) {
-            try {
-                // 취향 벡터 산출 시 검색어 대신 활용할 상위 노출 상품 ID(최대 3개) 추출
-                List<UUID> topProductIds = items.stream()
-                    .map(ProductSearchResponse::productId)
-                    .limit(SEARCH_LOG_TOP_PRODUCT_LIMIT)
-                    .toList();
-
-                userProfileRefreshTrigger.recordSearchAndRefresh(
-                    userId, request.keyword(), topProductIds, Instant.now());
-            } catch (Exception e) {
-                log.warn("❌ 검색 부가 작업 제출 실패(로그 적재·프로필 갱신) - 사용자: {}, 검색어: {}, 원인: {}",
-                    userId, request.keyword(), e.getMessage(), e);
-            }
-        }
-
-        return resultPage;
+        return CustomPage.of(hits.getTotalHits(), items, pageable);
     }
 
     /**

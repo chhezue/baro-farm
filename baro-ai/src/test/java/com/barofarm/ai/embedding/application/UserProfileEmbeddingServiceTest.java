@@ -13,8 +13,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * 취향 벡터의 비중 계산과 가중 평균을 고정한다. 전부 인스턴스 상태 없는 순수 계산이라 mock이 없다.
- * 비중 범위(0 또는 1~15)와 "같은 배수는 정규화에서 소거된다"는 사실을 테스트 이름으로 남긴다 —
- * 후자가 시간 감쇠 축을 뺀 근거다(감사 taste-vector/002 F-1).
+ * 비중은 행동 종류 하나로만 정해지므로 범위가 0 또는 1~3이다 — 2026-09-07에 수량 축을 빼면서
+ * 15배였던 범위가 3배로 줄었다(docs/audits/taste-vector/005-signal-and-weight-simplification.md).
+ * "같은 배수는 정규화에서 소거된다"는 사실도 이름으로 남긴다 — 그게 시간 감쇠 축을 뺀 근거다(감사 002 F-1).
  */
 class UserProfileEmbeddingServiceTest {
 
@@ -30,34 +31,16 @@ class UserProfileEmbeddingServiceTest {
         assertThat(UserProfileEmbeddingService.calculateEventWeight(HistoryEventType.ORDER_CANCELLED)).isZero();
     }
 
-    // ---- 수량 가중치 ----
+    // ---- 비중 범위 ----
 
     @Test
-    @DisplayName("수량 가중치 — null·0은 1로, 5를 넘으면 5로 자른다")
-    void quantityWeight_clampsBetweenOneAndFive() {
-        assertThat(UserProfileEmbeddingService.quantityWeight(null)).isEqualTo(1);
-        assertThat(UserProfileEmbeddingService.quantityWeight(0)).isEqualTo(1);
-        assertThat(UserProfileEmbeddingService.quantityWeight(-3)).isEqualTo(1);
-        assertThat(UserProfileEmbeddingService.quantityWeight(3)).isEqualTo(3);
-        assertThat(UserProfileEmbeddingService.quantityWeight(5)).isEqualTo(5);
-        assertThat(UserProfileEmbeddingService.quantityWeight(100)).isEqualTo(UserProfileEmbeddingService.MAX_QUANTITY_WEIGHT);
-    }
+    @DisplayName("비중 범위 — 0(삭제·취소) 또는 1~3이다. 곱하는 축이 더 없어 수량이 커도 달라지지 않는다")
+    void eventWeight_rangeIsZeroOrOneToThree() {
+        assertThat(UserProfileEmbeddingService.calculateEventWeight(HistoryEventType.CART_QUANTITY_UPDATED)).isEqualTo(1);
+        assertThat(UserProfileEmbeddingService.calculateEventWeight(HistoryEventType.ORDER_CONFIRMED)).isEqualTo(3);
 
-    // ---- 행동 비중 (행동 × 수량) ----
-
-    @Test
-    @DisplayName("행동 비중 — 범위는 0(삭제·취소) 또는 1~15(수량변경 1개 ~ 주문 5개 이상)")
-    void behaviorWeight_rangeIsZeroOrOneToFifteen() {
-        assertThat(UserProfileEmbeddingService.behaviorWeight(HistoryEventType.CART_QUANTITY_UPDATED, 1)).isEqualTo(1.0);
-        assertThat(UserProfileEmbeddingService.behaviorWeight(HistoryEventType.ORDER_CONFIRMED, 100)).isEqualTo(15.0);
-        assertThat(UserProfileEmbeddingService.behaviorWeight(HistoryEventType.CART_ITEM_ADDED, 3)).isEqualTo(6.0);
-    }
-
-    @Test
-    @DisplayName("행동 비중 — 삭제·취소는 수량이 아무리 커도 0이다")
-    void behaviorWeight_removalIsZeroRegardlessOfQuantity() {
-        assertThat(UserProfileEmbeddingService.behaviorWeight(HistoryEventType.CART_ITEM_REMOVED, 100)).isZero();
-        assertThat(UserProfileEmbeddingService.behaviorWeight(HistoryEventType.ORDER_CANCELLED, 100)).isZero();
+        // 같은 이벤트면 장바구니에 1개를 담든 100개를 담든 비중이 같다 (2026-09-07 수량 축 삭제)
+        assertThat(UserProfileEmbeddingService.calculateEventWeight(HistoryEventType.CART_ITEM_ADDED)).isEqualTo(2);
     }
 
     // ---- 가중 평균 · L2 정규화 ----
@@ -104,9 +87,9 @@ class UserProfileEmbeddingServiceTest {
         Map<UUID, float[]> vectors = Map.of(a, new float[] {1f, 0f}, b, new float[] {0f, 1f});
 
         float[] favorsA = UserProfileEmbeddingService.blendIntoProfileVector(
-            List.of(new WeightedProduct(a, 15.0), new WeightedProduct(b, 1.0)), vectors);
+            List.of(new WeightedProduct(a, 3.0), new WeightedProduct(b, 1.0)), vectors);
         float[] favorsB = UserProfileEmbeddingService.blendIntoProfileVector(
-            List.of(new WeightedProduct(a, 1.0), new WeightedProduct(b, 15.0)), vectors);
+            List.of(new WeightedProduct(a, 1.0), new WeightedProduct(b, 3.0)), vectors);
 
         assertThat(favorsA[0]).isGreaterThan(favorsA[1]);
         assertThat(favorsB[1]).isGreaterThan(favorsB[0]);

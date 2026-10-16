@@ -4,10 +4,8 @@ import com.barofarm.ai.embedding.domain.UserProfileEmbeddingDocument;
 import com.barofarm.ai.embedding.infrastructure.elasticsearch.UserProfileEmbeddingRepository;
 import com.barofarm.ai.log.domain.CartLogDocument;
 import com.barofarm.ai.log.domain.OrderLogDocument;
-import com.barofarm.ai.log.domain.SearchLogDocument;
 import com.barofarm.ai.log.infrastructure.elasticsearch.CartLogRepository;
 import com.barofarm.ai.log.infrastructure.elasticsearch.OrderLogRepository;
-import com.barofarm.ai.log.infrastructure.elasticsearch.SearchLogRepository;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ProductSearchRepository;
 import com.barofarm.log.history.model.HistoryEventType;
 import java.time.Instant;
@@ -27,13 +25,23 @@ import org.springframework.stereotype.Service;
 /**
  * 사용자 행동 로그 기반 취향 프로필 벡터 생성 및 갱신 서비스.
  *
- * 최근 30일간의 장바구니, 주문, 검색 로그를 분석하여 사용자가 관심을 보인 상품들의 임베딩 벡터를
- * 행동 유형·수량에 따른 가중치로 가중 평균(Weighted Average)하고 L2 정규화하여
+ * 최근 30일간의 장바구니·주문 로그를 분석하여 사용자가 관심을 보인 상품들의 임베딩 벡터를
+ * 행동 유형 가중치로 가중 평균(Weighted Average)하고 L2 정규화하여
  * 1536차원 사용자 취향 벡터를 생성 및 저장합니다.
  *
- * 시간 감쇠 축은 2026-09-06에 뺐다. 로그를 유형별 최근 5건만 읽는 구조에서는 한 번의 쇼핑으로 생긴 로그가
+ * 가중치는 행동 종류 하나로만 정해진다 — 주문 3, 담기 2, 수량 변경 1, 취소·삭제 0이다.
+ * 한때 여기에 시간 감쇠와 수량을 더 곱했으나 둘 다 뺐다.
+ *
+ * 시간 감쇠(2026-09-06 삭제): 로그를 유형별 최근 5건만 읽는 구조에서는 한 번의 쇼핑으로 생긴 로그가
  * 전부 같은 시간대라 감쇠값이 같고, 결과를 L2 정규화하므로 같은 배수는 소거된다 — 계산만 하고 결과에 영향이 없었다.
  * "오래된 행동은 덜 본다"는 의도는 30일 조회 창이 담당한다. 근거: docs/audits/taste-vector/002-weight-axes-and-tests.md F-1·F-2
+ *
+ * 수량(2026-09-07 삭제): 수량은 선호의 세기가 아니라 소비량이다. 계란 30구를 사는 것은 계란을 다섯 배
+ * 좋아해서가 아니라 계란이 그렇게 팔리기 때문이다. 게다가 quantity의 의미가 이벤트마다 달라(담기는 증분,
+ * 수량 변경은 새 총량) 같은 식에 넣을 수 없는 값이었다. 유효 가중치 범위도 15배에서 3배로 줄었다.
+ *
+ * 검색 로그(2026-09-07 삭제): 검색은 사용자가 고른 상품이 아니라 검색 엔진이 상위에 올린 상품을 취향으로
+ * 삼는 것이어서 신호로 쓰지 않는다. 자세한 근거는 docs/audits/taste-vector/005-signal-and-weight-simplification.md
  */
 @Slf4j
 @Service
@@ -46,14 +54,8 @@ public class UserProfileEmbeddingService {
     /** 로그 수집 대상 기간 (최근 30일) */
     private static final int LOOKBACK_DAYS = 30;
 
-    /** 로그 유형(검색/장바구니/주문)별로 최신순으로 가져올 최대 건수 */
+    /** 로그 유형(장바구니/주문)별로 최신순으로 가져올 최대 건수 */
     private static final int RECENT_LOG_LIMIT = 5;
-
-    /** 검색 이벤트의 기본 가중치 */
-    private static final double SEARCH_EVENT_WEIGHT = 1.0;
-
-    /** 수량 가중치 최대 상한선 (단일 대량 구매로 인한 벡터 왜곡 방지) */
-    static final int MAX_QUANTITY_WEIGHT = 5;
 
     /** 벡터 유효성 판정을 위한 최소 노름(norm) 임계값 (0 나누기 및 부동소수점 오차 방지) */
     private static final double MIN_VECTOR_LENGTH = 1e-6;
@@ -63,9 +65,6 @@ public class UserProfileEmbeddingService {
 
     /** 주문 행동 로그 레포지토리 */
     private final OrderLogRepository orderLogRepository;
-
-    /** 검색 행동 로그 레포지토리 */
-    private final SearchLogRepository searchLogRepository;
 
     /** 상품 검색 및 임베딩 벡터 조회 레포지토리 */
     private final ProductSearchRepository productSearchRepository;
@@ -80,46 +79,35 @@ public class UserProfileEmbeddingService {
      */
     public void updateUserProfileEmbedding(UUID userId) {
         // [1단계: 최근 30일간의 행동 로그 조회]
-        // 최근 30일(LOOKBACK_DAYS) 이내에 발생한 검색, 장바구니, 주문 로그를 각 도메인별로 최신순 최대 5건(RECENT_LOG_LIMIT)씩 조회합니다.
+        // 최근 30일(LOOKBACK_DAYS) 이내에 발생한 장바구니·주문 로그를 각각 최신순 최대 5건(RECENT_LOG_LIMIT)씩 조회합니다.
         Instant since = Instant.now().minus(LOOKBACK_DAYS, ChronoUnit.DAYS);
         Pageable recent = PageRequest.of(0, RECENT_LOG_LIMIT);
 
-        List<SearchLogDocument> searchLogs = searchLogRepository
-            .findAllByUserIdAndSearchedAtAfterOrderBySearchedAtDesc(userId, since, recent);
         List<CartLogDocument> cartLogs = cartLogRepository
             .findAllByUserIdAndOccurredAtAfterOrderByOccurredAtDesc(userId, since, recent);
         List<OrderLogDocument> orderLogs = orderLogRepository
             .findAllByUserIdAndOccurredAtAfterOrderByOccurredAtDesc(userId, since, recent);
 
-        int totalLogCount = searchLogs.size() + cartLogs.size() + orderLogs.size();
+        int totalLogCount = cartLogs.size() + orderLogs.size();
 
         // [2단계: 최소 로그 조건 검증]
         // 조회된 총 로그 수가 최소 기준치(MIN_TOTAL_LOGS_FOR_EMBEDDING = 3건) 미만이면
         // 취향을 판별할 데이터가 부족하므로 프로필 갱신을 건너뜁니다.
         if (totalLogCount < MIN_TOTAL_LOGS_FOR_EMBEDDING) {
             log.info("사용자 ID {}의 총 로그 개수({})가 {}개 미만이므로 프로필 갱신을 건너뜁니다. "
-                    + "(검색:{}, 장바구니:{}, 주문:{})",
+                    + "(장바구니:{}, 주문:{})",
                 userId, totalLogCount, MIN_TOTAL_LOGS_FOR_EMBEDDING,
-                searchLogs.size(), cartLogs.size(), orderLogs.size());
+                cartLogs.size(), orderLogs.size());
             return;
         }
 
         // [3단계: 로그별 가중치를 반영한 관심 상품(WeightedProduct) 산출]
-        // - 장바구니/주문: 행동 종류(주문 3점, 담기 2점, 수량변경 1점, 취소/삭제 0점) × 수량 가중치(최대 5) 적용
-        // - 검색: 검색어 자체가 아닌 상위 노출 상품 목록(topProductIds)에 검색 가중치(1.0) 적용
-        // - 가중치가 0(삭제/취소)이거나 상품 정보가 누락된 무효 항목은 filter(WeightedProduct::isUsable)로 제외합니다.
-        List<WeightedProduct> cartAndOrderInterests = Stream.concat(
+        // 행동 종류만으로 가중치를 정합니다 — 주문 3점, 담기 2점, 수량 변경 1점, 취소·삭제 0점.
+        // 가중치가 0(삭제/취소)이거나 상품 정보가 누락된 무효 항목은 filter(WeightedProduct::isUsable)로 제외합니다.
+        List<WeightedProduct> interests = Stream.concat(
             cartLogs.stream().map(this::toWeightedProduct),
             orderLogs.stream().map(this::toWeightedProduct)
         ).filter(WeightedProduct::isUsable).toList();
-
-        List<WeightedProduct> searchInterests = searchLogs.stream()
-            .flatMap(this::toWeightedProducts)
-            .filter(WeightedProduct::isUsable)
-            .toList();
-
-        List<WeightedProduct> interests =
-            Stream.concat(cartAndOrderInterests.stream(), searchInterests.stream()).toList();
 
         if (interests.isEmpty()) {
             log.info("사용자 ID {}의 로그에 취향으로 볼 만한 상품이 없어 프로필을 저장하지 않습니다.", userId);
@@ -142,7 +130,7 @@ public class UserProfileEmbeddingService {
         // [6단계: 기경험 상품 목록 추출 및 Elasticsearch 프로필 문서 영속화]
         // 이미 담거나 구매한 상품 ID를 추천 제외 대상('sourceProductIds')으로 분리하고,
         // 최종 계산된 프로필 벡터와 함께 Elasticsearch 'user_profile_embeddings' 인덱스에 저장합니다.
-        List<UUID> sourceProductIds = cartAndOrderInterests.stream()
+        List<UUID> sourceProductIds = interests.stream()
             .map(WeightedProduct::productId)
             .distinct()
             .toList();
@@ -170,44 +158,17 @@ public class UserProfileEmbeddingService {
 
     /** 장바구니 로그를 가중치 적용 상품 객체로 변환 */
     private WeightedProduct toWeightedProduct(CartLogDocument cartLog) {
-        return new WeightedProduct(cartLog.getProductId(),
-            behaviorWeight(cartLog.getEventType(), cartLog.getQuantity()));
+        return new WeightedProduct(cartLog.getProductId(), calculateEventWeight(cartLog.getEventType()));
     }
 
     /** 주문 로그를 가중치 적용 상품 객체로 변환 */
     private WeightedProduct toWeightedProduct(OrderLogDocument orderLog) {
-        return new WeightedProduct(orderLog.getProductId(),
-            behaviorWeight(orderLog.getEventType(), orderLog.getQuantity()));
+        return new WeightedProduct(orderLog.getProductId(), calculateEventWeight(orderLog.getEventType()));
     }
 
     /**
-     * 검색 로그의 상위 노출 상품들을 가중치 적용 상품 스트림으로 변환.
-     * 검색어 텍스트 대신 상위 노출 상품들의 벡터에 검색 이벤트 가중치를 적용합니다.
-     */
-    private Stream<WeightedProduct> toWeightedProducts(SearchLogDocument searchLog) {
-        List<UUID> topProductIds = searchLog.getTopProductIds();
-        if (topProductIds == null || topProductIds.isEmpty()) {
-            return Stream.empty();
-        }
-
-        return topProductIds.stream().map(productId -> new WeightedProduct(productId, SEARCH_EVENT_WEIGHT));
-    }
-
-    /**
-     * 단일 행동 로그의 종합 가중치 계산 (행동 가중치 × 수량 가중치).
-     * 범위는 0(삭제·취소) 또는 1~15(수량변경 1개 ~ 주문 5개 이상)다.
+     * 이벤트 유형별 중요도 가중치. 이 값이 곧 로그 1건의 최종 가중치다 — 곱하는 축이 더 없다.
      * 테스트에서 직접 부를 수 있게 패키지 접근이다 — 인스턴스 상태를 쓰지 않는다.
-     */
-    static double behaviorWeight(HistoryEventType eventType, Integer quantity) {
-        int eventWeight = calculateEventWeight(eventType);
-        if (eventWeight == 0) {
-            return 0.0;
-        }
-        return eventWeight * quantityWeight(quantity);
-    }
-
-    /**
-     * 이벤트 유형별 기본 중요도 가중치 정의.
      * - ORDER_CONFIRMED: 3 (실제 구매로 가장 강력한 선호 표현)
      * - CART_ITEM_ADDED: 2 (구매 고려 단계의 높은 관심)
      * - CART_QUANTITY_UPDATED: 1 (관심 유지)
@@ -220,16 +181,6 @@ public class UserProfileEmbeddingService {
             case CART_QUANTITY_UPDATED -> 1;
             case CART_ITEM_REMOVED, ORDER_CANCELLED -> 0;
         };
-    }
-
-    /**
-     * 수량에 따른 가중치 산출 (최소 1, 최대 5로 클램핑).
-     */
-    static int quantityWeight(Integer quantity) {
-        if (quantity == null) {
-            return 1;
-        }
-        return Math.min(Math.max(1, quantity), MAX_QUANTITY_WEIGHT);
     }
 
     /**
