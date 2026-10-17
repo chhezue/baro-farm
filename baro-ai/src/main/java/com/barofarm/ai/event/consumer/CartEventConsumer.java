@@ -46,8 +46,8 @@ public class CartEventConsumer {
                           @Header(KafkaHeaders.OFFSET) long offset) {
         CartLogEvent.CartEventData data = event.payload();
 
-        log.debug("[CART_CONSUMER] Received cart event - Type: {}, User ID: {}, Product: {}, Quantity: {}",
-            event.event(), event.userId(), data.productName(), data.quantity());
+        log.debug("[CART_CONSUMER] Received cart event - Type: {}, User ID: {}, Product: {}",
+            event.event(), event.userId(), data.productName());
 
         // [1단계: 이벤트 도메인 및 유효성 검증]
         // 이벤트 종류(event.event())가 누락되었거나 도메인이 CART가 아닌 타 도메인 이벤트가 수신된 경우,
@@ -62,15 +62,14 @@ public class CartEventConsumer {
             // [2단계: Elasticsearch 행동 로그 영속화 (멱등성 보장)]
             // Kafka의 '{partition}-{offset}' 조합을 Elasticsearch 문서 ID로 사용하여,
             // 컨슈머 재시도가 발생하더라도 동일 문서를 덮어쓰도록 하여 로그 중복 적재를 방지합니다.
-            // 이벤트 타입(추가 2점, 수량변경 1점, 삭제 0점)과 수량, 발생 일시는 가중치 계산을 위해 원본 그대로 저장합니다.
+            // 취향 계산에 실제로 쓰이는 것만 저장합니다 — 행동 종류(추가 2점, 수량변경 1점, 삭제 0점)와
+            // 발생 일시(30일 조회 창·최신순 정렬의 기준)입니다.
             logWriteService.saveCartEventLog(
                 partition + "-" + offset,
                 event.userId(),
                 data.productId(),
                 data.productName(),
-                data.categoryCode(),
                 event.event(),
-                data.quantity(),
                 event.ts().toInstant()
             );
             log.info("[CART_CONSUMER] Successfully saved cart event - Type: {}, User: {}, Product: {}",

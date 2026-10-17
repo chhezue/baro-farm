@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
  * AI 기반 상품 및 레시피 추천 API 엔드포인트를 제공하는 프리젠테이션 컨트롤러입니다.
  *
  * [제공 기능]
- * 1. 개인화 상품 추천: 사용자의 누적 행동(장바구니/주문/검색) 취향 벡터 기반 맞춤 상품 목록 제공 (`/personalized/{userId}`)
+ * 1. 개인화 상품 추천: 사용자의 누적 행동(장바구니·주문) 취향 벡터 기반 맞춤 상품 목록 제공 (`/personalized/{userId}`)
  * 2. 장바구니 기반 레시피 추천: 사용자의 장바구니 식재료로 조리 가능한 레시피 및 부족한 재료 구매 연관 상품 제공 (`/recipes/{userId}`)
  * 3. 유사 상품 추천: 특정 상품 상세 페이지에서 해당 상품과 성격이 가장 가까운 대체/연관 상품 목록 제공 (`/similar/{productId}`)
  */

@@ -8,8 +8,8 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 /**
  * 비동기 처리를 위한 설정 클래스.
- * 사용자 프로필 벡터 업데이트 등 메인 비즈니스 흐름(이벤트 소비, 검색 응답)과 분리되어
- * 백그라운드에서 실행되는 작업을 전담하는 스레드 풀을 정의합니다.
+ * 사용자 프로필 벡터 갱신을 메인 흐름(장바구니·주문 이벤트 소비)에서 떼어 내
+ * 백그라운드에서 실행하는 전용 스레드 풀을 정의합니다. 제출하는 곳은 UserProfileRefreshTrigger 하나뿐입니다.
  */
 @Slf4j
 @Configuration

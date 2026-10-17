@@ -22,11 +22,6 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.elasticsearch.client.elc.NativeQuery;
-import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
-import org.springframework.data.elasticsearch.core.SearchHit;
-import org.springframework.data.elasticsearch.core.query.FetchSourceFilter;
 import org.springframework.stereotype.Service;
 
 /**
@@ -35,7 +30,7 @@ import org.springframework.stereotype.Service;
  *
  * [핵심 프로세스]
  * 1. CartClient를 통해 사용자의 현재 장바구니 품목들을 조회합니다.
- * 2. 가공식품, 생필품 등 요리와 무관한 카테고리 상품을 필터링하여 제외합니다.
+ * 2. 레시피 재료로 쓰지 않기로 한 카테고리(현재는 과일 4종)의 상품을 걸러냅니다.
  * 3. Elasticsearch에 사전 색인된 상품 문서의 재료명(ProductDocument.ingredientName)을 일괄 조회하여 보유 재료 목록을 도출합니다.
  *    (요청 시점마다 LLM으로 재료를 파싱하지 않고 색인 시점에 미리 정규화된 재료명을 읽어 지연 시간과 비용을 획기적으로 절감)
  * 4. RecipeCandidateGenerator를 통해 LLM 기반으로 현재 보유 재료로 조리 가능한 레시피를 생성합니다.
@@ -52,13 +47,10 @@ public class RecipeRecommendService {
     /** 부족한 식재료 1개당 추천하여 함께 노출할 연관 상품 최대 개수 (현재 2건) */
     private static final int MISSING_PRODUCTS_LIMIT_PER_INGREDIENT = 2;
 
-    /** 보유 재료명 조회에는 ingredientName만 쓰므로 Elasticsearch에서 받지 않을 필드 목록 */
-    private static final String[] EXCLUDED_SOURCE_FIELDS = {"vector"};
-
     /** `baro-shopping`의 장바구니 API를 호출해 사용자의 장바구니 품목을 조회하는 Feign 클라이언트 */
     private final CartClient cartClient;
 
-    /** 부족한 재료명을 키워드로 입력받아 실제 판매 중인 상품을 Elasticsearch에서 검색하는 서비스 */
+    /** 부족 재료 상품 검색과 장바구니 상품 문서 조회를 맡는 서비스 — 상품 인덱스 질의는 전부 이쪽을 거친다 */
     private final ProductSearchService productSearchService;
 
     /** Gemini LLM 구조화 출력을 활용해 식재료 기반 레시피를 생성하는 제너레이터 */
@@ -66,9 +58,6 @@ public class RecipeRecommendService {
 
     /** 레시피 추천에서 제외할 카테고리 코드 목록 등을 관리하는 설정 프로퍼티 */
     private final RecommendProperties recommendProperties;
-
-    /** 장바구니 상품 ID 목록으로 상품 문서를 일괄 조회할 때 쓰는 Elasticsearch 쿼리 실행 템플릿 */
-    private final ElasticsearchOperations operations;
 
     /**
      * 특정 사용자의 장바구니 상품을 기반으로 레시피 및 부족한 재료 연관 상품을 추천합니다.
@@ -102,8 +91,11 @@ public class RecipeRecommendService {
             return RecipeRecommendResponse.empty(RecipeRecommendReason.EMPTY_CART);
         }
 
-        // [2단계: 비(非)식재료 카테고리 상품 필터링]
-        // 주방용품, 가전 등 레시피 식재료로 부적합한 카테고리(설정 파일에 정의된 exclude-recipe-category-codes)를 제외합니다.
+        // [2단계: 레시피 제외 카테고리 상품 필터링]
+        // 설정 파일(recipe-recommend.yml)의 exclude-recipe-category-codes에 적힌 카테고리를 걸러냅니다.
+        // 현재 값은 과일 4종(AGRI_FRUIT·AGRI_FRUIT_SEASONAL·AGRI_FRUIT_STORAGE·AGRI_FRUIT_BERRY)뿐입니다 —
+        // 이 쇼핑몰은 농산물만 팔아 "요리에 못 쓰는 상품"이라는 분류 자체가 없기 때문입니다.
+        // 과일을 왜 빼는지는 당시 관찰이 남아 있지 않습니다(docs/specs/cart-recipe/recipe-quality-redesign.md).
         final List<String> categoriesToExcludeByCode =
             recommendProperties.getExcludeRecipeCategoryCodes();
 
@@ -228,22 +220,14 @@ public class RecipeRecommendService {
             .toList();
 
         // [2단계: Elasticsearch 상품 문서 일괄 조회]
-        // 여기서 쓰는 값은 ingredientName 한 필드뿐인데, 상품 문서에는 추천용 1536차원 벡터가 함께 들어 있다.
-        // 문서 하나가 벡터를 포함하면 약 21KB, 빼면 약 371바이트다(keyword-search/001 A-3 실측).
-        // 장바구니 상품 수만큼 곱해지는 낭비라, 검색 경로와 같이 _source에서 vector를 제외하고 받는다.
-        NativeQuery query = NativeQuery.builder()
-            .withQuery(q -> q.ids(i -> i.values(productIds.stream().map(UUID::toString).toList())))
-            .withSourceFilter(FetchSourceFilter.of(null, EXCLUDED_SOURCE_FIELDS))
-            .withPageable(PageRequest.of(0, productIds.size()))
-            .build();
-
-        List<SearchHit<ProductDocument>> hits = operations.search(query, ProductDocument.class).getSearchHits();
+        // 상품 인덱스 질의는 ProductSearchService가 맡는다 — 벡터를 빼고 받는 것도 그쪽이 처리한다.
+        List<ProductDocument> documents = productSearchService.findByIds(productIds);
 
         List<String> ingredientNames = new ArrayList<>();
-        for (SearchHit<ProductDocument> hit : hits) {
+        for (ProductDocument document : documents) {
             // 재료명 문자열 정규화 (공백 제거, 소문자화)
             String ingredientName =
-                IngredientProcessingUtil.normalizeForCompare(hit.getContent().getIngredientName());
+                IngredientProcessingUtil.normalizeForCompare(document.getIngredientName());
             if (!ingredientName.isBlank()) {
                 ingredientNames.add(ingredientName);
             }
@@ -254,7 +238,7 @@ public class RecipeRecommendService {
         int skipped = productIds.size() - ingredientNames.size();
         if (skipped > 0) {
             log.warn("보유 재료로 세지 못한 상품 {}건 (조회된 문서 {}/{}건). 상품 재색인이 필요할 수 있습니다. userId: {}",
-                skipped, hits.size(), productIds.size(), userIdentifier);
+                skipped, documents.size(), productIds.size(), userIdentifier);
         }
 
         // 중복 재료명을 제거한 최종 고유 재료 목록 반환

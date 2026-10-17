@@ -38,20 +38,12 @@ public class OrderLogDocument {
     @Field(type = FieldType.Text, analyzer = "nori")
     private String productName;
 
-    /** 상품 카테고리 코드 */
-    @Field(type = FieldType.Keyword)
-    private String categoryCode;
-
     /**
      * 주문 이벤트 유형 (ORDER_CONFIRMED, ORDER_CANCELLED).
      * 취향 벡터 계산 시 이벤트 중요도 매핑(확정 3점, 취소 0점)에 사용됩니다.
      */
     @Field(type = FieldType.Keyword)
     private HistoryEventType eventType;
-
-    /** 구매 수량 (취향 벡터 가중치 산출 시 관심 강도로 반영, 최대 5로 제한됨) */
-    @Field(type = FieldType.Integer)
-    private Integer quantity;
 
     /** 주문 발생 일시 (취향 벡터 계산의 30일 조회 창·최신순 정렬 기준) */
     @Field(type = FieldType.Date, format = {}, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
@@ -62,17 +54,13 @@ public class OrderLogDocument {
                             UUID userId,
                             UUID productId,
                             String productName,
-                            String categoryCode,
                             HistoryEventType eventType,
-                            Integer quantity,
                             Instant occurredAt) {
         this.id = id;
         this.userId = userId;
         this.productId = productId;
         this.productName = productName;
-        this.categoryCode = categoryCode;
         this.eventType = eventType;
-        this.quantity = quantity;
         this.occurredAt = occurredAt;
     }
 }

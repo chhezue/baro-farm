@@ -15,7 +15,7 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
  *
  * [주요 보관 데이터]
  * - userId: 사용자 고유 식별자 (문서 @Id)
- * - userProfileVector: 사용자의 최근 30일간 행동 로그(장바구니/주문/검색)를 종합하여 산출된 1536차원 L2 정규화 취향 벡터
+ * - userProfileVector: 사용자의 최근 30일간 행동 로그(장바구니·주문)를 종합하여 산출된 1536차원 L2 정규화 취향 벡터
  * - lastUpdatedAt: 프로필 벡터가 마지막으로 계산·저장된 시각
  * - sourceProductIds: 취향 벡터 산출 시 반영된 기경험(장바구니/주문) 상품 ID 목록 (개인화 추천 시 제외 필터로 사용)
  */

@@ -1,6 +1,7 @@
 package com.barofarm.ai.search.domain;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import lombok.Getter;
 import org.springframework.data.annotation.Id;
@@ -27,6 +28,16 @@ import org.springframework.data.elasticsearch.annotations.MultiField;
 @Getter
 @Document(indexName = "product")
 public class ProductDocument {
+
+    /**
+     * 검색·추천·자동완성이 결과에 내보내는 판매 상태. 지금 실제로 살 수 있는 상품만 고른다는 뜻이다.
+     *
+     * 이 목록을 늘리거나 줄이면 세 경로가 함께 움직여야 한다 — 키워드 검색, 벡터 유사도 후보 조회,
+     * 그리고 자동완성이다. 자동완성만 이 상수를 쓰지 못한다(레포지토리 @Query 문자열이라 값을 끼워 넣을 수
+     * 없다) — ProductAutocompleteRepository.findByPrefix의 status 목록을 같이 고쳐야 한다.
+     * 근거: docs/audits/cross-cutting/003-stale-comments-and-write-only-fields.md B-3
+     */
+    public static final List<String> PURCHASABLE_STATUSES = List.of("ON_SALE", "DISCOUNTED");
 
     /** 상품 고유 식별자 (Elasticsearch 문서의 @Id) */
     @Id

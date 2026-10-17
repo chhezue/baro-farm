@@ -1,10 +1,8 @@
 package com.barofarm.ai.recommend.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -29,10 +27,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
-import org.springframework.data.elasticsearch.core.SearchHit;
-import org.springframework.data.elasticsearch.core.SearchHits;
-import org.springframework.data.elasticsearch.core.query.Query;
 
 /**
  * 레시피를 만들지 못한 5가지 상황이 각각 다른 이유 코드로 나가는지, 정상 경로에서 부족 재료 상품 조회가
@@ -45,7 +39,6 @@ class RecipeRecommendServiceTest {
     private CartClient cartClient;
     private ProductSearchService productSearchService;
     private RecipeCandidateGenerator generator;
-    private ElasticsearchOperations operations;
     private RecipeRecommendService service;
 
     @BeforeEach
@@ -53,12 +46,11 @@ class RecipeRecommendServiceTest {
         cartClient = mock(CartClient.class);
         productSearchService = mock(ProductSearchService.class);
         generator = mock(RecipeCandidateGenerator.class);
-        operations = mock(ElasticsearchOperations.class);
 
         RecommendProperties properties = new RecommendProperties();
         properties.setExcludeRecipeCategoryCodes(List.of("AGRI_FRUIT"));
 
-        service = new RecipeRecommendService(cartClient, productSearchService, generator, properties, operations);
+        service = new RecipeRecommendService(cartClient, productSearchService, generator, properties);
     }
 
     @Test
@@ -95,7 +87,7 @@ class RecipeRecommendServiceTest {
 
         assertThat(service.recommendFromCartWithMissing(USER_ID).reason())
             .isEqualTo(RecipeRecommendReason.NO_ELIGIBLE_ITEMS);
-        verify(operations, never()).search(any(Query.class), eq(ProductDocument.class));
+        verify(productSearchService, never()).findByIds(anyList());
     }
 
     @Test
@@ -184,17 +176,7 @@ class RecipeRecommendServiceTest {
             null, ingredientName, null);
     }
 
-    @SuppressWarnings("unchecked")
     private void stubOwnedDocuments(ProductDocument... documents) {
-        List<SearchHit<ProductDocument>> hitList = java.util.Arrays.stream(documents)
-            .map(doc -> {
-                SearchHit<ProductDocument> hit = mock(SearchHit.class);
-                when(hit.getContent()).thenReturn(doc);
-                return hit;
-            })
-            .toList();
-        SearchHits<ProductDocument> hits = mock(SearchHits.class);
-        when(hits.getSearchHits()).thenReturn(hitList);
-        when(operations.search(any(Query.class), eq(ProductDocument.class))).thenReturn(hits);
+        when(productSearchService.findByIds(anyList())).thenReturn(List.of(documents));
     }
 }

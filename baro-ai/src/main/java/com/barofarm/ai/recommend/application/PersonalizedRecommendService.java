@@ -10,13 +10,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * 사용자 행동 이력(장바구니, 주문, 검색 등)으로 사전 계산된 취향 벡터를 기반으로
+ * 사용자 행동 이력(장바구니·주문)으로 사전 계산된 취향 벡터를 기반으로
  * 개인화 맞춤 상품을 추천하는 애플리케이션 서비스입니다.
  *
  * [주요 특징]
  * 1. Elasticsearch에 저장된 1536차원 사용자 취향 프로필 벡터를 조회합니다.
  * 2. 이미 구매하거나 담았던 경험 상품(sourceProductIds)은 추천에서 제외합니다.
  * 3. 공통 추천 파이프라인(VectorRecommendPipeline)으로 전달하여 벡터 유사도 검색 및 Max-Min 다양화를 거친 상품을 추천합니다.
+ *
+ * 취향 신호는 장바구니·주문 두 가지입니다 — 검색은 사용자가 고른 상품이 아니라 검색 엔진이 상위에 올린
+ * 상품을 취향으로 삼는 것이어서 2026-09-07에 뺐습니다.
+ * 근거: docs/audits/taste-vector/005-signal-and-weight-simplification.md
  */
 @Slf4j
 @Service

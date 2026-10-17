@@ -144,15 +144,13 @@ public class VectorProductSearchService {
         }
 
         // [판매 상태 필터 (filter)]
-        // 현재 실제로 구매 가능한 상품(ON_SALE, DISCOUNTED)만 추천 대상에 포함합니다.
+        // 현재 실제로 구매 가능한 상품만 추천 대상에 포함합니다. 목록은 ProductDocument가 갖고 있습니다 —
+        // 검색 경로와 같은 값을 써야 "검색에는 뜨는데 추천에는 안 뜨는" 상태가 생기지 않습니다.
         b.filter(f -> f
             .terms(t -> t
                 .field("status")
                 .terms(v -> v.value(
-                    List.of(
-                        FieldValue.of("ON_SALE"),
-                        FieldValue.of("DISCOUNTED")
-                    )
+                    ProductDocument.PURCHASABLE_STATUSES.stream().map(FieldValue::of).toList()
                 ))
             )
         );

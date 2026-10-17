@@ -15,6 +15,9 @@ import org.springframework.data.elasticsearch.repository.ElasticsearchRepository
  *   "토마토" 색인 시 ["토", "토마", "토마토"] 접두어 토큰들이 역색인 사전에 미리 저장됩니다.
  * - 조회: 따라서 검색 시 복잡한 정규식이나 wildcard 쿼리 대신 단순 `match` 쿼리로 접두어 토큰을 O(1) 수준으로 매우 빠르게 탐색할 수 있습니다.
  * - 상태 필터: 현재 구매 가능한 `ON_SALE` 및 `DISCOUNTED` 상태의 상품만 자동완성 후보로 노출합니다.
+ *   같은 목록을 검색·추천은 `ProductDocument.PURCHASABLE_STATUSES`에서 읽습니다. 여기만 값을 문자열로
+ *   적어 두는데, `@Query`는 어노테이션이라 상수를 끼워 넣을 수 없기 때문입니다 — 상태를 늘리거나 줄일 때는
+ *   그 상수와 아래 `status` 목록을 **같이** 고쳐야 합니다.
  */
 public interface ProductAutocompleteRepository
     extends ElasticsearchRepository<ProductAutocompleteDocument, UUID> {

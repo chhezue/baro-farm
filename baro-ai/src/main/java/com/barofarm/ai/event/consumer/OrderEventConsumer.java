@@ -69,7 +69,7 @@ public class OrderEventConsumer {
             // 문서 ID를 '{partition}-{offset}-{index}' 조합으로 생성하여,
             // 한 주문 내 동일 상품이 중복 라인으로 존재하더라도 데이터 유실 없이 각각 저장되며,
             // Kafka 컨슈머 재시도 시에도 동일 ID를 덮어쓰므로 멱등성이 보장됩니다.
-            // (이벤트 타입은 ORDER_CONFIRMED: 관심도 최상 3점, ORDER_CANCELLED: 취소 0점으로 원본 저장)
+            // (이벤트 타입은 ORDER_CONFIRMED: 관심도 최상 3점, ORDER_CANCELLED: 취소 0점으로 저장)
             List<OrderLogEvent.OrderEventData.OrderItemData> orderItems =
                 data.orderItems() != null ? data.orderItems() : List.of();
 
@@ -80,9 +80,7 @@ public class OrderEventConsumer {
                     event.userId(),
                     item.productId(),
                     item.productName(),
-                    item.categoryCode(),
                     event.event(),
-                    item.quantity(),
                     event.ts().toInstant()
                 );
             }

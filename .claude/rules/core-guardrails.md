@@ -41,7 +41,7 @@ API·BR 실패 케이스·권한 게이트·`last_activity_at` touch를 **추가
 | 새 실패 분기·HTTP/`code` | `{Domain\|Feature}ErrorCode` + 도메인 예외 throw + **스펙 에러 표** + 응답 스키마 |
 | 폐기된 `code`·게이트 | enum·throw·스펙·생성 문서 **삭제** (아래 레거시 절) |
 
-> **[스택 옵션: 에러코드 enum 동시갱신]** baro-ai는 `EmbeddingErrorCode`·`RecommendErrorCode` 패턴을 쓴다 (`harness-map.md` 스택 옵션). **권한·활동 어노테이션(AOP) 옵션은 꺼짐** — baro-ai에 `@Aspect`·커스텀 권한 어노테이션이 없고, 인증은 게이트웨이가 처리한다. 도입하면 `harness-map.md`에서 켜고 이 표에 행을 되살린다.
+> **[스택 옵션: 에러코드 enum 동시갱신]** baro-ai는 `SearchErrorCode`·`RecommendErrorCode` 패턴을 쓴다 (`harness-map.md` 스택 옵션). **권한·활동 어노테이션(AOP) 옵션은 꺼짐** — baro-ai에 `@Aspect`·커스텀 권한 어노테이션이 없고, 인증은 게이트웨이가 처리한다. 도입하면 `harness-map.md`에서 켜고 이 표에 행을 되살린다.
 
 **금지:** throw/`code`만 넣고 enum·스펙 미갱신 · touch인데 `@TripActivity` 누락(또는 수동 `touchLastActivity` 재도입) · Draft 전용 코드를 Approved 전 enum에 미리 넣기 · Filter/Interceptor에서 envelope와 다른 ad-hoc JSON
 

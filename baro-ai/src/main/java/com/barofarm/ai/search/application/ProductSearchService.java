@@ -14,6 +14,7 @@ import com.barofarm.ai.search.infrastructure.elasticsearch.ProductAutocompleteRe
 import com.barofarm.dto.CustomPage;
 import com.barofarm.exception.CustomException;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
@@ -125,6 +126,33 @@ public class ProductSearchService {
 
         return hitsPerKeyword.stream()
             .map(this::toResponses)
+            .toList();
+    }
+
+    /**
+     * 상품 ID 목록으로 상품 문서를 한 번에 읽습니다. 레시피 추천이 장바구니 상품의 재료 표준명을 읽을 때 씁니다.
+     *
+     * 벡터는 받지 않습니다 — 부르는 쪽이 쓰지 않는데 문서당 약 21KB가 붙기 때문입니다. 상품 인덱스에 질의하는
+     * 코드를 이 클래스 하나로 모으려고 여기 둡니다. 예전에는 레시피 추천이 ElasticsearchOperations를 직접
+     * 주입받아 같은 질의를 따로 조립했고, 그래서 제외 필드 목록이 두 곳에 복제돼 있었습니다.
+     * 근거: docs/audits/cross-cutting/003-stale-comments-and-write-only-fields.md B-2
+     *
+     * @param productIds 읽을 상품 ID 목록 (빈 목록이면 빈 결과)
+     * @return 찾은 상품 문서 목록. 색인되지 않은 ID는 결과에서 빠지므로 요청보다 적을 수 있습니다
+     */
+    public List<ProductDocument> findByIds(List<UUID> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return List.of();
+        }
+
+        NativeQuery query = NativeQuery.builder()
+            .withQuery(q -> q.ids(i -> i.values(productIds.stream().map(UUID::toString).toList())))
+            .withSourceFilter(FetchSourceFilter.of(null, EXCLUDED_SOURCE_FIELDS))
+            .withPageable(PageRequest.of(0, productIds.size()))
+            .build();
+
+        return operations.search(query, ProductDocument.class).getSearchHits().stream()
+            .map(hit -> hit.getContent())
             .toList();
     }
 
@@ -324,10 +352,7 @@ public class ProductSearchService {
             f.terms(t ->
                 t.field("status")
                  .terms(v -> v.value(
-                     List.of(
-                         FieldValue.of("ON_SALE"),
-                         FieldValue.of("DISCOUNTED")
-                     )
+                     ProductDocument.PURCHASABLE_STATUSES.stream().map(FieldValue::of).toList()
                  ))
             )
         );

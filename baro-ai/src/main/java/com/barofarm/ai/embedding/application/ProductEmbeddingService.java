@@ -1,7 +1,5 @@
 package com.barofarm.ai.embedding.application;
 
-import com.barofarm.ai.embedding.exception.EmbeddingErrorCode;
-import com.barofarm.exception.CustomException;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +10,10 @@ import org.springframework.stereotype.Service;
 /**
  * 상품명을 기반으로 Google GenAI 텍스트 임베딩 모델(gemini-embedding-001)을 호출하여
  * 1536차원 dense_vector를 생성하는 임베딩 애플리케이션 서비스입니다.
+ *
+ * 실패는 예외로 올리지 않고 {@code null} 벡터로 표현합니다. 임베딩은 색인 경로에서만 부르고 그 경로는
+ * 벡터 없이도 색인을 마치도록 돼 있어, 여기서 던진 예외가 HTTP 응답으로 나갈 경로가 없기 때문입니다.
+ * 근거: docs/audits/cross-cutting/003-stale-comments-and-write-only-fields.md
  *
  * [주요 동작]
  * 1. 상품 색인 시점(`ProductIndexService.indexProducts`)에 호출되어 상품명 텍스트를 고차원 벡터 공간으로 투영합니다.
@@ -37,12 +39,12 @@ public class ProductEmbeddingService {
     }
 
     /**
-     * 단일 상품명을 전달받아 1536차원 임베딩 벡터(float[])를 생성합니다.
+     * 상품명 하나를 임베딩합니다. 묶음 호출이 실패했을 때의 폴백 경로에서만 씁니다.
      *
      * @param productName 임베딩 대상 상품명 (예: "유기농 무농약 달콤한 사과 1kg")
-     * @return 1536차원 실수 벡터 (실패 시 CustomException 발생)
+     * @return 1536차원 실수 벡터, 만들지 못하면 {@code null}
      */
-    public float[] embedProduct(String productName) {
+    private float[] embedProduct(String productName) {
         try {
             log.debug("🔄 [PRODUCT_EMBEDDING] Generating embedding for product: {}", productName);
 
@@ -58,11 +60,11 @@ public class ProductEmbeddingService {
             return floatVector;
 
         } catch (Exception e) {
-            // [3단계: 실패 로깅 및 비즈니스 예외 변환]
-            // 외부 AI API 호출 실패 시 상세 로그를 기록하고 비즈니스 표준 예외(EMBEDDING_GENERATION_FAILED)를 발생시킵니다.
+            // [3단계: 실패 로깅 및 '벡터 없음' 반환]
+            // 외부 AI API 호출이 실패해도 색인은 계속돼야 하므로 예외를 올리지 않고 null을 돌려줍니다.
             log.warn("⚠️ [PRODUCT_EMBEDDING] Failed to generate embedding for product: {}, Error: {}",
                     productName, e.getMessage());
-            throw new CustomException(EmbeddingErrorCode.EMBEDDING_GENERATION_FAILED);
+            return null;
         }
     }
 
@@ -97,11 +99,7 @@ public class ProductEmbeddingService {
         // [2단계: 배치 실패 시 상품별 폴백 — 실패한 상품만 null]
         List<float[]> fallback = new ArrayList<>(productNames.size());
         for (String name : productNames) {
-            try {
-                fallback.add(embedProduct(name));
-            } catch (CustomException e) {
-                fallback.add(null);
-            }
+            fallback.add(embedProduct(name));
         }
         return fallback;
     }
