@@ -1,10 +1,14 @@
 baro:
   ai:
     recommend:
-      # 레시피 추천에서 제외할 상품 카테고리 코드 (과일 계열)
-      exclude-recipe-category-codes:
-        - AGRI_FRUIT
-        - AGRI_FRUIT_SEASONAL
-        - AGRI_FRUIT_STORAGE
-        - AGRI_FRUIT_BERRY
-
+      # 레시피 재료로 쓰지 않을 상품 카테고리 코드. **지금은 비어 있다 = 아무것도 걸러내지 않는다.**
+      #
+      # 2026-09-07까지는 과일 4종(AGRI_FRUIT·AGRI_FRUIT_SEASONAL·AGRI_FRUIT_STORAGE·AGRI_FRUIT_BERRY)이
+      # 들어 있었다. "과일을 넣으면 토마토밥 같은 요리가 나온다"가 이유였는데, 재 보니 그 현상은 옛 프롬프트
+      # (후보 3개를 채우라는 압력)에서만 나고 현행 프롬프트에서는 나지 않는다. 과일을 넣은 30회에서
+      # 보유 재료 사용률이 오히려 높았다(79.4% vs 과일 없는 대조군 63.9%).
+      # 근거: docs/audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md M-2·M-3
+      #
+      # 키를 지우지 않고 빈 목록으로 두는 이유: 나중에 특정 카테고리를 빼야 할 일이 생기면 코드를 고치지
+      # 않고 여기에 코드만 적으면 된다. 목록이 비어 있으면 필터가 곧바로 통과한다.
+      exclude-recipe-category-codes: []

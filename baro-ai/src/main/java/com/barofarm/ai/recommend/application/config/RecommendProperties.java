@@ -18,8 +18,9 @@ import org.springframework.stereotype.Component;
 public class RecommendProperties {
 
     /**
-     * 장바구니 품목 중 레시피 식재료로 사용하지 않을 제외 카테고리 코드 목록 (예: 주방용품, 가전 등).
-     * `RecipeRecommendService`에서 장바구니 아이템 필터링 시 검사됩니다.
+     * 레시피 재료로 쓰지 않을 카테고리 코드 목록. `RecipeRecommendService`가 장바구니 품목을 거를 때 봅니다.
+     * **2026-09-07부터 비어 있습니다**(`recipe-recommend.yml`) — 비어 있으면 아무것도 걸러내지 않습니다.
+     * 비운 근거는 docs/audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md에 있습니다.
      */
     private List<String> excludeRecipeCategoryCodes = new ArrayList<>();
 }

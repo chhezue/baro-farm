@@ -80,7 +80,7 @@ class RecipeRecommendServiceTest {
     }
 
     @Test
-    @DisplayName("상품이 전부 제외 카테고리(과일)면 NO_ELIGIBLE_ITEMS")
+    @DisplayName("상품이 전부 제외 카테고리면 NO_ELIGIBLE_ITEMS — 목록은 운영에서 비어 있지만 거르는 동작 자체를 고정한다")
     void allExcluded_isNoEligibleItems() {
         when(cartClient.getCart(USER_ID)).thenReturn(ResponseDto.ok(new CartInfo(List.of(
             new CartItemInfo(UUID.randomUUID(), "사과", "AGRI_FRUIT")))));

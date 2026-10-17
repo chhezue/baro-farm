@@ -30,7 +30,7 @@ import org.springframework.stereotype.Service;
  *
  * [핵심 프로세스]
  * 1. CartClient를 통해 사용자의 현재 장바구니 품목들을 조회합니다.
- * 2. 레시피 재료로 쓰지 않기로 한 카테고리(현재는 과일 4종)의 상품을 걸러냅니다.
+ * 2. 레시피 재료로 쓰지 않기로 한 카테고리의 상품을 걸러냅니다 — **현재 그런 카테고리는 없어 아무것도 걸러지지 않습니다.**
  * 3. Elasticsearch에 사전 색인된 상품 문서의 재료명(ProductDocument.ingredientName)을 일괄 조회하여 보유 재료 목록을 도출합니다.
  *    (요청 시점마다 LLM으로 재료를 파싱하지 않고 색인 시점에 미리 정규화된 재료명을 읽어 지연 시간과 비용을 획기적으로 절감)
  * 4. RecipeCandidateGenerator를 통해 LLM 기반으로 현재 보유 재료로 조리 가능한 레시피를 생성합니다.
@@ -93,9 +93,10 @@ public class RecipeRecommendService {
 
         // [2단계: 레시피 제외 카테고리 상품 필터링]
         // 설정 파일(recipe-recommend.yml)의 exclude-recipe-category-codes에 적힌 카테고리를 걸러냅니다.
-        // 현재 값은 과일 4종(AGRI_FRUIT·AGRI_FRUIT_SEASONAL·AGRI_FRUIT_STORAGE·AGRI_FRUIT_BERRY)뿐입니다 —
-        // 이 쇼핑몰은 농산물만 팔아 "요리에 못 쓰는 상품"이라는 분류 자체가 없기 때문입니다.
-        // 과일을 왜 빼는지는 당시 관찰이 남아 있지 않습니다(docs/specs/cart-recipe/recipe-quality-redesign.md).
+        // 목록은 2026-09-07부터 비어 있어 실제로는 아무것도 걸러지지 않습니다 — 이 쇼핑몰은 농산물만 팔아
+        // "요리에 못 쓰는 상품"이라는 분류 자체가 없기 때문입니다. 그전까지는 과일 4종을 뺐는데, 그 근거였던
+        // "과일이 이상한 요리를 만든다"가 현행 프롬프트에서는 재현되지 않는 것을 확인하고 풀었습니다.
+        // 근거: docs/audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md M-2·M-3
         final List<String> categoriesToExcludeByCode =
             recommendProperties.getExcludeRecipeCategoryCodes();
 

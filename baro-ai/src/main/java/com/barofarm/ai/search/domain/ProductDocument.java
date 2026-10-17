@@ -64,7 +64,7 @@ public class ProductDocument {
     @Field(type = FieldType.Keyword)
     private UUID productCategoryId;
 
-    /** 상품 카테고리 코드 (레시피 추천 제외 카테고리 필터링 등에 사용) */
+    /** 상품 카테고리 코드. 검색의 카테고리 필터에 쓰고, 레시피 추천의 제외 카테고리 판정에도 쓸 수 있다(그 목록은 현재 비어 있다) */
     @Field(type = FieldType.Keyword)
     private String productCategoryCode;
 
