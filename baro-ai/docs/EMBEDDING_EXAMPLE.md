@@ -18,7 +18,7 @@
 
 사용자 ID: `550e8400-e29b-41d4-a716-446655440000`
 
-등장하는 상품 4개는 모두 `product` 인덱스에 색인돼 있고 각자 1536차원 벡터를 갖고 있다.
+등장하는 상품 4개는 모두 `product` 인덱스에 색인돼 있고 각자 768차원 벡터를 갖고 있다.
 
 | 표기 | productId 끝자리 | 상품명 |
 |------|------------------|--------|
@@ -31,10 +31,10 @@
 
 ```json
 [
-  { "productId": "…0001", "eventType": "CART_ITEM_ADDED",       "quantity": 3, "occurredAt": "1시간 전" },
-  { "productId": "…0002", "eventType": "CART_ITEM_ADDED",       "quantity": 2, "occurredAt": "1일 전" },
-  { "productId": "…0004", "eventType": "CART_QUANTITY_UPDATED", "quantity": 1, "occurredAt": "1일 전" },
-  { "productId": "…0003", "eventType": "CART_ITEM_REMOVED",     "quantity": 1, "occurredAt": "2일 전" }
+  { "productId": "…0001", "eventType": "CART_ITEM_ADDED",       "occurredAt": "1시간 전" },
+  { "productId": "…0002", "eventType": "CART_ITEM_ADDED",       "occurredAt": "1일 전" },
+  { "productId": "…0004", "eventType": "CART_QUANTITY_UPDATED", "occurredAt": "1일 전" },
+  { "productId": "…0003", "eventType": "CART_ITEM_REMOVED",     "occurredAt": "2일 전" }
 ]
 ```
 
@@ -42,17 +42,17 @@
 
 ```json
 [
-  { "productId": "…0001", "eventType": "ORDER_CONFIRMED", "quantity": 2, "occurredAt": "30분 전" }
+  { "productId": "…0001", "eventType": "ORDER_CONFIRMED", "occurredAt": "30분 전" }
 ]
 ```
 
-총 5건이라 최소 로그 개수(3건)를 넘겼으므로 계산을 진행한다. `quantity`는 로그에 그대로 남지만 비중 계산에는 쓰이지 않는다.
+총 5건이라 최소 로그 개수(3건)를 넘겼으므로 계산을 진행한다. 로그에 남는 것은 위 네 항목뿐이다 — 수량과 카테고리 코드는 상류가 보내지만 2026-09-07부터 받지도 저장하지도 않는다.
 
 ## 비중 계산
 
 로그 1건의 비중은 **행동 종류 하나로** 정해진다. 주문 확정 3 · 장바구니 담기 2 · 수량 변경 1이고, 삭제·취소는 0이다. 곱하는 축이 없어서 범위가 0 또는 1~3이다.
 
-> 한때 여기에 두 축을 더 곱했다. **시간 감쇠**(최근 3.0에서 7일마다 절반)는 유형별 최근 5건만 읽는 구조에서 한 번의 쇼핑 로그가 전부 같은 시간대라 감쇠값이 같고, 마지막 L2 정규화가 그 배수를 소거해 결과에 영향이 없어서 2026-09-06에 뺐다([`002`](audits/taste-vector/002-weight-axes-and-tests.md) F-1·F-2). **수량**은 선호의 세기가 아니라 소비량이어서 2026-09-07에 뺐다([`005`](audits/taste-vector/005-signal-and-weight-simplification.md) A-2). 발생 시각과 수량은 로그에 남지만 비중 계산에는 쓰이지 않는다.
+> 한때 여기에 두 축을 더 곱했다. **시간 감쇠**(최근 3.0에서 7일마다 절반)는 유형별 최근 5건만 읽는 구조에서 한 번의 쇼핑 로그가 전부 같은 시간대라 감쇠값이 같고, 마지막 L2 정규화가 그 배수를 소거해 결과에 영향이 없어서 2026-09-06에 뺐다([`002`](audits/taste-vector/002-weight-axes-and-tests.md) F-1·F-2). **수량**은 선호의 세기가 아니라 소비량이어서 2026-09-07에 뺐다([`005`](audits/taste-vector/005-signal-and-weight-simplification.md) A-2). 발생 시각은 30일 조회 창과 최신순 정렬에 쓰이므로 계속 저장하지만, 수량은 아예 저장하지 않게 됐다([`cross-cutting/003`](audits/cross-cutting/003-stale-comments-and-write-only-fields.md) B-1).
 
 ### 장바구니
 
@@ -102,7 +102,7 @@ P3은 비중이 0이라 평균에서 빠질 뿐 아니라 경험 상품 목록�
   "_index": "user_profile_embeddings",
   "_source": {
     "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "userProfileVector": [0.0123456, -0.0234567, "… 총 1536개"],
+    "userProfileVector": [0.0123456, -0.0234567, "… 총 768개"],
     "lastUpdatedAt": "2026-01-12T12:30:00Z",
     "sourceProductIds": ["…0001", "…0002", "…0004"]
   }
@@ -118,7 +118,7 @@ P3은 비중이 0이라 평균에서 빠질 뿐 아니라 경험 상품 목록�
   "mappings": {
     "properties": {
       "userId": { "type": "keyword" },
-      "userProfileVector": { "type": "dense_vector", "dims": 1536, "index": true, "similarity": "cosine" },
+      "userProfileVector": { "type": "dense_vector", "dims": 768, "index": true, "similarity": "cosine" },
       "lastUpdatedAt": { "type": "date" },
       "sourceProductIds": { "type": "keyword" }
     }

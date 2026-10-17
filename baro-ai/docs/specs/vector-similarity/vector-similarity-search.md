@@ -44,7 +44,7 @@
 
 | Method | Path | 인증 | 설명 |
 |--------|------|------|------|
-| GET | `/api/v1/recommendations/similar/{productId}` | 없음 | `topK` 기본 3, 허용 1~50. 기준 상품이 없거나 벡터가 없으면 빈 배열 |
+| GET | `/api/v1/recommendations/similar/{productId}` | 없음 | `topK` 기본 3, 허용 1~33. 기준 상품이 없거나 벡터가 없으면 빈 배열 |
 
 개인화 추천 API는 [`taste-vector`](../taste-vector/taste-vector-pipeline.md)에 있다.
 
@@ -54,7 +54,7 @@
 
 | 코드 | HTTP | 조건 |
 |------|------|------|
-| `INVALID_TOP_K` | 400 | `topK < 1` 또는 `topK > 50` |
+| `INVALID_TOP_K` | 400 | `topK < 1` 또는 `topK > 33` |
 
 추천 실패(기준 상품 없음·벡터 없음·ES 예외)는 에러가 아니라 **200 + 빈 배열**로 나간다. 이 정책은 그대로다.
 
@@ -65,17 +65,17 @@
 | 항목 | 값 | 근거 |
 |------|-----|------|
 | ES 접속 | `spring.elasticsearch.*`(연결 대기 1초·응답 대기 30초)만으로 구성. 설정 클래스 없음 | `application.yml` |
-| 벡터 필드 | `product.vector`, `dense_vector`, `dims=1536`, `float[]` | `ProductDocument` |
-| 사용자 벡터 | `user_profile_embeddings.userProfileVector`, `dense_vector`, `dims=1536`, `float[]`(2026-09-05 상품 벡터와 통일 — ES에 저장되는 JSON은 그대로라 재색인 불요) | `UserProfileEmbeddingDocument` |
-| 매핑 옵션 | `index`·`similarity`를 명시하지 않는다. 로컬 ES 8.12·운영 ES 9.1.2 모두 기본값이 `index=true`라 HNSW 그래프가 만들어질 가능성이 높으나, `script_score`는 그 그래프를 쓰지 않는다 | `@Field(type = Dense_Vector, dims = 1536)` |
+| 벡터 필드 | `product.vector`, `dense_vector`, `dims=768`, `float[]` | `ProductDocument` |
+| 사용자 벡터 | `user_profile_embeddings.userProfileVector`, `dense_vector`, `dims=768`, `float[]`(2026-09-05 상품 벡터와 통일) | `UserProfileEmbeddingDocument` |
+| 매핑 옵션 | `index`·`similarity`를 명시하지 않는다. 로컬 ES 8.12·운영 ES 9.1.2 모두 기본값이 `index=true`라 HNSW 그래프가 만들어질 가능성이 높으나, `script_score`는 그 그래프를 쓰지 않는다 | `@Field(type = Dense_Vector, dims = 768)` |
 | 인덱스 생성 | 운영은 `es-init-indices` Job이 nori 애널라이저 설정만 만들고 매핑은 Spring Data가 문서 어노테이션으로 만든다. 로컬 docker-compose ES(8.12.0)에는 nori 플러그인이 없다 | `k8s/infra/elasticsearch/templates/es-init-indices-job.yaml`, `docker-compose.data.yml:108` |
-| 임베딩 모델 | Gemini `gemini-embedding-001`, 출력 차원 1536 고정 | [`decisions/003`](../../decisions/003-gemini-migration.md) |
+| 임베딩 모델 | Gemini `gemini-embedding-001`, 출력 차원 768 고정(공식 권장값 768·1536·3072 중 하나) | [`decisions/003`](../../decisions/003-gemini-migration.md) · 차원 근거는 [`audits/vector-similarity/003`](../../audits/vector-similarity/003-embedding-dims-and-candidate-multiplier.md) A-1 |
 
 ## 비즈니스 규칙
 
 | 규칙 | 값 | 구현 위치 |
 |------|-----|-----------|
-| `topK` 허용 범위 | 1~50. 벗어나면 400 `INVALID_TOP_K`(조회 시작 전에 끊는다) | `VectorRecommendPipeline.validateTopK` |
+| `topK` 허용 범위 | 1~33. 벗어나면 400 `INVALID_TOP_K`(조회 시작 전에 끊는다). 상한은 후보 상한(100) ÷ 다양화 배수(3)에서 끌어낸다 — 그보다 크면 배수가 3 아래로 떨어져 다양성 근거가 성립하지 않는다 | `VectorRecommendPipeline.validateTopK` |
 | 후보 규모 | `min(topK × 3, 100)` | `VectorRecommendPipeline` |
 | 유사도 점수 | `cosine + 1.0`(0~2 범위) | `VectorProductSearchService` |
 | 상태 필터 | `ON_SALE`·`DISCOUNTED` | 동일 |
@@ -97,7 +97,7 @@
 ### 엣지 · 실패
 
 - [x] 기준 상품 없음 / 벡터 없음 → 빈 배열
-- [ ] `topK ≤ 0` 또는 `topK > 50` → 400 `INVALID_TOP_K` (2026-09-05 변경 — 이전에는 빈 배열)
+- [ ] `topK ≤ 0` 또는 `topK > 33` → 400 `INVALID_TOP_K` (2026-09-05 신설, 2026-09-07 상한 50 → 33)
 - [x] ES 예외 → 빈 배열 + ERROR 로그
 
 ### 수동 확인 (로컬)

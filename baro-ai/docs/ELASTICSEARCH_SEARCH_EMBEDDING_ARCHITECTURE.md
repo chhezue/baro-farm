@@ -17,7 +17,7 @@
 
 - 키워드 검색: `match_phrase` + `match` + `fuzzy` 가중치 조합
 - 자동완성: `edge_ngram` analyzer 색인 + `match`(`operator=and`) 조회
-- 벡터 검색: `dense_vector(1536)` + `script_score(cosineSimilarity)`
+- 벡터 검색: `dense_vector(768)` + `script_score(cosineSimilarity)`
 - 인덱싱 트리거: `product-events` Kafka 소비 기반 실시간 반영
 
 ---
@@ -62,7 +62,7 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 - `status`: `keyword`
 - `updatedAt`: `date`
 - `ingredientName`: `keyword` — 상품명에서 뽑은 요리 재료명 (예: "계란"). 색인 시점에 1회 계산
-- `vector`: `dense_vector`, `dims=1536`
+- `vector`: `dense_vector`, `dims=768`
 
 설계 의도:
 
@@ -92,7 +92,7 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 매핑 클래스: `UserProfileEmbeddingDocument` (`@Document(indexName = "user_profile_embeddings")`)
 
 - `userId`: `@Id`
-- `userProfileVector`: `dense_vector`, `dims=1536` (타입은 `float[]` — 상품 벡터와 동일)
+- `userProfileVector`: `dense_vector`, `dims=768` (타입은 `float[]` — 상품 벡터와 동일)
 - `lastUpdatedAt`: `date`
 - `sourceProductIds`: `keyword[]` — 비중이 0이 아닌 cart/order 로그의 productId(중복 제거). 추천에서 제외할 상품 목록
 
@@ -201,13 +201,13 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 
 ## 6.1 상품 벡터 저장
 
-`ProductDocument.vector`에 1536차원 float 벡터를 저장한다.
+`ProductDocument.vector`에 768차원 float 벡터를 저장한다.
 
 벡터 생성은 `ProductEmbeddingService.embedProduct(productName)`에서 수행:
 
 - 모델 빈: `googleGenAiTextEmbedding`
-- 기본 모델명: `gemini-embedding-001`, 출력 차원 1536 고정 (`application.yml`)
-- 실패 시 예외를 던지며, 호출부(`ProductIndexService`)에서 캐치하여 인덱싱은 계속 진행
+- 기본 모델명: `gemini-embedding-001`, 출력 차원 768 고정 (`application.yml`). 차원 근거는 [`audits/vector-similarity/003`](audits/vector-similarity/003-embedding-dims-and-candidate-multiplier.md) A-1
+- 실패 시 `null` 벡터를 돌려주며, 호출부(`ProductIndexService`)는 벡터 없이 색인을 계속 진행
 
 ## 6.2 벡터 검색 쿼리 (`VectorProductSearchService`)
 

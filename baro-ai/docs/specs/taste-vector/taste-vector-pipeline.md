@@ -9,7 +9,7 @@
 ## 언제 이 문서를 보는가
 
 - 개인화 추천이 "왜 이 상품을 추천했는지"를 로그·가중치 수준에서 설명해야 할 때
-- cart/order 이벤트의 필드 의미(특히 `quantity`)와 발행 조건을 확인할 때
+- cart/order 이벤트의 필드 의미와 발행 조건, 그중 무엇을 실제로 받아 저장하는지 확인할 때
 - 프로필 벡터 갱신 시점·비용을 바꾸는 감사·리팩터 전에 현재 계약을 확인할 때
 
 ## 목표
@@ -48,7 +48,7 @@
 
 | Method | Path | 인증 | 설명 |
 |--------|------|------|------|
-| GET | `/api/v1/recommendations/personalized/{userId}` | 없음(경로의 userId를 신뢰) | `topK` 쿼리, 기본 5, 허용 1~50. 프로필이 없으면 빈 배열 |
+| GET | `/api/v1/recommendations/personalized/{userId}` | 없음(경로의 userId를 신뢰) | `topK` 쿼리, 기본 5, 허용 1~33. 프로필이 없으면 빈 배열 |
 
 응답은 `ResponseDto<ProductRecommendResponse[]>`(data에 productId·productName·productCategoryName·price)다. 2026-09-05에 검색 API와 envelope를 통일해, 성공·실패 응답 모양이 같아졌다.
 
@@ -64,7 +64,7 @@
 
 | 코드 | HTTP | 조건 |
 |------|------|------|
-| `INVALID_TOP_K` | 400 | `topK < 1` 또는 `topK > 50` |
+| `INVALID_TOP_K` | 400 | `topK < 1` 또는 `topK > 33` |
 
 프로필 없음·행동 로그 부족은 에러가 아니라 **200 + 빈 배열**로 나간다.
 
@@ -74,10 +74,10 @@
 
 | 인덱스 | 문서 | 핵심 필드 | 쓰는 곳 |
 |--------|------|-----------|---------|
-| `cart_event_logs` | `CartLogDocument` | id(`{파티션}-{오프셋}`), userId, productId, productName, categoryCode, eventType(`HistoryEventType` enum), quantity, occurredAt | 4단계가 쓰고 6단계가 읽음 |
+| `cart_event_logs` | `CartLogDocument` | id(`{파티션}-{오프셋}`), userId, productId, productName, eventType(`HistoryEventType` enum), occurredAt | 4단계가 쓰고 6단계가 읽음 |
 | `order_event_logs` | `OrderLogDocument` | 같은 구조, id는 `{파티션}-{오프셋}-{항목 순번}` | 동일 |
-| `user_profile_embeddings` | `UserProfileEmbeddingDocument` | userId(ID), userProfileVector(1536), lastUpdatedAt, sourceProductIds | 6단계가 쓰고 7단계가 읽음 |
-| `product` | `ProductDocument` | vector(1536) — 프로필 계산의 재료 | [`vector-similarity`](../vector-similarity/vector-similarity-search.md)가 쓰고 6단계가 읽음 |
+| `user_profile_embeddings` | `UserProfileEmbeddingDocument` | userId(ID), userProfileVector(768), lastUpdatedAt, sourceProductIds | 6단계가 쓰고 7단계가 읽음 |
+| `product` | `ProductDocument` | vector(768) — 프로필 계산의 재료 | [`vector-similarity`](../vector-similarity/vector-similarity-search.md)가 쓰고 6단계가 읽음 |
 
 `eventType`은 발행 측(`baro-common`)의 `HistoryEventType`을 그대로 저장한다. 문자열로 옮겨 적지 않으므로 계산 쪽 비교값과 어긋날 수 없고, 발행 측에 종류가 추가되면 컴파일이 실패해 알아차리게 된다.
 
@@ -88,7 +88,7 @@
 | 규칙 | 값 | 근거 |
 |------|-----|------|
 | 이벤트가 나가는 장바구니 조작 | 담기(`CART_ITEM_ADDED`)·수량 변경(`CART_QUANTITY_UPDATED`)·항목 삭제(`CART_ITEM_REMOVED`) 3가지뿐. **비우기·게스트 병합·옵션 변경 병합은 이벤트 없음** | `CartService.java:94-153` |
-| `quantity`의 의미 | ADD = 이번에 담은 **증분**, UPDATE = 변경 후 **새 총량**, REMOVE = 삭제 직전 **전량** | `CartAddHistoryPayloadMapper.java:49`, `CartQuantityUpdateHistoryPayloadMapper.java:38`, `CartRemoveHistoryPayloadMapper.java:64` |
+| `quantity`의 의미 | ADD = 이번에 담은 **증분**, UPDATE = 변경 후 **새 총량**, REMOVE = 삭제 직전 **전량**. **2026-09-07부터 baro-ai는 이 값을 받지도 저장하지도 않는다** — 의미가 갈리는 것이 수량 축을 뺀 근거 중 하나였다 | `CartAddHistoryPayloadMapper.java:49`, `CartQuantityUpdateHistoryPayloadMapper.java:38`, `CartRemoveHistoryPayloadMapper.java:64` |
 | 게스트 장바구니 | `userId`가 없으면 Kafka 발행을 건너뛴다(파일 로그만 남음). 게스트 행동은 취향 벡터에 들어오지 않는다 | `HistoryLogWriter.java:66-70` |
 | 주문 확정 시점 | 결제 성공 직후가 아니라 `baro-shopping`이 예약 재고를 확정해 `inventory-confirmed`를 보낸 뒤 `baro-order`가 그것을 받은 시점. 상태 `AWAITING_PAYMENT → CONFIRMED` | `InventoryConfirmedConsumer.java:53-57` |
 | 주문 취소 | `OrderCancelledHistoryPayloadMapper`는 있으나 `@TrackHistory(ORDER_CANCELLED)`를 붙인 곳이 저장소 전체에 **없다**. 취소 이벤트는 발행되지 않는다 | 저장소 전체 grep 2026-09-04 |
@@ -157,7 +157,7 @@
 | 항목 | 상태 | 비고 |
 |------|------|------|
 | `ORDER_CANCELLED` 이벤트가 발행되지 않음 | 확정 | `OrderCancelledHistoryPayloadMapper`는 있으나 `@TrackHistory(ORDER_CANCELLED)`를 붙인 곳이 없다. 컨슈머·가중치 표의 분기는 유지하기로 했다(2026-09-05 결정). 붙일지 여부는 **팀 결정** `[미정]` |
-| ~~`quantity` 의미가 이벤트마다 다름~~ | **해소(2026-09-07)** | 취향 계산이 `quantity`를 더 이상 읽지 않아 의미 차이가 결과에 영향을 주지 않는다. 이 불일치가 수량 축을 뺀 근거 중 하나였다([`005`](../../audits/taste-vector/005-signal-and-weight-simplification.md) A-2). 필드는 로그에 남지만 소비자가 없다 |
+| ~~`quantity` 의미가 이벤트마다 다름~~ | **해소(2026-09-07)** | 취향 계산이 `quantity`를 더 이상 읽지 않아 의미 차이가 결과에 영향을 주지 않는다. 이 불일치가 수량 축을 뺀 근거 중 하나였다([`005`](../../audits/taste-vector/005-signal-and-weight-simplification.md) A-2). 같은 날 필드 자체를 수신·저장 양쪽에서 지웠다([`cross-cutting/003`](../../audits/cross-cutting/003-stale-comments-and-write-only-fields.md) B-1) |
 | 같은 사용자의 갱신이 동시에 돌 수 있음 | 확정(설계) | 컨슈머 경로가 실제 비동기가 되면서 같은 userId의 재계산 두 개가 겹칠 수 있다. 나중에 시작한 쪽이 먼저 끝나면 한 번 오래된 벡터가 남지만, 다음 행동에서 다시 계산돼 스스로 회복한다. 외부 API 호출이 없어져 갱신 자체가 짧아진 만큼 겹칠 확률도 낮다 |
 | 신규 사용자는 프로필이 늦게 생긴다 | 확정(설계 대가) | 검색을 뺐으므로 주문·장바구니 이력이 3건 쌓여야 프로필이 생긴다. 그전까지 개인화 추천은 빈 배열(200)이다. 상품 조회 이벤트를 받으면 풀리지만 발행 모듈 변경이 필요하다 `[미정]` |
 | ~~검색 상위 결과가 취향을 정한다~~ | **해소(2026-09-07)** | 검색을 취향 신호에서 뺐다. 이 리스크가 곧 제거 근거였다 — 사용자가 고른 상품이 아니라 검색 엔진이 상위에 올린 상품을 취향으로 삼고 있었다([`005`](../../audits/taste-vector/005-signal-and-weight-simplification.md) A-1) |
@@ -194,7 +194,7 @@
 - [`vector-similarity-search.md`](../vector-similarity/vector-similarity-search.md) — 이 단위가 쓰는 벡터 검색·다양화 규칙
 - [`keyword-search`](../keyword-search/product-search-and-autocomplete.md) — 상품 검색 API. 2026-09-07부터 이 단위와 코드 의존이 없다
 - [`decisions/001-autocomplete-caching.md`](../../decisions/001-autocomplete-caching.md) — 추천 결과를 캐싱하지 않는 결정
-- [`decisions/003-gemini-migration.md`](../../decisions/003-gemini-migration.md) — 임베딩 모델·1536차원 고정
+- [`decisions/003-gemini-migration.md`](../../decisions/003-gemini-migration.md) — 임베딩 모델 선택 (차원은 2026-09-07에 768로 낮췄다 — [`audits/vector-similarity/003`](../../audits/vector-similarity/003-embedding-dims-and-candidate-multiplier.md))
 - [`EMBEDDING_EXAMPLE.md`](../../EMBEDDING_EXAMPLE.md) — 비중 계산·벡터 생성을 실제 숫자로 따라간 예시
 - [`product/glossary.md`](../../product/glossary.md) — 용어
 

@@ -117,7 +117,7 @@
 ```java
 ProductEmbeddingService.embedProduct(productName)
   → Gemini Embedding API 호출
-  → 1536차원 float[] 벡터 반환
+  → 768차원 float[] 벡터 반환
   → ProductDocument에 저장
 ```
 

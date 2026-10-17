@@ -17,7 +17,7 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 상태 필터 | 검색·자동완성·벡터 검색이 공통으로 적용하는 `ON_SALE`·`DISCOUNTED`만 노출 조건 | `applyStatusFilter`, `buildBoolQuery` |
 | 상품 상태 (ProductStatus) | `ON_SALE`·`DISCOUNTED`·`SOLD_OUT`·`HIDDEN`·`DELETED`. 판매자 수정으로만 바뀌고 재고 0이 자동으로 `SOLD_OUT`을 만들지 않는다 | `baro-shopping` `ProductStatus` |
 | 카테고리 코드 | 3단계 22개, 전부 `AGRI_*`(농산물). 리프 코드가 이벤트·문서의 `productCategoryCode` | `scripts/init-db/02-init-categories.sql` |
-| dense_vector | Elasticsearch 벡터 필드 타입. baro-ai는 1536차원 고정 | `ProductDocument.vector`, `UserProfileEmbeddingDocument.userProfileVector` |
+| dense_vector | Elasticsearch 벡터 필드 타입. baro-ai는 768차원 고정(2026-09-07 이전 1536) | `ProductDocument.vector`, `UserProfileEmbeddingDocument.userProfileVector` |
 | 코사인 유사도 | 두 벡터의 방향 유사도(−1~1). 벡터 검색·다양화의 공통 기준 | ES `script_score(cosineSimilarity)`, `MaxMinDiversityService` |
 | topK | 추천 API가 최종 반환하는 개수. 후보는 이보다 넉넉히 가져온 뒤 다양화로 줄인다(값: [`vector-similarity` 스펙](../specs/vector-similarity/vector-similarity-search.md) 비즈니스 규칙) | `RecommendationController` |
 | `X-User-Id` | 게이트웨이가 넣어 주기로 한 사용자 식별 헤더. prod 라우트에는 인증 필터가 없어 클라이언트 값이 그대로 전달된다 | `baro-gateway` `application-prod.yml`, [`platform.md`](platform.md) |
@@ -28,7 +28,7 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 용어 | 의미 | 코드/문서 근거 |
 |------|------|-----------------|
 | 행동 로그 | 장바구니 변경·주문 확정 1건을 ES에 저장한 문서 | `CartLogDocument`·`OrderLogDocument` |
-| 프로필 벡터 (취향 벡터) | 행동 로그에 등장한 상품들의 벡터를 행동 비중대로 섞어 길이를 1로 맞춘 1536차원 벡터. 문서 ID는 userId. 외부 임베딩 API를 부르지 않는다 | `UserProfileEmbeddingDocument.userProfileVector` |
+| 프로필 벡터 (취향 벡터) | 행동 로그에 등장한 상품들의 벡터를 행동 비중대로 섞어 길이를 1로 맞춘 768차원 벡터. 문서 ID는 userId. 외부 임베딩 API를 부르지 않는다 | `UserProfileEmbeddingDocument.userProfileVector` |
 | 행동 비중 | 로그 1건이 취향에 기여하는 정도 = **행동 종류 그 자체**(주문 3·담기 2·수량 변경 1·삭제 0). 곱하는 축이 더 없다 — 경과 시간은 2026-09-06, 수량은 2026-09-07에 뺐다. 값: [`taste-vector` 스펙](../specs/taste-vector/taste-vector-pipeline.md) 비즈니스 규칙 | `calculateEventWeight` |
 | 행동 가중치 | 행동 종류별 계수. 주문 확정 > 장바구니 담기 > 수량 변경 순이고, 취소·삭제는 0이라 취향에 전혀 반영되지 않는다 | `calculateEventWeight` |
 | 가중 평균 · L2 정규화 | 상품 벡터를 비중대로 더한 뒤 길이를 1로 맞추는 것. 길이를 맞춰야 상품 벡터와 코사인 유사도로 비교할 수 있다 | `blendIntoProfileVector` |
@@ -43,8 +43,8 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 용어 | 의미 | 코드/문서 근거 |
 |------|------|-----------------|
 | 요리 재료명 (ingredientName) | 상품명에서 브랜드·산지·수량·단위를 걷어낸 한 단어(예: "계란"). 상품 색인 시 LLM(Large Language Model, 거대 언어 모델)으로 1회 계산해 저장. 빈 값은 "아직 모른다"는 뜻이며 추천은 그 상품을 건너뛰고 재색인 대상으로 센다 | `ProductDocument.ingredientName`, [`decisions/002`](../decisions/002-ingredient-name-at-index-time.md) |
-| 보유 재료 | 장바구니 상품들의 요리 재료명 집합(제외 카테고리 제거 후). 레시피 후보 생성의 입력 | `RecipeRecommendService.loadOwnedIngredientNames` |
-| 레시피 제외 카테고리 | 과일 4개 코드(`AGRI_FRUIT*`). 설정 파일로 관리 | `recipe-recommend.yml` |
+| 보유 재료 | 장바구니 상품들의 요리 재료명 집합(제외 카테고리 제거 후 — 목록이 비어 지금은 전부 통과). 레시피 후보 생성의 입력 | `RecipeRecommendService.loadOwnedIngredientNames` |
+| 레시피 제외 카테고리 | 레시피 재료로 쓰지 않을 카테고리 코드. 설정 파일로 관리하며 **2026-09-07부터 비어 있다**(과일 4종을 뺐다가 근거가 재현되지 않아 풀었다) | `recipe-recommend.yml` |
 | 레시피 후보 | LLM이 만드는 레시피. 2026-09-06부터 1개(응답은 배열, 이름이 있는 첫 항목을 쓴다) | `RecipeCandidateGenerator.generateRecipe` |
 | 핵심 재료 | 요리 정체성을 정하는 3~5개. "추가 재료"(`recipeIngredientsExtra`)는 2026-09-06에 삭제했다 | `recipeIngredientsCore` |
 | 기본 양념 가정 | 소금·후추·식용유·간장 등은 보유로 간주, 재료 목록에 넣지 않음 | 프롬프트 `<정책>` |
@@ -56,7 +56,7 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 
 | 용어 | 의미 | 코드/문서 근거 |
 |------|------|-----------------|
-| 상품 벡터 | 상품명을 Gemini `gemini-embedding-001`로 임베딩한 1536차원 벡터. 실패 시 `null` | `ProductEmbeddingService`, `ProductDocument.vector` |
+| 상품 벡터 | 상품명을 Gemini `gemini-embedding-001`로 임베딩한 768차원 벡터. 실패 시 `null` | `ProductEmbeddingService`, `ProductDocument.vector` |
 | 후보 규모 | 다양화 전에 ES에서 가져오는 상품 수. topK의 배수에 상한을 둔다(값: `vector-similarity` 스펙 비즈니스 규칙) | `candidateSize` |
 | max-min 다양화 | 1순위를 고정하고 "이미 고른 것들과의 최소 거리가 가장 큰" 후보를 순차 선택하는 greedy. k-medoids가 아니다 | `MaxMinDiversityService.selectDiverse` |
 | 추천 공통 경로 | 기준 벡터 하나로 후보 조회 → 다양화 → 응답 변환까지 수행하는 경로. 유사 상품·개인화 추천이 함께 쓴다 | `VectorRecommendPipeline.recommend` |

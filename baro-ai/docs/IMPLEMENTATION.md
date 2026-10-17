@@ -85,7 +85,7 @@ spring:
           text:
             options:
               model: ${SPRING_AI_GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
-              dimensions: 1536
+              dimensions: 768
 ```
 
 ### 로컬 개발 실행
@@ -213,9 +213,9 @@ public class ProductEmbeddingService {
 
     private final EmbeddingModel embeddingModel;
 
-    public float[] embedProduct(String productName) {
+    private float[] embedProduct(String productName) {
         var embeddings = embeddingModel.embed(List.of(productName));
-        return embeddings.get(0); // 1536차원 float 배열
+        return embeddings.get(0); // 768차원 float 배열
     }
 }
 ```
@@ -237,15 +237,16 @@ public class ProductIndexService {
     private final ProductEmbeddingService productEmbeddingService;
     private final ProductIngredientNormalizer ingredientNormalizer;
 
-    public ProductDocument indexProduct(ProductIndexRequest request) {
-        float[] vector = null;
-
-        // 임베딩이 실패하더라도 인덱싱은 계속되어야 함
-        try {
-            // 상품 이름을 기반으로 임베딩 생성
-            vector = productEmbeddingService.embedProduct(request.productName());
-        } catch (Exception e) {
-            log.error("❌ Product embedding failed. productId=" + request.productId(), e);
+    // 상품은 묶음으로 색인한다. 아래는 묶음 안의 상품 1건을 문서로 만드는 부분만 발췌한 것이다.
+    // 임베딩은 묶음 전체가 한 번의 API 호출로 나가고(ProductEmbeddingService.embedProducts),
+    // 실패한 상품은 예외가 아니라 null 벡터로 돌아온다 — 그래도 색인은 계속한다.
+    public List<ProductDocument> indexProducts(List<ProductIndexRequest> requests) {
+        List<float[]> vectors = productEmbeddingService.embedProducts(
+            requests.stream().map(ProductIndexRequest::productName).toList());
+        // ... 아래는 requests.get(i)와 vectors.get(i)를 짝지어 문서를 만드는 반복문 안이다
+        float[] vector = vectors.get(i);
+        if (vector == null) {
+            log.error("❌ Product embedding failed. productId={} — 벡터 없이 색인합니다", request.productId());
         }
 
         // 레시피 추천이 읽을 표준 재료명을 색인 시점에 1회 추출
@@ -598,8 +599,8 @@ public class UserProfileEmbeddingDocument {
     @Id
     private UUID userId; // 사용자 ID를 문서 ID로 사용
 
-    @Field(type = FieldType.Dense_Vector, dims = 1536)
-    private float[] userProfileVector; // 1536차원 벡터 (상품 벡터와 동일한 타입)
+    @Field(type = FieldType.Dense_Vector, dims = 768)
+    private float[] userProfileVector; // 768차원 벡터 (상품 벡터와 동일한 타입)
 
     @Field(type = FieldType.Date)
     private Instant lastUpdatedAt;
@@ -634,8 +635,7 @@ public class CartLogDocument {
     @Field(type = FieldType.Keyword)
     private String eventType; // CART_ITEM_ADDED, CART_QUANTITY_UPDATED, CART_ITEM_REMOVED
 
-    @Field(type = FieldType.Integer)
-    private Integer quantity; // 로그에 남기지만 취향 계산에는 쓰지 않는다 (2026-09-07 수량 축 삭제)
+    // quantity·categoryCode 필드는 2026-09-07에 뺐다 — 저장만 되고 읽는 곳이 없었다
 
     @Field(type = FieldType.Date)
     private Instant occurredAt; // 30일 조회 창·최신순 정렬 기준

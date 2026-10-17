@@ -57,7 +57,7 @@ graph LR
 - **처리**:
   - 로그마다 이벤트 종류로 비중 계산 (삭제·취소는 0이라 제외. 시간 감쇠 축은 2026-09-06에, 수량 축은 2026-09-07에 삭제 — 앞은 효과가 없었고 뒤는 선호가 아니라 소비량이었다)
   - 로그에 등장한 상품이 이미 가진 벡터를 비중대로 가중 평균한 뒤 L2 정규화
-  - 1536차원 벡터로 사용자 취향 표현 (외부 임베딩 API 호출 없음)
+  - 768차원 벡터로 사용자 취향 표현 (외부 임베딩 API 호출 없음)
 - **출력**: Top-K 개인화 상품 리스트 (상품 ID, 이름, 카테고리, 가격 포함)
 - **품질 보장**: 최소 3개 이상 로그 필요
 - **API**: 
@@ -227,9 +227,8 @@ src/main/java/com/barofarm/ai/
 ├── embedding/
 │   ├── application/           # 임베딩 서비스
 │   ├── domain/               # 임베딩 도메인 모델
-│   ├── infrastructure/        # Elasticsearch 리포지토리
-│   │   └── elasticsearch/
-│   └── exception/            # 임베딩 에러 코드
+│   └── infrastructure/        # Elasticsearch 리포지토리
+│       └── elasticsearch/
 ├── log/
 │   ├── domain/               # 로그 도메인 모델
 │   ├── infrastructure/       # Elasticsearch 리포지토리
@@ -265,7 +264,6 @@ src/main/java/com/barofarm/ai/
 | `embedding/application` | `embedding/application` | 임베딩 서비스 (완료) |
 | `embedding/domain` | `embedding/domain` | 도메인 모델 (유지) |
 | `embedding/infrastructure/elasticsearch` | `embedding/infrastructure/elasticsearch` | 리포지토리 구현체 (완료) |
-| `embedding/exception` | `embedding/exception` | 에러 코드 (완료) |
 | `config` | `config` | Spring, 모듈 설정 (유지) |
 | `common` | `common` | 공통 유틸리티 (유지) |
 
@@ -279,7 +277,7 @@ src/main/java/com/barofarm/ai/
 
 ### AI/ML
 - **Google Gemini (chat model)**: 텍스트 생성 (레시피/요약 등). 기본값은 `gemini-2.5-flash-lite` (`SPRING_AI_GEMINI_MODEL`)
-- **Google Gemini Embedding**: 벡터 생성 (`gemini-embedding-001`, 출력 차원을 1536으로 고정)
+- **Google Gemini Embedding**: 벡터 생성 (`gemini-embedding-001`, 출력 차원을 768로 고정)
 - **Spring AI**: AI 통합 프레임워크
 - **LangChain**: RAG 구현 (향후)
 

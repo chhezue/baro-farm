@@ -54,7 +54,7 @@ sequenceDiagram
 
 **색인.** 상품 이벤트가 오면 상품명을 두 가지로 가공해 저장한다. 하나는 벡터(임베딩 검색용, [임베딩 검색 문서](vector-similarity.md)), 다른 하나는 요리 재료명(장바구니 레시피용, [장바구니 레시피 문서](cart-recipe.md))이다. 둘 다 외부 AI 호출이라 실패할 수 있고, 실패해도 상품은 색인된다 — 벡터는 `null`, 재료명은 빈 문자열로 남고 "재색인 대상" 경고가 찍힌다. 검색은 상품명만 쓰므로 영향이 없다.
 
-**검색.** 검색어 하나에 세 가지 매칭을 동시에 건다. 정확 매칭(`match_phrase`, 가중치 2.0), 일반 매칭(nori 형태소, 가중치 1.0), 오탈자 매칭(`fuzziness=1`, 가중치 0.3). 하나라도 맞으면 후보가 되고, 점수 합으로 정렬한 뒤 같은 점수면 최신 이벤트 순이다. 판매 중 상태·카테고리·가격 범위는 점수와 무관한 필터다. 응답에서 벡터는 받지 않는다 — 문서 하나가 벡터 포함 약 21KB, 제외하면 약 371바이트다.
+**검색.** 검색어 하나에 세 가지 매칭을 동시에 건다. 정확 매칭(`match_phrase`, 가중치 2.0), 일반 매칭(nori 형태소, 가중치 1.0), 오탈자 매칭(`fuzziness=1`, 가중치 0.3). 하나라도 맞으면 후보가 되고, 점수 합으로 정렬한 뒤 같은 점수면 최신 이벤트 순이다. 판매 중 상태·카테고리·가격 범위는 점수와 무관한 필터다. 응답에서 벡터는 받지 않는다 — 문서 하나가 벡터 포함 약 10KB, 제외하면 약 371바이트다(2026-09-07에 벡터 차원을 절반으로 줄이기 전에는 약 21KB였다).
 
 **자동완성.** 색인 시점에 상품명을 1~20자 접두어 조각(`edge_ngram`)으로 저장해 두고, 조회는 입력한 말 그대로 `match`한다. 같은 접두어는 여러 사용자가 반복하므로 인스턴스별 Caffeine 캐시(1,000개·5분)를 앞에 둔다.
 
@@ -107,7 +107,7 @@ sequenceDiagram
 
 | 무엇 | 결과 | 원본 |
 |---|---|---|
-| 상품 문서 크기 | 벡터 포함 21,160바이트 / 제외 약 371바이트 | [`audits/keyword-search/001`](../audits/keyword-search/001-query-path.md) A-3 |
+| 상품 문서 크기 | 벡터 포함 21,160바이트 / 제외 약 371바이트 (**1536차원 시절 실측** — 2026-09-07 차원을 768로 낮춰 벡터 포함분은 약 절반) | [`audits/keyword-search/001`](../audits/keyword-search/001-query-path.md) A-3 · [`vector-similarity/003`](../audits/vector-similarity/003-embedding-dims-and-candidate-multiplier.md) |
 | ES 저장 1,000건 | 1건씩 4.95초 vs bulk(100) 1.16초 — 4.3배 | `audits/keyword-search/vectorbench/bulk-vs-single-*.json` |
 | Gemini 임베딩 | 1건씩: 13회 성공 뒤 429 · 10건 묶음: 5회(50건) 전부 성공, 호출당 p50 1.45초 · 25건 이상 묶음: 분당 한도 | `audits/keyword-search/vectorbench/embed-batch-*.json` |
 | 재료명 추출 정확도 | 17/17 (김치·장류 예시 추가 후) | [`audits/cart-recipe/004`](../audits/cart-recipe/004-index-time-ingredient-name.md) |
