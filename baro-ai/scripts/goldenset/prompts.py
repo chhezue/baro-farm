@@ -105,7 +105,7 @@ AFTER_TEMPLATE = """당신은 '집밥 레시피 추천 AI'입니다.
 <지켜야 할 것>
 1. 실제로 사람들이 만들어 먹는 요리만 추천합니다. 없는 요리를 지어내지 마세요.
    보유 재료가 서로 어울리지 않으면 전부 쓰려 하지 말고 일부만 쓰세요.
-   예: ["사과", "계란"]이면 "사과 계란 찌개"가 아니라 "애플파이"나 "계란찜"입니다.
+   예: ["시금치", "땅콩"]이면 "시금치 땅콩 찌개"가 아니라 "시금치나물"이나 "땅콩조림"입니다.
 2. 보유 재료 중 최소 1개는 반드시 씁니다.
 3. 부족한 핵심 재료가 최소 1개는 반드시 있어야 합니다. 사용자가 추가로 살 재료를
    제안하기 위해서입니다. 보유 재료만으로 완성되는 요리라면 그 요리 대신, 보유 재료를
@@ -137,10 +137,23 @@ if _PANTRY_OLD_RULE not in AFTER_TEMPLATE:
 PANTRY_TEMPLATE = AFTER_TEMPLATE.replace(_PANTRY_OLD_RULE, _PANTRY_NEW_RULE)
 
 
+# 2026-09-07 이전 프롬프트를 재현하는 팔이다. 그때 규칙 1의 예시는 ["사과", "계란"] → "애플파이"였는데,
+# 과일은 recipe-recommend.yml의 제외 규칙(AGRI_FRUIT* 4종)에 걸려 보유 재료로 들어올 수 없다 —
+# 일어날 수 없는 상황을 예시로 가르치고 있었다. 예시만 파는 카테고리로 바꿨고(감사 cart-recipe/007 A-1),
+# 그 교체가 품질을 움직이지 않았다는 비교를 다시 돌릴 수 있게 옛 문구를 이 팔로 남긴다.
+_FRUIT_EXAMPLE_NEW_RULE = """   예: ["사과", "계란"]이면 "사과 계란 찌개"가 아니라 "애플파이"나 "계란찜"입니다."""
+_FRUIT_EXAMPLE_OLD_RULE = """   예: ["시금치", "땅콩"]이면 "시금치 땅콩 찌개"가 아니라 "시금치나물"이나 "땅콩조림"입니다."""
+
+if _FRUIT_EXAMPLE_OLD_RULE not in AFTER_TEMPLATE:
+    raise AssertionError("AFTER_TEMPLATE의 규칙 1 예시가 바뀌었다. _FRUIT_EXAMPLE_OLD_RULE을 맞춰야 한다")
+FRUIT_EXAMPLE_TEMPLATE = AFTER_TEMPLATE.replace(_FRUIT_EXAMPLE_OLD_RULE, _FRUIT_EXAMPLE_NEW_RULE)
+
+
 ARMS = {
     "before": {"template": BEFORE_TEMPLATE, "schema": BEFORE_SCHEMA},
     "after": {"template": AFTER_TEMPLATE, "schema": AFTER_SCHEMA},
     "pantry": {"template": PANTRY_TEMPLATE, "schema": AFTER_SCHEMA},
+    "fruit-example": {"template": FRUIT_EXAMPLE_TEMPLATE, "schema": AFTER_SCHEMA},
 }
 
 

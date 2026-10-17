@@ -34,7 +34,11 @@ cd baro-ai/scripts/goldenset && python3 run_goldenset.py --arm after
 
 | 옵션 | 기본값 | 쓰임 |
 |------|--------|------|
-| `--arm` | (필수) | `before`=재설계 이전, `after`=현행(운영) 프롬프트, `pantry`=기본 양념 목록을 넓힌 안 |
+| `--arm` | (필수) | `before`=재설계 이전, `after`=현행(운영) 프롬프트, `pantry`=기본 양념 목록을 넓힌 안, `fruit-example`=규칙 1 예시를 사과로 되돌린 2026-09-07 이전 프롬프트 |
+
+**`after`는 항상 운영 프롬프트(`RecipeCandidateGenerator`)의 사본이다.** 자바 쪽 문구를 고치면 `AFTER_TEMPLATE`도 같은 턴에 맞춘다 — 어긋나면 "현행 품질"을 잰다는 이 도구의 전제가 깨진다. 나머지 팔은 전부 `AFTER_TEMPLATE`에서 한 곳만 치환해 만들므로, 두 팔의 차이가 그 한 곳뿐임이 코드로 보장된다.
+
+> **2026-09-07 측정 파일의 이름 주의.** 그날 예시를 교체하면서 `raw-after-20260907-*.jsonl`은 **교체 전**, `raw-nofruit-20260907-*.jsonl`은 **교체 후**를 담았다. 교체를 반영한 뒤로 `after`는 교체 후를 가리키고, 교체 전을 다시 돌리려면 `fruit-example`을 쓴다. 비교 결과는 [`audits/cart-recipe/007`](../../docs/audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md) M-1.
 | `--repeats` | 3 | 시나리오당 반복 횟수 |
 | `--scenarios` | 전체 | 부분 실행 (예: `--scenarios S4,S11`) |
 | `--delay` | 4.0 | 호출 간 대기 초 |
@@ -61,6 +65,7 @@ cd baro-ai/scripts/goldenset && python3 run_goldenset.py --arm after
 | 스크립트 | 무엇에 답하나 |
 |----------|---------------|
 | [`classify_missing.py`](classify_missing.py) | 부족 재료를 "우리가 파는 것 / 양념·기름 / 가공품"으로 나눠, **살 수 있는 게 하나도 없는 추천이 몇 %인지** 센다. 분류 목록을 코드에 박아 둬서 두 팔을 같은 기준으로 비교할 수 있다 — 손으로 세면 기준이 흔들린다 |
+| [`fruit_scenarios.py`](fruit_scenarios.py) | "과일을 재료에 넣으면 이상한 요리가 나오는가"를 옛 프롬프트와 현행 프롬프트에서 같은 조건으로 비교한다. 결과는 [`audits/cart-recipe/007`](../../docs/audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md) M-2 |
 | [`experiment_variants.py`](experiment_variants.py) | "대파·쪽파·실파처럼 비슷한 재료가 여러 개 담기면 추천이 나빠지는가", "이미 가진 재료의 다른 형태(마늘 vs 다진마늘)를 사라고 하는가"를 잰다. 결과는 [`audits/cart-recipe/003`](../../docs/audits/cart-recipe/003-pantry-staples-and-variants.md) |
 | [`check_normalizer.py`](check_normalizer.py) | 레시피가 아니라 **그 앞단**을 잰다 — 상품명에서 재료명을 뽑는 프롬프트가 상품명 17종에 어떤 답을 내는지. `current` 팔은 프롬프트를 Java 파일에서 직접 읽어 운영과 어긋날 수 없다. 결과는 [`audits/cart-recipe/004`](../../docs/audits/cart-recipe/004-index-time-ingredient-name.md) |
 
