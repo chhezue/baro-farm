@@ -27,7 +27,7 @@ import org.springframework.stereotype.Service;
  *
  * 최근 30일간의 장바구니·주문 로그를 분석하여 사용자가 관심을 보인 상품들의 임베딩 벡터를
  * 행동 유형 가중치로 가중 평균(Weighted Average)하고 L2 정규화하여
- * 1536차원 사용자 취향 벡터를 생성 및 저장합니다.
+ * 768차원 사용자 취향 벡터를 생성 및 저장합니다.
  *
  * 가중치는 행동 종류 하나로만 정해진다 — 주문 3, 담기 2, 수량 변경 1, 취소·삭제 0이다.
  * 한때 여기에 시간 감쇠와 수량을 더 곱했으나 둘 다 뺐다.
@@ -115,7 +115,7 @@ public class UserProfileEmbeddingService {
         }
 
         // [4단계: 관심 상품들의 사전 생성된 임베딩 벡터 일괄 조회]
-        // 도출된 관심 상품들의 1536차원 사전 계산 벡터를 Elasticsearch에서 일괄 로드합니다.
+        // 도출된 관심 상품들의 768차원 사전 계산 벡터를 Elasticsearch에서 일괄 로드합니다.
         Map<UUID, float[]> productVectors = loadProductVectors(
             interests.stream().map(WeightedProduct::productId).distinct().toList());
 
@@ -184,7 +184,7 @@ public class UserProfileEmbeddingService {
     }
 
     /**
-     * Elasticsearch에서 대상 상품들의 1536차원 임베딩 벡터를 일괄 조회하여 Map으로 반환합니다.
+     * Elasticsearch에서 대상 상품들의 768차원 임베딩 벡터를 일괄 조회하여 Map으로 반환합니다.
      */
     private Map<UUID, float[]> loadProductVectors(Collection<UUID> productIds) {
         Map<UUID, float[]> vectors = new HashMap<>();

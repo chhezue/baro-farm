@@ -71,8 +71,12 @@ spring:
           text:
             options:
               model: ${SPRING_AI_GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
-              # ES 매핑(dims=1536)을 유지하려고 출력 차원을 고정한다
-              dimensions: 1536
+              # ES 매핑(dims=768)과 같은 값으로 고정한다. 3072(기본값)에서 줄인 값이라
+              # 모델이 앞쪽 차원만 잘라 돌려준다(MRL) — 공식 문서가 권장하는 값은 768·1536·3072다.
+              # 1536에서 768로 줄인 근거: 후보 15건 응답이 507KB에서 255KB로, 동시 30 p95가
+              # 183ms에서 53ms로 줄고, 상위 5개 유사 상품은 94.5% 그대로다(상품명 154개 실측).
+              # 근거: docs/audits/vector-similarity/003-embedding-dims-and-candidate-multiplier.md
+              dimensions: 768
 
 # 로깅 설정
 logging:

@@ -10,7 +10,7 @@ import java.util.UUID;
  * - Kafka 상품 이벤트(`ProductEventConsumer`) 수신 시 `ProductIndexService.indexProducts()`에 묶음으로 전달됩니다.
  *
  * @param productId           색인 대상 상품의 고유 UUID
- * @param productName         상품 명칭 (Nori 형태소 분석 및 1536차원 벡터 임베딩 대상)
+ * @param productName         상품 명칭 (Nori 형태소 분석 및 768차원 벡터 임베딩 대상)
  * @param productCategoryId   상품 카테고리 고유 UUID
  * @param productCategoryCode 상품 카테고리 코드 (카테고리 필터링 검색용 키워드)
  * @param productCategoryName 상품 카테고리 한글 표시명

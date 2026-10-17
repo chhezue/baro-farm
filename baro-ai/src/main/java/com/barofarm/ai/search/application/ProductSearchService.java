@@ -57,7 +57,7 @@ public class ProductSearchService {
     /** Elasticsearch가 한 번에 훑을 수 있는 최대 결과 위치 (index.max_result_window 기본값) */
     private static final int MAX_RESULT_WINDOW = 10_000;
 
-    /** 응답 DTO 변환 시 사용하지 않는 1536차원 dense_vector를 Elasticsearch에서 전송받지 않도록 제외하는 필드 목록 (네트워크 대역폭 및 메모리 절감) */
+    /** 응답 DTO 변환 시 쓰지 않는 dense_vector를 Elasticsearch에서 전송받지 않도록 제외하는 필드 목록 (문서당 약 10KB를 아낀다) */
     private static final String[] EXCLUDED_SOURCE_FIELDS = {"vector"};
 
     /** Spring Data Elasticsearch 네이티브 쿼리 실행 템플릿 */
@@ -132,7 +132,7 @@ public class ProductSearchService {
     /**
      * 상품 ID 목록으로 상품 문서를 한 번에 읽습니다. 레시피 추천이 장바구니 상품의 재료 표준명을 읽을 때 씁니다.
      *
-     * 벡터는 받지 않습니다 — 부르는 쪽이 쓰지 않는데 문서당 약 21KB가 붙기 때문입니다. 상품 인덱스에 질의하는
+     * 벡터는 받지 않습니다 — 부르는 쪽이 쓰지 않는데 문서당 약 10KB가 붙기 때문입니다. 상품 인덱스에 질의하는
      * 코드를 이 클래스 하나로 모으려고 여기 둡니다. 예전에는 레시피 추천이 ElasticsearchOperations를 직접
      * 주입받아 같은 질의를 따로 조립했고, 그래서 제외 필드 목록이 두 곳에 복제돼 있었습니다.
      * 근거: docs/audits/cross-cutting/003-stale-comments-and-write-only-fields.md B-2
@@ -247,7 +247,7 @@ public class ProductSearchService {
                 // 정렬 조건: 1순위 검색 관련도 점수(_score 내림차순), 2순위 최신 등록/수정일(updatedAt 내림차순)
                 .withSort(s -> s.score(sc -> sc.order(SortOrder.Desc)))
                 .withSort(s -> s.field(f -> f.field("updatedAt").order(SortOrder.Desc)))
-                // 응답에 쓰지 않는 벡터(문서당 약 21KB)를 받아 오지 않는다.
+                // 응답에 쓰지 않는 벡터(문서당 약 10KB)를 받아 오지 않는다.
                 .withSourceFilter(FetchSourceFilter.of(null, EXCLUDED_SOURCE_FIELDS))
                 .withPageable(pageable)
                 .build();

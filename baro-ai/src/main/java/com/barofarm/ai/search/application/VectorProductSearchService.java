@@ -25,9 +25,10 @@ import org.springframework.stereotype.Service;
  * 1. 유사 상품 추천 및 개인화 추천에서 요구하는 1차 후보군을 벡터 유사도 순으로 신속하게 조회합니다.
  * 2. 후속 단계인 Max-Min 다양성 선별(MaxMinDiversityService)에서 상호 거리 계산이 가능하도록
  *    상품 문서의 `vector` 필드를 온전히 유지한 채 `ProductDocument` 목록을 반환합니다.
- *    이것이 검색 경로와 달리 `_source`에서 벡터를 빼지 않는 이유다. 비용은 실측으로 확인했다 — k=30 응답이
- *    벡터 포함 약 1,030KB, 제외 시 약 2KB(2026-09-06). 그 대가로 얻는 것(같은 카테고리 쌍 45%→11.5%)도 같은 날
- *    잰 뒤 유지하기로 했다. 근거: docs/audits/vector-similarity/002 A-1·M-2
+ *    이것이 검색 경로와 달리 `_source`에서 벡터를 빼지 않는 이유다. 비용은 실측으로 확인했다 — 후보 15건(기본 topK=5)
+ *    응답이 1536차원일 때 약 507KB였고 768차원으로 줄여 약 255KB가 됐다. 그 대가로 얻는 것(같은 카테고리 쌍
+ *    45%→11.5%)은 유지된다 — 차원을 줄여도 상위 5개 이웃이 94.5% 그대로다.
+ *    근거: docs/audits/vector-similarity/002 A-1·M-2, 003 A-1
  * 4. 후보 조회는 `script_score` 선형 스캔이다. native `knn`(HNSW)으로 바꾸지 않는 이유는 상품 1만 건까지 p95 8ms 미만으로
  *    두 방식의 지연이 같기 때문이다 — 상품이 수만 건을 넘으면 다시 연다. 근거: docs/decisions/004-script-score-over-knn.md
  * 3. 벡터가 미생성된 불완전 상품 문서가 존재하더라도 검색 쿼리가 중단되지 않도록 `exists(vector)` 필터를 사전 적용합니다.
@@ -49,10 +50,10 @@ public class VectorProductSearchService {
     /**
      * 기준 쿼리 벡터와 코사인 유사도가 높은 판매 중 상품 문서들을 후보군 크기(candidateSize)만큼 조회합니다.
      *
-     * @param queryVector       비교 기준이 되는 1536차원 임베딩 벡터
+     * @param queryVector       비교 기준이 되는 768차원 임베딩 벡터
      * @param candidateSize     조회할 최대 후보 상품 수 (예: topK * 3)
      * @param excludeProductIds 검색 결과에서 제외할 상품 UUID 목록 (자기 자신, 이미 구매한 상품 등)
-     * @return 1536차원 벡터가 포함된 상품 문서 목록 (조회 실패 시 안전하게 빈 목록 반환)
+     * @return 768차원 벡터가 포함된 상품 문서 목록 (조회 실패 시 안전하게 빈 목록 반환)
      */
     public List<ProductDocument> findSimilarProductDocumentsByVector(
         float[] queryVector,

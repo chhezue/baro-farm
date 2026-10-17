@@ -30,7 +30,7 @@ public class VectorRecommendPipeline {
      * 3은 2026-09-06 실측으로 유지가 결정된 값이다(상품명 154개 임베딩, 기준 상품 20개, k=5):
      * 다양화를 끄면 추천 5개 중 같은 카테고리 쌍이 45%인데 ×2면 14%, ×3이면 11.5%, ×5면 7.5%다.
      * 대가인 기준 상품과의 유사도 손실은 ×2 0.024, ×3 0.036, ×5 0.053 — 미리 정한 허용선 0.05를 ×5만 넘는다.
-     * 후보 수는 곧 ES에서 받아 오는 벡터 수(문서당 약 21KB)라, 배수를 올리면 전송량이 같은 비율로 는다.
+     * 후보 수는 곧 ES에서 받아 오는 벡터 수(문서당 약 10KB)라, 배수를 올리면 전송량이 같은 비율로 는다.
      * 근거: docs/audits/vector-similarity/002-vector-transfer-knn-and-diversity.md M-2
      */
     private static final int CANDIDATE_MULTIPLIER = 3;
@@ -45,14 +45,22 @@ public class VectorRecommendPipeline {
     /** Elasticsearch `dense_vector`를 `script_score`로 훑어 코사인 유사도 검색을 수행하는 서비스 */
     private final VectorProductSearchService vectorProductSearchService;
 
-    /** 요청 가능한 추천 개수(topK)의 상한. 화면에 노출하는 목록 크기이자 다양화 반복 횟수라 무제한으로 받지 않는다. */
-    private static final int MAX_TOP_K = 50;
+    /**
+     * 요청 가능한 추천 개수(topK)의 상한.
+     *
+     * 위 두 상수에서 끌어낸 값이라 직접 숫자를 적지 않는다. topK를 그보다 크게 받으면 후보 수가 100에서 잘려
+     * 실효 배수가 3 아래로 떨어지는데(topK=50이면 2배), 그러면 위에 근거로 적은 "×3이면 같은 카테고리 쌍 11.5%"가
+     * 더 이상 성립하지 않는다. 그 상태를 조용히 허용하는 대신 요청 자체를 400으로 끊는다.
+     * 값이 실제로 무엇인지는 RecommendErrorCode.INVALID_TOP_K 메시지와 같이 움직여야 한다.
+     * 근거: docs/audits/vector-similarity/003-embedding-dims-and-candidate-multiplier.md A-2
+     */
+    private static final int MAX_TOP_K = MAX_CANDIDATE_SIZE / CANDIDATE_MULTIPLIER;
 
     /** Greedy Max-Min(Farthest-first) 방식으로 대표 상품들을 골라 추천 다양성을 확보하는 서비스 */
     private final MaxMinDiversityService maxMinDiversityService;
 
     /**
-     * 추천 개수(topK)가 허용 범위(1~50) 안인지 확인하고, 벗어나면 400으로 끊습니다.
+     * 추천 개수(topK)가 허용 범위(1~33) 안인지 확인하고, 벗어나면 400으로 끊습니다.
      *
      * 추천 API는 로그인 없이도 호출되므로 주소창에 임의의 숫자를 넣을 수 있습니다. 검증을 두지 않으면
      * 음수·0은 조용히 빈 목록으로, 아주 큰 값은 곱셈이 넘쳐 역시 빈 목록으로 나가 원인을 알 수 없습니다.
@@ -69,7 +77,7 @@ public class VectorRecommendPipeline {
     /**
      * 기준 벡터와 코사인 유사도가 높으면서도 서로 중복/유사하지 않은 대표 상품 topK개를 선별하여 반환합니다.
      *
-     * @param queryVector       추천의 기준이 되는 1536차원 벡터 (상품 벡터 또는 사용자 취향 벡터)
+     * @param queryVector       추천의 기준이 되는 768차원 벡터 (상품 벡터 또는 사용자 취향 벡터)
      * @param excludeProductIds 추천 결과에서 제외할 상품 UUID 목록 (예: 현재 조회 중인 상품 본인)
      * @param topK              최종 사용자에게 노출할 추천 상품 개수
      * @return 추천 상품 응답 DTO 목록 (후보가 없거나 유효하지 않은 경우 빈 리스트)

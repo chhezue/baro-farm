@@ -38,7 +38,7 @@ public class ProductIndexService {
     /** 상품명 접두어 자동완성 Elasticsearch 레포지토리 */
     private final ProductAutocompleteRepository autocompleteRepository;
 
-    /** 상품명 텍스트 기반 1536차원 dense_vector 임베딩 생성 서비스 */
+    /** 상품명 텍스트 기반 768차원 dense_vector 임베딩 생성 서비스 */
     private final ProductEmbeddingService productEmbeddingService;
 
     /** 상품명 및 카테고리로부터 요리 재료 표준명을 추출하는 LLM 정규화 컴포넌트 */
@@ -56,7 +56,7 @@ public class ProductIndexService {
             return List.of();
         }
 
-        // [1단계: 상품명 임베딩 벡터(1536차원) 묶음 생성]
+        // [1단계: 상품명 임베딩 벡터(768차원) 묶음 생성]
         // 외부 임베딩 모델 장애가 발생하더라도 상품의 기본 키워드 검색은 계속 가능해야 하므로,
         // 실패한 상품은 벡터 null로 두고 색인 절차를 중단 없이 진행합니다(폴백은 ProductEmbeddingService 안에 있다).
         List<float[]> vectors = productEmbeddingService.embedProducts(

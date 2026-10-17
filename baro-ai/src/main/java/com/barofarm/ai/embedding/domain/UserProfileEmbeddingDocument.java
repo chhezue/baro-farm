@@ -15,7 +15,7 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
  *
  * [주요 보관 데이터]
  * - userId: 사용자 고유 식별자 (문서 @Id)
- * - userProfileVector: 사용자의 최근 30일간 행동 로그(장바구니·주문)를 종합하여 산출된 1536차원 L2 정규화 취향 벡터
+ * - userProfileVector: 사용자의 최근 30일간 행동 로그(장바구니·주문)를 종합하여 산출된 768차원 L2 정규화 취향 벡터
  * - lastUpdatedAt: 프로필 벡터가 마지막으로 계산·저장된 시각
  * - sourceProductIds: 취향 벡터 산출 시 반영된 기경험(장바구니/주문) 상품 ID 목록 (개인화 추천 시 제외 필터로 사용)
  */
@@ -29,11 +29,11 @@ public class UserProfileEmbeddingDocument {
     private UUID userId;
 
     /**
-     * 1536차원 사용자 취향 임베딩 벡터.
-     * 상품 임베딩 모델(Gemini)과 동일한 1536차원 규격을 가지며,
+     * 768차원 사용자 취향 임베딩 벡터.
+     * 상품 임베딩 모델(Gemini)과 동일한 768차원 규격을 가지며,
      * 개인화 상품 추천 시 상품 벡터들과의 코사인 유사도(Cosine Similarity) 비교 기준으로 활용됩니다.
      */
-    @Field(type = FieldType.Dense_Vector, dims = 1536)
+    @Field(type = FieldType.Dense_Vector, dims = 768)
     private float[] userProfileVector;
 
     /** 프로필 벡터가 최종 계산되어 갱신된 일시 */

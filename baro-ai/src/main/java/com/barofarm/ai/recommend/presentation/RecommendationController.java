@@ -56,7 +56,7 @@ public class RecommendationController {
     public ResponseDto<List<ProductRecommendResponse>> getPersonalizedRecommendations(
         @Parameter(description = "사용자 ID", example = "550e8400-e29b-41d4-a716-446655440000")
         @PathVariable UUID userId,
-        @Parameter(description = "추천할 상품 개수 (1~50)", example = "5")
+        @Parameter(description = "추천할 상품 개수 (1~33)", example = "5")
         @RequestParam(required = false, defaultValue = "5") int topK
     ) {
         // [서비스 위임 및 응답 포장]
@@ -101,7 +101,7 @@ public class RecommendationController {
     public ResponseDto<List<ProductRecommendResponse>> getSimilarProducts(
         @Parameter(description = "기준 상품 ID", example = "00a1a1a1-a1a1-1a1a-a1a1-a1a1a1a1a1a1")
         @PathVariable UUID productId,
-        @Parameter(description = "추천할 상품 개수 (1~50)", example = "3")
+        @Parameter(description = "추천할 상품 개수 (1~33)", example = "3")
         @RequestParam(required = false, defaultValue = "3") int topK
     ) {
         // [서비스 위임 및 응답 포장]

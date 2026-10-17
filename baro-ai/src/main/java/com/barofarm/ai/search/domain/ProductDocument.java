@@ -23,7 +23,7 @@ import org.springframework.data.elasticsearch.annotations.MultiField;
  * - status: 현재 판매 상태 (ON_SALE, DISCOUNTED 상태만 검색 및 추천에 노출)
  * - updatedAt: 최신순 정렬(2순위)에 쓰는 이벤트 발행 시각 — 상품이 바뀐 시각이 아니다
  * - ingredientName: 레시피 추천을 위해 상품 색인 시점에 사전 추출된 요리 재료 표준명
- * - vector: Google Gemini 임베딩 모델로 생성된 1536차원 dense_vector (`script_score` 코사인 유사도 검색용)
+ * - vector: Google Gemini 임베딩 모델로 생성된 768차원 dense_vector (`script_score` 코사인 유사도 검색용)
  */
 @Getter
 @Document(indexName = "product")
@@ -88,8 +88,8 @@ public class ProductDocument {
     @Field(type = FieldType.Keyword)
     private String ingredientName;
 
-    /** Google Gemini 임베딩 모델로 생성된 1536차원 상품 임베딩 벡터. 유사 상품·개인화 추천의 코사인 유사도 계산에 쓴다. */
-    @Field(type = FieldType.Dense_Vector, dims = 1536)
+    /** Google Gemini 임베딩 모델로 생성된 768차원 상품 임베딩 벡터. 유사 상품·개인화 추천의 코사인 유사도 계산에 쓴다. */
+    @Field(type = FieldType.Dense_Vector, dims = 768)
     private float[] vector;
 
     public ProductDocument() {

@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
  * 상품 상세 페이지에서 현재 조회 중인 상품과 가장 유사한 상품들을 추천하는 애플리케이션 서비스입니다.
  *
  * [주요 동작 원리]
- * 1. 기준 상품 문서(ProductDocument)를 Elasticsearch에서 조회하여 사전 계산된 1536차원 임베딩 벡터를 추출합니다.
+ * 1. 기준 상품 문서(ProductDocument)를 Elasticsearch에서 조회하여 사전 계산된 768차원 임베딩 벡터를 추출합니다.
  * 2. 기준 상품 본인은 추천 목록에 다시 나오지 않도록 제외 목록(excludeProductIds)에 포함합니다.
  * 3. 공통 추천 파이프라인(VectorRecommendPipeline)에 위임하여 코사인 유사도 검색과 Max-Min 다양성 선별을 거친 추천 상품 목록을 반환합니다.
  */

@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * 상품명을 기반으로 Google GenAI 텍스트 임베딩 모델(gemini-embedding-001)을 호출하여
- * 1536차원 dense_vector를 생성하는 임베딩 애플리케이션 서비스입니다.
+ * 768차원 dense_vector를 생성하는 임베딩 애플리케이션 서비스입니다.
  *
  * 실패는 예외로 올리지 않고 {@code null} 벡터로 표현합니다. 임베딩은 색인 경로에서만 부르고 그 경로는
  * 벡터 없이도 색인을 마치도록 돼 있어, 여기서 던진 예외가 HTTP 응답으로 나갈 경로가 없기 때문입니다.
@@ -17,8 +17,8 @@ import org.springframework.stereotype.Service;
  *
  * [주요 동작]
  * 1. 상품 색인 시점(`ProductIndexService.indexProducts`)에 호출되어 상품명 텍스트를 고차원 벡터 공간으로 투영합니다.
- * 2. `application.yml`의 `spring.ai.google.genai.embedding.text.options.dimensions: 1536` 설정에 따라
- *    Elasticsearch 매핑(`dims=1536`) 규격과 정확히 일치하는 1536차원 float 배열을 생성합니다.
+ * 2. `application.yml`의 `spring.ai.google.genai.embedding.text.options.dimensions: 768` 설정에 따라
+ *    Elasticsearch 매핑(`dims=768`) 규격과 정확히 일치하는 768차원 float 배열을 생성합니다.
  * 3. 상품 여러 개는 {@link #embedProducts(List)}로 한 번에 보낸다. Spring AI의 Gemini 구현은 목록 전체를
  *    `batchEmbedContents` 한 번으로 보내므로 왕복이 N번에서 1번이 된다. 실측(2026-09-06, 무료 티어): 1건씩 보내면
  *    13회 성공 뒤 14번째 호출부터 429가 났고, 10건 묶음은 5번 연속 성공했다 — 배치는 속도보다 한도 문제다.
@@ -42,7 +42,7 @@ public class ProductEmbeddingService {
      * 상품명 하나를 임베딩합니다. 묶음 호출이 실패했을 때의 폴백 경로에서만 씁니다.
      *
      * @param productName 임베딩 대상 상품명 (예: "유기농 무농약 달콤한 사과 1kg")
-     * @return 1536차원 실수 벡터, 만들지 못하면 {@code null}
+     * @return 768차원 실수 벡터, 만들지 못하면 {@code null}
      */
     private float[] embedProduct(String productName) {
         try {
@@ -52,7 +52,7 @@ public class ProductEmbeddingService {
             // 단일 상품명을 List에 담아 호출하며, 결과가 비어있는 경우 get(0)에서 IndexOutOfBoundsException이 발생하여 catch 블록으로 이동합니다.
             var embeddings = embeddingModel.embed(List.of(productName));
 
-            // [2단계: 1536차원 실수 벡터 추출]
+            // [2단계: 768차원 실수 벡터 추출]
             // "벡터 없음" 상태는 null 하나로만 일관되게 표현하므로, 빈 배열 대신 정상 생성된 float[] 벡터를 그대로 반환합니다.
             float[] floatVector = embeddings.get(0);
 
