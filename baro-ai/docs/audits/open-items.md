@@ -27,18 +27,20 @@
 | 키워드 검색 | 6 | [`specs/keyword-search/product-search-and-autocomplete.md`](../specs/keyword-search/product-search-and-autocomplete.md) |
 | 장바구니 레시피 | 6 | [`specs/cart-recipe/recipe-recommendation.md`](../specs/cart-recipe/recipe-recommendation.md) |
 
-### A-2. 기동해야만 드러나는 확인 (11건 — 2026-09-06 로컬 통합 확인으로 6건 닫힘)
+### A-2. 기동해야만 드러나는 확인 (남은 5건 — 2026-09-06에 6건, 2026-09-07에 11건 닫힘)
 
 컴파일이 통과했다고 서버가 뜬다는 뜻은 아니다. 특히 공유 인프라 라운드는 프로필 제거·의존성 6종 삭제·빈 덮어쓰기 허용 해제처럼 **기동 시점에만 결과가 나오는** 변경이 몰려 있다.
 
 **2026-09-06 저녁, nori를 넣은 로컬 ES + Kafka로 앱을 띄워 6건을 닫았다**(환경: `baro-ai/docker/local/`). 닫힌 것과 그때 새로 드러난 것은 [`audits/keyword-search/003`](keyword-search/003-local-integration-verification.md)에 있다 — 통과 6건, 새 한계 1건, 그리고 **이 확인이 아니었으면 못 봤을 A 항목 2건**([`taste-vector/003`](taste-vector/003-shared-executor-saturation.md) A-1, [`cart-recipe/006`](cart-recipe/006-missing-ingredient-product-match.md) A-1).
 
+**2026-09-07, 차원을 바꾼 코드로 인덱스를 지우고 다시 만든 뒤 같은 환경에서 다시 띄워 11건을 더 닫았다** — 상세는 [`audits/vector-similarity/003`](vector-similarity/003-embedding-dims-and-candidate-multiplier.md) M-3. 남은 것은 아래 표에서 취소선이 없는 행이다.
+
 | 묶음 | 건수 | 어디에 |
 |------|------|--------|
-| 공유 인프라 (프로필 없이 기동, 빈 이름 충돌, 지표 노출, 로그 손잡이, 컨슈머 4개, 응답 형식) | 6 | [`audits/cross-cutting/refactor-log.md`](cross-cutting/refactor-log.md) "기동 확인" |
-| 장바구니 레시피 (장바구니 연동, LLM 응답 파싱, 읽기 상한, 네임스페이스) | 4 | [`audits/cart-recipe/refactor-log.md`](cart-recipe/refactor-log.md) 2026-09-05 "기동 확인" |
-| 장바구니 레시피 · 취향 벡터 (수신 칸을 줄인 뒤 장바구니·이벤트가 정상 파싱되는지) | 3 | [`audits/cart-recipe/refactor-log.md`](cart-recipe/refactor-log.md) 2026-09-06 "기동 확인" |
-| 임베딩 유사도 검색 (ES 설정 클래스 삭제 후 빈 등록, 덮어쓰기 허용 해제) | 2 | [`audits/vector-similarity/refactor-log.md`](vector-similarity/refactor-log.md) "기동 확인" |
+| ~~공유 인프라 (프로필 없이 기동, 빈 이름 충돌, 지표 노출, 로그 손잡이, 컨슈머 4개, 응답 형식)~~ **닫힘(2026-09-07)** — 프로필 지정 없이 기동, `/actuator`에 health·metrics·prometheus·loggers만 노출(prometheus 157줄), `executor.completed{name=profileUpdateExecutor}` 수집, 로그 레벨 손잡이 동작, 컨슈머 그룹 4개(`ai-service`·`-cart`·`-order`·`-review`) 등록, 응답이 `ResponseDto` 형식 | 0 | [`audits/vector-similarity/003`](vector-similarity/003-embedding-dims-and-candidate-multiplier.md) M-3 |
+| 장바구니 레시피 — **장바구니 연동과 LLM 응답 파싱은 닫힘**(2026-09-07, `scripts/localstub/`의 장바구니 스텁으로 경로 전체 통과). 남은 것은 읽기 상한(3초)이 실제로 걸리는지와 배포 네임스페이스 확인 | 2 | [`audits/cart-recipe/007`](cart-recipe/007-fruit-exclusion-and-prompt-example.md) M-4 |
+| 장바구니 레시피 · 취향 벡터 (수신 칸을 줄인 뒤 정상 파싱되는지) — **장바구니 이벤트는 닫힘**(상류가 보낸 `quantity`·`categoryCode`·`cartId`·`cartItemId`가 있는 메시지를 정상 소비하고 축소된 칸만 저장). 남은 것은 주문 이벤트와 장바구니 Feign 응답(`baro-shopping` 필요) | 2 | [`audits/vector-similarity/003`](vector-similarity/003-embedding-dims-and-candidate-multiplier.md) M-3 |
+| ~~임베딩 유사도 검색 (ES 설정 클래스 삭제 후 빈 등록, 덮어쓰기 허용 해제)~~ **닫힘(2026-09-07)** — 기동 성공 + 추천 API 정상 응답 | 0 | [`audits/vector-similarity/003`](vector-similarity/003-embedding-dims-and-candidate-multiplier.md) M-3 |
 | 키워드 검색 (`DefaultErrorHandler`의 묶음 **부분 실패** 재시도 동작) — 묶음 리스너 실제 소비와 색인 시간은 닫힘 | 1 | [`audits/keyword-search/003`](keyword-search/003-local-integration-verification.md) |
 | ~~장바구니 레시피 (`_msearch` 1건) · 취향 벡터 (프로필 생성)~~ **둘 다 닫힘(2026-09-06)** | 0 | [`audits/keyword-search/003`](keyword-search/003-local-integration-verification.md) |
 
@@ -46,12 +48,15 @@
 
 **2026-09-07 추가:** `search_logs` 인덱스는 코드가 더 이상 만들지도 읽지도 않는다(검색 신호 제거). 이미 만들어진 인덱스 삭제는 사람이 실행한다.
 
+**2026-09-07 추가(2) — 로컬은 닫힘.** 로컬 ES는 같은 날 지우고 다시 만든 뒤 앱을 띄워 전 경로를 확인했다([`audits/vector-similarity/003`](vector-similarity/003-embedding-dims-and-candidate-multiplier.md) M-3). 아래는 **배포 환경**에 남은 몫이다. 임베딩 차원을 1536에서 768로 낮췄다. `product`·`user_profile_embeddings` 두 인덱스의 `dense_vector` 매핑이 바뀌므로 **재생성 + 전체 재색인 전까지 벡터 추천이 정상 동작하지 않는다** — 옛 1536차원 문서는 후보에서 걸러지기만 한다(오류는 나지 않는다). 같은 날 장바구니·주문 로그에서 쓰기 전용 필드 2개(`quantity`·`categoryCode`)를 지워 `cart_event_logs`·`order_event_logs`도 재생성 대상에 남는다.
+
 저장 형식이 바뀐 인덱스다. 재생성 전까지는 해당 기능이 **의도대로 동작하지 않는다.**
 
 | 인덱스 | 어디에 (재생성 이유·절차) |
 |--------|---------------------------|
-| `cart_event_logs`·`order_event_logs`·`search_logs`·`user_profile_embeddings` | [`audits/taste-vector/refactor-log.md`](taste-vector/refactor-log.md) "인덱스 재생성" |
+| `cart_event_logs`·`order_event_logs`·`search_logs`·`user_profile_embeddings` | [`audits/taste-vector/refactor-log.md`](taste-vector/refactor-log.md) "인덱스 재생성" · 필드 축소는 [`audits/cross-cutting/003`](cross-cutting/003-stale-comments-and-write-only-fields.md) B-1 |
 | `product` | [`audits/keyword-search/refactor-log.md`](keyword-search/refactor-log.md) "인덱스 재생성" — 재생성만으로 끝나지 않고 **상품 이벤트 재발행까지** 필요하다 |
+| `product`·`user_profile_embeddings` (벡터 차원 1536 → 768) | [`audits/vector-similarity/003`](vector-similarity/003-embedding-dims-and-candidate-multiplier.md) A-1 — 재색인이 곧 전 상품 임베딩 재호출이라 Gemini 한도(C-12)와 함께 계획해야 한다 |
 
 ### A-4. 단위 테스트 도입
 
@@ -71,7 +76,7 @@
 | B-6 | 상품 이벤트가 키 없이 발행돼 순서가 보장되지 않는 것 | 발행 모듈 담당자 | 늦게 온 옛 이벤트가 새 상태를 덮어쓸 수 있다 | [`specs/vector-similarity/vector-similarity-search.md`](../specs/vector-similarity/vector-similarity-search.md) 리스크 표 |
 | ~~B-14 공유 실행자 포화 방향~~ | **닫힘(2026-09-07)** | 검색을 신호에서 빼면서 유입이 사라져 코드 수정 없이 해소. 폐기 693건 → **0건** | [`audits/taste-vector/005`](taste-vector/005-signal-and-weight-simplification.md) |
 | ~~B-15 부족 재료 `ingredientName` 매칭~~ | **닫힘(2026-09-07)** | A-1·A-2 반영 완료. 최초 감사가 원인 하나를 놓치고 처방도 틀렸던 것을 fresh-eye가 잡아 정정한 뒤 구현했다 | [`audits/cart-recipe/006`](cart-recipe/006-missing-ingredient-product-match.md) |
-| B-7 | review 소유 코드 6건에 같은 개선을 적용할지 | review 담당 팀원 | 컨슈머 팩토리 공통화·중복 `@EnableKafka`·`spring.kafka.producer` 설정·`ReviewBatchController` 응답 형식. 여기에 2026-09-05 추가: `reviewEventConsumerFactory`만 **역직렬화 실패 방어(`ErrorHandlingDeserializer`)와 에러 핸들러가 둘 다 없어**, 깨진 리뷰 이벤트 1건이 그 파티션을 멈출 수 있다. `ReviewConsumer`의 `@KafkaListener(groupId = "ai-service-review")`도 팩토리 값과 중복이라 한쪽만 고치면 어긋난다 | [`audits/cross-cutting/002`](cross-cutting/002-dependencies-config-and-dead-code.md) 판단 항목 3·4·7 · `config/KafkaConsumerConfig.java` |
+| B-7 | review 소유 코드 6건 + 2026-09-07 추가 3건에 같은 개선을 적용할지 | review 담당 팀원 | 컨슈머 팩토리 공통화·중복 `@EnableKafka`·`spring.kafka.producer` 설정·`ReviewBatchController` 응답 형식. 여기에 2026-09-05 추가: `reviewEventConsumerFactory`만 **역직렬화 실패 방어(`ErrorHandlingDeserializer`)와 에러 핸들러가 둘 다 없어**, 깨진 리뷰 이벤트 1건이 그 파티션을 멈출 수 있다. `ReviewConsumer`의 `@KafkaListener(groupId = "ai-service-review")`도 팩토리 값과 중복이라 한쪽만 고치면 어긋난다. 여기에 2026-09-07 추가: `KafkaProducerConfig`의 `@EnableKafka`가 `KafkaConsumerConfig`와 중복이고, `SentimentPropertiesConfig`·`NegativeReviewPropertiesConfig`는 본문이 빈 클래스다(셋 다 review 전용이라 손대지 않았다 — [`audits/cross-cutting/003`](cross-cutting/003-stale-comments-and-write-only-fields.md) C-3) | [`audits/cross-cutting/002`](cross-cutting/002-dependencies-config-and-dead-code.md) 판단 항목 3·4·7 · `config/KafkaConsumerConfig.java` |
 | B-8 | `baro-common`이 JPA·AOP·S3를 전부 노출하는 구조 | 팀 | baro-ai가 JPA를 지워도 Hibernate가 남는 원인 | [`audits/cross-cutting/002`](cross-cutting/002-dependencies-config-and-dead-code.md) 판단 항목 9 |
 | B-9 | k8s의 무의미해진 환경변수 3개 정리 | 배포 담당자 | `SPRING_CLOUD_CONFIG_ENABLED`·`SPRING_CLOUD_CONFIG_IMPORT_CHECK_ENABLED`(Config 클라이언트를 지워 효과 없음, `deployment.yml:33-36`) + `SPRING_PROFILES_ACTIVE: "prod"`(`configmap.yml:6` — `application-prod.yml`을 지워 가리킬 파일이 없다. 기동은 정상이지만 읽는 사람이 프로필별 설정이 있다고 오해한다) | [`audits/cross-cutting/002`](cross-cutting/002-dependencies-config-and-dead-code.md) 판단 항목 10 · `k8s/apps/baro-ai/` |
 | B-10 | `baro-order`의 `cloud.aws.*` 접두사가 올바른지 | baro-order 담당자 | 이번에 고친 Feign 키와 같은 종류의 문제일 수 있다. 라이브러리 버전에 따라 정상일 수도 있어 확인만 요청 | 이 문서(2026-09-05 관찰) |
@@ -90,22 +95,23 @@
 | C-3 | 검색 히트가 10,000건을 넘을 때 총계가 잘리는 것 | 상품 총수 | [`audits/keyword-search/001`](keyword-search/001-query-path.md) 판단 항목 3 |
 | C-4 | 장바구니 조회 읽기 상한이 적절한지 | `baro-shopping` 정상 응답 시간 | [`audits/cart-recipe/refactor-log.md`](cart-recipe/refactor-log.md) "남긴 것" |
 | C-5 | 레시피 후보 채점식 삭제가 추천 품질에 미친 영향 | 삭제 전후 비교 자료 — **없다.** 삭제 전에도 후보별 점수를 로그로 남기지 않았다. 복원이 필요하면 [`audits/recommend/002`](recommend/002-recipe-scoring.md) C-1의 가중치를 쓴다 | [`specs/cart-recipe/recipe-recommendation.md`](../specs/cart-recipe/recipe-recommendation.md) 리스크 표 |
-| ~~C-6 `quantity` 의미 차이~~ | **닫힘(2026-09-07)** — 취향 계산이 `quantity`를 더 이상 읽지 않아 의미 차이가 결과에 영향을 주지 않는다. 필드는 로그에 남지만 소비자가 없다(C-10과 같은 성격) | [`audits/taste-vector/005`](taste-vector/005-signal-and-weight-simplification.md) A-2 |
+| ~~C-6 `quantity` 의미 차이~~ | **닫힘(2026-09-07)** — 취향 계산이 읽지 않게 된 데 이어, 같은 날 필드 자체를 로그 문서·수신 모델에서 지웠다 | [`audits/cross-cutting/003`](cross-cutting/003-stale-comments-and-write-only-fields.md) B-1 |
 | C-7 | `JsonData.of(float[])`가 스크립트 파라미터로 숫자 배열이 되는지 | 요청 본문 로그(로컬 ES 필요) — 확인되면 변환 코드를 지울 수 있다 | [`audits/vector-similarity/refactor-log.md`](vector-similarity/refactor-log.md) "남긴 것" |
 | C-8 | 챗봇의 목적·사용처 | 기획 결정 | [`specs/chat/chatbot.md`](../specs/chat/chatbot.md) |
-| C-9 | 부족 재료로 상품이 실제로 몇 건 걸리는지 | 로컬 ES + 상품 시드 — 검색이 nori 형태소 분석과 오탈자 교정을 쓰므로 "다진마늘"로도 마늘 상품이 걸릴 수 있다. 그러면 [`003`](cart-recipe/003-pantry-staples-and-variants.md)의 "살 게 없는 추천 45%"가 과대평가가 된다 | [`audits/cart-recipe/003`](cart-recipe/003-pantry-staples-and-variants.md) 곁가지 |
-| C-10 | 장바구니 이벤트의 `categoryCode`를 계속 받을지 | 취향 벡터가 카테고리 선호를 쓸 계획이 있는지 — 지금은 행동 로그에 저장만 되고 읽는 곳이 없다 | [`audits/taste-vector/refactor-log.md`](taste-vector/refactor-log.md) 2026-09-06 "남긴 것" |
+| C-9 | 부족 재료로 상품이 실제로 몇 건 걸리는지 | **로컬 상품 시드는 2026-09-07에 갖췄다**(`scripts/localstub/seed_catalog.py`, 70건). 남은 것은 부족 재료 목록을 모아 걸리는 건수를 세는 것이다. 원래 적어 둔 조건은 이렇다 — 검색이 nori 형태소 분석과 오탈자 교정을 쓰므로 "다진마늘"로도 마늘 상품이 걸릴 수 있다. 그러면 [`003`](cart-recipe/003-pantry-staples-and-variants.md)의 "살 게 없는 추천 45%"가 과대평가가 된다 | [`audits/cart-recipe/003`](cart-recipe/003-pantry-staples-and-variants.md) 곁가지 |
+| ~~C-10 `categoryCode`를 계속 받을지~~ | **닫힘(2026-09-07)** — 사용자 승인으로 받지 않기로 했다. 저장·수신 양쪽에서 지웠고, 카테고리 선호가 필요해지면 그때 다시 넣는다(상류는 계속 보내고 있어 수신 모델에 한 줄 되살리면 된다) | [`audits/cross-cutting/003`](cross-cutting/003-stale-comments-and-write-only-fields.md) B-1 |
 | C-12 | Gemini 무료 티어 한도에서 전체 재색인이 가능한지 | 상품 총수·티어 결정. 실측: 임베딩 1건씩은 13회 뒤 429, 10건 묶음은 통과, 25건 이상 묶음은 분당 한도 초과 | [`audits/keyword-search/refactor-log.md`](keyword-search/refactor-log.md) 2026-09-06 M-3 |
-| C-13 | 다양화 실측을 실제 상품 벡터로 다시 볼지 | 상품 시드(154개 벤치 상품명이 아니라 실제 카탈로그). 결론(×3 유지)은 벤치 상품명 기준이다 | [`audits/vector-similarity/002`](vector-similarity/002-vector-transfer-knn-and-diversity.md) M-2 |
+| C-13 | 다양화 실측을 실제 상품 벡터로 다시 볼지 | 결론(×3 유지)은 벤치 상품명 154개 기준이다. **2026-09-07에 실제 카테고리 구조를 따르는 상품 70건을 로컬에 심어 두었으므로**(`scripts/localstub/seed_catalog.py`) 이제 `diversity.py`를 그 데이터로 다시 돌릴 수 있다 — 남은 것은 실행뿐이다. 다만 상품명은 여전히 사람이 지은 것이라 실제 카탈로그와 완전히 같지는 않다 | [`audits/vector-similarity/002`](vector-similarity/002-vector-transfer-knn-and-diversity.md) M-2 |
 | C-14 | 비동기 부가 작업의 유실을 어디까지 허용할지 | 상정 검색 트래픽(초당 몇 건). 실측 유실률은 37%(동시 1)~65%(동시 30) | [`audits/taste-vector/003`](taste-vector/003-shared-executor-saturation.md) 판단 항목 1 |
 | C-16 | nori 사용자 사전이 필요한지 (`꿀사과`가 문맥에 따라 `꾸`+`사과`가 된다) | 상품명 표본. 20건으로는 사전 필요 여부를 알 수 없다 | [`audits/keyword-search/003`](keyword-search/003-local-integration-verification.md) 판단 항목 1 |
 | C-17 | nori 주 필드에 고정 `fuzziness=1`을 얹으면 오탐이 얼마나 느는지 | 오탐 측정. `AUTO`는 2자 형태소에서 0회 편집이라 효과 없음이 실측으로 확인됐다(`001` 판단 항목 6 닫힘) | [`audits/keyword-search/003`](keyword-search/003-local-integration-verification.md) C-1·"덤으로 닫은 것" |
 | ~~C-18 검색 신호 유지 여부~~ · ~~C-19 수량 축 제거~~ · ~~C-11 15배 범위~~ | **셋 다 닫힘(2026-09-07)** — 사용자 결정으로 검색 신호와 수량 축을 제거. 비중 범위가 15배 → 3배가 되어 C-11도 함께 사라졌다 | [`audits/taste-vector/005`](taste-vector/005-signal-and-weight-simplification.md) |
 | C-20 | C안(연속 갱신 합치기)의 실제 효과 | 사용자 수를 분산시키는 벤치. 지금 스크립트는 한 명으로 300회라 C안에 유리하게 치우친다 | [`audits/taste-vector/004`](taste-vector/004-executor-fix-measurement.md) "답할 수 없는 것" |
 | C-21 | 신규 사용자의 프로필 생성 경로 | 사용자 유입 패턴. 검색을 빼서 주문·장바구니 3건이 쌓여야 프로필이 생긴다. 상품 조회 이벤트를 받으면 풀리지만 발행 모듈 변경 필요 | [`audits/taste-vector/005`](taste-vector/005-signal-and-weight-simplification.md) 판단 항목 1 |
-| C-22 | 부족 재료 카드의 오탐을 허용할지 | 카탈로그가 커진 뒤 오탐률 측정. 실측: 카탈로그에 없는 `새우젓`에 오탈자 절이 `손질 새우살`을 붙였다 | [`audits/cart-recipe/006`](cart-recipe/006-missing-ingredient-product-match.md) 판단 항목 1 |
+| C-22 | 부족 재료 카드의 오탐을 허용할지 | 카탈로그가 커진 뒤 오탐률 측정. 실측 2건: 카탈로그에 없는 `새우젓`에 오탈자 절이 `손질 새우살`을 붙였고(2026-09-06), `설탕`에 `논산 딸기 설향 500g`이 붙었다(2026-09-07, nori가 "설"을 잡음). **과일 허용으로 디저트 레시피가 늘면 설탕·레몬즙 같은 미판매 재료 요구가 잦아져 이 오탐이 더 자주 보일 수 있다** | [`audits/cart-recipe/006`](cart-recipe/006-missing-ingredient-product-match.md) 판단 항목 1 · [`007`](cart-recipe/007-fruit-exclusion-and-prompt-example.md) M-4 |
 | C-23 | 갱신 태스크가 방금 쓴 로그를 못 보는 경합 | 재현 조건. 2026-09-07 두 번 재봤으나 재현 안 됨(비동기 훅 지연이 refresh 간격을 덮는다). 갱신이 빨라지거나 refresh 간격이 늘면 재검토 | [`audits/taste-vector/003`](taste-vector/003-shared-executor-saturation.md) 후속 |
 | C-24 | `term(ingredientName)`의 우위가 카탈로그 규모에서도 유지되는지 | 카탈로그가 커진 뒤 재측정. BM25 IDF 때문에 흔한 재료명일수록 원점수가 낮아진다. 밀리면 `constant_score`로 감싼다 | [`audits/cart-recipe/006`](cart-recipe/006-missing-ingredient-product-match.md) 판단 항목 2 |
+| ~~C-26 과일을 계속 제외할지~~ | **닫힘(2026-09-07)** — 제외를 풀었다. 원인이 과일이 아니라 옛 프롬프트의 후보 3개 압력이었음을 M-2가, 과일을 넣어도 할루시네이션이 늘지 않고 오히려 보유 재료 사용률이 79.4% vs 63.9%로 높다는 것을 M-3이 보였다. 남아 있던 범위 질문(디저트·음료를 집밥 레시피로 볼 것인가)은 사용자가 **포함**으로 결정 | [`audits/cart-recipe/007`](cart-recipe/007-fruit-exclusion-and-prompt-example.md) A-2 |
 | C-25 | 마지막 어절 규칙이 3어절 이상 재료명에서도 맞는지 | 실제 부족 재료 문자열 분포. 골든셋 실행 로그를 모으면 볼 수 있다 | 같은 문서 판단 항목 3 |
 
 ## D. 의도적으로 하지 않기로 한 것

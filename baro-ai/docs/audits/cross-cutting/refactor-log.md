@@ -2,6 +2,50 @@
 
 도메인에 속하지 않는 공유 인프라(`com.barofarm.ai.config`와 그 인프라를 쓰는 호출부)에서 근거 기반 성능 리팩토링([`baro-ai-performance-refactor.md`](../../../../.claude/rules/baro-ai-performance-refactor.md)) 이니셔티브로 실제 반영한 변경 이력이다. 무엇을 고쳤고 어떻게 검증했는지 날짜순으로 남긴다. 감사 결과 원본은 [`001-llm-call-infra.md`](001-llm-call-infra.md)에 있다.
 
+## 2026-09-07 — 사실이 아닌 주석·쓰기 전용 필드·도달 불가 코드 정리 (감사 003 A-1·B-1~B-5)
+
+### 왜 문제였나 (쉬운 말로)
+
+**코드에 적힌 설명이 코드가 하는 일과 달랐다.** 며칠 전 "검색 기록으로 취향을 만들던 것"과 "수량을 곱해 관심도를 재던 것"을 지웠는데, 그 기능을 설명하던 문장이 다른 파일 열 곳에 그대로 남았다. 예를 들어 로그 문서의 수량 항목에는 "취향 가중치에 반영되고 최대 5로 제한된다"고 적혀 있었는데, 반영되지도 않고 5로 제한하는 코드는 이 모듈 어디에도 없다.
+
+레시피 쪽은 더 헷갈렸다. 코드 주석은 "가공식품·생필품·주방용품·가전을 뺀다"고 하는데 실제 설정은 **과일 네 종류**만 뺀다. 이 쇼핑몰은 농산물만 팔아서 주방용품이라는 분류 자체가 없다. 같은 저장소의 다른 파일은 "과일류"라고 맞게 적어 둬서, 한 프로젝트 안에서 두 설명이 서로 달랐다.
+
+**아무도 안 읽는 값을 계속 저장하고 있었다.** 장바구니에 뭘 담을 때마다 수량과 카테고리 코드를 검색 엔진에 적었는데, 그 값을 읽는 코드가 없다. 값이 남아 있으니 위의 틀린 설명도 따라다녔다.
+
+**나갈 수 없는 오류 코드가 있었다.** 임베딩 실패용으로 "서버 오류 500"이 정의돼 있는데, 그 오류를 던지는 곳을 바로 옆 코드가 잡아서 없애 버린다. 화면까지 갈 길이 없다. 오류 코드 목록은 "이 API가 이런 실패를 돌려준다"는 약속으로 읽히므로, 갈 수 없는 코드가 섞이면 목록 전체를 믿기 어려워진다.
+
+### 무엇을 바꿨나
+
+- 사실과 다른 설명 열두 곳(코드 주석 열한 곳 + 스펙 계약 표 한 곳)을 현재 동작으로 고쳤다. 왜 그렇게 됐는지(무엇을 언제 왜 뺐는지)는 한 줄로 남겼다
+- 읽는 곳이 없는 값 두 개(수량·카테고리 코드)를 저장·수신 양쪽에서 지웠다. 보내는 쪽은 계속 보내지만 모르는 항목은 무시하도록 돼 있어 받는 데 지장이 없다
+- 상품 검색 조건이 여러 곳에 복제돼 있던 것을 한 곳으로 모았다 — 상품 목록 조회, 판매 상태 목록 두 가지다
+- 갈 곳 없는 오류 코드를 지우고, 실패를 "벡터 없음"이라는 기존 표현 하나로 통일했다
+- 생성되는 API 문서에 아무 영향이 없던 빈 설정 한 줄을 지웠다
+
+### Before / After
+
+| 항목 | Before | After |
+|---|---|---|
+| 사실과 다른 주석·문서 | 12곳 | 0곳 |
+| 저장만 되고 안 읽히는 필드 | `quantity`·`categoryCode` | 없음 |
+| 상품 인덱스 질의 조립 지점 | 2곳(`ProductSearchService`·`RecipeRecommendService`) | 1곳 |
+| 판매 상태 목록 선언 | 3곳 문자열 | 값 1곳 + `@Query` 1곳(어노테이션 제약, 이유를 주석에 명시) |
+| HTTP로 못 나가는 에러 코드 | 1종(`EMBEDDING_GENERATION_FAILED`) | 없음 |
+
+### 변경 파일
+
+`CartLogDocument`·`OrderLogDocument`·`LogWriteService`·`CartLogEvent`·`OrderLogEvent`·`CartEventConsumer`·`OrderEventConsumer`·`UserProfileEmbeddingDocument`·`PersonalizedRecommendService`·`RecommendationController`·`AsyncConfig`·`RecipeRecommendService`·`RecommendProperties`·`ProductSearchService`·`VectorProductSearchService`·`ProductDocument`·`ProductAutocompleteRepository`·`ProductEmbeddingService`·`SwaggerConfig`, `EmbeddingErrorCode` 삭제, `RecipeRecommendServiceTest` 갱신. 하네스 쪽은 지운 enum을 인용하던 `core-guardrails.md`·`harness-map.md` 두 줄.
+
+### 검증
+
+`./gradlew :baro-ai:test` 59건 통과. `grep -rn "getQuantity\|getCategoryCode" src/main`이 review를 빼면 0건인 것과, `검색`을 언급하는 주석이 전부 사실인 것을 확인했다.
+
+### 남긴 것
+
+`cart_event_logs`·`order_event_logs`를 재생성해야 옛 문서에 남은 두 필드까지 사라진다([`open-items.md`](../open-items.md) A-3에 이미 올라 있다).
+
+review 소유 파일의 중복 설정 3건(`@EnableKafka` 중복, 본문이 빈 프로퍼티 설정 클래스 2개)은 사용자 지시대로 손대지 않고 [`open-items.md`](../open-items.md) B-7에 남겼다.
+
 ## 2026-09-04 — LLM 호출 인프라: 재시도 통제·응답 스키마 강제·관측 지표
 
 **반영 항목**: [`001-llm-call-infra.md`](001-llm-call-infra.md) A-1(재시도)·A-2(구조화 출력)·B-1(관측). 테스트 인프라(C-3)·프롬프트 테스트(C-4)는 사용자 결정으로 제외.

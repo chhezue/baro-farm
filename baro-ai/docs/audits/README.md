@@ -58,3 +58,14 @@ nori를 넣은 Elasticsearch 9.1.2와 Kafka로 앱을 띄워, 그동안 "기동�
 | [`vector-similarity/002-vector-transfer-knn-and-diversity.md`](vector-similarity/002-vector-transfer-knn-and-diversity.md) | 벡터 전송량 · `knn` 전환 실측 · 다양화 효과 실측 | A 1 · B 2 · 측정 M-1·M-2 — **반영 완료**: `knn` 전환 안 함(`decisions/004`), 다양화 ×3 유지(실측 기록) |
 
 같은 클래스를 두 문서가 다룰 때는 한쪽을 SSOT로 정하고 다른 쪽은 참조만 남긴다(`ElasticsearchConfig` → `vector-similarity/001` A-2, cart·order 팩토리 래핑 → `cross-cutting/002` A-2·B-6, 컨슈머 재시도·중복 로그 → `taste-vector/001` A-5, `SimilarProductResponse` → `vector-similarity/001` B-1).
+
+## 2026-09-07 부하 테스트 기반 비판 평가 라운드
+
+사용자의 "리팩터가 다 됐는지 부하 테스트로 확인해 달라"는 요청에서 나온 감사다. 앞선 라운드들이 **단일 요청 기준**으로 닫았던 판단을 동시 요청·실측으로 다시 봤고, 성능 축(차원)과 정합성 축(주석·죽은 필드·설정 모순)에서 각각 A 항목이 나왔다.
+
+| 문서 | 범위 | 결과 |
+|------|------|------|
+| [`vector-similarity/003-embedding-dims-and-candidate-multiplier.md`](vector-similarity/003-embedding-dims-and-candidate-multiplier.md) | 임베딩 차원 · `topK` 상한과 다양화 배수의 정합 | **A 2 · 반영 완료 · 로컬 재색인 확인** — 차원 1536→768(전송 절반·동시 30 p95 3.5배), `topK` 상한 50→33. 측정 M-1~M-3. D 3 · 판단 1(배포 재색인 시점) |
+| [`cross-cutting/003-stale-comments-and-write-only-fields.md`](cross-cutting/003-stale-comments-and-write-only-fields.md) | 사실이 아닌 주석 · 쓰기 전용 필드 · 도달 불가 코드 | **A 1 · B 5 · 반영 완료** — 설명 12곳, 필드 2개, 에러 코드 1종, 중복 상수 정리. C 2 · D 1 |
+| [`cart-recipe/007-fruit-exclusion-and-prompt-example.md`](cart-recipe/007-fruit-exclusion-and-prompt-example.md) | 프롬프트 예시 · 과일 제외 규칙 재검토 | **A 2 · 반영 완료** — 예시 교체(골든셋 84건×2팔, 차이 없음)와 **과일 제외 해제**. 제외의 원인은 과일이 아니라 옛 프롬프트의 후보 3개 압력이었고(M-2), 과일을 넣어도 할루시네이션이 늘지 않는다(M-3, 보유 재료 사용률 79.4% vs 63.9%). M-4에서 장바구니 스텁으로 레시피 경로를 처음 끝까지 통과시켰다 |
+

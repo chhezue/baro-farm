@@ -2,6 +2,8 @@
 
 취향 벡터 작업 단위에서 근거 기반 성능 리팩토링([`baro-ai-performance-refactor.md`](../../../../.claude/rules/baro-ai-performance-refactor.md)) 이니셔티브로 실제 반영한 변경 이력이다. 무엇을 고쳤고 어떻게 검증했는지 날짜순으로 남긴다. 감사 결과 원본은 같은 폴더의 `001-*.md`에 있다.
 
+> **이어지는 변경(2026-09-07 오후):** 이 라운드로 소비자가 사라진 `quantity`와, 처음부터 읽는 곳이 없던 `categoryCode`를 로그 문서·수신 모델에서 아예 지웠다. 취향 계산 로직은 그대로이므로 별도 절을 두지 않고 [`cross-cutting/refactor-log.md`](../cross-cutting/refactor-log.md) 2026-09-07 항목에 함께 적었다.
+
 ## 2026-09-07 — 검색 신호 제거 · 수량 축 제거 (감사 005 A-1·A-2)
 
 ### 왜 문제였나 (쉬운 말로)
