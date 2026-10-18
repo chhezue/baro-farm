@@ -60,7 +60,7 @@
 
 ### A-4. 단위 테스트 도입
 
-**2026-09-06 해소.** 순수 계산·서비스 경계를 대상으로 테스트 10클래스 61건을 들였다(`./gradlew :baro-ai:test` 통과). 남은 것은 ES·Kafka·Gemini가 필요한 통합 테스트뿐이며, 그건 A-1~A-3과 같은 인프라 묶음이다. 기준은 [`.claude/rules/testing.md`](../../../.claude/rules/testing.md) — 그 문서의 "테스트를 처음 들일 때 그때 정한다" 문구가 stale해져 갱신 제안 대상이다.
+**2026-09-06 해소.** 순수 계산·서비스 경계를 대상으로 테스트 10클래스 59건을 들였다(`./gradlew :baro-ai:test` 통과). 남은 것은 ES·Kafka·Gemini가 필요한 통합 테스트뿐이며, 그건 A-1~A-3과 같은 인프라 묶음이다. 기준은 [`.claude/rules/testing.md`](../../../.claude/rules/testing.md) — 그 문서의 "테스트를 처음 들일 때 그때 정한다" 문구가 stale해져 갱신 제안 대상이다.
 
 쓰이지 않던 `src/test/resources/application-test.yml`은 2026-09-05에 지웠으므로, 테스트를 들일 때 새로 만든다.
 
@@ -69,7 +69,7 @@
 | # | 무엇을 | 누구에게 | 막고 있는 것 | 어디에 |
 |---|--------|----------|--------------|--------|
 | B-1 | 운영 ES 서버와 클라이언트 버전의 호환 | 인프라 담당자 | **ES 클라이언트 버전 고정 해제(감사 B-8)** — 풀면 코드 몇 곳에 마이그레이션이 필요하다(원본에 목록). 헬스 인디케이터 재활성화도 같이 막혀 있다 | [`audits/cross-cutting/002`](cross-cutting/002-dependencies-config-and-dead-code.md) B-8·판단 항목 8 |
-| B-2 | 게이트웨이 prod 라우트에 인증 필터가 없는 것이 의도인지 | 게이트웨이 담당자 | 검색·추천 API가 `X-User-Id`를 그대로 신뢰한다. 남의 장바구니 재료를 조회할 수 있다 | [`product/platform.md`](../product/platform.md) · 각 스펙 리스크 표 |
+| B-2 | 게이트웨이 prod 라우트에 인증 필터가 없는 것이 의도인지 | 게이트웨이 담당자 | 레시피 추천이 경로 변수 `{userId}`를 그대로 믿고 그 값으로 `baro-shopping`에 `X-User-Id`를 실어 보낸다 — 남의 장바구니 재료를 조회할 수 있다. (검색은 2026-09-07에 사용자 헤더를 안 읽게 되어 이 경로에서 빠졌다) | [`product/platform.md`](../product/platform.md) · 각 스펙 리스크 표 |
 | B-3 | 게이트웨이 응답 상한 vs LLM 최악 지연 | 게이트웨이 담당자 | 정상 요청도 끊길 수 있다. 어느 쪽에 맞출지 결정 전 | [`audits/cart-recipe/001`](cart-recipe/001-cart-integration-and-request-path.md) 판단 항목 1 |
 | B-4 | 배포 시 `baro-shopping`이 다른 네임스페이스인지 | 배포 담당자 | 다르면 `SHOPPING_SERVICE_URL`에 FQDN이 필요하다 | [`audits/cart-recipe/001`](cart-recipe/001-cart-integration-and-request-path.md) 판단 항목 2 |
 | B-5 | `ORDER_CANCELLED` 이벤트를 실제로 발행하는지 | 발행 모듈 담당자 | 취소 로그가 오지 않으면 취향 벡터의 취소 처리 분기가 죽은 코드다 | [`specs/taste-vector/taste-vector-pipeline.md`](../specs/taste-vector/taste-vector-pipeline.md) 리스크 표 |
@@ -81,7 +81,7 @@
 | B-9 | k8s의 무의미해진 환경변수 3개 정리 | 배포 담당자 | `SPRING_CLOUD_CONFIG_ENABLED`·`SPRING_CLOUD_CONFIG_IMPORT_CHECK_ENABLED`(Config 클라이언트를 지워 효과 없음, `deployment.yml:33-36`) + `SPRING_PROFILES_ACTIVE: "prod"`(`configmap.yml:6` — `application-prod.yml`을 지워 가리킬 파일이 없다. 기동은 정상이지만 읽는 사람이 프로필별 설정이 있다고 오해한다) | [`audits/cross-cutting/002`](cross-cutting/002-dependencies-config-and-dead-code.md) 판단 항목 10 · `k8s/apps/baro-ai/` |
 | B-10 | `baro-order`의 `cloud.aws.*` 접두사가 올바른지 | baro-order 담당자 | 이번에 고친 Feign 키와 같은 종류의 문제일 수 있다. 라이브러리 버전에 따라 정상일 수도 있어 확인만 요청 | 이 문서(2026-09-05 관찰) |
 | B-11 | 상품 이벤트의 `updatedAt`을 발행 시각이 아니라 상품이 바뀐 시각으로 보낼 수 있는지 | 발행 모듈 담당자 | 검색 최신순 정렬의 기준값이다. 지금은 `Instant.now()`라, 재색인용 재발행에서 전 상품이 한 시점에 뭉쳐 최신순이 무의미해진다 | [`specs/keyword-search/product-search-and-autocomplete.md`](../specs/keyword-search/product-search-and-autocomplete.md) 리스크 표 · [`audits/keyword-search/001`](keyword-search/001-query-path.md) B-3 근거 정정 |
-| B-12 | `baro-opa`의 ai 공개 라우트 정리 | 게이트웨이·인가 담당자 | `POST /api/v1/recommendations/recipes/test`가 public 라우트로 남아 있다(엔드포인트는 2026-09-05 삭제). 같은 파일에 `/search/product`·`/search/experience`·`/datagen/*` 등 **존재한 적 없는 경로 6개**가 더 있다 — 없는 경로라 지금 뚫리는 건 아니지만, 이 파일이 실제 API 목록과 어긋난 상태로 굳으면 나중에 진짜 위험한 항목을 못 알아본다. baro-ai 쓰기 범위 밖이라 훅이 차단했다 | `baro-opa/policy/data/ai/public.json` · [`audits/cart-recipe/001`](cart-recipe/001-cart-integration-and-request-path.md) B-2 |
+| B-12 | `baro-opa`의 ai 공개 라우트 정리 | 게이트웨이·인가 담당자 | `POST /api/v1/recommendations/recipes/test`가 public 라우트로 남아 있다(엔드포인트는 2026-09-05 삭제). 같은 파일에 `/search/product(/autocomplete)`·`/search/experience(/autocomplete)`·`/datagen/*` 3종 등 **이미 삭제된 경로 7개**가 더 있다(각각 `ProductSearchController`·`DataGenerationController`의 것으로, 두 컨트롤러 모두 삭제됐다) — 지금 뚫리는 건 아니지만, 이 파일이 실제 API 목록과 어긋난 상태로 굳으면 나중에 진짜 위험한 항목을 못 알아본다. baro-ai 쓰기 범위 밖이라 훅이 차단했다 | `baro-opa/policy/data/ai/public.json` · [`audits/cart-recipe/001`](cart-recipe/001-cart-integration-and-request-path.md) B-2 |
 | B-13 | 새 카테고리 4행을 `02-init-categories.sql`에 넣고 상품을 시드하는 것 | 배포·`baro-shopping` 담당자 | **판매 여부는 2026-09-06 결정났다**(김치·두부·장류 — 살 게 없는 추천 50%→10%). 남은 건 실행뿐인데 저장소 루트라 이 하네스의 쓰기 범위 밖이다. 카테고리가 생기기 전까지는 부족 재료로 검색해도 상품이 0건이라 카드가 안 붙는다 | [`specs/cart-recipe/pantry-staples-and-catalog-coverage.md`](../specs/cart-recipe/pantry-staples-and-catalog-coverage.md) 갈래 B "적용할 때 같이 고쳐야 하는 것" |
 
 ## C. 자료가 없어 판단을 미룬 항목

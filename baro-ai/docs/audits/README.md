@@ -44,7 +44,7 @@ nori를 넣은 Elasticsearch 9.1.2와 Kafka로 앱을 띄워, 그동안 "기동�
 |------|------|------|
 | [`keyword-search/003-local-integration-verification.md`](keyword-search/003-local-integration-verification.md) | 통합 확인 기록 · 색인/검색 실측 | A 0 · C 1(오타 매칭의 합성어 한계) — 확인 6건 통과 |
 | [`taste-vector/003-shared-executor-saturation.md`](taste-vector/003-shared-executor-saturation.md) | 공유 실행자 포화 · 취향 데이터 유실 | A 1 — **닫힘(2026-09-07)**. 검색을 신호에서 빼자 유입이 사라져 코드 수정 없이 해소 |
-| [`cart-recipe/006-missing-ingredient-product-match.md`](cart-recipe/006-missing-ingredient-product-match.md) | 부족 재료 → 상품 연결 | **A 1 · 승인 대기** — 색인해 둔 `ingredientName`을 검색이 안 씀 |
+| [`cart-recipe/006-missing-ingredient-product-match.md`](cart-recipe/006-missing-ingredient-product-match.md) | 부족 재료 → 상품 연결 | **A 2 · B 1 · 반영 완료(2026-09-07)** — 색인해 둔 `ingredientName` 정확 일치 절과 마지막 어절 검색어를 넣었다 |
 | [`taste-vector/004-executor-fix-measurement.md`](taste-vector/004-executor-fix-measurement.md) | 개선안 A 실적용 Before/After (측정 보고서) | A안은 유실 0%를 만들지만 검색 p95가 최대 7.5배. 이 측정이 005의 계기가 됐다 |
 | [`taste-vector/005-signal-and-weight-simplification.md`](taste-vector/005-signal-and-weight-simplification.md) | 검색 신호 제거 · 수량 축 제거 | **A 2 · 반영 완료** — 신호 3종→2종, 가중치 2축→1축. 003이 함께 닫혔다 |
 

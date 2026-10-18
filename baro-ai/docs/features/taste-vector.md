@@ -27,9 +27,8 @@ flowchart LR
         S1[baro-shopping 장바구니] -->|cart-events| K
         S2[baro-order 주문 확정] -->|order-events| K
     end
-    K[Kafka] --> C[Cart/OrderEventConsumer] --> L[(행동 로그 인덱스 3개)]
+    K[Kafka] --> C[Cart/OrderEventConsumer] --> L[(행동 로그 인덱스 2개)]
     C --> T[UserProfileRefreshTrigger @Async]
-    S3 --> T
     T --> P[UserProfileEmbeddingService<br/>30일·종류별 5건 → 비중 → 가중 평균 → L2]
     P --> D[(user_profile_embeddings)]
     D --> R[PersonalizedRecommendService] --> V[임베딩 검색 뒷단<br/>후보 → 다양화]
@@ -39,7 +38,7 @@ flowchart LR
 |---|---|---|
 | 발행 | `baro-shopping` `@TrackHistory` 3곳, `baro-order` 주문 확정 1곳 | `HistoryAspect`가 커밋 후 발행. 취소 이벤트 발행부는 아직 없다 |
 | 소비 | `CartEventConsumer`·`OrderEventConsumer` | 문서 ID `{partition}-{offset}`로 재시도 시 중복 없음. 역직렬화 실패는 그 레코드만 건너뜀 |
-| 갱신 예약 | `UserProfileRefreshTrigger` | 세 경로가 거치는 유일한 `@Async` 진입점. 큐 100건, 넘치면 버림 |
+| 갱신 예약 | `UserProfileRefreshTrigger` | 장바구니·주문 **두 경로**가 거치는 유일한 `@Async` 진입점. 큐 100건, 넘치면 버림 |
 | 벡터 계산 | `UserProfileEmbeddingService` | 로그 3건 미만이면 건너뜀. 비중 = 행동 종류(0 또는 1~3) 하나 |
 | 추천 | `PersonalizedRecommendService` | 프로필 없으면 빈 목록. 경험 상품 제외 → [임베딩 검색](vector-similarity.md) 뒷단 |
 
@@ -97,8 +96,8 @@ flowchart LR
 | 무엇 | 결과 | 원본 |
 |---|---|---|
 | 시간 축 하한 도달 시점 | 168·log₂(10) ≈ 558시간 ≈ 23.3일 | [`taste-vector/002`](../audits/taste-vector/002-weight-axes-and-tests.md) F-2 |
-| 비중 범위 | 이전 0.3~45(150배) → 지금 0 또는 1~15 | 같은 문서 F-3, `UserProfileEmbeddingServiceTest` |
-| 재설계 전후 원격 호출 | 행동 1건당 6회(ES 5·Gemini 1) → 5회(ES만, 임베딩 0) | [`taste-vector/001`](../audits/taste-vector/001-profile-refresh-path.md) A-3 |
+| 비중 범위 | 시간 축이 있던 때 0.3~45(150배) → 수량 축까지 뺀 지금 **0 또는 1~3** | 같은 문서 F-3, [`005`](../audits/taste-vector/005-signal-and-weight-simplification.md) A-2, `UserProfileEmbeddingServiceTest` |
+| 갱신 1회의 원격 호출 | 재설계 전 6회(ES 5·Gemini 1) → 재설계 후 5회(ES만) → **검색 신호를 뺀 지금 4회**(로그 조회 2 + 상품 벡터 1 + 저장 1, 임베딩 0) | [`taste-vector/001`](../audits/taste-vector/001-profile-refresh-path.md) A-3 · [`005`](../audits/taste-vector/005-signal-and-weight-simplification.md) A-1 |
 
 개인화 추천 **품질**은 아직 잰 적이 없다 — 골든셋이 없다. 이 단위의 숫자는 전부 계산 구조에 관한 것이다.
 
@@ -111,7 +110,7 @@ flowchart LR
 | 재시도로 같은 이벤트 두 번 | 문서 ID가 `{partition}-{offset}`라 덮어쓴다 |
 | 갱신 큐(100) 초과 | 로그 후 폐기. 다음 행동에서 재계산 |
 | 저장 직후 조회 | ES refresh(1초) 안이면 방금 쓴 로그를 못 볼 수 있다 — 다음 갱신에서 따라잡음 |
-| 인덱스 | `cart_event_logs`·`order_event_logs`·`search_logs`·`user_profile_embeddings`. 저장 형식이 바뀌어 재생성 필요(미실행) |
+| 인덱스 | `cart_event_logs`·`order_event_logs`·`user_profile_embeddings` 3개. 저장 형식이 바뀌어 재생성 필요(미실행). `search_logs`는 코드가 더 이상 만들지도 읽지도 않아 **삭제 대상**이다 |
 
 ## 알려진 한계·다음 단계
 
@@ -126,7 +125,7 @@ flowchart LR
 
 - 스펙: [`specs/taste-vector/taste-vector-pipeline.md`](../specs/taste-vector/taste-vector-pipeline.md)
 - 예시: [`EMBEDDING_EXAMPLE.md`](../EMBEDDING_EXAMPLE.md)
-- 감사: [`audits/taste-vector/001`](../audits/taste-vector/001-profile-refresh-path.md) · [`002`](../audits/taste-vector/002-weight-axes-and-tests.md)
+- 감사: [`audits/taste-vector/001`](../audits/taste-vector/001-profile-refresh-path.md) · [`002`](../audits/taste-vector/002-weight-axes-and-tests.md) · [`003`](../audits/taste-vector/003-shared-executor-saturation.md) · [`004`](../audits/taste-vector/004-executor-fix-measurement.md) · [`005`](../audits/taste-vector/005-signal-and-weight-simplification.md)
 - 반영 이력: [`audits/taste-vector/refactor-log.md`](../audits/taste-vector/refactor-log.md)
 - 코드: `event.consumer.CartEventConsumer`·`OrderEventConsumer`, `log.application.LogWriteService`, `embedding.application.UserProfileRefreshTrigger`·`UserProfileEmbeddingService`, `recommend.application.PersonalizedRecommendService`, `config.AsyncConfig`
 - 발행 측: `baro-common` `HistoryAspect`, `baro-shopping` `CartService`, `baro-order` `InventoryConfirmedConsumer`

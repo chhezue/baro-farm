@@ -90,12 +90,22 @@ sequenceDiagram
 - **선택**: `reason` 6종 추가(계약 변경 — 사용자 승인), 예외 객체 로깅, `_msearch` 1회.
 - **대가**: `_msearch`는 묶음 안 쿼리 하나가 실패하면 결과가 짧아져 순서가 밀린다(리뷰어 지적). 길이가 다르면 전부 빈 목록으로 맞춘다 — 카드를 엉뚱한 재료에 붙이는 것보다 낫다. [`audits/cart-recipe/005`](../audits/cart-recipe/005-request-path-defects-and-tests.md).
 
+### 5. 과일 제외를 풀었다 — 원인이 과일이 아니었다
+
+- **문제**: 레시피 재료에서 과일 카테고리를 통째로 걸러내고 있었다. 과일만 담은 장바구니는 레시피를 아예 못 받고, 섞여 있으면 과일만 조용히 빠졌다("사과·양파·돼지고기" → "양파·돼지고기"). 과일은 이 가게의 주력 상품인데도 그랬고, **이 규칙이 왜 생겼는지는 어디에도 적혀 있지 않았다.**
+- **왜 생겼나**: 사용자가 기억해 냈다 — "과일을 넣으면 토마토밥 같은 이상한 음식이 나와서 뺐다." 옛 프롬프트로 재현해 보니 실제로 그랬다(사과·계란에 "토마토계란볶음", 블루베리·보리에 "보리 닭죽").
+- **그런데 원인이 과일이 아니었다**: 옛 프롬프트는 요리를 3개 만들라고 했고, 첫 번째가 멀쩡해도 두세 번째를 채우려면 없는 재료를 끌어와야 했다. 그 압력은 결정 2에서 이미 없앤 뒤였다.
+- **선택**: 제외 목록을 비운다. 설정 항목과 거르는 코드는 남겨 뒀다 — 나중에 뺄 카테고리가 생기면 설정 한 줄로 끝난다.
+- **근거**: 현행 프롬프트로 과일 있는 조합 10개와 없는 조합 10개를 각각 3회씩 **60회** 돌려 비교했다. 레시피 생성은 양쪽 30/30, **보유 재료 사용률은 79.4% vs 63.9%**, 새로 요구한 재료는 2.07개 vs 2.43개 — 할루시네이션이 늘지 않았고 오히려 나았다. 이상한 요리 이름은 비교군에서 나왔다(감자·당근·무에 "**소고기**무국"). 가진 것만으로 요리가 서지 않을 때 없는 재료를 끌어오는 것이지 과일 때문이 아니다. [`audits/cart-recipe/007`](../audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md) A-2·M-3.
+- **대가**: 디저트·음료 레시피가 늘면 설탕·레몬즙처럼 팔지 않는 재료를 요구하는 일이 잦아진다. 그러면 부족 재료 카드의 오탐이 더 자주 보인다(`open-items.md` C-22).
+
 ## 실측 근거
 
 | 무엇 | 결과 | 원본 |
 |---|---|---|
 | 프롬프트 재설계 Before/After (84건) | 합격 69.0% → 90.5%, 출력 토큰 −72.6% | [`audits/cart-recipe/002`](../audits/cart-recipe/002-goldenset-before-after.md) |
 | 양념 확대 가설 | 50% → 45% (기각) | [`003`](../audits/cart-recipe/003-pantry-staples-and-variants.md) |
+| 과일 허용 전후 (60회) | 보유 재료 사용률 63.9%(과일 없음) vs **79.4%**(과일 포함), 요구 재료 2.43개 vs 2.07개 | [`007`](../audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md) M-3 |
 | 카탈로그에 김치·두부·장류 추가 시 | 살 게 없는 추천 21/42 → 4/42 | [`003`](../audits/cart-recipe/003-pantry-staples-and-variants.md) 분류기 |
 | 재료명 추출 (17개 상품명) | 16/17 → 17/17. 1차 개선안은 "포기김치→포기김치" 회귀를 숨기고 있었다 — 판정 기준을 조이자 드러남 | [`004`](../audits/cart-recipe/004-index-time-ingredient-name.md) |
 | 요청 경로 LLM 호출 | 3회(최악 N+3) → 1회 | [`decisions/002`](../decisions/002-ingredient-name-at-index-time.md) |
@@ -120,13 +130,13 @@ sequenceDiagram
 - **게이트웨이 prod 라우트에 인증 필터가 없어** `X-User-Id`를 위조하면 남의 장바구니 재료를 볼 수 있다. 게이트웨이 담당자 확인 대기.
 - **게이트웨이 응답 상한(5초)과 LLM 최악 지연(30초×3회)이 맞지 않는다.** 정상 요청도 끊길 수 있다.
 - **레시피 생성기 자체는 테스트가 없다.** `ChatClient` 체인을 mock하면 구현에 붙어서다 — 품질은 골든셋이 담당한다.
-- **`baro-shopping` 실제 왕복은 아직 확인하지 못했다.** 2026-09-06 로컬 확인은 장바구니 API를 스텁으로 대체했다(그 모듈은 MySQL까지 필요하다). 계약대로 응답하면 레시피 전 경로가 도는 것은 확인했다 — 남은 것은 실제 모듈과의 필드·에러 계약이다.
+- **`baro-shopping` 실제 왕복은 아직 확인하지 못했다.** 2026-09-07 로컬 확인은 장바구니 API를 스텁(`scripts/localstub/`)으로 대체했다(그 모듈은 MySQL까지 필요하다). 계약대로 응답하면 레시피 전 경로가 도는 것은 확인했다 — 사과·딸기·감귤만 담은 장바구니가 "사과잼"을 받았다([`007`](../audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md) M-4). 남은 것은 실제 모듈과의 필드·에러 계약이다.
 
 ## 관련 문서·코드
 
 - 스펙: [`recipe-recommendation.md`](../specs/cart-recipe/recipe-recommendation.md) · [`recipe-quality-redesign.md`](../specs/cart-recipe/recipe-quality-redesign.md) · [`pantry-staples-and-catalog-coverage.md`](../specs/cart-recipe/pantry-staples-and-catalog-coverage.md)
 - 결정: [`decisions/002`](../decisions/002-ingredient-name-at-index-time.md) · [`decisions/003`](../decisions/003-gemini-migration.md)
-- 감사·측정: [`audits/cart-recipe/001`](../audits/cart-recipe/001-cart-integration-and-request-path.md)~[`005`](../audits/cart-recipe/005-request-path-defects-and-tests.md), [`audits/recommend/002`](../audits/recommend/002-recipe-scoring.md)(채점식)
+- 감사·측정: [`audits/cart-recipe/001`](../audits/cart-recipe/001-cart-integration-and-request-path.md)~[`007`](../audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md), [`audits/recommend/002`](../audits/recommend/002-recipe-scoring.md)(채점식)
 - 반영 이력: [`audits/cart-recipe/refactor-log.md`](../audits/cart-recipe/refactor-log.md)
 - 코드: `recommend.application.RecipeRecommendService`, `recommend.domain.CandidateRecipePlan`·`IngredientProcessingUtil`, `recommend.infrastructure.llm.RecipeCandidateGenerator`, `recommend.infrastructure.client.CartClient`, `search.infrastructure.llm.ProductIngredientNormalizer`
 - 측정 도구: [`scripts/goldenset/`](../../scripts/goldenset/README.md)
