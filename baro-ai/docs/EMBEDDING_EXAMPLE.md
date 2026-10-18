@@ -63,7 +63,7 @@
 | P4 | CART_QUANTITY_UPDATED | 1 |
 | P3 | CART_ITEM_REMOVED | **0 — 완전히 제외** |
 
-P1은 3개, P2는 2개를 담았지만 비중은 똑같이 2다. "몇 개 담았나"가 아니라 "담았나"만 본다.
+담은 개수는 비중에 들어가지 않는다 — 수량은 2026-09-07에 축에서 빠졌고, 지금은 이벤트에서 받지도 로그에 저장하지도 않는다. "몇 개 담았나"가 아니라 "담았나"만 본다.
 
 P3은 비중이 0이라 평균에서 빠질 뿐 아니라 경험 상품 목록에도 들어가지 않는다. 관심이 없어진 상품이므로 나중에 추천에 다시 나와도 된다.
 
@@ -103,7 +103,7 @@ P3은 비중이 0이라 평균에서 빠질 뿐 아니라 경험 상품 목록�
   "_source": {
     "userId": "550e8400-e29b-41d4-a716-446655440000",
     "userProfileVector": [0.0123456, -0.0234567, "… 총 768개"],
-    "lastUpdatedAt": "2026-01-12T12:30:00Z",
+    "lastUpdatedAt": "2026-09-07T12:30:00Z",
     "sourceProductIds": ["…0001", "…0002", "…0004"]
   }
 }
@@ -118,7 +118,7 @@ P3은 비중이 0이라 평균에서 빠질 뿐 아니라 경험 상품 목록�
   "mappings": {
     "properties": {
       "userId": { "type": "keyword" },
-      "userProfileVector": { "type": "dense_vector", "dims": 768, "index": true, "similarity": "cosine" },
+      "userProfileVector": { "type": "dense_vector", "dims": 768 },
       "lastUpdatedAt": { "type": "date" },
       "sourceProductIds": { "type": "keyword" }
     }

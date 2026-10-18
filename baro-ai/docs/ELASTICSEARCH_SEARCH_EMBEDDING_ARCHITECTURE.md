@@ -66,7 +66,7 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 
 설계 의도:
 
-- 텍스트 검색(형태소 기반)과 exact/raw 비교를 멀티필드로 분리
+- 텍스트 검색(nori 형태소 기반)과 띄어쓰기 단위 오탈자 보정(`productName.word`)을 멀티필드로 분리
 - 추천/유사도 검색을 위해 벡터를 동일 도큐먼트에 포함
 - `ingredientName`은 레시피 추천이 읽는다. 상품이 바뀔 때만 달라지는 값이라 추천 요청마다 LLM으로 다시 뽑지 않고 상품 도큐먼트에 저장해 둔다 — 근거: [`decisions/002-ingredient-name-at-index-time.md`](decisions/002-ingredient-name-at-index-time.md)
 
@@ -108,7 +108,7 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 
 - `GET /api/v1/search`
   - 파라미터: `q`, `categories`, `priceMin`, `priceMax`, `page`, `size`
-  - optional header: `X-User-Id`
+  - 헤더 없음 — 사용자를 식별하지 않는다
 - `GET /api/v1/search/autocomplete`
   - 파라미터: `q`, `size`
 
@@ -152,13 +152,7 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 
 ### 부가 동작
 
-`X-User-Id` + 검색어가 있으면:
-
-- 검색 로그 저장
-- 상위 결과 상품 ID 최대 3개를 로그에 함께 저장
-- 사용자 프로필 벡터 비동기 갱신 (`UserProfileRefreshTrigger.refresh`)
-
-검색 실패와 로그 저장 실패를 분리해, 로그 처리 오류가 검색 결과를 깨지 않도록 설계되어 있다.
+**없다. 검색은 조회만 한다.** 2026-09-07까지는 회원 검색마다 검색 로그를 남기고 취향 벡터 갱신을 예약했으나, 그 신호(검색 결과 상위 상품)가 사용자의 선택이 아니라 검색 엔진의 출력이라는 이유로 경로를 통째로 지웠다 — `search_logs` 인덱스도 코드가 더 이상 만들지 않는다([`audits/taste-vector/005`](audits/taste-vector/005-signal-and-weight-simplification.md)). 프로필 갱신을 예약하는 곳은 장바구니·주문 컨슈머 둘뿐이다.
 
 ---
 
@@ -166,7 +160,7 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 
 ## 5.1 인덱싱
 
-상품 인덱싱 시 `ProductIndexService.indexProduct()`가
+상품 인덱싱 시 `ProductIndexService.indexProducts()`(묶음 최대 5건)가
 
 - `product` 인덱스 저장
 - `product-autocomplete` 인덱스 저장
@@ -203,7 +197,7 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 
 `ProductDocument.vector`에 768차원 float 벡터를 저장한다.
 
-벡터 생성은 `ProductEmbeddingService.embedProduct(productName)`에서 수행:
+벡터 생성은 `ProductEmbeddingService.embedProducts(List<String>)`에서 수행한다 — 묶음 전체가 `batchEmbedContents` **1회**로 나가고, 그 호출이 실패할 때만 상품별로 폴백한다:
 
 - 모델 빈: `googleGenAiTextEmbedding`
 - 기본 모델명: `gemini-embedding-001`, 출력 차원 768 고정 (`application.yml`). 차원 근거는 [`audits/vector-similarity/003`](audits/vector-similarity/003-embedding-dims-and-candidate-multiplier.md) A-1
@@ -245,20 +239,20 @@ Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현
 
 `ProductEventConsumer`가 Kafka `product-events` 토픽 구독:
 
-- `PRODUCT_CREATED` -> `indexProduct`
-- `PRODUCT_UPDATED` -> `indexProduct` (업데이트 재색인)
+- `PRODUCT_CREATED`·`PRODUCT_UPDATED` -> 묶음에 모아 뒀다가 `indexProducts`로 한 번에 색인(업데이트도 재색인)
+- 묶음 처리 중 삭제 이벤트를 만나면 **모인 색인을 먼저 내보낸 뒤** 삭제해 순서가 뒤집히지 않게 한다
 - `PRODUCT_DELETED` -> `deleteProduct`
 
 ## 7.2 인덱싱 처리 (`ProductIndexService`)
 
-`indexProduct(request)` 처리 순서:
+`indexProducts(requests)` 처리 순서(묶음 기준):
 
-1. 상품명 임베딩 생성 시도 (`embedProduct`)
-2. 요리 재료명 추출 시도 (`ProductIngredientNormalizer.normalize`) — LLM 1회, 실패·빈 답이면 `ingredientName`을 빈 값으로 두고 재색인 대상으로 남긴다
+1. 묶음 전체의 상품명을 `embedProducts`로 한 번에 임베딩 (실패 시 상품별 폴백)
+2. 상품마다 요리 재료명 추출 (`ProductIngredientNormalizer.normalize`) — **여기만 상품당 LLM 1회**다. 실패·빈 답이면 `ingredientName`을 빈 값으로 두고 재색인 대상으로 남긴다
 3. `ProductDocument` 생성 (`updatedAt`은 이벤트 값 = 발행 시각, 없으면 현재 시각. `ingredientName`·`vector` 포함)
 4. `ProductAutocompleteDocument` 생성
-5. `product-autocomplete` 저장
-6. `product` 저장
+5. `product-autocomplete`에 `saveAll` 1회(bulk)
+6. `product`에 `saveAll` 1회(bulk)
 
 임베딩 실패 시에도 색인은 계속 진행되므로, 일부 문서는 `vector`가 null/빈 상태일 수 있다.
 재료명 추출도 마찬가지로 실패해도 색인을 막지 않는다 — 다만 `ingredientName`이 빈 문서는 레시피 추천에서 그 상품을 보유 재료로 세지 못하므로, 빈 값이 쌓이면 재색인이 필요하다.

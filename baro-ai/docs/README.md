@@ -23,7 +23,7 @@
 - **데이터 중심**: 실시간으로 수집되는 사용자 행동 로그를 기반으로 한 추천
 - **벡터 기반**: Elasticsearch를 활용한 벡터 유사도 계산 (개인화 추천 등)
 - **이벤트 드리븐**: Kafka를 통한 실시간 데이터 처리
-- **확장성**: 헥사고날 아키텍처 기반의 모듈화된 설계
+- **확장성**: DDD 계층형 아키텍처(`presentation`·`application`·`domain`·`infrastructure`) 기반의 모듈화된 설계
 
 ### 🎪 작업 단위 (2026-09-04부터 이 4개가 감사·문서·설명의 기본 단위 — 매핑 SSOT: [`specs/README.md`](specs/README.md))
 
@@ -31,7 +31,7 @@
 2. **장바구니 레시피** — 장바구니 → 보유 재료 → LLM 레시피 후보 → 서버 검증 → 부족 재료 상품 ([스펙](specs/cart-recipe/recipe-recommendation.md))
 3. **임베딩 유사도 검색** — 상품 임베딩 → 벡터 검색 → 다양화 → 유사 상품 추천 ([스펙](specs/vector-similarity/vector-similarity-search.md))
 4. **키워드 검색** — 상품 이벤트 색인 → 키워드 검색 → 자동완성 ([스펙](specs/keyword-search/product-search-and-autocomplete.md))
-5. 서비스 챗봇 — 미구현 스텁. 리뷰 감정분석·요약은 팀원 소유 도메인
+5. 서비스 챗봇 — **코드 없음**(빈 클래스 4개를 2026-09-05에 삭제해 `com.barofarm.ai.chat` 패키지 자체가 없다). 리뷰 감정분석·요약은 팀원 소유 도메인
 
 ### 🔄 데이터 플로우
 
@@ -238,7 +238,8 @@ src/main/java/com/barofarm/ai/
 │   ├── consumer/              # Kafka 이벤트 컨슈머
 │   └── model/                # 이벤트 모델
 ├── config/                   # Spring 설정
-└── common/                   # 공통 유틸리티
+├── review/                   # 리뷰 감정분석·요약 (팀원 소유 — 이 하네스의 리팩터 범위 밖)
+└── common/                   # SwaggerConfig · GlobalExceptionHandler
 ```
 
 ### 목표 구조 (To-Be)
@@ -276,7 +277,7 @@ src/main/java/com/barofarm/ai/
 ## 🛠️ 기술 스택
 
 ### AI/ML
-- **Google Gemini (chat model)**: 텍스트 생성 (레시피/요약 등). 기본값은 `gemini-2.5-flash-lite` (`SPRING_AI_GEMINI_MODEL`)
+- **Google Gemini (chat model)**: 텍스트 생성 (레시피/요약 등). 기본값은 `gemini-3.5-flash-lite` (`SPRING_AI_GEMINI_MODEL`)
 - **Google Gemini Embedding**: 벡터 생성 (`gemini-embedding-001`, 출력 차원을 768로 고정)
 - **Spring AI**: AI 통합 프레임워크
 - **LangChain**: RAG 구현 (향후)
@@ -342,7 +343,7 @@ curl "http://localhost:8092/api/v1/recommendations/personalized/550e8400-e29b-41
 
 - **테스트 커버리지**: 80% 이상 목표
 - **코드 리뷰**: 모든 PR에 필수
-- **아키텍처 준수**: 헥사고날 패턴 준수 검증
+- **아키텍처 준수**: 계층 의존 방향(안쪽으로만) 준수 검증
 - **성능 모니터링**: 메트릭 기반 최적화
 
 ---
@@ -384,7 +385,7 @@ curl "http://localhost:8092/api/v1/recommendations/personalized/550e8400-e29b-41
 
 ### 코드 리뷰 체크리스트
 
-- [ ] 헥사고날 아키텍처 패턴 준수
+- [ ] 계층형 아키텍처의 의존 방향 준수
 - [ ] 도메인 로직이 domain 패키지에 위치
 - [ ] 인터페이스(포트)를 통한 의존성 역전
 - [ ] 단위 테스트 및 통합 테스트 작성
