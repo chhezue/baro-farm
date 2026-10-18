@@ -45,7 +45,7 @@ baro-ai에는 RDB가 없다. 상품의 원본은 `baro-shopping`(MySQL)이고, b
 
 | Method | Path | 인증 | 설명 |
 |--------|------|------|------|
-| GET | `/api/v1/search` | `X-User-Id` 선택 | `q`·`categories[]`·`priceMin`·`priceMax`·`page`(0)·`size`(10). `q`가 없으면 필터만으로 검색 |
+| GET | `/api/v1/search` | 없음(사용자 식별 안 함) | `q`·`categories[]`·`priceMin`·`priceMax`·`page`(0)·`size`(10). `q`가 없으면 필터만으로 검색 |
 | GET | `/api/v1/search/autocomplete` | 없음 | `q`(필수)·`size`(5) |
 
 두 API 모두 `ResponseDto<…>`로 감싼다. 2026-09-05부터 추천 API도 같은 envelope를 쓴다.
@@ -150,7 +150,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 
 - [x] 기능 구현
 - [ ] 위 "수동 확인 (로컬)" 절차 — 로컬 ES 미기동으로 2026-09-05 리팩터에서는 수행하지 못했다
-- [ ] `./gradlew :baro-ai:test` — 자동화 테스트 없음
+- [x] `./gradlew :baro-ai:test` — 이 단위 20건 통과 (`ProductSearchServiceTest` 10 · `ProductIndexServiceTest` 5 · `ProductEventConsumerTest` 5). 저장소 전체는 10클래스 59건
 
 ## 리스크·미결정
 

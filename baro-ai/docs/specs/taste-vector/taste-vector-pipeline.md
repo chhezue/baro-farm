@@ -39,10 +39,10 @@
 |------|--------|--------|------|
 | 1. 장바구니 이벤트 발행 | `baro-shopping` `CartService.addItem`·`updateQuantity`·`removeItem` | `@TrackHistory`가 붙은 세 메서드만 `HistoryAspect`를 거쳐 `cart-events`로 발행. 값은 이벤트 봉투 JSON **문자열**, 키는 `userId` | `baro-shopping/.../cart/application/CartService.java:57,78,111`, `baro-common/.../HistoryLogWriter.java:78` |
 | 2. 주문 이벤트 발행 | `baro-order` `InventoryConfirmedConsumer.handle` | 재고 확정 이벤트(`inventory-confirmed`)를 받아 주문을 `CONFIRMED`로 바꾸는 메서드에만 `@TrackHistory(ORDER_CONFIRMED)`가 있다. `userId`는 HTTP 헤더가 아니라 주문 엔티티에서 매퍼가 조회 | `baro-order/.../InventoryConfirmedConsumer.java:47`, `OrderConfirmedHistoryPayloadMapper.java:41-47` |
-| 4. 이벤트 소비 | `CartEventConsumer`·`OrderEventConsumer` | 그룹 `ai-service-cart`·`ai-service-order`, `auto-offset-reset=earliest`. 발행 측 enum을 그대로 `cart_event_logs`·`order_event_logs`에 저장하고 `UserProfileRefreshTrigger`를 호출. 문서 ID는 `{파티션}-{오프셋}`(주문은 `-{항목 순번}` 추가) | [`CartEventConsumer.java`](../../../src/main/java/com/barofarm/ai/event/consumer/CartEventConsumer.java), [`OrderEventConsumer.java`](../../../src/main/java/com/barofarm/ai/event/consumer/OrderEventConsumer.java) |
-| 5. 프로필 갱신 예약 | `UserProfileRefreshTrigger.refresh` | 세 경로가 모두 거치는 유일한 `@Async` 진입점. 실패·거절을 삼켜 호출한 쪽에 영향을 주지 않는다 | [`UserProfileRefreshTrigger.java`](../../../src/main/java/com/barofarm/ai/embedding/application/UserProfileRefreshTrigger.java) |
-| 6. 프로필 벡터 갱신 | `UserProfileEmbeddingService.updateUserProfileEmbedding` | 30일 내 장바구니·주문 로그를 각각 최신 5개씩 조회 → 게이트 → 로그별 비중 계산(0은 제외) → 상품 벡터 일괄 조회 → 가중 평균 + L2 정규화 → `user_profile_embeddings` 저장(문서 ID = userId, 덮어쓰기) | [`UserProfileEmbeddingService.java`](../../../src/main/java/com/barofarm/ai/embedding/application/UserProfileEmbeddingService.java) |
-| 7. 개인화 추천 | `PersonalizedRecommendService.recommendProducts` | 프로필 벡터 조회 → 경험 상품 제외로 후보 `min(topK×3, 100)`개 벡터 검색 → 다양화 → 응답. 카테고리 보너스는 주지 않는다 | [`PersonalizedRecommendService.java`](../../../src/main/java/com/barofarm/ai/recommend/application/PersonalizedRecommendService.java) |
+| 3. 이벤트 소비 | `CartEventConsumer`·`OrderEventConsumer` | 그룹 `ai-service-cart`·`ai-service-order`, `auto-offset-reset=earliest`. 발행 측 enum을 그대로 `cart_event_logs`·`order_event_logs`에 저장하고 `UserProfileRefreshTrigger`를 호출. 문서 ID는 `{파티션}-{오프셋}`(주문은 `-{항목 순번}` 추가) | [`CartEventConsumer.java`](../../../src/main/java/com/barofarm/ai/event/consumer/CartEventConsumer.java), [`OrderEventConsumer.java`](../../../src/main/java/com/barofarm/ai/event/consumer/OrderEventConsumer.java) |
+| 4. 프로필 갱신 예약 | `UserProfileRefreshTrigger.refresh` | 장바구니·주문 **두 경로**가 거치는 유일한 `@Async` 진입점. 실패·거절을 삼켜 호출한 쪽에 영향을 주지 않는다 | [`UserProfileRefreshTrigger.java`](../../../src/main/java/com/barofarm/ai/embedding/application/UserProfileRefreshTrigger.java) |
+| 5. 프로필 벡터 갱신 | `UserProfileEmbeddingService.updateUserProfileEmbedding` | 30일 내 장바구니·주문 로그를 각각 최신 5개씩 조회 → 게이트 → 로그별 비중 계산(0은 제외) → 상품 벡터 일괄 조회 → 가중 평균 + L2 정규화 → `user_profile_embeddings` 저장(문서 ID = userId, 덮어쓰기) | [`UserProfileEmbeddingService.java`](../../../src/main/java/com/barofarm/ai/embedding/application/UserProfileEmbeddingService.java) |
+| 6. 개인화 추천 | `PersonalizedRecommendService.recommendProducts` | 프로필 벡터 조회 → 경험 상품 제외로 후보 `min(topK×3, 100)`개 벡터 검색 → 다양화 → 응답. 카테고리 보너스는 주지 않는다 | [`PersonalizedRecommendService.java`](../../../src/main/java/com/barofarm/ai/recommend/application/PersonalizedRecommendService.java) |
 
 ## API / 인터페이스
 
@@ -74,9 +74,9 @@
 
 | 인덱스 | 문서 | 핵심 필드 | 쓰는 곳 |
 |--------|------|-----------|---------|
-| `cart_event_logs` | `CartLogDocument` | id(`{파티션}-{오프셋}`), userId, productId, productName, eventType(`HistoryEventType` enum), occurredAt | 4단계가 쓰고 6단계가 읽음 |
+| `cart_event_logs` | `CartLogDocument` | id(`{파티션}-{오프셋}`), userId, productId, productName, eventType(`HistoryEventType` enum), occurredAt | 3단계가 쓰고 5단계가 읽음 |
 | `order_event_logs` | `OrderLogDocument` | 같은 구조, id는 `{파티션}-{오프셋}-{항목 순번}` | 동일 |
-| `user_profile_embeddings` | `UserProfileEmbeddingDocument` | userId(ID), userProfileVector(768), lastUpdatedAt, sourceProductIds | 6단계가 쓰고 7단계가 읽음 |
+| `user_profile_embeddings` | `UserProfileEmbeddingDocument` | userId(ID), userProfileVector(768), lastUpdatedAt, sourceProductIds | 5단계가 쓰고 5단계가 읽음 |
 | `product` | `ProductDocument` | vector(768) — 프로필 계산의 재료 | [`vector-similarity`](../vector-similarity/vector-similarity-search.md)가 쓰고 6단계가 읽음 |
 
 `eventType`은 발행 측(`baro-common`)의 `HistoryEventType`을 그대로 저장한다. 문자열로 옮겨 적지 않으므로 계산 쪽 비교값과 어긋날 수 없고, 발행 측에 종류가 추가되면 컴파일이 실패해 알아차리게 된다.
@@ -102,7 +102,7 @@
 |------|-----|-----------|
 | 조회 기간 | 최근 30일 | `LOOKBACK_DAYS` |
 | 종류별 로그 상한 | 장바구니·주문 각 최신 5개 | `RECENT_LOG_LIMIT` (`PageRequest.of(0, 5)`) |
-| 갱신 스킵 게이트 | 세 종류 합계가 3개 미만이면 저장하지 않음 | `MIN_TOTAL_LOGS_FOR_EMBEDDING` |
+| 갱신 스킵 게이트 | 장바구니·주문 **두 종류** 합계가 3개 미만이면 저장하지 않음 | `MIN_TOTAL_LOGS_FOR_EMBEDDING` |
 | 행동 가중치 | 주문 CONFIRMED 3 · 장바구니 ADD 2 · UPDATE 1 / 삭제 REMOVE·취소 CANCELLED 0 | `calculateEventWeight` |
 | 행동 비중 | 로그 1건이 취향에 기여하는 정도 = **행동 가중치 그 자체**(범위 0 또는 1~3). 곱하는 축이 더 없다. 시간 감쇠 축은 2026-09-06에, 수량 축은 2026-09-07에 뺐다 — 앞은 L2 정규화가 소거해 효과가 없었고([`002`](../../audits/taste-vector/002-weight-axes-and-tests.md) F-1·F-2), 뒤는 수량이 선호의 세기가 아니라 소비량이었다([`005`](../../audits/taste-vector/005-signal-and-weight-simplification.md) A-2) | `calculateEventWeight` |
 | 비중 0인 로그 | 가중 평균과 경험 상품 **양쪽 모두에서 제외**. 삭제·취소한 상품은 관심이 없어진 것이므로 다시 추천에 나와도 된다 | `WeightedProduct.isUsable` |
@@ -110,8 +110,8 @@
 | 벡터 없는 상품 | 아직 색인되지 않았거나 임베딩이 실패한 상품은 조용히 건너뛴다. 쓸 수 있는 벡터가 하나도 없으면 프로필을 저장하지 않는다 | `loadProductVectors` |
 | 외부 임베딩 호출 | **없음.** 프로필 갱신 1회에 Gemini 호출 0회, ES 조회만 남는다 | — |
 | 경험 상품 | 비중이 0이 아닌 장바구니·주문 로그의 productId(중복 제거) | `sourceProductIds` |
-| 갱신 트리거 | 장바구니 이벤트 1건·주문 이벤트 1건마다 재계산. 빈도 제한은 두지 않는다 — 가장 비쌌던 Gemini 호출이 빠져 제한할 이유가 없어졌다 | 3·4단계 |
-| 비동기 실행 | `profileUpdateExecutor`(core 2 · max 5 · queue 100). 세 경로 모두 `UserProfileRefreshTrigger`라는 **다른 빈**을 거치므로 실제로 비동기다 | `AsyncConfig`, `UserProfileRefreshTrigger` |
+| 갱신 트리거 | 장바구니 이벤트 1건·주문 이벤트 1건마다 재계산. 빈도 제한은 두지 않는다 — 가장 비쌌던 Gemini 호출이 빠져 제한할 이유가 없어졌다 | 3단계 |
+| 비동기 실행 | `profileUpdateExecutor`(core 2 · max 5 · queue 100). 두 경로 모두 `UserProfileRefreshTrigger`라는 **다른 빈**을 거치므로 실제로 비동기다 | `AsyncConfig`, `UserProfileRefreshTrigger` |
 | 대기열 초과 처리 | 큐가 가득 차면 그 갱신을 버리고 WARN만 남긴다. 호출한 쪽(이벤트 처리)은 영향을 받지 않는다 | `AsyncConfig`의 거절 핸들러 |
 | 추천 후보 규모 · 상태 필터 | [`vector-similarity`](../vector-similarity/vector-similarity-search.md) 비즈니스 규칙과 같다(후보 규모·상태 필터는 그쪽이 SSOT) | `PersonalizedRecommendService` |
 | 카테고리 일치 보너스 | **없다.** 취향 벡터가 이미 선호 카테고리 쪽으로 기울어 있어 정보가 중복되고, 후보가 한 카테고리로 쏠리면 다양화가 그 안에서만 고르게 된다. 유사 상품 추천 경로의 보너스도 2026-09-05에 함께 삭제됐다 | `VectorRecommendPipeline` |
@@ -150,7 +150,7 @@
 ## 완료 기준
 
 - [x] 기능 구현 및 수동 확인
-- [ ] `./gradlew :baro-ai:test` — 자동화 테스트 없음(사용자 결정으로 코드 변경 완료 후 도입)
+- [x] `./gradlew :baro-ai:test` — 이 단위 7건 통과 (`UserProfileEmbeddingServiceTest`). 저장소 전체는 10클래스 59건
 
 ## 리스크·미결정
 

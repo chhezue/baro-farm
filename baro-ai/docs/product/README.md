@@ -5,8 +5,8 @@
 | 슬롯 | 권장 파일 |
 |------|-----------|
 | `{{제품 범위}}` | `mvp.md` |
-| `{{우선순위 SSOT}}` | `release-milestones.md` |
+| `{{우선순위 SSOT}}` | (없음) — baro-ai 전용 마일스톤 문서를 두지 않기로 했다 |
 | `{{클라이언트 전제}}` | `platform.md` |
 | `{{용어집}}` | `glossary.md` |
 
-채우고 나면 `.claude/rules/harness-map.md`의 해당 행을 실제 경로로 바꾼다.
+슬롯은 이미 `.claude/rules/harness-map.md`에 실제 경로로 채워져 있다. 새 문서를 만들면 그 행도 같이 고친다.

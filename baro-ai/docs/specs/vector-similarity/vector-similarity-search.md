@@ -34,7 +34,7 @@
 
 | 단계 | 어디서 | 무엇을 | 근거 |
 |------|--------|--------|------|
-| 1. 상품 벡터 생성 | `ProductIndexService.indexProduct` → `ProductEmbeddingService.embedProduct` | 상품 이벤트 1건마다 상품명으로 임베딩 1회. 실패하면 벡터 `null`로 색인 계속 | [`ProductIndexService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductIndexService.java), [`ProductEmbeddingService.java`](../../../src/main/java/com/barofarm/ai/embedding/application/ProductEmbeddingService.java) |
+| 1. 상품 벡터 생성 | `ProductIndexService.indexProducts` → `ProductEmbeddingService.embedProducts` | 상품 묶음(최대 5건)당 `batchEmbedContents` 1회. 묶음 호출이 실패하면 상품별로 폴백하고, 그래도 실패하면 벡터 `null`로 색인 계속 | [`ProductIndexService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductIndexService.java), [`ProductEmbeddingService.java`](../../../src/main/java/com/barofarm/ai/embedding/application/ProductEmbeddingService.java) |
 | 2. 기준 벡터 확보 | `SimilarProductRecommendService` / `PersonalizedRecommendService` | 유사 상품은 기준 상품 문서의 벡터, 개인화는 프로필 벡터. 이후 단계는 공통 경로에 넘긴다 | 각 서비스 |
 | 3. 벡터 검색 | `VectorRecommendPipeline.recommend` → `VectorProductSearchService.findSimilarProductDocumentsByVector` | `script_score` + `cosineSimilarity(params.query_vector,'vector') + 1.0`, 상태·`exists(vector)` 필터, `mustNot ids`(자기 자신 또는 경험 상품). 후보 문서 전체(`_source`, 벡터 포함)를 가져온다 | [`VectorProductSearchService.java`](../../../src/main/java/com/barofarm/ai/search/application/VectorProductSearchService.java) |
 | 4. 다양화 | `MaxMinDiversityService.selectDiverse` | 벡터 없는 후보 제거 → 후보 ≤ topK면 그대로 → 아니면 max-min 선택 → 기준 벡터와의 코사인으로 재정렬 | [`MaxMinDiversityService.java`](../../../src/main/java/com/barofarm/ai/recommend/application/MaxMinDiversityService.java) |
@@ -115,7 +115,7 @@
 
 - [x] 기능 구현
 - [ ] 위 "수동 확인 (로컬)" 절차 — 로컬 ES 미기동으로 2026-09-05 리팩터에서는 수행하지 못했다
-- [ ] `./gradlew :baro-ai:test` — 자동화 테스트 없음
+- [x] `./gradlew :baro-ai:test` — 이 단위 12건 통과 (`MaxMinDiversityServiceTest` 6 · `ProductEmbeddingServiceTest` 4 · `VectorRecommendPipelineTest` 2). 저장소 전체는 10클래스 59건
 
 ## 리스크·미결정
 

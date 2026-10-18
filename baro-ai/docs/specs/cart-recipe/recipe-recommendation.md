@@ -18,7 +18,7 @@
 
 ## 배경
 
-LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀리거나 필드를 비운다. 그래서 창의적 부분(후보 3개 생성)만 LLM에 맡기고, 보유·부족 재료 계산은 서버가 집합 연산으로 다시 한다. 후보 중 무엇을 쓸지는 2026-09-05부터 서버가 점수로 다시 고르지 않고 LLM이 낸 순서를 존중한다. 상품명 → 재료명 변환은 요청 시점이 아니라 상품 색인 시점에 1회만 한다([`decisions/002`](../../decisions/002-ingredient-name-at-index-time.md)).
+LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀리거나 필드를 비운다. 그래서 창의적 부분(레시피 1개 생성)만 LLM에 맡기고, 보유·부족 재료 계산은 서버가 집합 연산으로 다시 한다. 2026-09-05에 서버 채점식을 지웠고, 2026-09-06부터는 후보 자체를 1개만 요청한다. 상품명 → 재료명 변환은 요청 시점이 아니라 상품 색인 시점에 1회만 한다([`decisions/002`](../../decisions/002-ingredient-name-at-index-time.md)).
 
 ## 용어
 
@@ -43,7 +43,7 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 | 4. 후보 생성 | `RecipeCandidateGenerator.generateRecipe` | Gemini `gemini-3.5-flash-lite`, temperature 0.7(전역), 응답 JSON 스키마 강제, 재시도 총 3회·호출당 30초. 프롬프트는 후보 **1개**를 요구하고, 응답 배열에서 이름이 있는 첫 항목을 `Optional`로 돌려준다(실패·빈 응답이면 empty) | [`RecipeCandidateGenerator.java`](../../../src/main/java/com/barofarm/ai/recommend/infrastructure/llm/RecipeCandidateGenerator.java) |
 | 5. 서버 계산 | `CandidateRecipePlan.from` | LLM 원본 후보에 `usedOwnedIngredients`(핵심 재료 ∩ 보유)·`missingIngredientsCore`(핵심 재료 − 보유)를 정규화 비교(`normalizeForCompare`: trim·소문자·공백 제거)로 채워 넣는다. 둘을 합치면 핵심 재료가 된다 | [`CandidateRecipePlan.java`](../../../src/main/java/com/barofarm/ai/recommend/domain/CandidateRecipePlan.java) |
 | 6. 후보 선택 | (4단계에 흡수) | 후보가 1개가 된 뒤 남아 있던 일급 컬렉션 `RecipeCandidates`는 2026-09-06에 삭제했다 — 빈 이름 방어 한 줄은 생성기 안에 있다. 서버 점수 계산은 2026-09-05에 삭제했다 | [`audits/cart-recipe/005`](../../audits/cart-recipe/005-request-path-defects-and-tests.md) B-1 |
-| 7. 부족 재료 상품 | `searchMissingIngredientProducts` → `ProductSearchService.searchByKeywords` | 부족 핵심 재료 전부를 **한 번의 `_msearch`**로 조회(재료당 size 2, 검색 로그·프로필 갱신 없음). 2026-09-06 이전에는 재료마다 순차 호출이었다. 검색이 통째로 실패하면 카드만 비우고 레시피 본문은 살린다. 0건인 재료는 카드가 빠지고 `missingCoreIngredients`에는 남음 | [`audits/cart-recipe/005`](../../audits/cart-recipe/005-request-path-defects-and-tests.md) A-2 |
+| 7. 부족 재료 상품 | `searchMissingIngredientProducts` → `ProductSearchService.searchByKeywords` | 부족 핵심 재료 전부를 **한 번의 `_msearch`**로 조회(재료당 size 2, 검색 로그·프로필 갱신 없음). 검색어는 원문이 아니라 **마지막 어절**만 쓴다(`국거리용 소고기` → `소고기`) — 사용자에게 보이는 `missingCoreIngredients`는 원문 그대로다. 2026-09-06 이전에는 재료마다 순차 호출이었다. 검색이 통째로 실패하면 카드만 비우고 레시피 본문은 살린다. 0건인 재료는 카드가 빠지고 `missingCoreIngredients`에는 남음 | [`audits/cart-recipe/005`](../../audits/cart-recipe/005-request-path-defects-and-tests.md) A-2 |
 | 8. 응답 | `RecipeRecommendResponse` | **reason** · recipeName · ownedIngredients(**이 요리가 쓰는 보유 재료**) · missingCoreIngredients · missingRecommendations · instructions | 동일 |
 
 ## API / 인터페이스
@@ -73,7 +73,7 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 
 | 항목 | 값 | 근거 |
 |------|-----|------|
-| 읽는 ES 필드 | `product.ingredientName`(keyword), 부족 재료 검색은 키워드 검색 규칙 그대로 | [`keyword-search`](../keyword-search/product-search-and-autocomplete.md) |
+| 읽는 ES 필드 | `product.ingredientName`(keyword)·`productName`. 부족 재료 검색은 일반 키워드 검색이 **아니라 전용 쿼리**다 — 아래 "부족 재료 상품 매칭" 절 | [`keyword-search`](../keyword-search/product-search-and-autocomplete.md) · [`audits/cart-recipe/006`](../../audits/cart-recipe/006-missing-ingredient-product-match.md) |
 | Feign 응답 타입 | `ResponseDto<CartInfo>` — 봉투째 받아 `data()`를 꺼낸다. 호출 상한은 연결 1초·읽기 3초 | `CartClient`, `application.yml` |
 | Feign 수신 DTO | `CartInfo`(items), `CartItemInfo`(productId·productName·productCategoryCode) — **실제로 읽는 칸만 옮겨 적는다**(2026-09-06 축소). 상류는 `cartId`·`totalPrice`·`quantity`·`unitPrice` 등을 함께 보내지만 Jackson이 모르는 필드를 무시한다 | `recommend.infrastructure.client.dto` |
 | LLM 응답 스키마 | `RecipeCandidateDrafts{candidates[RecipeCandidateDraft]}` — recipeName, recipeIngredientsCore, instructions **3개**(2026-09-06에 8개에서 축소). 서버가 계산하는 두 필드는 스키마에 없다 — 스키마 생성기가 모든 필드를 필수로 요구해서, 넣어 두면 버릴 값을 모델이 매번 출력해야 했다. 조리 방식·난이도·식사 유형·추가 재료·양념 가정 플래그는 응답에 닿지 않아 함께 삭제했다 | `RecipeCandidateDraft` |
@@ -103,6 +103,8 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 | 응답의 보유 재료 | 장바구니 전체가 아니라 **이 요리가 실제로 쓰는 보유 재료**(핵심 재료 ∩ 장바구니). 부족 재료와 합치면 핵심 재료가 된다 | `usedOwnedIngredients` |
 | Feign 호출 상한 | 장바구니 조회 연결 1초·읽기 3초. 게이트웨이 응답 상한(5초)보다 짧게 둔다 | `application.yml` |
 | 부족 재료 상품 수 | 재료당 최대 2개, 키워드 검색 상태 필터 적용 | `MISSING_PRODUCTS_LIMIT_PER_INGREDIENT` |
+| 부족 재료 검색어 | 원문의 **마지막 어절**만 쓴다(`국거리용 소고기` → `소고기`). LLM이 수식어를 붙여 말해도 색인된 재료명과 맞추기 위한 규칙이고, 응답에 나가는 문구는 원문을 유지한다 | `IngredientProcessingUtil.toSearchKeyword` |
+| 부족 재료 상품 매칭 | 전용 쿼리 `buildIngredientQuery`. `ingredientName` **정확 일치(`term`)에 boost 4.0**을 주어 상품명 정확 매칭(2.0)보다 위에 두고, 그 아래로 일반 키워드 3중 매칭(정확 2.0·형태소 1.0·오탈자 0.3)을 함께 건다(`minimumShouldMatch=1`). 색인된 재료명이 정답일 때 1위로 오게 하려는 것이다 | `ProductSearchService.buildIngredientQuery` |
 | 재료명 추출(색인 시) | temperature 0, 카테고리명을 힌트로 전달, 실패·빈 답은 `""` | `ProductIngredientNormalizer` ([`audits/search/002`](../../audits/search/002-llm-prompt-tuning.md)) |
 | 단계별 실패 | 장바구니 실패 → 전부 빈 값(`UPSTREAM_ERROR`) / 빈 장바구니(`EMPTY_CART`)·전부 제외(`NO_ELIGIBLE_ITEMS`)·재료명 없음(`INGREDIENTS_NOT_INDEXED`) → 빈 값 / LLM 실패 → `ownedIngredients`만(`GENERATION_FAILED`) / 상품 검색 실패 → 카드 전부 빠짐, 레시피는 유지(`OK`). 최상위 catch는 스택트레이스를 남긴다(2026-09-06 이전엔 메시지만) | `recommendFromCart` |
 
@@ -128,7 +130,7 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 - [ ] baro-shopping을 띄우고 `SHOPPING_SERVICE_URL`을 로컬 주소로 준 뒤 추천 API 1회 호출 — "장바구니 조회 실패"·"장바구니가 비어있습니다" WARN이 사라지고 `ownedIngredients`가 채워지는지
 - [ ] `SHOPPING_SERVICE_URL`을 일부러 틀린 주소로 두고 호출 — WARN의 `error:` 뒤에 상태 코드·URL이 보이는지(에러 디코더 삭제 효과)
 - [ ] `nc -l 8082`로 응답하지 않는 주소를 만들고 호출 — WARN까지 걸리는 시간이 60초에서 3초 근처로 줄었는지
-- [ ] 기동 시 응답 스키마를 한 번 찍어 후보 필드가 10개에서 8개로 줄고 필수 목록에서 두 필드가 빠졌는지 (스키마 생성·파싱 자체는 같은 라이브러리 버전으로 로컬 검증됨 — 남은 건 실제 Gemini 응답 확인)
+- [ ] 기동 시 응답 스키마를 한 번 찍어 후보 필드가 8개에서 3개로 줄었는지 (스키마 생성·파싱 자체는 같은 라이브러리 버전으로 로컬 검증됨 — 남은 건 실제 Gemini 응답 확인)
 - [ ] 같은 장바구니로 3회 호출해 출력 토큰 합계를 Before/After 비교(`/actuator/metrics/gen_ai.client.token.usage`)
 - [ ] `POST /api/v1/recommendations/recipes/test`가 404이고 `/v3/api-docs`에서 사라졌는지
 
@@ -136,7 +138,7 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 
 - [x] 기능 구현
 - [ ] 위 "수동 확인 (로컬)" 절차 — baro-shopping 미기동으로 2026-09-05 리팩터에서는 수행하지 못했다
-- [ ] `./gradlew :baro-ai:test` — 자동화 테스트 없음
+- [x] `./gradlew :baro-ai:test` — 이 단위 20건 통과 (`RecipeRecommendServiceTest` 7 · `IngredientProcessingUtilTest` 8 · `CandidateRecipePlanTest` 5). 저장소 전체는 10클래스 59건
 
 ## 리스크·미결정
 
@@ -149,9 +151,9 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 | 후보 선택 품질 비교 근거 없음 | 확정 | 점수를 지우기 전에도 후보별 점수를 로그로 남기지 않아, 삭제 전후 추천 품질을 비교할 자료가 없다 `[미정]` |
 | 테스트용 POST 엔드포인트가 운영에 노출 | 해소 | 2026-09-05 삭제 |
 | LLM 스키마에 서버가 덮어쓰는 필드 포함 | 해소 | 2026-09-05 `RecipeCandidateDraft` 분리 |
-| 모든 실패가 200 + 빈 값 | 확정(설계) | 레시피 경로는 실패해도 200 + 빈 값으로 나간다. `RecommendErrorCode`는 2026-09-05에 지웠다가 되살아나 있고(`INVALID_TOP_K` 1건), 쓰는 곳은 레시피가 아니라 `VectorRecommendPipeline:60`이다 — 2026-09-06 코드 확인 |
+| 모든 실패가 200 + 빈 값 | 확정(설계) | 레시피 경로는 실패해도 200 + 빈 값으로 나간다. `RecommendErrorCode`는 2026-09-05에 지웠다가 되살아나 있고(`INVALID_TOP_K` 1건), 쓰는 곳은 레시피가 아니라 `VectorRecommendPipeline.validateTopK`다 — 2026-09-06 코드 확인 |
 | 폴백 문자열이 `productCategoryCode`로 올 수 있음 | 확정 | 제외 목록과 안 맞아 통과되지만 `ingredientName` 조회는 `productId`로 하므로 영향 없음 |
-| 부족 재료 검색이 순차 | 확정(설계) | 재료 ≤ 5개·같은 클러스터라 병렬화 근거 없음 — 하지 않는다 |
+| ~~부족 재료 검색이 순차~~ | **해소(2026-09-06)** | `ProductSearchService.searchByKeywords`가 `_msearch` 1회로 묶는다. 부분 실패 시 결과 길이가 어긋나면 전부 빈 목록으로 맞춘다 |
 | `CandidateRecipePlan` 주석 2줄 불일치 | 해소 | 2026-09-05 record 전환과 함께 정정 |
 
 ## 관련 문서

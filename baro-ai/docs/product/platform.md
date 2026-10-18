@@ -14,14 +14,14 @@ baro-ai를 누가, 무엇으로 호출하는지의 SSOT. `harness-map.md`의 `{{
 | 호출자 | 방식 | 예 |
 |--------|------|-----|
 | `baro-gateway` | HTTP, 사람의 요청을 라우팅 | 검색·추천 API 전체 |
-| 다른 모듈 → baro-ai | HTTP(REST, `X-User-Id` 헤더로 사용자 식별, 별도 인증 토큰 검증은 하지 않음 — 게이트웨이가 이미 처리했다고 신뢰) | `SearchController`, `RecommendationController` |
+| 다른 모듈 → baro-ai | HTTP(REST). 사용자 식별은 **경로 변수**(`/personalized/{userId}`·`/recipes/{userId}`)로 받고, 별도 인증 토큰 검증은 하지 않는다 — 게이트웨이가 이미 처리했다고 신뢰 | `SearchController`(사용자 식별 없음), `RecommendationController` |
 | 다른 모듈 → baro-ai | Kafka 이벤트 소비 | `cart-events`·`order-events`·`product-events`·`review-events` |
-| baro-ai → 다른 모듈 | Feign | `baro-shopping`의 장바구니 조회(`CartClient`) |
-| baro-ai → 다른 모듈 | Kafka 이벤트 발행 | `review-summary` 이벤트(review 도메인) |
+| baro-ai → 다른 모듈 | Feign | `baro-shopping`의 장바구니 조회(`CartClient`) — 이때 `X-User-Id` 헤더를 **내보낸다** |
+| baro-ai → 다른 모듈 | Kafka 이벤트 발행 | `review-summary-events` 토픽(review 도메인) |
 
 ## 인증
 
-baro-ai 자체에는 인증 로직이 없다. `X-User-Id` 헤더가 있으면 그 값을 신뢰하고(로그 저장·개인화용), 없으면 비로그인 요청으로 처리한다. 토큰 검증·인가는 게이트웨이 책임 — baro-ai 코드에 `@Aspect`·권한 어노테이션이 없는 이유이기도 하다(`harness-map.md` 스택 옵션 "권한·활동 어노테이션" = 꺼짐).
+baro-ai 자체에는 인증 로직이 없다. 들어오는 요청에서 `X-User-Id` 헤더를 읽는 컨트롤러는 **하나도 없다** — 개인화·레시피는 경로 변수 `{userId}`를 그대로 믿고, 검색은 사용자를 아예 식별하지 않는다(2026-09-07에 검색 신호를 빼면서 헤더 수신도 함께 없앴다). `X-User-Id`가 등장하는 유일한 곳은 baro-ai가 `baro-shopping`을 부를 때 실어 보내는 **아웃바운드** 헤더다(`CartClient`). 토큰 검증·인가는 게이트웨이 책임 — baro-ai 코드에 `@Aspect`·권한 어노테이션이 없는 이유이기도 하다(`harness-map.md` 스택 옵션 "권한·활동 어노테이션" = 꺼짐).
 
 ## 관련 문서
 

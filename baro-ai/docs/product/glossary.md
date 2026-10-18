@@ -66,7 +66,7 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 
 | 용어 | 의미 | 코드/문서 근거 |
 |------|------|-----------------|
-| 색인 경로 | `product-events` 수신 → 임베딩 → 재료명 → `product-autocomplete` 저장 → `product` 저장 | `ProductEventConsumer`, `ProductIndexService.indexProduct` |
+| 색인 경로 | `product-events` 수신 → 임베딩 → 재료명 → `product-autocomplete` 저장 → `product` 저장 | `ProductEventConsumer`, `ProductIndexService.indexProducts`(묶음) |
 | 상품 이벤트 | `baro-shopping`이 생성·수정·삭제 트랜잭션 커밋 후 발행하는 `PRODUCT_CREATED/UPDATED/DELETED`. 키 없음, 수정은 diff 없이 항상 발행 | `ProductTransactionEventListener`, `ProductEventProducer` |
 | 정확 매칭 | `match_phrase` 절(slop·boost: `keyword-search` 스펙) | `applyExactMatch` |
 | 일반 매칭 | `match` OR 절(boost: `keyword-search` 스펙) | `applyNormalMatch` |
@@ -77,7 +77,7 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 ## 예시
 
 - "이 사용자의 **프로필 벡터**로 후보 15개를 뽑고 **max-min 다양화**로 **topK**=5개를 골랐는데, **경험 상품** 2개는 처음부터 제외됐다."
-- "장바구니의 **보유 재료**가 계란·애호박·두부라서 **레시피 후보** 3개 중 **부족 핵심 재료**가 2개인 '애호박 두부전'이 **판매 기회 보너스** +15를 받아 선택됐다."
+- "장바구니의 **보유 재료**가 계란·애호박·두부라서 LLM이 낸 **레시피 후보**가 '애호박 두부전'이고, 서버가 계산한 **부족 핵심 재료**는 2개다."
 
 ## 관련 문서
 

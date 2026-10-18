@@ -73,7 +73,7 @@
 
 **따라서 함께 사라지는 것:** `CandidateRecipePlan.from`의 "사용된 보유 재료 계산" 단계 전체, 두 로그 문장의 해당 인자.
 
-**남는 필드:** `RecipeCandidateDraft`는 8개 → **3개**(`recipeName`·`recipeIngredientsCore`·`instructions`), `CandidateRecipePlan`은 10개 → **4개**(앞의 셋 + 서버가 계산하는 `missingIngredientsCore`).
+**남는 필드:** `RecipeCandidateDraft`는 8개 → **3개**(`recipeName`·`recipeIngredientsCore`·`instructions`), `CandidateRecipePlan`은 10개 → **5개**(앞의 셋 + 서버가 계산하는 `missingIngredientsCore`·`usedOwnedIngredients`).
 
 `RecipeCandidates`·`chooseFirst`는 이 재설계에서는 유지했다 — LLM이 여전히 배열로 응답하므로 이름이 빈 응답을 걸러야 한다. (2026-09-06 감사 [`005`](../../audits/cart-recipe/005-request-path-defects-and-tests.md) B-1에서 삭제 — 그 한 줄 방어는 `RecipeCandidateGenerator.generateRecipe` 안으로 들어갔다)
 
@@ -101,7 +101,7 @@
 <지켜야 할 것>
 1. 실제로 사람들이 만들어 먹는 요리만 추천합니다. 없는 요리를 지어내지 마세요.
    보유 재료가 서로 어울리지 않으면 전부 쓰려 하지 말고 일부만 쓰세요.
-   예: ["사과", "계란"]이면 "사과 계란 찌개"가 아니라 "애플파이"나 "계란찜"입니다.
+   예: ["시금치", "땅콩"]이면 "시금치 땅콩 찌개"가 아니라 "시금치나물"이나 "땅콩조림"입니다.
 2. 보유 재료 중 최소 1개는 반드시 씁니다.
 3. 부족한 핵심 재료가 최소 1개는 반드시 있어야 합니다. 사용자가 추가로 살 재료를
    제안하기 위해서입니다. 보유 재료만으로 완성되는 요리라면 그 요리 대신, 보유 재료를
@@ -176,7 +176,7 @@
 |------|---------|---------|
 | `RecipeCandidateDraft` (LLM 응답) | 8필드 | **3필드** — `recipeName`, `recipeIngredientsCore`, `instructions` |
 | `CandidateRecipePlan` (도메인) | 10필드 | **5필드** — 위 셋 + 서버가 계산하는 `missingIngredientsCore`·`usedOwnedIngredients` |
-| `RecipeRecommendResponse` (API) | 5필드 | 5필드 — 개수는 같고 `ownedIngredients`의 의미가 바뀐다(위 API 절) |
+| `RecipeRecommendResponse` (API) | 5필드 | **6필드** — `ownedIngredients`의 의미가 바뀌고, 2026-09-06에 `reason`이 맨 앞에 추가됐다(위 API 절) |
 | `RecipeCandidates` | 그대로 | 그대로 → 2026-09-06 삭제([`005`](../../audits/cart-recipe/005-request-path-defects-and-tests.md) B-1) |
 
 `RecipeCandidateDraft`가 곧 LLM 응답 스키마이므로, 필드가 줄면 **모델이 만들어야 할 출력도 그만큼 줄어든다.**
@@ -265,7 +265,7 @@
 
 - [ ] 위 "완료 조건" 체크박스 전부
 - [x] Before/After 비교표가 `docs/audits/cart-recipe/`에 남아 있다 — [`002-goldenset-before-after.md`](../../audits/cart-recipe/002-goldenset-before-after.md)
-- [ ] `./gradlew :baro-ai:build` 통과 (테스트 클래스가 0개라 `:baro-ai:test`는 `NO-SOURCE`이므로 "테스트 통과"라고 보고하지 않는다)
+- [x] `./gradlew :baro-ai:build` 통과. `:baro-ai:test`도 10클래스 59건이 통과한다 — 이 문서를 쓸 때는 테스트가 0개(`NO-SOURCE`)였으나 2026-09-06에 도입됐다
 - [x] REMOVED에 적은 지시가 프롬프트에 남아 있지 않다 (`grep`으로 확인)
 
 ## 리스크·미결정
@@ -275,7 +275,7 @@
 | **Gemini API 키 미발급** | 해소 (2026-09-06) | 키를 발급받아 로컬 환경변수 `BARO_AI_GEMINI_KEY`로 등록했다. 운영 클러스터용 `baro-ai-secrets` 등록은 이 스펙 범위 밖이다 |
 | **S9 판매 연결 회귀** | 해소 · 재채점 대기 (2026-09-06) | 규칙 3을 "요리 선택을 돌린다"로 고쳐 재측정했다. 부족 재료 0개 실행이 2건 → **0건**, S9은 "보리밥" → "보리비빔밥"·"보리열무비빔밥". 다른 시나리오도 출력이 바뀌어 21건이 재채점 대상이다 |
 | **S15 동일 재료 정규화** | **닫힘 — 가설 기각 (2026-09-06)** | 대파·쪽파·실파가 두 팔 모두 0/3이라 "변종을 합치는 정규화가 없어서"로 의심했으나, 합쳐서 다시 재 보니 나아지지 않았다([`audits/cart-recipe/003`](../../audits/cart-recipe/003-pantry-staples-and-variants.md)). 동의어 사전을 만들지 않는다 |
-| **측정 모델이 운영과 다름** | 확정 (2026-09-06 사용자 결정) | 운영 기본값 `gemini-2.5-flash-lite`가 신규 발급 키로는 404로 막힌다("no longer available to new users", 실측). 골든셋은 구글이 지목한 후속 모델 `gemini-3.5-flash-lite`로 두 팔 모두 측정한다 — 비교는 성립하나 Before를 "현행 운영 품질"로 읽으면 안 된다. `application.yml`의 운영 기본 모델도 2026-09-06 `gemini-3.5-flash-lite`로 교체해 측정과 운영을 일치시켰다 — 임베딩 모델(`gemini-embedding-001`, 1536차원)은 같은 키로 정상이라 그대로 둔다 |
+| **측정 모델이 운영과 다름** | 확정 (2026-09-06 사용자 결정) | 운영 기본값 `gemini-2.5-flash-lite`가 신규 발급 키로는 404로 막힌다("no longer available to new users", 실측). 골든셋은 구글이 지목한 후속 모델 `gemini-3.5-flash-lite`로 두 팔 모두 측정한다 — 비교는 성립하나 Before를 "현행 운영 품질"로 읽으면 안 된다. `application.yml`의 운영 기본 모델도 2026-09-06 `gemini-3.5-flash-lite`로 교체해 측정과 운영을 일치시켰다 — 임베딩 모델(`gemini-embedding-001`)은 같은 키로 정상이라 그대로 뒀다 — 출력 차원은 2026-09-07에 1536에서 **768**로 낮췄다([`vector-similarity/003`](../../audits/vector-similarity/003-embedding-dims-and-candidate-multiplier.md)) |
 | 후보를 1개로 줄이면 안전망이 사라진다 | 확정 | 지금도 첫 후보만 쓰므로 실질 안전망은 이미 없다. 다만 "이상한 게 나오면 그대로 나간다"가 더 분명해진다 — 측정으로 확인할 항목 |
 | 부족 재료 카탈로그 적중률을 모른다 | `[미정]` | 이 스펙의 측정 결과가 카탈로그 그라운딩 도입 여부를 정한다. **단 재료 단위 카탈로그가 로컬에 없다** — `scripts/init-db/`에는 카테고리 21종만 있고 상품 시드가 없어, 적중률 자동 계산에는 판매 재료명 목록(`scripts/goldenset/catalog.txt`)을 따로 채워야 한다 |
 | ~~과일 제외의 원래 판단 근거가 관찰로 남아 있지 않다~~ | **해소(2026-09-07)** | 사용자가 근거를 기억해 냈다 — "과일을 넣으면 토마토밥 같은 이상한 음식이 나왔다". 과일 시나리오 8개를 옛/현행 프롬프트에 각각 돌려 **옛 프롬프트에서는 재현되고 현행에서는 16회 중 0건**임을 확인했다. 원인은 과일이 아니라 후보 3개를 채우라는 압력이었다([`audits/cart-recipe/007`](../../audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md) M-2) |
