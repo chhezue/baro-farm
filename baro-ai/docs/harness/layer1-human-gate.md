@@ -28,7 +28,7 @@
 | [`.claude/rules/baro-ai-performance-refactor.md`](../../../.claude/rules/baro-ai-performance-refactor.md) | rule (**저장소 고유, 한시적**) | 세션 시작 시 항상 | 근거 기반 성능 리팩토링 이니셔티브의 범위·근거 기준 |
 | `spring-boot-java.md`·`spring-boot-java-design.md`·`openapi-conventions.md`·`openapi-conventions-operation.md`·`java-comments.md` | rule | **`**/*.java` 접근 시에만** | Java 레이어·SOLID/ACID·`@Schema`·`@Operation`·주석 스타일 |
 | `testing.md` | rule | **`*Test.java`·`src/test/**` 접근 시에만** | JUnit·테스트 네이밍 |
-| `doc-writing.md` | rule | **`docs/**/*.md`·`.claude/**/*.md` 접근 시에만** | 문서 유형·정보 구조·문장 |
+| `doc-writing.md` | rule | **`**/docs/**/*.md`·`.claude/**/*.md`·`.github/**` 접근 시에만** | 문서 유형·정보 구조·문장 |
 | `.claude/rules/README.md`·`README-components.md` | rule(구조 인덱스) | **`agents/`·`skills/`·`hooks/`·`settings*.json`·이 두 파일** 접근 시 | 위 path-scoped 7개 + 이 2개 = **총 9개** |
 
 **로딩 메커니즘:** `.claude/rules/*.md`에 YAML frontmatter `paths:`가 **없으면** 세션 시작 시 항상 주입되고, **있으면** 그 glob에 매칭되는 파일을 읽거나 쓸 때만 주입됩니다(Cursor `.mdc`의 `alwaysApply`/`globs`에 대응). 이렇게 나눈 이유는 토큰 절약입니다 — Java를 안 건드리는 세션에서 Spring 컨벤션 전체를 매번 실을 필요가 없습니다.
@@ -103,12 +103,12 @@
 
 | 항목 | 크기 | 언제 지불하나 |
 |---|---|---|
-| always-load 규칙 9개 | 약 62.5KB | **매 세션 무조건** |
-| `AGENTS.md` | 약 7.4KB | **매 세션 무조건** |
-| Java 규칙 5개(`spring-boot-java`·`spring-boot-java-design`·`openapi-conventions`·`openapi-conventions-operation`·`java-comments`) | 약 46.4KB | `**/*.java` **한 개만 열어도 전부** |
-| `README.md` + `README-components.md` | 약 22.3KB | `agents/`·`skills/`·`hooks/`·`settings*.json`·이 두 파일 접근 시 |
+| always-load 규칙 9개 | 약 70.7KB | **매 세션 무조건** |
+| `AGENTS.md` | 약 7.5KB | **매 세션 무조건** |
+| Java 규칙 5개(`spring-boot-java`·`spring-boot-java-design`·`openapi-conventions`·`openapi-conventions-operation`·`java-comments`) | 약 49.6KB | `**/*.java` **한 개만 열어도 전부** |
+| `README.md` + `README-components.md` | 약 22.9KB | `agents/`·`skills/`·`hooks/`·`settings*.json`·이 두 파일 접근 시 |
 
-**드러난 것 ①** — Java 파일 하나를 여는 순간 붙는 46.4KB가 **always-load 전체(62.5KB)의 4분의 3에 가깝습니다.** 다섯 규칙이 모두 `**/*.java`에 걸려 있어 테스트 한 줄을 고쳐도 다섯 다 실립니다.
+**드러난 것 ①** — Java 파일 하나를 여는 순간 붙는 49.6KB가 **always-load 전체(70.7KB)의 70%에 이릅니다.** 다섯 규칙이 모두 `**/*.java`에 걸려 있어 테스트 한 줄을 고쳐도 다섯 다 실립니다.
 
 **드러난 것 ②** — `.claude/rules/README.md`는 자기 파일에 "사람이 보는 디렉터리 맵이라 행동 규칙이 아님"이라고 적어두면서도, **구성 요소를 추가·삭제할 때**(유지보수 체크리스트가 실제로 필요할 때)만 로드되도록 `paths:`를 좁혀 뒀습니다 — 그 좁힌 범위에 `README-components.md`(2026-09-04 분리분)를 함께 넣어, 둘이 항상 같이 로드되게 맞췄습니다.
 

@@ -24,7 +24,7 @@ AI 코딩 에이전트는 매 세션 컨텍스트가 없는 상태로 시작합�
 ```
 docs/product/       기획 SSOT (MVP 범위, 클라이언트 전제, 용어집 — 우선순위 마일스톤 문서는 아직 없음)
   ↓
-docs/specs/         기능 계약 SSOT (검색·추천·임베딩·이벤트로그·챗봇 — 도메인별 API·정책)
+docs/specs/         기능 계약 SSOT (taste-vector·cart-recipe·vector-similarity·keyword-search·chat — 작업 단위별 API·정책)
   ↓
 docs/decisions/      되돌리기 어려운 아키텍처 결정 (ADR)
   ↓
@@ -70,11 +70,11 @@ Always-load 규칙 9개(`core-guardrails`·`core-workflow`·`core-workflow-git`�
 - **근거 기준이 처음 진단을 뒤집었습니다.** "Gemini 호출에 재시도가 0회 걸려 있다"는 조사 결과를 그대로 구현하지 않고 재확인했더니, 구글 SDK가 **아무 설정 없이도 기본 5회를 이미 재시도**하고 있어 문제의 방향이 정반대("통제되지 않는 재시도")였습니다. "적극적 증거" 요구가 없었다면 잘못된 전제 위에 코드를 얹을 뻔했습니다. 기록: [`cross-cutting/refactor-log.md`](audits/cross-cutting/refactor-log.md).
 - **"느릴 것 같다"가 아니라 실제로 죽어 있던 코드를 찾았습니다.** 자동완성 API에 `@Cacheable`이 붙어 있었지만 `@EnableCaching`이 빠져 있어 캐시가 **한 번도 동작한 적이 없었습니다** — grep과 Spring Boot 공식 문서·jar 바이트코드로 교차 확인한 뒤에야 A 항목(반드시 수정)으로 분류했습니다. 기록: [`search/refactor-log.md`](audits/search/refactor-log.md).
 
-나머지 도메인(`embedding`, `event-log`, `chat`)은 미시작 — 진행 현황은 [`docs/audits/README.md`](audits/README.md).
+`chat`은 목적이 정해지지 않아 보류다(코드도 없다) — 진행 현황은 [`docs/audits/README.md`](audits/README.md).
 
 ## 5. 훅 (`.claude/hooks/`) — 프롬프트로 안 되는 결정론적 하한선
 
-규칙 문서는 에이전트가 "읽고 따르는" 소프트 가드레일이지만, 훅은 `.claude/settings.json`에 등록된 이벤트에서 **exit code로 결정론적으로** 실행을 막거나 자동화합니다. 프롬프트 지시만으로는 100% 보장이 안 되는 것들(특히 파괴적 명령)을 여기서 강제합니다. 현재 5개(`deny-out-of-scope-write.sh`·`deny-dangerous-bash.sh`·`deny-db-migration.sh`·`warn-breaking-change.sh`·`auto-format-java.sh`) — 이벤트·매처·동작 표는 여기서 다시 두지 않습니다: [`.claude/rules/README-components.md`](../../.claude/rules/README-components.md) "Hooks" 절이 SSOT.
+규칙 문서는 에이전트가 "읽고 따르는" 소프트 가드레일이지만, 훅은 `.claude/settings.json`에 등록된 이벤트에서 **exit code로 결정론적으로** 실행을 막거나 자동화합니다. 프롬프트 지시만으로는 100% 보장이 안 되는 것들(특히 파괴적 명령)을 여기서 강제합니다. 현재 **등록된 것은 4개**(`deny-out-of-scope-write.sh`·`deny-dangerous-bash.sh`·`deny-db-migration.sh`·`auto-format-java.sh`). `warn-breaking-change.sh`는 파일만 있고 `settings.json`에 없어 동작하지 않는다 — 이벤트·매처·동작 표는 여기서 다시 두지 않습니다: [`.claude/rules/README-components.md`](../../.claude/rules/README-components.md) "Hooks" 절이 SSOT.
 
 **`deny-out-of-scope-write.sh`가 이 저장소 특유의 문제를 푼 방식:** 5인 공용 모노레포에서 `.claude/`가 저장소 루트에 있어야 하는데(§3 참고), 그러면서도 다른 팀원의 모듈(`baro-order` 등)에 하네스가 실수로 손대지 않게 해야 했습니다. 이 훅이 "쓰기는 `baro-ai/`+`.claude/`로 제한, 그 밖은 STOP §0로 확인 후 진행"을 물리적으로 강제합니다.
 
@@ -126,7 +126,7 @@ baro-ai에는 RDB·JPA 엔티티가 **아예 없습니다.** 검색·추천·리
 
 ## 11. 실행 가능한 규칙 — baro-ai엔 아직 없음
 
-TripFit류 Spring Boot + JPA 프로젝트에서는 레이어 의존 방향·PK 전략 같은 구조 규칙을 `ArchUnit`(`ArchitectureTest.java`)이 `./gradlew test`마다 기계적으로 검증하기도 합니다. **baro-ai엔 이 테스트 자체가 없습니다** — JPA 엔티티가 없어 그 형태의 아키텍처 테스트가 애초에 맞지 않고, 애초에 baro-ai엔 자동화 테스트가 0개입니다.
+TripFit류 Spring Boot + JPA 프로젝트에서는 레이어 의존 방향·PK 전략 같은 구조 규칙을 `ArchUnit`(`ArchitectureTest.java`)이 `./gradlew test`마다 기계적으로 검증하기도 합니다. **baro-ai엔 이 테스트 자체가 없습니다** — JPA 엔티티가 없어 그 형태의 아키텍처 테스트가 애초에 맞지 않습니다. (자동화 테스트 자체는 2026-09-06에 들어와 지금 10클래스 59건이지만, 전부 순수 계산·서비스 경계를 보는 단위 테스트라 구조 규칙을 강제하지는 않습니다.)
 
 그 공백을 지금은 `spring-reviewer` 서브에이전트(§4)가 사람이 짠 규칙(`spring-boot-java.md`·`spring-boot-java-design.md`)을 매 리뷰마다 다시 읽고 대조하는 방식으로 메우고 있습니다 — 기계적 검증보다 느리고 매번 비용이 들지만, 지금 규모에서는 ArchUnit을 새로 도입하는 비용을 정당화할 근거가 아직 없습니다. 테스트 인프라 자체가 생기면 재검토 대상입니다.
 

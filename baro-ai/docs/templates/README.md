@@ -35,7 +35,7 @@
 | 기술 비교·분석 메모 | 사용자 승인 후 수동 작성 | `docs/audits/{주제}.md` (예: `ssoss-llm-comparison.md`) | 설명 | [`explanation-doc.md`](explanation-doc.md) |
 | 모듈 README·폴더 인덱스 | 사용자 승인 후 수동 작성 | `docs/README.md` · 하위 `README.md` | 참조(인덱스) | [`reference-doc.md`](reference-doc.md) |
 
-**마크다운을 만들지 않는 것들.** 훅 5개는 stderr 메시지만 내보내고 파일을 쓰지 않는다. `preflight`·`debug` 스킬과 `doc-reviewer`·`spring-reviewer`·`researcher` 에이전트는 결과를 채팅으로만 보고한다. 이들의 결과를 문서로 남겨야 한다고 판단되면 위 등록부에 행을 추가하는 것이 먼저다 — 임의 경로에 파일을 만들지 않는다.
+**마크다운을 만들지 않는 것들.** 등록된 훅 4개 중 셋은 stderr 메시지만 내보내고, `auto-format-java.sh`는 `.java` 파일을 포맷할 뿐 문서를 만들지 않는다. `preflight`·`debug` 스킬과 `doc-reviewer`·`spring-reviewer`·`researcher` 에이전트는 결과를 채팅으로만 보고한다. 이들의 결과를 문서로 남겨야 한다고 판단되면 위 등록부에 행을 추가하는 것이 먼저다 — 임의 경로에 파일을 만들지 않는다.
 
 ## 유형별 템플릿
 

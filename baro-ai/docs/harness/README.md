@@ -2,14 +2,14 @@
 
 [`docs/harness-engineering.md`](../harness-engineering.md)가 **"왜 이렇게 만들었나"의 서술형 총정리**라면, 이 폴더는 각 레이어가 **"언제 발동해서 어떤 파일의 어떤 부분을 읽고 어떻게 동작하는가"**를 실행 흐름 단위로 푼 문서입니다. 발표·면접에서 한 레이어를 깊게 파고들 때 이 파일들을 봅니다.
 
-최종 포트폴리오 다이어그램인 [`architecture-diagrams.md`](architecture-diagrams.md)의 **"관심사 분리(Separation of Concerns)"** 계층과 파일별 대응 관계는 다음과 같습니다.
+네 레이어를 **"관심사 분리(Separation of Concerns)"** 축으로 갈라 놓은 것이 아래 표입니다.
 
 | 문서 | 포트폴리오 계층 | 분류 | 강제 수단 |
 |---|---|---|---|
 | [`layer1-human-gate.md`](layer1-human-gate.md) | 1. Probabilistic / 2. Human Decision | **rule** (`.claude/rules/`) | 프롬프트 (소프트) |
 | [`layer2-workflow-skills.md`](layer2-workflow-skills.md) | 1. Probabilistic / 2. Human Decision | **skill** (`.claude/skills/`) + **agent** (`.claude/agents/`) | 절차 + 승인 게이트 · 조사·리뷰는 별도 컨텍스트 |
 | [`layer3-deterministic-hooks.md`](layer3-deterministic-hooks.md) | 3. Deterministic Layer | **hook** (`.claude/hooks/`) | **shell exit code** (하드) |
-| [`layer4-api-contract-safety.md`](layer4-api-contract-safety.md) | 4. Mechanical Verification | **CI + script** (`.github/workflows/`) | 저장소 밖 독립 3중 검증 |
+| [`layer4-api-contract-safety.md`](layer4-api-contract-safety.md) | 4. Mechanical Verification | **CI + script — 이 저장소에는 없다** | 미설치. `harness-map.md`의 "OpenAPI 계약 보호" 옵션이 꺼져 있어, 문서는 도입할 때의 설계로만 남겨 둔다 |
 
 ## 레이어와 사이클의 관계
 
@@ -21,7 +21,7 @@
 | **G1 리서치** | `researcher` 서브에이전트 | L1 규칙 — 강제 수단 없음, 절차로만 |
 | **G2 승인** | Human Gate | L1·L2 — 사람이 끊음 |
 | 구현 | AI Agent | **L3 훅**(위험 명령·DB 마이그레이션 차단) |
-| **G3 검증** | `preflight` 스킬 + `doc-reviewer` + `spring-reviewer` | **L4 CI**(oasdiff·테스트) + advisory |
+| **G3 검증** | `preflight` 스킬 + `doc-reviewer` + `spring-reviewer` | `./gradlew :baro-ai:test` + advisory (L4 CI는 이 저장소에 없다) |
 | **G4 회고** | 문서 갱신 점검 · `defer` · `retro` | L1 규칙 + L2 절차 |
 
 **강제력이 가장 약한 곳은 여전히 G1과 G4입니다** — 둘 다 훅이나 CI로 판정할 수 없는 성격(조사를 했는지, 배운 걸 기록했는지)이라 규칙과 절차에만 의존합니다. 이 한계를 아는 것이 설계의 일부입니다.
@@ -50,9 +50,9 @@ Probabilistic Layer   Human Decision Layer  Deterministic Layer   Mechanical Ver
 
 **차별점:** 대부분의 "AI 활용" 사례는 AI를 더 많이 쓰는 방향입니다. 이건 **AI를 덜 쓰기로 한 판단**이고, 그 경계를 비용 기준으로 그었습니다.
 
-### 2순위 — Mechanical Verification (L4): oasdiff 한계를 알고 3중 감지를 직접 구현
+### 2순위 — Mechanical Verification (L4): **이 저장소에는 설치돼 있지 않다**
 
-**왜 2순위인가:** 도구를 붙이는 건 누구나 합니다. `oasdiff`가 스키마 diff만 본다는 한계를 **실제 사고(#64: optional 필드인데 로직만 조건부 필수화)**로 확인하고, 스키마 밖에 커밋 트레일러(ErrorCode)·@ApiResponse를 얹은 **3-Tier Detection**을 구축한 게 핵심입니다. #75(신규/변경 오분류)를 `-` 줄과 교차해 고친 것도 "알림이 틀리면 팀이 알림을 무시한다"는 이해에서 나온 투자입니다.
+**왜 2순위인가:** 계약 회귀를 사람 눈이 아니라 기계가 잡는 층이기 때문입니다. 다만 baro-ai에서는 `harness-map.md`의 "OpenAPI 계약 보호" 옵션이 꺼져 있어 **아직 하나도 설치돼 있지 않습니다** — `oasdiff`도, CI 계약 검증도, `warn-breaking-change.sh` 등록도 없습니다. [`layer4-api-contract-safety.md`](layer4-api-contract-safety.md)는 도입할 때의 설계로만 남아 있습니다.
 
 **차별점:** 단순 CI 구축이 아니라, AI가 생성한 코드로 인해 Frontend 계약이 깨지는 것을 막기 위해 **자동화의 입력이 되도록 문서 컨벤션(`@ApiResponse`의 `NAME — 설명` 형식)을 설계**한 것 — 컨벤션이 곧 파싱 가능한 인터페이스가 됐습니다.
 
@@ -64,7 +64,7 @@ Probabilistic Layer   Human Decision Layer  Deterministic Layer   Mechanical Ver
 
 ### 4순위 — Probabilistic Layer (L1): path-scoped 규칙 로딩
 
-**왜 4순위인가:** "규칙 파일을 잘 썼다"는 프롬프트 엔지니어링에 가깝고 누구나 보여줄 수 있습니다. 여기서 그나마 차별화되는 건 **컨텍스트 예산 설계**입니다 — always-load 7개 + path-scoped 8개로 나눠 Java를 안 건드리는 세션에는 Spring 컨벤션을, 문서를 안 건드리는 세션에는 문서 작성 규칙을 아예 싣지 않습니다.
+**왜 4순위인가:** "규칙 파일을 잘 썼다"는 프롬프트 엔지니어링에 가깝고 누구나 보여줄 수 있습니다. 여기서 그나마 차별화되는 건 **컨텍스트 예산 설계**입니다 — always-load 9개 + path-scoped 9개로 나눠 Java를 안 건드리는 세션에는 Spring 컨벤션을, 문서를 안 건드리는 세션에는 문서 작성 규칙을 아예 싣지 않습니다.
 
 **함께 말할 것:** 문서 SSOT를 만들면서 동시에 **그 SSOT가 썩는다는 걸 전제**하고 STOP §1.5·§1.6("문서 말고 코드/생성물을 확인하라")을 넣은 점. 실제로 2026-08-28에 Redis ADR이 stale해 잘못된 답변을 했다가 그 절차로 복구하고 19개 문서를 정정했습니다.
 

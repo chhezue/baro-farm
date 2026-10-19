@@ -16,7 +16,7 @@ Layer 1(규칙)·Layer 2(스킬)는 결국 **에이전트가 읽고 따라줘야
 |---|---|---|---|---|
 | 수정 범위 밖 차단 | [`.claude/hooks/deny-out-of-scope-write.sh`](../../../.claude/hooks/deny-out-of-scope-write.sh) | `PreToolUse` | `Write\|Edit` | **exit 2 (차단)** |
 | 위험 명령 차단 | [`.claude/hooks/deny-dangerous-bash.sh`](../../../.claude/hooks/deny-dangerous-bash.sh) | `PreToolUse` | `Bash` | **exit 2 (차단)** |
-| Breaking-Change 경고 | [`.claude/hooks/warn-breaking-change.sh`](../../../.claude/hooks/warn-breaking-change.sh) | `PreToolUse` | `Bash` | **항상 exit 0** (advisory) |
+| ~~Breaking-Change 경고~~ | [`.claude/hooks/warn-breaking-change.sh`](../../../.claude/hooks/warn-breaking-change.sh) | — | — | **미등록 — 동작하지 않는다.** 파일만 있고 `settings.json`에 없다([Layer 4](layer4-api-contract-safety.md) 참고) |
 | DB 마이그레이션 차단 | [`.claude/hooks/deny-db-migration.sh`](../../../.claude/hooks/deny-db-migration.sh) | `PreToolUse` | `Write\|Edit` | **exit 2 (차단)** |
 | Java 자동 포맷 | [`.claude/hooks/auto-format-java.sh`](../../../.claude/hooks/auto-format-java.sh) | `PostToolUse` | `Edit\|Write` | **항상 exit 0** (non-blocking) |
 
@@ -26,7 +26,7 @@ Layer 1(규칙)·Layer 2(스킬)는 결국 **에이전트가 읽고 따라줘야
 
 **`deny-out-of-scope-write.sh` (2026-09-04 추가):** 이 하네스가 `baro-ai/.claude/`에서 저장소 루트 `.claude/`로 옮겨지며 생긴 훅이다. 루트에 있어야 세션이 어디서 시작되든 하네스가 로드되지만, 그러면 `settings.json`에 등록된 훅이 모노레포 전체(다른 4개 모듈 포함)에 걸린다 — 특히 `deny-db-migration.sh`는 baro-ai 전제(RDB 없음)로 만들어져, 스코프 체크 없이 루트로 옮기면 RDB를 쓰는 `baro-order` 등의 정당한 Flyway 마이그레이션까지 막아버렸을 것이다. 이 훅이 `baro-ai/`·`.claude/` 밖 Write/Edit을 먼저 차단해 다른 모듈에 대한 부작용을 원천 차단한다.
 
-> **다이어그램을 볼 때 주의:** 훅은 "하나의 관문"이 아니라 **트리거가 서로 다른 5개의 독립 스크립트**입니다. `rm -rf`는 Bash 경로에만 걸리고 파일 변경 경로로는 애초에 지나가지 않습니다. `deny-db-migration.sh`는 그 반대입니다.
+> **다이어그램을 볼 때 주의:** 훅은 "하나의 관문"이 아니라 **트리거가 서로 다른 4개의 독립 스크립트**입니다(파일은 5개지만 `warn-breaking-change.sh`는 등록돼 있지 않습니다). `rm -rf`는 Bash 경로에만 걸리고 파일 변경 경로로는 애초에 지나가지 않습니다. `deny-db-migration.sh`는 그 반대입니다.
 
 ## 2. 언제 발동하고, 어떤 흐름을 타는가
 
@@ -57,12 +57,7 @@ print(data.get('tool_input', {}).get('command', ''))
      매칭 → stderr에 한국어 사유 출력 + exit 2  → 명령 실행 안 됨
      미매칭 → exit 0
   ↓
-[2] warn-breaking-change.sh
-     'git commit' 이 아니면 즉시 exit 0
-     'Breaking-Change-Reason:' 가 이미 있으면 exit 0
-     git diff --cached --name-only 로 스테이징된 파일만 검사
-       매칭: /dto/*.java · /domain/*.java · *ErrorCode.java · *Controller.java
-     매칭되면 stderr에 ⚠️ 경고 출력 — 그래도 exit 0 (커밋은 진행됨)
+(warn-breaking-change.sh는 settings.json에 등록돼 있지 않아 이 경로에 끼지 않는다)
   ↓
 명령 실행
 ```
@@ -72,7 +67,12 @@ print(data.get('tool_input', {}).get('command', ''))
 ```
 에이전트가 Write 또는 Edit 도구 호출
   ↓
-[1] deny-db-migration.sh (PreToolUse)
+[1] deny-out-of-scope-write.sh (PreToolUse)
+     baro-ai/ 와 .claude/ 밖의 file_path 면 exit 2 → 파일 생성 안 됨
+     사유: core-guardrails.md STOP §0 (5인 공용 모노레포, 쓰기 범위 제한)
+  ↓
+[2] deny-db-migration.sh (PreToolUse)
+     baro-ai/ 밖이면 즉시 exit 0 (스코프 게이트)
      tool_input.file_path 를 검사
      패턴: /db/migration/  또는  V1__x.sql · V1.2__x.sql · R__x.sql
      매칭 → exit 2 → 파일 생성 안 됨
@@ -110,7 +110,7 @@ print(data.get('tool_input', {}).get('command', ''))
 
 동시에 검사 범위도 `git diff --cached`(스테이징된 것만)로 좁혀 원인이던 오탐을 제거했습니다.
 
-**결론으로 확정된 규칙:** advisory-only 훅은 command-type을 기본으로 한다. ([`.claude/rules/README.md`](../../../.claude/rules/README.md) "agent-type 훅 관련 교훈" 절이 SSOT)
+**결론으로 확정된 규칙:** advisory-only 훅은 command-type을 기본으로 한다. ([`.claude/rules/README-components.md`](../../../.claude/rules/README-components.md) "agent-type 훅 관련 교훈" 절이 SSOT)
 
 ## 4. fail-closed vs fail-open — 의도적 비대칭
 
@@ -119,7 +119,7 @@ print(data.get('tool_input', {}).get('command', ''))
 | `deny-out-of-scope-write.sh` | **fail-closed** (막음) | 모노레포 5인 공용 저장소에서 다른 모듈에 대한 영향은 조용히 넘어갈 수 없는 사고 — 오탐으로 한 번 막혀 사용자에게 확인받는 비용 < 다른 모듈을 조용히 건드리는 비용 |
 | `deny-dangerous-bash.sh` | **fail-closed** (막음) | 오탐으로 한 번 막히는 비용 < `rm -rf`가 한 번 통과하는 비용 |
 | `deny-db-migration.sh` | **fail-closed** (막음) | 위와 동일. 정말 필요하면 사람이 확인 후 진행 |
-| `warn-breaking-change.sh` | **fail-open** (통과) | 커밋을 막는 건 워크플로 파괴. 놓쳐도 CI([Layer 4](layer4-api-contract-safety.md))가 다시 잡음 |
+| ~~`warn-breaking-change.sh`~~ | (해당 없음) | 미등록이라 발동하지 않는다. 설계 의도는 fail-open이었다 — 커밋을 막는 건 워크플로 파괴라고 봤다 |
 | `auto-format-java.sh` | **fail-open** (통과) | 포맷 실패로 작업을 막을 이유가 없음 |
 
 이 비대칭이 의도적이라는 점이 중요합니다 — "전부 차단"이 아니라 **되돌리기 비용에 따라 차단 강도를 다르게** 설계했습니다.
@@ -132,7 +132,7 @@ print(data.get('tool_input', {}).get('command', ''))
 |---|---|---|
 | 1 | **agent-type → command-type 전환 인시던트** | "LLM으로 만들었다가 실패해서 결정론적으로 바꿨다"는 서사. AI를 써본 사람만 할 수 있는 판단이고, AI의 한계를 인정한 설계라 신뢰도가 높음. 스크립트 주석에 그 근거가 코드로 남아있음 |
 | 2 | **판단 vs 불변식의 경계 설정** | "이건 LLM에게, 저건 shell에게"를 비용 기준으로 나눈 것. 도구를 쓸 줄 아는 것과 도구의 한계를 아는 것의 차이 |
-| 3 | **fail-closed / fail-open 비대칭** | 5개 훅을 일괄 차단하지 않고 되돌리기 비용으로 강도를 구분. 보안·운영 감각을 보여줌 |
+| 3 | **fail-closed / fail-open 비대칭** | 등록된 4개 훅을 일괄 차단하지 않고 되돌리기 비용으로 강도를 구분. 보안·운영 감각을 보여줌 |
 | 4 | **비용 최적화 (`spotlessIdeHook`)** | 전체 재스캔 대신 단일 파일 포맷. 사소해 보이지만 "매 저장마다 도는 훅의 비용"을 생각했다는 증거 |
 
 ### 면접에서 쓸 한 문장
