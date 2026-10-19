@@ -137,7 +137,7 @@ ProductEmbeddingService.embedProduct(productName)
 
 #### 요청 파라미터
 - `productId`: 기준 상품 ID (UUID, 필수)
-- `topK`: 추천할 상품 개수 (기본값: 3)
+- `topK`: 추천할 상품 개수 (기본값: 3, 허용 범위 **1~33**)
 
 #### 응답 형식
 ```json
@@ -180,7 +180,8 @@ ProductEmbeddingService.embedProduct(productName)
 4. **결과 반환**: 유사도가 높은 순서대로 Top-K 개의 상품을 반환합니다.
 
 #### 에러 응답
-- 현재 구현에서는 기준 상품을 찾지 못하거나(상품/벡터 없음) 해당 조건을 만족하지 않으면 빈 리스트를 반환합니다.
+- `topK`가 1~33 밖이면 **400** (`INVALID_TOP_K`, "추천 개수는 1 이상 33 이하여야 합니다.") — 조회 전에 검사하므로 프로필·상품이 없어도 같은 400이 나갑니다.
+- 그 밖에 기준 상품을 찾지 못하거나(상품/벡터 없음) 조건을 만족하지 않으면 200 + 빈 리스트입니다.
 
 #### 벡터가 없는 경우
 - 기준 상품의 임베딩 벡터가 없는 경우 빈 리스트를 반환합니다.
@@ -201,6 +202,7 @@ ProductEmbeddingService.embedProduct(productName)
 {
   "status": 200,
   "data": {
+    "reason": "OK",
     "recipeName": "계란찜",
     "ownedIngredients": ["계란"],
     "missingCoreIngredients": ["대파", "소금"],
@@ -224,8 +226,9 @@ ProductEmbeddingService.embedProduct(productName)
 ```
 
 #### 응답 필드 설명
+- `reason`: 응답이 왜 이 모양인지 알려 주는 이유 코드 6종 — `OK`·`EMPTY_CART`·`NO_ELIGIBLE_ITEMS`·`INGREDIENTS_NOT_INDEXED`·`GENERATION_FAILED`·`UPSTREAM_ERROR`. 실패도 4xx가 아니라 200으로 나가고 이 값으로 구분합니다
 - `recipeName`: 추천된 레시피 이름
-- `ownedIngredients`: 사용자가 보유한 재료 목록
+- `ownedIngredients`: **이 레시피가 실제로 쓰는** 보유 재료(핵심 재료 ∩ 장바구니). 장바구니 전체가 아니며, `missingCoreIngredients`와 합치면 핵심 재료가 됩니다
 - `missingCoreIngredients`: 부족한 핵심 재료 목록
 - `missingRecommendations`: 부족한 재료별 추천 상품 목록(각 항목에 `products` 포함)
 - `instructions`: 조리법 (줄바꿈으로 구분)
@@ -361,143 +364,3 @@ GET /api/v1/search/autocomplete?q=사과&size=5
 ---
 
 *이 문서는 API 인터페이스 명세를 중심으로 작성되었습니다. 구현 세부사항은 [구현 가이드](IMPLEMENTATION.md)를 참고해주세요.*
-
-### 기술 구현 (개인화 추천)
-- **벡터 생성**: 사용자 행동 패턴 → 임베딩 모델 → 취향 벡터
-- **유사도 계산**: 코사인 유사도로 상품 벡터 매칭
-- **랭킹**: 유사도 점수 기반 Top-K 추출
-- **캐싱**: 적용하지 않음 — 사용자별로 결과가 갈려 캐시 효율이 낮고 최신성이 더 중요하다고 판단(근거: [`decisions/001-autocomplete-caching.md`](decisions/001-autocomplete-caching.md))
-
-### 기술 구현 (비슷한 상품 추천)
-- **벡터 조회**: 기준 상품의 임베딩 벡터 조회
-- **유사도 계산**: Elasticsearch script_score를 사용한 코사인 유사도 계산
-- **필터링**: 자기 자신 제외 및 판매 중인 상품만 필터링
-- **랭킹**: 유사도 점수 기반 Top-K 추출
-
----
-
-## 👩‍🍳 2. **레시피 추천** (핵심 기능)
-
-**관여 계층**: `domain`, `application`, `infrastructure`
-
-### 기능 개요
-사용자의 장바구니 상품을 분석하여 **가능한 레시피를 추천**하고, 부족한 재료를 찾아 상품으로 제안합니다.
-
-### 추천 예시
-
-```text
-사용자 장바구니: 애호박, 두부, 계란
-
-AI 분석 결과:
-🎯 "된장찌개" 레시피 추천!
-
-필요 재료:
-✅ 애호박 (장바구니에 있음)
-✅ 두부 (장바구니에 있음)
-✅ 계란 (장바구니에 있음)
-❌ 된장 (부족 - 상품 추천)
-
-추천 상품: "국산 된장 500g" - 바로팜에서 구매 가능!
-```
-
-### 구현 로직
-
-```java
-public RecipeRecommendation suggestRecipe(List<CartItem> cartItems) {
-    // 1. 장바구니 상품 목록 추출
-    List<String> ingredients = cartItems.stream()
-        .map(CartItem::getProductName)
-        .collect(Collectors.toList());
-
-    // 2. LLM으로 레시피 분석
-    String prompt = buildRecipePrompt(ingredients);
-    String llmResponse = chatModel.call(prompt);
-
-    // 3. 부족 재료 추출
-    List<String> missingIngredients = parseMissingIngredients(llmResponse);
-
-    // 4. Elasticsearch로 상품 검색
-    List<Product> recommendedProducts = missingIngredients.stream()
-        .map(ingredient -> elasticsearchService.searchProducts(ingredient, 3))
-        .flatMap(List::stream)
-        .collect(Collectors.toList());
-
-    return new RecipeRecommendation(llmResponse, recommendedProducts);
-}
-```
-
-### 기술 구현
-- **LLM 분석**: 상품 조합 → 레시피 추론
-- **재료 매핑**: 한글 재료명 → 표준화된 검색어
-- **상품 검색**: Elasticsearch로 재료 관련 상품 조회
-- **실시간 재고**: 상품 추천 시 재고 상태 확인
-
----
-
-## 💬 3. **서비스 챗봇** (보조 기능)
-
-**관여 계층**: `domain`, `application`, `infrastructure`
-
-### 기능 개요
-서비스 정책과 관련된 질문을 **정확하게 답변**하는 AI 챗봇입니다.
-
-### 지원 질문 유형
-
-```text
-✅ 지원 가능:
-- "상품을 주문했는데 환불하고 싶어요. 언제까지 가능하나요?"
-- "배송비는 얼마인가요? 무료 배송 조건이 있나요?"
-- "농산물 신선도 보장은 어떻게 되나요?"
-
-❌ 지원 불가:
-- 상품 추천, 레시피 문의 (다른 기능에서 처리)
-- 개인 계정 정보, 주문 상태 (권한 이슈)
-```
-
-### RAG 구현
-
-```java
-@Service
-public class PolicyChatbotService {
-
-    @Autowired
-    private VectorStore vectorStore; // 정책 문서 벡터
-
-    @Autowired
-    private ChatModel chatModel; // Gemini with RAG
-
-    public String answerQuestion(String question) {
-        // 1. 질문과 유사한 정책 문서 검색
-        List<Document> relevantPolicies = vectorStore
-            .similaritySearch(question, 3);
-
-        // 2. 검색된 정책을 컨텍스트로 답변 생성
-        String context = relevantPolicies.stream()
-            .map(Document::getContent)
-            .collect(Collectors.joining("\n"));
-
-        String prompt = String.format("""
-            다음은 바로팜 서비스 정책입니다:
-
-            %s
-
-            위 정책을 바탕으로 다음 질문에 답변해주세요:
-            %s
-
-            답변은 친절하고 정확해야 합니다.
-            """, context, question);
-
-        return chatModel.call(prompt);
-    }
-}
-```
-
-### 기술 구현
-- **문서 임베딩**: 서비스 정책 문서 → 벡터 변환
-- **유사도 검색**: 질문 → 관련 정책 문서 검색
-- **컨텍스트 답변**: 검색된 정책 기반 정확한 답변 생성
-- **안전성**: 정책 외 질문은 적절히 거부
-
----
-
-

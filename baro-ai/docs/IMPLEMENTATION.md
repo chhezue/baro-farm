@@ -65,10 +65,10 @@ api:
 
 spring:
   elasticsearch:
-    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
+    uris: ${ELASTICSEARCH_URIS:http://elasticsearch:9200}
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     consumer:
       group-id: ai-service
 
@@ -78,7 +78,7 @@ spring:
         api-key: ${BARO_AI_GEMINI_KEY:}
         chat:
           options:
-            model: ${SPRING_AI_GEMINI_MODEL:gemini-2.5-flash-lite}
+            model: ${SPRING_AI_GEMINI_MODEL:gemini-3.5-flash-lite}
             temperature: 0.7
         embedding:
           api-key: ${BARO_AI_GEMINI_KEY:}
@@ -157,7 +157,7 @@ public class UserProfileEmbeddingService {
     private static final int MIN_TOTAL_LOGS_FOR_EMBEDDING = 3;
     private final CartLogRepository cartLogRepository;
     private final OrderLogRepository orderLogRepository;
-    private final ProductSearchRepository productSearchRepository; // 상품 벡터를 읽는다
+    private final ProductSearchService productSearchService;   // 상품 인덱스 질의는 전부 이 서비스 경유 // 상품 벡터를 읽는다
     private final UserProfileEmbeddingRepository userProfileEmbeddingRepository;
 
     public void updateUserProfileEmbedding(UUID userId) {
@@ -181,7 +181,7 @@ public class UserProfileEmbeddingService {
 
         // 4. 상품 벡터를 한 번에 조회해 비중대로 섞고 길이를 1로 맞춤
         Map<UUID, float[]> productVectors = loadProductVectors(...);
-        List<Double> profileVector = blendIntoProfileVector(interests, productVectors);
+        float[] profileVector = blendIntoProfileVector(interests, productVectors);
 
         // 5. Elasticsearch에 저장
         UserProfileEmbeddingDocument document = UserProfileEmbeddingDocument.builder()
@@ -273,9 +273,9 @@ public class ProductIndexService {
         // 자동완성 인덱스에도 저장
         ProductAutocompleteDocument autocompleteDoc =
             new ProductAutocompleteDocument(request.productId(), request.productName(), request.status());
-        autocompleteRepository.save(autocompleteDoc);
+        autocompleteRepository.saveAll(autocompleteDocs);   // 인덱스당 bulk 1회
 
-        return repository.save(doc);
+        return repository.saveAll(docs);                    // 인덱스당 bulk 1회
     }
 }
 ```
@@ -295,7 +295,7 @@ public class RecipeRecommendService {
     private final ProductSearchRepository productSearchRepository;
 
     private RecipeRecommendResponse recommendFromCart(CartInfo cart, String userIdentifier) {
-        // 1. 장바구니 상품 중 레시피 대상만 남긴다 (카테고리 제외 필터)
+        // 1. 장바구니 상품 중 레시피 대상만 남긴다 (제외 카테고리 필터 — 2026-09-07부터 목록이 비어 있어 실제로는 전부 통과한다)
         List<CartItemInfo> eligibleItems = ...;
 
         // 2. 보유 재료는 색인 시점에 계산해 둔 ingredientName을 ES에서 한 번에 읽는다 (LLM 호출 없음)
@@ -303,14 +303,16 @@ public class RecipeRecommendService {
         List<String> ownedNames = loadOwnedIngredientNames(eligibleItems, userIdentifier);
 
         // 3. 레시피 후보 생성 — 요청 경로에 남은 유일한 LLM 호출
-        //    후보 중 무엇을 쓸지는 서버가 점수로 다시 고르지 않고 LLM이 낸 순서를 존중한다
-        RecipeCandidates candidates = recipeCandidateGenerator.generateRecipeCandidates(ownedNames);
-        CandidateRecipePlan plan = candidates.chooseFirst().orElseThrow(...);
+        //    LLM에게 후보 1개만 요청한다. 만들지 못하면 예외가 아니라 reason=GENERATION_FAILED로 200을 낸다
+        Optional<CandidateRecipePlan> planOpt = recipeCandidateGenerator.generateRecipe(ownedNames);
+        if (planOpt.isEmpty()) {
+            return RecipeRecommendResponse.empty(RecipeRecommendReason.GENERATION_FAILED, ownedNames);
+        }
 
         // 4. 부족한 재료는 CandidateRecipePlan.from이 서버 계산으로 채워 둔 값을 그대로 쓴다
         List<String> missingCore = plan.missingIngredientsCore();
 
-        // 5. 부족 재료별로 대체 상품을 ES에서 검색
+        // 5. 부족 재료 전부를 _msearch 1회로 검색 (재료마다 순차 호출하지 않는다)
         ...
     }
 }
@@ -395,6 +397,7 @@ public final class IngredientProcessingUtil {
     /**
      * 정규화된 재료 목록에서 다른 목록의 재료들을 제거
      */
+    // null 가드와 공백 필터가 들어 있다 — LLM이 빈 문자열을 흘려도 재료로 세지 않는다
     public static List<String> subtractNormalized(List<String> a, List<String> b) {
         Set<String> bNorm = b.stream()
             .map(IngredientProcessingUtil::normalizeForCompare)
@@ -422,6 +425,9 @@ public class PersonalizedRecommendService {
     private final VectorRecommendPipeline vectorRecommendPipeline;
 
     public List<ProductRecommendResponse> recommendProducts(UUID userId, int topK) {
+        // 0. topK 범위 검증 — 1~33 밖이면 RecommendErrorCode.INVALID_TOP_K로 400
+        vectorRecommendPipeline.validateTopK(topK);
+
         // 1. 사용자 프로필 벡터 조회
         UserProfileEmbeddingDocument profile =
             userProfileEmbeddingRepository.findById(userId)
@@ -465,6 +471,9 @@ public class SimilarProductRecommendService {
     private final VectorRecommendPipeline vectorRecommendPipeline;
 
     public List<ProductRecommendResponse> recommendSimilarProducts(UUID productId, int topK) {
+        // 0. topK 범위 검증 — 조회 전에 검사해 상품이 없어도 같은 400이 나가게 한다
+        vectorRecommendPipeline.validateTopK(topK);
+
         // 1. 기준 상품 조회 및 벡터 추출
         // 상품 디테일 페이지의 다른 부분이 함께 죽지 않도록 예외 대신 빈 목록을 돌려준다.
         ProductDocument product = productSearchRepository.findById(productId)
@@ -475,7 +484,7 @@ public class SimilarProductRecommendService {
             return List.of();
         }
 
-        if (product.getVector() == null) {
+        if (product.getVector() == null || product.getVector().length == 0) {
             log.warn("기준 상품 '{}'의 벡터가 존재하지 않습니다. 임베딩이 필요합니다.", product.getProductName());
             return List.of();
         }
@@ -506,6 +515,8 @@ public class VectorRecommendPipeline {
     public List<ProductRecommendResponse> recommend(
         float[] queryVector, List<UUID> excludeProductIds, int topK
     ) {
+        // MAX_TOP_K = MAX_CANDIDATE_SIZE / CANDIDATE_MULTIPLIER = 100 / 3 = 33
+        // 상한을 유도해 두면 "후보 배수 3"이 전 구간에서 성립한다
         int candidateSize = Math.min(topK * CANDIDATE_MULTIPLIER, MAX_CANDIDATE_SIZE);
 
         List<ProductDocument> candidates =
@@ -555,7 +566,7 @@ public class VectorProductSearchService {
                                 .terms(t -> t
                                     .field("status")
                                     .terms(v -> v.value(
-                                        List.of(FieldValue.of("ON_SALE"), FieldValue.of("DISCOUNTED"))
+                                        ProductDocument.PURCHASABLE_STATUSES   // ON_SALE · DISCOUNTED
                                     ))
                                 )
                             )
@@ -633,7 +644,7 @@ public class CartLogDocument {
     private String productName; // 임베딩 텍스트 데이터
 
     @Field(type = FieldType.Keyword)
-    private String eventType; // CART_ITEM_ADDED, CART_QUANTITY_UPDATED, CART_ITEM_REMOVED
+    private HistoryEventType eventType; // 발행 측 enum 그대로 저장 — 문자열로 옮겨 적지 않는다
 
     // quantity·categoryCode 필드는 2026-09-07에 뺐다 — 저장만 되고 읽는 곳이 없었다
 
@@ -646,129 +657,30 @@ public class CartLogDocument {
 
 ## 🧪 테스트 전략
 
-계층형 아키텍처는 각 계층의 역할을 명확히 하므로, 테스트 전략 또한 체계적으로 수립할 수 있습니다.
+`./gradlew :baro-ai:test` 기준 **10클래스 59건**이며 전부 순수 단위 테스트입니다. Elasticsearch·Kafka·Gemini가 필요한 통합 테스트는 아직 없습니다 — 그 검증은 로컬에 실제 인프라를 띄워 사람이 수동으로 확인합니다(`docker/local/`).
 
-### 단위 테스트 (Domain Layer)
+### 무엇을 테스트하는가
 
-> **[Domain Layer]** 도메인 계층의 순수한 비즈니스 로직을 검증합니다. 외부 의존성 없이 가장 빠르고 안정적으로 실행되어야 합니다.
+기준은 **"인프라 없이 돌고, 깨지면 사용자에게 보이는 것"**입니다.
 
-```java
-// domain/model/recommendation/RecommendationTest.java
+| 대상 | 클래스 | 건수 | 무엇을 고정하나 |
+|---|---|---|---|
+| 취향 가중치·벡터 혼합 | `UserProfileEmbeddingServiceTest` | 7 | 행동별 가중치(3/2/1/0), 비중 범위, L2 정규화, **같은 배수 소거**(시간 축을 뺀 근거), 영벡터·차원 불일치 방어 |
+| 다양화 | `MaxMinDiversityServiceTest` | 6 | 가장 먼 것부터 고르는 순서, 중복 인스턴스, 벡터 없음 처리 |
+| 추천 공통 경로 | `VectorRecommendPipelineTest` | 2 | `topK` 경계(33 통과 / 34 거부) |
+| 레시피 요청 경로 | `RecipeRecommendServiceTest` | 7 | 실패 5종이 각각 다른 `reason`, `_msearch` 1회 호출 |
+| 재료 계산 | `IngredientProcessingUtilTest` · `CandidateRecipePlanTest` | 8 · 5 | 정규화 비교, 보유/부족 집합 연산, 검색어 마지막 어절 |
+| 검색·색인 | `ProductSearchServiceTest` · `ProductIndexServiceTest` | 10 · 5 | 페이징 상한 400, `multiSearch` 1회·순서 1:1, 묶음 색인 시 임베딩 1회·`saveAll` 1회 |
+| 임베딩·컨슈머 | `ProductEmbeddingServiceTest` · `ProductEventConsumerTest` | 4 · 5 | 묶음 실패 시 상품별 폴백, 생성→삭제 순서 보존, 실패 위치를 담은 예외 |
 
-class RecommendationTest {
+### 설계 판단을 테스트 이름으로 남긴다
 
-    @Test
-    void shouldCreateRecommendationSuccessfully() {
-        // Given
-        Product product = new Product("사과", 1000);
-        User user = new User("testUser");
+값만 고정하는 것이 아니라 **왜 그렇게 정했는지**를 테스트가 들고 있는 경우가 있습니다. `blend_uniformScalingCancelsOut`(모든 비중에 같은 배수를 곱해도 결과 벡터가 같다)은 시간 감쇠 축을 삭제한 근거 그 자체이고, 이 테스트가 통과하는 한 그 판단이 성립합니다.
 
-        // When
-        Recommendation recommendation = Recommendation.of(user, product);
+### 테스트를 붙이지 않은 것
 
-        // Then
-        assertThat(recommendation.getUser()).isEqualTo(user);
-        assertThat(recommendation.getProduct()).isEqualTo(product);
-    }
-}
-```
+`RecipeCandidateGenerator`는 단위 테스트가 없습니다 — `ChatClient` 플루언트 체인을 전부 stub해야 해서 구현에 붙기 때문입니다. 프롬프트 품질은 대신 골든셋(`scripts/goldenset/`)이 담당합니다.
 
-### 통합 테스트 (Application & Infrastructure Layers)
-
-> **[Application Layer Test]** 애플리케이션 서비스가 도메인과 인프라를 올바르게 조율하는지 검증합니다. `@SpringBootTest`를 사용하여 필요한 의존성을 주입받아 테스트합니다.
-
-```java
-// application/recommendation/PersonalizedRecommendServiceTest.java
-
-@SpringBootTest
-class PersonalizedRecommendServiceTest {
-
-    @Autowired
-    private PersonalizedRecommendService service;
-
-    @MockBean // infrastructure/persistence 계층은 Mocking 처리
-    private RecommendationRepository recommendationRepository;
-
-    @Test
-    void shouldReturnRecommendationsWhenUserHasLogs() {
-        // Given: 사용자 행동 로그가 있는 경우
-        Long userId = 1L;
-        // when(recommendationRepository.findByUser(..)).thenReturn(..);
-
-        // When: 추천 요청
-        List<Long> recommendations = service.recommendForUser(userId);
-
-        // Then: 추천 결과 반환
-        assertThat(recommendations).isNotEmpty();
-    }
-}
-```
-
-> **[Infrastructure Layer Test]** Kafka, Elasticsearch 등 외부 인프라와의 연동이 올바르게 동작하는지 검증합니다. `@EmbeddedKafka` 등을 사용하여 실제와 유사한 환경에서 테스트합니다.
-
-```java
-// infrastructure/messaging/consumer/RecommendationIntegrationTest.java
-
-@SpringBootTest
-@EmbeddedKafka
-class RecommendationIntegrationTest {
-
-    @Autowired
-    private KafkaTemplate<String, CartEvent> kafkaTemplate;
-
-    @Autowired
-    private PersonalizedRecommendService service;
-
-    @Test
-    void shouldUpdateRecommendationsAfterCartEvent() {
-        // Given: 카트 이벤트 발행
-        CartEvent event = createCartEvent();
-        kafkaTemplate.send("cart-events", event);
-
-        // When: 추천 로직이 비동기로 실행되고
-        await().atMost(5, SECONDS).until(() -> {
-            List<Long> recommendations = service.recommendForUser(event.getUserId());
-            return !recommendations.isEmpty();
-        });
-
-        // Then: 추천 결과가 올바르게 업데이트되었는지 확인
-        List<Long> recommendations = service.recommendForUser(event.getUserId());
-        assertThat(recommendations).contains(event.getProductId());
-    }
-}
-```
-
-### E2E 테스트 (End-to-End)
-
-> **[API E2E Test]** API 엔드포인트부터 실제 데이터베이스 연동까지 전체 흐름을 테스트합니다. 사용자 관점에서 시스템이 올바르게 동작하는지 최종적으로 검증합니다.
-
-```java
-// infrastructure/web/RecommendationControllerTest.java
-
-@SpringBootTest(webEnvironment = RANDOM_PORT)
-class RecommendationApiTest {
-
-    @Autowired
-    private TestRestTemplate restTemplate;
-
-    @Test
-    void shouldReturnPersonalizedRecommendations() {
-        // Given
-        Long userId = 1L;
-
-        // When: API 호출
-        ResponseEntity<RecommendationResponse> response = restTemplate
-            .getForEntity("/api/v1/recommendations/personalized/{userId}",
-                         RecommendationResponse.class, userId);
-
-        // Then: 응답 검증
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody().getData()).isNotEmpty();
-    }
-}
-```
-
----
 
 ## 🚀 배포 및 운영
 
@@ -792,36 +704,17 @@ class RecommendationApiTest {
 
 ### 배포 파이프라인
 
-```yaml
-# .github/workflows/deploy.yml
-name: Deploy AI Service
+`.github/workflows/baro-ai-deploy.yml` 하나가 **ECR push → GitOps 커밋**까지 담당합니다. `kubectl apply`로 클러스터를 직접 건드리지 않고, 이미지 태그를 매니페스트에 커밋해 ArgoCD가 따라가게 하는 방식입니다.
 
-on:
-  push:
-    branches: [ main ]
+| 단계 | 무엇 |
+|---|---|
+| 트리거 | `main` push 중 `baro-ai/**`·`docker/baro-ai/**`·`k8s/apps/baro-ai/**`·`k8s/apps/common/**`·이 워크플로 파일이 바뀌었을 때만 |
+| job | `build-and-deploy` **하나**뿐 (test/build/deploy로 나누지 않는다) |
+| 빌드 | `./gradlew :baro-ai:bootJar --no-daemon` — **테스트 실행 단계는 없다** |
+| 이미지 | `docker build -f docker/baro-ai/Dockerfile` → ECR에 `sha-{커밋7자리}`와 `latest` 두 태그로 push |
+| 배포 | `sed`로 `k8s/apps/baro-ai/deployment.yml`의 이미지 태그를 바꾸고 그 변경을 `main`에 커밋·push → ArgoCD가 감지해 롤아웃 |
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Run tests
-        run: ./gradlew test
-
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Build Docker image
-        run: docker build -t baro-ai:latest .
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to Kubernetes
-        run: kubectl apply -f k8s/apps/baro-ai/
-```
+CI에서 테스트가 돌지 않으므로, `./gradlew :baro-ai:test`는 커밋 전에 로컬에서 직접 돌려야 합니다.
 
 ---
 
