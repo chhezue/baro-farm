@@ -28,6 +28,7 @@ model: sonnet
 다른 저장소에서 이 에이전트를 쓸 때만, 시작할 때 아래로 목록을 읽고 그 규칙을 제외 대상으로 삼는다(목록을 이 파일에 하드코딩하면 테스트가 늘어날 때마다 어긋난다).
 
 ```bash
+# baro-ai에는 이 파일이 없다 — 다른 저장소에서만 쓴다
 grep -A2 "@Test" src/test/java/**/architecture/ArchitectureTest.java | grep "void "
 ```
 

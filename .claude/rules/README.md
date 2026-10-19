@@ -30,7 +30,7 @@ Claude Code가 이 저장소에서 작업할 때 참조하는 **프로젝트 전
 │   ├── deny-out-of-scope-write.sh
 │   ├── deny-dangerous-bash.sh
 │   ├── deny-db-migration.sh
-│   ├── warn-breaking-change.sh
+│   ├── warn-breaking-change.sh   # 미등록 — settings.json에 없어 동작하지 않는다
 │   └── auto-format-java.sh
 ├── agents/                ← 서브에이전트 정의 (파일 생성 시 즉시 등록)
 │   ├── researcher.md              # G1 외부 문서 조사 전용 (Edit/Write 없음)
@@ -132,7 +132,7 @@ Claude Code가 이 저장소에서 작업할 때 참조하는 **프로젝트 전
 |------|------|-----|
 | **스킬** | 짧은 **동사** 하나 | `spec`이 아니라 `specify`, `preflight`, `defer`, `debug` |
 | **규칙** | **적용 시점·대상이 드러나는 명사구.** 프로젝트 무관은 `core-` 접두사, 이 저장소 고유는 접두사 없이 대상을 밝힌다 | `core-guardrails`, `harness-map`, `baro-ai-performance-refactor` |
-| **훅** | 동작을 접두사로 — 차단 `deny-`, 경고 `warn-`, 자동 실행 `auto-` | `deny-out-of-scope-write.sh`, `deny-db-migration.sh`, `warn-breaking-change.sh`, `auto-format-java.sh` |
+| **훅** | 동작을 접두사로 — 차단 `deny-`, 경고 `warn-`, 자동 실행 `auto-` | `deny-out-of-scope-write.sh`, `deny-db-migration.sh`, `warn-breaking-change.sh`(미등록), `auto-format-java.sh` |
 | **에이전트** | 역할 명사, 20자 이내 | `spring-reviewer`, `doc-reviewer`, `researcher` |
 
 **개명하지 않는 경우:** 이미 짧고 뜻이 통하면 그대로 둔다. 흔한 영어 단어를 이름으로 쓰면 문서·코드의 일반 용법과 섞여 일괄 치환이 불가능해지므로(`verify`가 Java 60여 파일에 "검증하다"로 존재했다), 새 이름을 고를 때 저장소 전체에서 그 단어가 몇 번 쓰이는지 먼저 센다.

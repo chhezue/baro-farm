@@ -57,6 +57,22 @@ paths:
 
 **agent-type 훅 관련 교훈:** `warn-breaking-change.sh`는 처음엔 `agent`-type(서브에이전트가 diff를 읽고 판단)으로 시도했으나, staged 아닌 working tree 변경까지 오판해 "절대 막지 마라"는 명시적 지시에도 커밋을 막는 사고가 있었다 — non-blocking을 LLM 판단에 맡기지 않고 `command`-type(exit code로 결정론적 통제)으로 확정했다. advisory-only 훅은 command-type을 기본으로 한다.
 
+## Scripts (`scripts/`)
+
+훅이 아니다 — 자동 실행되지 않고 **사람이 필요할 때 부른다.** 훅으로 만들지 않은 이유는 매 도구 호출마다 돌 필요가 없고, 결과가 "고쳐라"가 아니라 "확인해 보라"이기 때문이다.
+
+| 스크립트 | 무엇을 | 언제 |
+|---|---|---|
+| `harness-lint.py` | 하네스(`.claude/**/*.md`)가 **이 저장소에 없는 것**을 가리키는지 검사한다 — 없는 문서 경로·깨진 상대 링크·모듈 지정이 빠진 gradle 명령·미등록 훅을 동작한다고 서술·존재하지 않는 `*.java` 언급 5축 | 규칙·스킬·에이전트를 크게 고친 뒤, 그리고 **하네스를 다른 저장소에 이식한 직후** |
+
+```bash
+python3 .claude/scripts/harness-lint.py    # 0 = 이상 없음 / 1 = 발견됨
+```
+
+**왜 만들었나:** 이 하네스는 TripFit에서 이식했는데 `harness-map.md`의 슬롯·옵션만 갈아 끼우고 규칙 본문을 대조하지 않아, 규칙이 지시한 ErrorCode 형태가 **컴파일조차 되지 않는** 상태가 사흘간 방치됐다. `spring-reviewer`는 존재하지 않는 `ArchitectureTest`를 grep하고 있었다. 근거: [`docs/audits/harness-retro.md`](../../baro-ai/docs/audits/harness-retro.md) 2026-09-05·2026-09-08.
+
+**한계:** "지시"와 "이력"을 완전히 구분하지 못한다. 과거를 서술한 문장이 걸리면 앞뒤 2줄 안에 근거 표현(`없다`·`미등록`·`다른 저장소`·`이력` 등)이 있는지 보고 넘기며, 그래도 걸리면 그 줄에 `harness-lint: ignore`를 붙인다. 판단이 필요한 축(예시 코드가 실제 시그니처와 맞는가, 문서 전체가 남의 프로젝트 것인가)은 **일부러 넣지 않았다** — 판정 불가능한 것을 기계에 맡기지 않는다(`retro` 스킬 4단계).
+
 ## `settings.json` / `settings.local.json`
 
 `settings.json`은 훅 등 팀 공통 설정으로 버전 관리한다. `settings.local.json`은 개인 권한 allowlist — **전역 `~/.config/git/ignore`로 gitignore돼 있어 실제로는 이 머신에만 있고 커밋되지 않는다**(2026-08-27 확인). 팀원 간 공유되지 않으므로 개인별로 자유롭게 정리해도 된다.
@@ -85,4 +101,5 @@ docs/specs/        → 기능별 설계 산출물 (specify 스킬 결과)
 - [ ] 훅 추가·삭제 시 이 README(`README.md`) **디렉터리 구조 다이어그램 + Hooks 절 표**, [`docs/harness-engineering.md`](../../baro-ai/docs/harness-engineering.md) §5 표, [`docs/harness/layer3-deterministic-hooks.md`](../../baro-ai/docs/harness/layer3-deterministic-hooks.md)의 훅 표·흐름까지 **4곳** 동시 갱신 (이번 감사에서 이 README 자체의 디렉터리 다이어그램이 훅 1개 누락된 채 방치됐던 사례 있음 — 같은 파일 안에서도 표와 다이어그램이 따로 놀 수 있으니 둘 다 확인)
 - [ ] 규칙·스킬 개수가 바뀌면(추가/삭제) `README.md` **Always-load 표 + Skills 표**, [`docs/harness-engineering.md`](../../baro-ai/docs/harness-engineering.md) §3·§4의 대응 표, [`docs/harness/layer1-human-gate.md`](../../baro-ai/docs/harness/layer1-human-gate.md)(규칙)·[`docs/harness/layer2-workflow-skills.md`](../../baro-ai/docs/harness/layer2-workflow-skills.md)(스킬)의 파일 표를 함께 갱신 (harness-engineering.md·docs/harness/는 발표·질의 대비용 서술형 문서라 별도 유지되며, 내용이 어긋나면 `README.md`가 맞음 — 하지만 방치하면 발표 자료가 stale해짐)
 - [ ] 서브에이전트(`agents/*.md`) 추가·삭제 시 `README.md` **디렉터리 구조 다이어그램 + Agents 절 표**, [`docs/harness-engineering.md`](../../baro-ai/docs/harness-engineering.md) §4, [`docs/harness/layer2-workflow-skills.md`](../../baro-ai/docs/harness/layer2-workflow-skills.md) 서브에이전트 문단을 함께 갱신. **에이전트는 파일을 만들면 같은 세션에서 즉시 등록**된다(2026-09-03 실측 정정 — 이전에는 "세션 시작 시 등록"으로 잘못 기재돼 있었음) — 첫 호출이 드물게 실패하면 잠시 뒤 재시도하거나 새 세션에서 확인
-- [ ] 레이어·PK 등 구조 규칙 변경 시 ArchUnit 구조 테스트(ArchUnit) 반영 검토 — 일부 규칙은 prose가 아니라 `./gradlew test`가 실제로 검증함
+- [ ] 규칙·스킬·에이전트를 크게 고쳤으면 `python3 .claude/scripts/harness-lint.py` 실행 — 없는 파일·명령·훅을 가리키게 됐는지 확인
+- [ ] 레이어 등 구조 규칙을 바꿨으면 `spring-reviewer`로 확인 — baro-ai에는 ArchUnit(`ArchitectureTest`)이 없어 구조 규칙을 기계적으로 검증하는 장치가 없다
