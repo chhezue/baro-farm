@@ -21,11 +21,11 @@ description: '"완료/통과" 선언 전에 테스트·스펙 체크리스트·A
 1. **테스트** — `{{테스트 명령}}` 실행(핵심 로직 변경 시 전체 스위트). 실패가 있으면 원인 해결 전에는 "통과"라고 보고하지 않는다.
 2. **스펙·이슈 체크리스트 대조** — 관련 `{{스펙 저장소}}`의 Must Have 체크박스, `gh issue view`의 완료 기준을 **실제 코드**와 대조한다. 스펙 문구만 보고 `[x]`로 단정하지 않는다(`core-guardrails.md` STOP §1.5).
 3. **API 계약 변경 시** — DTO·`ErrorCode`·Controller가 바뀌었다면:
-   - `Breaking-Change-Reason:` 트레일러가 필요한 변경인지 재확인(STOP §5)
-   - `oasdiff`로 실제 diff를 확인 — breaking 여부와 무관하게 **의도한 diff만** 있는지 (`safe-refactor`처럼 "diff 자체가 0"이 기준인 무손실 리팩터는 diff가 하나라도 나오면 실패로 간주)
+   - baro-ai는 계약을 바꿔도 된다(`baro-ai-performance-refactor.md`). 다만 **스펙과 `refactor-log.md`에 Before/After를 남겼는지** 확인한다 — 5인 공용 저장소라 팀원이 나중에 놀라지 않게
+   - `oasdiff`·`Breaking-Change-Reason:` 트레일러는 이 저장소에서 쓰지 않는다(STOP §5 옵션 꺼짐)
 4. **레거시 재점검** — 이번 변경이 대체한 구 경로·상수·문서 '현행' 문구가 남아있지 않은지 확인(STOP §4).
 5. **문서 품질** — 새 문서를 만들었거나 기존 `.md`를 **50줄 이상** 고쳤으면 `doc-reviewer` 서브에이전트로 확인한다(기준 SSOT: `doc-writing.md`). 오타·한 줄 수정은 대상이 아니며, 문체는 exit code로 판정할 수 없어 **advisory**다 — 지적을 받아도 커밋이 막히지는 않는다.
-6. **Java 변경 리뷰** — Java를 3파일 이상·API·DB 범위로 고쳤으면 `spring-reviewer` 서브에이전트로 확인한다(기준 SSOT: `spring-boot-java.md`). 트랜잭션 경계·N+1·`ErrorCode`/`@TripActivity` 누락처럼 **ArchUnit이 잡지 못하는** 결함이 대상이며, 그 에이전트가 이미 검증되는 규칙은 지적하지 않는다. 한 줄·단일 파일 수정은 대상이 아니다.
+6. **Java 변경 리뷰** — Java를 3파일 이상·API·DB 범위로 고쳤으면 `spring-reviewer` 서브에이전트로 확인한다(기준 SSOT: `spring-boot-java.md`). 외부 호출 경계·비동기 유실·`ErrorCode` 누락처럼 **정적 규칙으로 표현할 수 없는** 결함이 대상이다(baro-ai에는 ArchUnit이 없어 구조 규칙까지 리뷰가 본다). 한 줄·단일 파일 수정은 대상이 아니다.
 7. **규모 게이트** — Must Have급(3파일 이상, API·DB 포함) 변경이면 `code-review` 또는 `simplify` 스킬을 서브에이전트 컨텍스트에서 한 번 더 돌리는 걸 권장한다 — 방금 짠 코드를 같은 대화에서 스스로 평가하는 self-grading 편향을 피하기 위함(`core-tools.md`와 동일 근거).
 8. **보고** — 실제로 통과한 항목만 `[x]`로 표시하고, 실패했거나 검증하지 못한 항목은 숨기지 않고 그대로 남긴다.
 
@@ -34,4 +34,4 @@ description: '"완료/통과" 선언 전에 테스트·스펙 체크리스트·A
 - `{{테스트 명령}}` 실행 없이 "통과했을 것"이라고 보고
 - 스펙 문구만 보고 구현 상태·완료 여부를 단정 (`core-guardrails.md` STOP §1.5)
 - 실패·미검증 항목을 숨기고 "완료"만 보고
-- API 계약 변경인데 `oasdiff` 확인 없이 "계약 그대로"라고 단정
+- API 계약이 바뀌었는데 스펙·`refactor-log.md`에 Before/After를 남기지 않고 넘어가기

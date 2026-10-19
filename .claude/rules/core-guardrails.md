@@ -28,13 +28,13 @@
 3. **임의 개선 금지** — "더 나은 기본값", "업계 일반값", "코드가 간단해짐"만으로 문서와 다른 수치·구조를 바꾸지 않는다. 변경 시 **문서 amend 또는 사용자 명시 승인**.
 4. **불확실하면 질문** — 가정을 숨기지 않는다. 질문 없이 진행한 선택은 **잘못된 작업**.
 5. **구현 상태 보고 전 코드 우선 확인** — 스펙 Must Have 체크박스(`[ ]`/`[x]`)·"미구현"·"대기 중"·"`#n` 선행 필요" 같은 서술은 기능이 merge된 뒤 스펙 동기화가 누락되면 stale해진다. 사용자·프론트에게 "이 API·enum·이벤트가 아직 구현 안 됨/트리거 안 됨"이라고 **부정적으로 단정**해 답하기 전에, 관련 Controller·Service(이벤트 발행부)·테스트를 직접 grep/Read로 확인한다. `{{스펙 저장소}}` 문구 하나만 근거로 구현 여부를 판단하지 않는다 — 필요하면 `gh issue view`로 실제 이슈 상태도 함께 확인.
-6. **[스택 옵션: 생성 문서 검증]** **"생성 문서에 있다"를 소스 어노테이션으로 단정하지 않는다** — DTO·enum에 `@Schema`가 있다고 해서 Swagger에 실제로 노출된다고 단정하지 않는다. `@ApiResponse`에서 제네릭 wrapper(`SuccessResponse<T>`)를 `schema = @Schema(implementation = SuccessResponse.class)`처럼 raw 타입으로 지정하면 springdoc이 실제 `data` 타입(리스트·필드·enum)을 못 읽어 스키마가 통째로 사라진다(`useReturnTypeSchema = true` 필요 — `spring-boot-java.md` 참고, `NotificationController` 사고 사례). "프론트가 필요한 값이 Swagger에 이미 있다"고 답하기 전에 로컬 `/v3/api-docs`, 배포 서버 `/v3/api-docs`, 또는 `{{API 문서}}`을 실제로 열어 해당 스키마·enum이 진짜 노출되는지 확인한다.
+6. **[스택 옵션: 생성 문서 검증]** **"생성 문서에 있다"를 소스 어노테이션으로 단정하지 않는다** — DTO·enum에 `@Schema`가 있다고 해서 Swagger에 실제로 노출된다고 단정하지 않는다. `@ApiResponse`에서 제네릭 wrapper(baro-ai는 `ResponseDto<T>`)를 `schema = @Schema(implementation = ResponseDto.class)`처럼 raw 타입으로 지정하면 springdoc이 실제 `data` 타입(리스트·필드·enum)을 못 읽어 스키마가 통째로 사라진다(`useReturnTypeSchema = true` 필요 — `openapi-conventions-operation.md` 참고). "프론트가 필요한 값이 Swagger에 이미 있다"고 답하기 전에 로컬 `/v3/api-docs`, 배포 서버 `/v3/api-docs`, 또는 `{{API 문서}}`을 실제로 열어 해당 스키마·enum이 진짜 노출되는지 확인한다.
 
-**절대 금지:** 문서와 다른 access/refresh TTL, API 필드, 에러 코드, env 키를 임의 구현·커밋. **에러 코드·`@TripActivity`·권한 어노테이션을 “다음 커밋에” 미루기.** **스펙 문서만 보고 "미구현"이라고 사용자에게 보고 — 코드 미확인 상태로 구현 상태 단정.** **`@Schema` 존재만 보고 "Swagger에 이미 노출된다"고 보고 — 실제 생성된 OpenAPI 문서 미확인.**
+**절대 금지:** 문서와 다른 API 필드, 에러 코드, env 키, 임계값을 임의 구현·커밋. **에러 코드 갱신을 “다음 커밋에” 미루기.** **스펙 문서만 보고 "미구현"이라고 사용자에게 보고 — 코드 미확인 상태로 구현 상태 단정.** **`@Schema` 존재만 보고 "Swagger에 이미 노출된다"고 보고 — 실제 생성된 OpenAPI 문서 미확인.**
 
 ### 2. ErrorCode · AOP/Interceptor — 같은 턴 즉시 갱신
 
-API·BR 실패 케이스·권한 게이트·`last_activity_at` touch를 **추가·변경하면 같은 PR·같은 턴**에 끝낸다. “나중에” 금지.
+API·BR 실패 케이스를 **추가·변경하면 같은 PR·같은 턴**에 끝낸다. “나중에” 금지.
 
 | 변경 | 같은 턴에 필수 |
 |------|----------------|
@@ -43,9 +43,9 @@ API·BR 실패 케이스·권한 게이트·`last_activity_at` touch를 **추가
 
 > **[스택 옵션: 에러코드 enum 동시갱신]** baro-ai는 `SearchErrorCode`·`RecommendErrorCode` 패턴을 쓴다 (`harness-map.md` 스택 옵션). **권한·활동 어노테이션(AOP) 옵션은 꺼짐** — baro-ai에 `@Aspect`·커스텀 권한 어노테이션이 없고, 인증은 게이트웨이가 처리한다. 도입하면 `harness-map.md`에서 켜고 이 표에 행을 되살린다.
 
-**금지:** throw/`code`만 넣고 enum·스펙 미갱신 · touch인데 `@TripActivity` 누락(또는 수동 `touchLastActivity` 재도입) · Draft 전용 코드를 Approved 전 enum에 미리 넣기 · Filter/Interceptor에서 envelope와 다른 ad-hoc JSON
+**금지:** throw/`code`만 넣고 enum·스펙 미갱신 · Draft 전용 코드를 Approved 전 enum에 미리 넣기 · Filter에서 envelope와 다른 ad-hoc JSON · HTTP로 나갈 경로가 없는 ErrorCode를 남겨 두기(`audits/cross-cutting/003` B-4)
 
-SSOT: {{API 응답 규격}} · `spring-boot-java.md` ErrorCode·AOP 절
+SSOT: {{API 응답 규격}} · `spring-boot-java.md` ErrorCode 절
 
 ### 3. DB 스키마 — 마이그레이션 금지 (상용 보존 데이터 없음)
 

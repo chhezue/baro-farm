@@ -21,7 +21,7 @@ paths:
 | `specify` | **A 트랙** — 새 기능, 리팩터 계획, 아키텍처 결정 | `docs/specs/{domain}/{feature}.md` (**스펙 SSOT**, 도메인 amend 시 `ADDED`/`MODIFIED`/`REMOVED` delta 섹션) |
 | `safe-refactor` | **B 트랙** — 기존 코드 아키텍처 감사·무손실 리팩토링 (API 계약·비즈니스 로직 불변) | `docs/audits/{domain}/{NNN}-{topic}.md`(A/B/C/D 분류) · `refactor-log.md`(반영 이력) — 도메인 1개씩 순차, 매 단계 승인 게이트 |
 | `debug` | **C 트랙** — 버그 리포트·`./gradlew test` 실패 (로컬 재현 + 프로덕션 전용 재현) | 없음(재현·조사 절차) — Superpowers `systematic-debugging` 대체, 승인 게이트 없는 절차형 스킬 |
-| `preflight` | **G3 게이트** — "완료/통과" 선언 전, 특히 Must Have급·API·DB 변경 | 없음(검증 절차) — `./gradlew test` + 스펙·이슈 체크리스트 대조 + API 변경 시 `oasdiff` + 문서 50줄+ 변경 시 `doc-reviewer` |
+| `preflight` | **G3 게이트** — "완료/통과" 선언 전, 특히 Must Have급·API·DB 변경 | 없음(검증 절차) — `{{테스트 명령}}` + 스펙·이슈 체크리스트 대조 + API 변경 시 Before/After 기록 확인 + 문서 50줄+ 변경 시 `doc-reviewer` |
 | `defer` | **G4 게이트** — 「다른 이슈로 빼」·「후속 이슈로」·「이번 Milestone 밖」 | Draft 스펙 + Approved 스펙 amend + `docs/specs/README.md` 갱신 + (확인 후) GitHub 이슈 |
 | `retro` | **G4 게이트** — 작업 완료 후 회고, 「이번에 배운 거 정리」 | `docs/audits/harness-retro.md` append (승인 후) — 하네스 개선 후보만, 코드·설계 개선은 `core-followup.md` 담당. **메인 컨텍스트 실행**(세션 대화 이력이 입력이라 fork 금지) |
 
@@ -37,7 +37,7 @@ paths:
 |----------|--------|------|
 | `researcher` | G1 | 외부 라이브러리·SDK·provider 문서 조사. **로컬 `build.gradle` 버전 확인 → 공식 문서(버전 고정) → 릴리즈 노트** 순서 강제, 블로그·StackOverflow 근거 인용 금지. 결론·근거 URL·문서 버전만 고정 포맷으로 반환 |
 | `doc-reviewer` | G3 | 문서 유형·정보 구조·문장 3단계 리뷰 (기준: `doc-writing.md`). advisory — 커밋을 막지 않음 |
-| `spring-reviewer` | G3 | Java 변경 diff를 트랜잭션 경계·N+1·하네스 계약(ErrorCode·`@TripActivity`·트레일러)·레이어 재사용·캡슐화 5축으로 리뷰 (기준: `spring-boot-java.md`·`spring-boot-java-design.md`). Critical/High/Medium/Low 4등급 + `파일:줄` 강제. **ArchUnit이 이미 검증하는 규칙은 지적 대상에서 제외** |
+| `spring-reviewer` | G3 | Java 변경 diff를 외부 호출 경계·비동기 유실·하네스 계약(ErrorCode)·레이어 재사용·캡슐화 5축으로 리뷰 (기준: `spring-boot-java.md`·`spring-boot-java-design.md`). Critical/High/Medium/Low 4등급 + `파일:줄` 강제. **baro-ai에는 ArchUnit이 없어 구조 규칙도 리뷰 대상이다** |
 
 **호출 기준:** 2개 이상 문서를 비교해야 하면 `researcher`, 단일 페이지면 인라인 `WebFetch`. 새 문서·50줄+ 문서 변경이면 `doc-reviewer`, 오타 수정이면 생략. Java를 3파일 이상·API·DB 범위로 고쳤으면 커밋 전 `spring-reviewer` — 범용 `code-review` 스킬과 **대체 관계가 아니다**(그쪽은 언어 무관 일반 결함, 이쪽은 이 저장소의 Spring·JPA·하네스 계약).
 
@@ -50,7 +50,7 @@ paths:
 | 이벤트 | 매처 | 현재 동작 |
 |--------|------|-----------|
 | `PreToolUse` | `Bash` | `deny-dangerous-bash.sh` — force push, `rm -rf`, `git reset --hard`, `docker compose down -v` 차단(exit 2, fail-closed). `core-guardrails.md` STOP §3이 dev DB 폐기를 허용하는 것과 충돌하지 않는다 — 정책상 허용이지만 되돌릴 수 없어 **사람이 직접 실행**하게 하는 의도된 마찰이다. **알려진 오탐:** 패턴을 명령 문자열 전체에서 찾으므로 위 문구를 인자로 담은 `grep`·`echo` 같은 무해한 명령도 함께 막힌다(2026-09-04 실제 발생). 문구를 쪼개 쓰거나 파일 편집 도구를 쓰고, 훅을 우회하지 않는다 |
-| `PreToolUse` | `Bash` | `warn-breaking-change.sh` — `git commit`에 DTO/ErrorCode/Controller 변경이 스테이징됐는데 `Breaking-Change-Reason:` 트레일러가 없으면 advisory 경고(항상 exit 0, 커밋을 막지 않음) |
+| — | — | ~~`warn-breaking-change.sh`~~ — **`settings.json`에 등록돼 있지 않아 동작하지 않는다.** 파일만 남아 있다(`harness-map.md`의 "OpenAPI 계약 보호" 옵션이 꺼져 있어 도입 보류) |
 | `PreToolUse` | `Write\|Edit` | `deny-out-of-scope-write.sh` — `baro-ai/`·`.claude/` 밖 파일 쓰기 차단(exit 2, fail-closed) — `core-guardrails.md` STOP §0. 5인 공용 모노레포에서 다른 모듈에 영향 없이 하네스를 저장소 루트에 둘 수 있게 하는 핵심 백스톱. 저장소 밖 절대경로(Claude Code 세션 파일 등)는 이 하네스의 관심사가 아니므로 통과시킨다(2026-09-04 수정 — 이전엔 경로 접두사 제거 실패를 감지 못해 세션 파일까지 오탐 차단했다) |
 | `PreToolUse` | `Write\|Edit` | `deny-db-migration.sh` — `baro-ai/` 안 `db/migration/` 경로 또는 Flyway 네이밍(`V1__x.sql`, `R__x.sql`) 파일 생성 차단(exit 2, fail-closed) — `core-guardrails.md` STOP §3. `baro-ai/` 밖은 위 훅이 이미 막으므로 대상 아님(방어적 재확인만) |
 | `PostToolUse` | `Edit\|Write` | `auto-format-java.sh` — Java 파일 저장 시 `spotlessApply` 자동 포맷(non-blocking) |

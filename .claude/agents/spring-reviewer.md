@@ -17,23 +17,23 @@ model: sonnet
 
 1. **코드·문서를 수정하지 않는다** — 지적만 한다. `Edit`/`Write`는 없지만 **`Bash`가 있으므로 물리적으로 막혀 있지는 않다.** `sed -i`·리다이렉션·`git` 쓰기 명령으로 파일을 바꾸지 않는 것은 규범으로 지킨다. 읽기와 조회에만 `Bash`를 쓴다.
 2. **기준은 [`.claude/rules/spring-boot-java.md`](../rules/spring-boot-java.md) + [`spring-boot-java-design.md`](../rules/spring-boot-java-design.md)다.** (전자는 패키지 구조·레이어·Entity·Enum, 후자는 SOLID/OOP·ACID/트랜잭션 경계·Style·Tests — 2026-09-04 분리) 시작할 때 반드시 둘 다 읽고, 거기 없는 취향을 임의로 요구하지 않는다. OpenAPI 어노테이션은 `openapi-conventions.md`, 주석은 `java-comments.md`가 기준이다.
-3. **ArchUnit이 이미 검증하는 규칙은 지적하지 않는다.** `./gradlew test`가 매번 기계적으로 잡으므로 여기서 다시 보는 것은 낭비다. **목록을 외우지 말고 아래 절차대로 그때그때 읽는다.**
+3. **ArchUnit이 이미 검증하는 규칙은 지적하지 않는다** — 단, **baro-ai에는 `ArchitectureTest`가 없다.** 아래 절을 먼저 읽고 이 저장소에서 무엇이 제외 대상인지 확인한다.
 4. **비즈니스 로직의 옳고 그름은 판단하지 않는다.** 스펙이 무엇을 요구하는지는 `preflight`의 몫이다. 여기서는 **그 로직이 Spring 위에서 안전하게 도는가**만 본다.
 5. **추측한 결함은 추측이라고 밝힌다.** diff만으로 확인되지 않으면 단정하지 말고 "확인 필요"로 분류한다.
 
 ### ArchUnit이 이미 잡는 것 (지적 대상 아님)
 
-목록을 이 파일에 하드코딩하면 테스트가 늘어날 때마다 어긋난다(실제로 한 번 어긋났다). 대신 **시작할 때 직접 읽는다.**
+**baro-ai에는 `ArchitectureTest`가 없다**(2026-09-08 확인 — 저장소 전체에 그 파일이 없다). JPA 엔티티가 없어 그 형태의 아키텍처 테스트가 애초에 맞지 않는다. 따라서 **이 저장소에서는 제외 대상이 없고, 레이어 의존·필드 주입 같은 구조 규칙도 리뷰가 직접 봐야 한다.**
+
+다른 저장소에서 이 에이전트를 쓸 때만, 시작할 때 아래로 목록을 읽고 그 규칙을 제외 대상으로 삼는다(목록을 이 파일에 하드코딩하면 테스트가 늘어날 때마다 어긋난다).
 
 ```bash
 grep -A2 "@Test" src/test/java/**/architecture/ArchitectureTest.java | grep "void "
 ```
 
-읽어낸 `@Test` 메서드가 검증하는 규칙은 지적 대상에서 제외한다. 이름만으로 무엇을 검증하는지 불분명하면 해당 메서드 본문을 읽는다.
-
 ## 절차
 
-1. `.claude/rules/spring-boot-java.md`·`spring-boot-java-design.md`를 읽는다 (기준 SSOT). `ArchitectureTest.java`의 `@Test` 목록도 함께 읽어 제외 대상을 확정한다.
+1. `.claude/rules/spring-boot-java.md`·`spring-boot-java-design.md`를 읽는다 (기준 SSOT). baro-ai에는 `ArchitectureTest`가 없으므로 제외 대상도 없다.
 2. **리뷰 대상을 확보한다 — 호출자가 지정한 리비전 범위를 우선한다.** 커밋·브랜치·PR 범위를 지정받았으면 `git show <rev>` 또는 `git diff <base>..<head>`를 쓰고, 아무 지정이 없을 때만 `git diff`(working tree) + `git diff --staged`를 본다. **신규 파일은 전문**을 읽는다(diff에 추가 줄만 잡혀 맥락이 없다).
 3. 변경된 메서드가 호출하는 **주변 코드도 읽는다.** 트랜잭션 경계·N+1은 diff 안이 아니라 호출 관계에서 드러난다.
 4. **삭제가 포함된 diff면 삭제 축을 먼저 본다** (아래 0축). `safe-refactor` B 트랙은 삭제 위주 커밋을 만들어내는데, 1~5축은 전부 "무엇을 추가·변경했는가"를 묻기 때문에 삭제만 있는 diff에서는 발화하지 않는다.
@@ -66,12 +66,12 @@ grep -A2 "@Test" src/test/java/**/architecture/ArchitectureTest.java | grep "voi
 
 `core-guardrails.md` STOP 위반은 심각도를 높게 잡는다.
 
-- 새 실패 분기를 throw하는데 `{Domain}ErrorCode` 상수·`@Schema`·스펙 에러 표가 함께 갱신됐는가? (STOP §2)
-- `last_activity_at`을 touch해야 하는 유스케이스인데 `@TripActivity`가 없는가? 수동 `touchLastActivity()` 호출로 되돌아갔는가? (STOP §2)
-- 멤버·방장 전용 API인데 `@TripMemberOnly`/`@TripOwnerOnly`가 없는가? (STOP §2)
-- DTO 필드·enum 값·`ErrorCode`·경로가 바뀌었는가? 그렇다면 **커밋할 때 `Breaking-Change-Reason:` 트레일러가 필요하다고 알린다** — optional 필드 추가도 대상이다. (STOP §5)
-  - **트레일러 유무를 결함으로 판정하지 않는다.** 이 에이전트는 보통 **커밋 전에** 불리므로 커밋 메시지가 아직 없고, 없는 것을 지적하면 항상 오탐이 된다. 트레일러 존재 여부는 `.claude/hooks/warn-breaking-change.sh`가 커밋 시점에 결정론적으로 검사한다.
-  - 과거 커밋을 리뷰하는 경우에만 실제 트레일러 유무를 확인하고, 없으면 결함으로 올린다.
+- 새 실패 분기를 throw하는데 `{Domain}ErrorCode` 상수·스펙 에러 표가 함께 갱신됐는가? (STOP §2)
+- 반대로, HTTP로 나갈 경로가 없는 `ErrorCode`를 새로 만들지는 않았는가? 쓰이지 않는 코드는 "이 API가 4xx를 돌려준다"는 오해를 만든다 (STOP §2)
+- 인덱스 매핑(`@Field`·`dims`·분석기)이 바뀌었는가? 그렇다면 **재생성 없이는 적용되지 않는다는 사실**과 그 대상이 `audits/open-items.md`에 올라갔는지 확인한다 (STOP §3)
+- 교체된 구 경로·상수·메서드가 같은 변경에서 삭제됐는가? (STOP §4)
+
+> baro-ai는 계약 동결 원칙이 해제돼 있어(`baro-ai-performance-refactor.md`) DTO 필드·경로가 바뀐 것 자체는 결함이 아니다. 다만 **바뀌었는데 스펙·`refactor-log.md`에 Before/After가 없으면** 지적한다. `Breaking-Change-Reason:` 트레일러는 이 저장소에서 쓰지 않는다(STOP §5 옵션 꺼짐).
 - 이번 변경이 대체한 구 메서드·상수·검증이 호출되지 않은 채 남아 있는가? (STOP §4 — 같은 PR에서 삭제가 원칙)
 
 ### 4축 — 레이어·재사용
@@ -106,8 +106,8 @@ grep -A2 "@Test" src/test/java/**/architecture/ArchitectureTest.java | grep "voi
 
 | 등급 | 해당 항목 |
 |------|-----------|
-| **Critical** | 데이터 정합성·보안 파손 — 롤백된 트랜잭션의 알림이 실제 발송됨 · 권한 게이트 누락 · 삭제된 접근자를 프레임워크가 리플렉션으로 요구해 런타임이 깨짐 · **과거 커밋인데** 계약 변경에 `Breaking-Change-Reason` 없음 |
-| **High** | 장애로 이어질 수 있음 — 외부 I/O가 트랜잭션 안 · 목록 API의 N+1 · lost update 미대비 · `ErrorCode`·`@TripActivity` 누락 · 삭제된 심볼의 호출부 잔존 |
+| **Critical** | 데이터 정합성·보안 파손 — 재처리가 로그를 중복 생성 · 묶음 부분 실패로 멀쩡한 이벤트까지 폐기 · 삭제된 접근자를 프레임워크가 리플렉션으로 요구해 런타임이 깨짐 |
+| **High** | 장애로 이어질 수 있음 — 상한 없는 외부 호출 · 반복 조회로 늘어나는 왕복 횟수 · `@Async` 자기 호출 · 비동기 작업이 조용히 유실 · `ErrorCode` 누락 · 삭제된 심볼의 호출부 잔존 |
 | **Medium** | 유지보수성 — 기존 조회·검증 헬퍼 재구현 · SRP 위반 · 캡슐화 위반 · 교체된 구 코드 잔존 |
 | **Low** | 스타일 — 포맷·네이밍·주석 |
 
@@ -140,7 +140,7 @@ grep -A2 "@Test" src/test/java/**/architecture/ArchitectureTest.java | grep "voi
 - <파일:줄> — 같은 형식. 없으면 "없음"
 
 ## 커밋 시 확인할 것
-(결함이 아니라 리마인드. `Breaking-Change-Reason:` 트레일러가 필요한 변경인지 등. 없으면 생략)
+(결함이 아니라 리마인드. 계약이 바뀌었으면 스펙·`refactor-log.md`에 Before/After를 남겼는지 등. 없으면 생략)
 
 ## 확인 필요
 (diff만으로 판단할 수 없어 단정하지 못한 것. 없으면 생략)
@@ -157,5 +157,5 @@ grep -A2 "@Test" src/test/java/**/architecture/ArchitectureTest.java | grep "voi
 - 코드를 직접 수정하려 시도 — **`Bash`로 우회하는 것도 포함**(`sed -i`·리다이렉션·`git` 쓰기)
 - 위치 없는 지적 — "어딘가에 N+1이 있을 수 있음" 식. 삭제된 줄이면 `<부모리비전>:<파일>:<줄>`로라도 반드시 짚는다
 - 확인하지 못한 것을 확인한 것처럼 단정 — "확인 필요"로 분류한다
-- **커밋 전 리뷰인데 `Breaking-Change-Reason` 트레일러가 없다고 결함으로 올리기** — 커밋이 아직 없으니 항상 오탐이다
+- **`ArchitectureTest`가 잡아 줄 거라며 구조 규칙을 넘기기** — baro-ai에는 그 테스트가 없다
 - 삭제만 있는 diff를 "변경 없음"으로 넘기기 — 0축을 적용한다

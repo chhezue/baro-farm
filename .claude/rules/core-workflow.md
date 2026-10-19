@@ -87,11 +87,11 @@
 
 - 변경 요약 + `{{테스트 명령}}` — 실행 없이 "통과했을 것"이라고 보고 금지
 - 스펙·이슈 완료 기준을 **실제 코드**와 대조 (STOP §1.5 — 문서 문구만 보고 단정 금지)
-- **API 추가·변경:** `docs/` 동기화 + 관련 GitHub 이슈 (`gh issue view` → `gh issue edit`) + STOP §5 대상이면 커밋에 `Breaking-Change-Reason:` 트레일러 포함 확인 + `oasdiff`로 의도한 diff만 있는지 확인
+- **API 추가·변경:** `docs/` 동기화(스펙 + `refactor-log.md`에 Before/After) + 관련 GitHub 이슈 (`gh issue view` → `gh issue edit`). baro-ai는 `oasdiff`·`Breaking-Change-Reason:` 트레일러를 쓰지 않는다(STOP §5 옵션 꺼짐)
 - **보안·아키텍처 성격 변경:** STOP §6 대상(토큰·세션·결제·개인정보 저장 방식 등)이면 `{{현재동작 요약}}` 해당 절 갱신 확인
 - **레거시 재점검:** 이번 변경이 대체한 구 경로·상수·문서 ‘현행’ 문구가 남았는지 확인 후 **삭제/amend**. 요청 밖·정책 무관 dead code만 언급. **정책 불일치·교체 잔존 → STOP §4 삭제**
 - **문서 품질:** 새 문서를 만들었거나 기존 문서를 **50줄 이상** 고쳤으면 **`doc-reviewer` 서브에이전트**([`.claude/agents/doc-reviewer.md`](../agents/doc-reviewer.md), 기준 SSOT: `doc-writing.md`). 오타·한 줄 수정은 대상 아님 — 문체는 exit code로 판정할 수 없어 **advisory**(훅 아님)
-- **[스택 옵션: 스택 리뷰어]** 스택 코드를 **3파일 이상**·API·DB 범위로 고쳤으면 **스택 리뷰어 서브에이전트** — Java·Spring 팩이면 **`spring-reviewer`**([`.claude/agents/spring-reviewer.md`](../agents/spring-reviewer.md), 기준 SSOT: `spring-boot-java.md`). 트랜잭션 경계·N+1·ErrorCode/`@TripActivity` 누락처럼 **ArchUnit이 잡지 못하는** 결함이 대상이다 — 한 줄·단일 파일 수정은 대상 아님
+- **[스택 옵션: 스택 리뷰어]** 스택 코드를 **3파일 이상**·API·DB 범위로 고쳤으면 **스택 리뷰어 서브에이전트** — Java·Spring 팩이면 **`spring-reviewer`**([`.claude/agents/spring-reviewer.md`](../agents/spring-reviewer.md), 기준 SSOT: `spring-boot-java.md`). 외부 호출 경계·비동기 유실·ErrorCode 누락처럼 **정적 규칙으로 표현할 수 없는** 결함이 대상이다(baro-ai에는 ArchUnit도 없어 구조 규칙까지 리뷰가 본다) — 한 줄·단일 파일 수정은 대상 아님
 - **규모 게이트:** Must Have급(3파일+·API·DB)이면 `code-review` 또는 `simplify`를 서브에이전트 컨텍스트에서 한 번 더 — self-grading 편향 회피
 
 ## G4. 회고 게이트 — 남길 것 남기기
