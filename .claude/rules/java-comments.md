@@ -65,10 +65,9 @@ paths:
 
 ```java
 // 방장이 추천 모드로 TOP3 후보를 생성한다 (미구현 stub)
-@Transactional
-public void generateRecommendations(...) {
-  // TODO: 기존 추천 hard DELETE 후 TOP3 INSERT, lastRecommendationMode 갱신
-  // 상세: docs/specs/trip/trip-recommendation.md (#13)
+public void indexProducts(List<ProductIndexRequest> requests) {
+  // TODO: 재료명 추출을 상품별 1회에서 묶음 1회로 바꾼다
+  // 상세: docs/audits/keyword-search/refactor-log.md "남긴 것"
 }
 ```
 
@@ -76,7 +75,7 @@ public void generateRecommendations(...) {
 
 | 레이어 | 주석 대상 |
 |--------|-----------|
-| **Controller** | 접근 권한(`@AuthorizedUser`, `@TripMemberOnly` 등)·인터셉터·`@Valid` 검증. **유스케이스 역할 주석 금지**(Service에 둠) |
+| **Controller** | 파라미터 검증(`@Valid`·범위 상한)과 그 실패가 어떤 `ErrorCode`로 나가는지. **유스케이스 역할 주석 금지**(Service에 둠) |
 | **Service / facade** | 이름으로 안 드러나면 역할 주석(아래 절). 분기 Why · 다단계 `// 1.` |
 | **Support / Helper / Resolver** | 공유 검증·매핑·가드의 **역할 `//`** + 정책·에러코드·배치 vs lazy Why |
 | **Interceptor / Aspect / Filter / ArgumentResolver / Scheduler** | 엔트리(`preHandle`·advice·`runForDate` 등) **역할 `//`** + 교차 관심사 Why |
@@ -92,7 +91,7 @@ public void generateRecommendations(...) {
 | 대상 | 규칙 |
 |------|------|
 | **이름·시그니처만으로 동작이 안 드러나는 public 메서드** | 역할 주석 필수 — 전제·부작용·같은 요청을 여러 번 보내도 안전한지 등 이름이 못 담는 것 |
-| **이름이 곧 설명인 facade 위임·1~2줄 자명한 메서드** | **생략 가능** — 억지로 채우지 않는다 (예: `removeMember`가 그대로 `tripCommandService.removeMember(...)`를 위임하면 주석 없이 통과) |
+| **이름이 곧 설명인 facade 위임·1~2줄 자명한 메서드** | **생략 가능** — 억지로 채우지 않는다 (예: `recommendSimilarProducts`가 그대로 `vectorRecommendPipeline.recommend(...)`를 위임하면 주석 없이 통과) |
 | **비자명 `private` 헬퍼** | live/snapshot 빌더·윈도우 검증·복합 매핑 등 — 역할 `//` |
 | **생략 가능** | 생성자 · getter/setter · 이름만으로 자명한 1라이너 (`findUser`, `normalizeX`, 단순 DTO `toXxx`) |
 
@@ -107,20 +106,18 @@ public void generateRecommendations(...) {
 
 ```java
 // 사용자가 이 방의 일정 확인을 마치면 멤버 상태를 SCHEDULE_PENDING에서
-// ACTIVE로 바꾼다. 방장과 참여자 모두 이 메서드를 거쳐 방에 들어온다.
-// 이미 ACTIVE라면 아무것도 바꾸지 않고 같은 응답을 그대로 돌려준다
-// (여러 번 호출해도 안전하다).
-@Transactional
-@TripActivity(tripIdParam = "tripId")
-public TripDetailResponse activateMembership(UUID tripId, UUID userId) { ... }
+// 장바구니 상품을 요리 재료로 바꿔 레시피 하나를 받아 온다. 실패해도 예외를 올리지 않고
+// reason이 담긴 빈 응답으로 돌려준다 — 빈 장바구니는 오류가 아니라 사용자 상태라서다.
+// 같은 장바구니로 여러 번 불러도 부작용은 없지만 생성 모델을 매번 새로 호출한다.
+public RecipeRecommendResponse recommendFromCartWithMissing(UUID userId) { ... }
 
-// 멤버 목록을 조회한다. 응답에는 모집률과, 동명이인을 구분하기 위한
-// 표시용 이름(displayName)이 포함된다 — 둘 다 이름만 봐서는 알 수 없는 정보다.
-public TripMembersResponse listMembers(UUID tripId, UUID userId) { ... }
+// 취향 벡터를 다시 만든다. 유형별 최근 5건만 읽으므로 호출이 겹쳐도 결과가 같고,
+// 큐가 차서 이번 갱신이 버려져도 다음 행동에서 재계산된다 — 유실을 허용하는 경로다.
+public void updateUserProfileEmbedding(UUID userId) { ... }
 
-// ✅ 이름이 곧 설명인 facade 위임 — 주석 없이 통과
-public TripMembersResponse removeMember(...) {
-  return tripCommandService.removeMember(...);
+// ✅ 이름이 곧 설명인 위임 — 주석 없이 통과
+public List<ProductRecommendResponse> recommendSimilarProducts(UUID productId, int topK) {
+  return vectorRecommendPipeline.recommend(...);
 }
 ```
 
@@ -142,15 +139,15 @@ public TripMembersResponse removeMember(...) {
 `// FIXME:`는 지금 동작은 하지만 알려진 결함·임시방편일 때, `// TODO:`는 아직 구현하지 않은 기능일 때 쓴다.
 
 ```java
-// TODO: 애플 발급자(iss=https://appleid.apple.com)까지 명시적으로 검증해야 한다. 지금은 JWKS
-// 자체가 애플 전용 소스라 실질적인 위험은 낮지만, 같은 프로젝트의 AppleNotificationVerifier는
-// 이미 iss까지 검증하고 있어서 방식을 맞추는 게 낫다 — docs/specs/apple-oauth-multi-audience.md
+// TODO: 상태·가격만 바뀐 수정 이벤트에서는 임베딩·재료명 호출을 건너뛰어야 한다. 지금은 상품이
+// 바뀔 때마다 외부 AI를 두 번 부르는데, 발행 측이 변경 필드를 주지 않아 무엇이 바뀌었는지 알 수 없다.
+// 수정 이벤트 빈도를 재기 전에는 낭비 규모를 모른다 — docs/audits/open-items.md C-2
 ```
 
 이슈 번호·스펙 경로가 없는 TODO를 새로 남기게 되면, 바로 이슈를 만들지 말고(생성 전 사용자 확인 필요 — `core-workflow.md` "새 이슈·새 브랜치·새 PR 생성은 항상 먼저 확인" 절) 우선 관련 스펙에 `[미정]`으로 표기해두는 걸 검토한다 — `core-scope.md` `[미정]` 처리 절.
 
 ## Javadoc (`/** */`)
 
-- **Controller 메서드:** `@Operation` `description`을 대체하는 용도로 Javadoc을 쓴다 — `openapi-conventions-operation.md`의 **OpenAPI @Operation · JWT** 절 참고(`therapi-runtime-javadoc`이 Swagger로 읽어감).
+- **Controller 메서드:** Javadoc은 **개발자용**이다. baro-ai에는 `therapi-runtime-javadoc`이 없어 Swagger로 넘어가지 않으므로, 프론트가 봐야 하는 설명이라면 `@Operation(description = ...)`에도 따로 적는다 — `openapi-conventions-operation.md` 참고.
 - **Service/Support 등 나머지 레이어:** 역할·Why를 `//`로 쓰거나 Javadoc으로 써도 된다 — **자유롭게 선택한다**(한 메서드에 둘 다 쓸 필요는 없다). 어느 쪽을 쓰든 위 절들의 산문체 원칙(완전한 문장, 화살표·설명 없는 전문용어 금지)은 동일하게 적용된다. 다만 `@param`/`@return`처럼 시그니처가 이미 보여주는 걸 그대로 반복하는 형식 태그는 여전히 쓰지 않는다 — 이름·시그니처로 못 담는 내용을 자유 서술로 담는 게 핵심이다.
 - 어느 쪽이든 `#n`·`BR-*`만으로 쓰지 말 것.

@@ -5,7 +5,7 @@ paths:
 
 # OpenAPI Conventions
 
-springdoc OpenAPI 3 + `therapi-runtime-javadoc`(build.gradle). 레이어·Entity·Enum은 [`spring-boot-java.md`](spring-boot-java.md), SOLID/OOP·ACID는 [`spring-boot-java-design.md`](spring-boot-java-design.md), 주석(`//`·Javadoc 작성 스타일)은 [`java-comments.md`](java-comments.md) 참고 — 이 파일은 **설명 문자열이 들어가는 어노테이션**(`@Schema`·`@Operation`·`@Parameter`·`@Tag`·`@ApiResponse`)만 다룬다.
+springdoc OpenAPI 3. (`therapi-runtime-javadoc`은 **의존성에 없다** — Javadoc이 Swagger로 넘어가지 않는다. 상세: `openapi-conventions-operation.md`) 레이어·Entity·Enum은 [`spring-boot-java.md`](spring-boot-java.md), SOLID/OOP·ACID는 [`spring-boot-java-design.md`](spring-boot-java-design.md), 주석(`//`·Javadoc 작성 스타일)은 [`java-comments.md`](java-comments.md) 참고 — 이 파일은 **설명 문자열이 들어가는 어노테이션**(`@Schema`·`@Operation`·`@Parameter`·`@Tag`·`@ApiResponse`)만 다룬다.
 
 **쓰는 원칙 — 완전한 문장으로, 산문체로 쓴다.** 화살표(`→`)나 `의미:`/`언제:`/`불가:`처럼 강제로 라벨을 나열하는 미니 구조 대신, 동료 개발자에게 말로 설명하듯 자연스러운 한국어 문장 2~4개로 쓴다. 영어 전문용어(idempotent 등)를 설명 없이 괄호로 툭 붙이지 않고, 그 용어가 뜻하는 바를 우리말 문장으로 풀어서 적는다. 프론트·신규 개발자가 다른 문서를 찾아보지 않고 한 번에 읽고 이해할 수 있어야 한다는 게 기준이다 — Stripe 개발 문서가 이 방향의 참고 사례다.
 

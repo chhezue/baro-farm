@@ -34,7 +34,7 @@ paths:
 
 ```java
 @Test
-void createTrip_whenInvalidDates_throwsBadRequest() { ... }
+void search_whenSizeExceedsLimit_throwsInvalidPageSize() { ... }
 ```
 
 - `given_when_then` 또는 `method_condition_expected` 스타일
