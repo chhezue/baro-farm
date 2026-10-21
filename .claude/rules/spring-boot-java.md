@@ -21,7 +21,7 @@ OpenAPI 어노테이션(`@Schema`·`@Operation`·`@Parameter`·`@ApiResponses`) 
 
 ## 레이어 (최소 규칙)
 
-- **presentation**: HTTP·DTO만. 비즈니스 로직 금지. 사용자 식별은 경로 변수(`/{userId}`)로 받는다 — baro-ai 컨트롤러는 `X-User-Id` 헤더를 읽지 않는다.
+- **presentation**: HTTP·DTO만. 비즈니스 로직 금지. 사용자 식별은 **게이트웨이가 넣어 주는 `X-User-Id` 헤더가 우선**이고, 경로 변수(`/{userId}`)는 아직 남아 있다(2026-09-08). 헤더가 오면 경로 변수와 같은지 확인하고 다르면 `USER_MISMATCH`(403)로 끊는다 — 그전에는 경로 변수를 그대로 믿어 남의 장바구니로 만든 레시피를 볼 수 있었다. 헤더가 **없으면 막지 않는다**: 게이트웨이가 실제로 넣어 주는지 미확인이라(`audits/open-items.md` B-2) 지금 필수로 만들면 API가 통째로 막힌다. 확인되면 헤더만 신뢰하도록 바꾸고 경로 변수를 지운다.
 - **application**: 유스케이스 조율. 외부 호출(ES·LLM·Feign) 순서와 실패 처리를 여기서 정한다.
 - **domain**: Elasticsearch `@Document` 클래스·enum·순수 계산 유틸. 프레임워크 의존을 최소로 둔다.
 - **infrastructure**: `ElasticsearchRepository` 구현체·LLM 클라이언트·Feign 클라이언트·Kafka 컨슈머.

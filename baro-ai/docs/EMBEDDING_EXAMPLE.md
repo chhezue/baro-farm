@@ -1,6 +1,6 @@
 # 취향 벡터가 만들어지는 과정 (예시)
 
-사용자 한 명의 행동 로그가 `UserProfileEmbeddingDocument` 하나로 바뀌는 과정을 실제 숫자로 따라간다. 계산 규칙 자체의 SSOT는 [`specs/taste-vector/taste-vector-pipeline.md`](specs/taste-vector/taste-vector-pipeline.md) 비즈니스 규칙 표이고, 이 문서는 그 규칙을 한 사례에 적용해 "왜 이런 벡터가 나오는지"를 보여준다.
+사용자 한 명의 행동 로그가 취향 벡터 하나로 바뀌는 과정을 실제 숫자로 따라간다. **2026-09-08부터 이 벡터는 인덱스에 저장되지 않고 개인화 추천을 요청받은 자리에서 계산된다**(`TasteProfile`) — 아래 JSON은 계산 결과가 어떤 모양인지 보여주는 예시이지 저장된 문서가 아니다. 계산 규칙 자체의 SSOT는 [`specs/taste-vector/taste-vector-pipeline.md`](specs/taste-vector/taste-vector-pipeline.md) 비즈니스 규칙 표이고, 이 문서는 그 규칙을 한 사례에 적용해 "왜 이런 벡터가 나오는지"를 보여준다.
 
 ## 언제 이 문서를 보는가
 
@@ -92,54 +92,36 @@ P3은 비중이 0이라 평균에서 빠질 뿐 아니라 경험 상품 목록�
 
 비중의 합(8)으로 나누는 단계는 코드에 없다. 마지막에 길이를 1로 맞추기 때문에 그 전에 전체를 같은 수로 나누든 말든 방향이 같아서다. 길이를 맞추는 것은 생략할 수 없다 — 상품 벡터와 코사인 유사도로 비교하려면 같은 기준이어야 한다.
 
-벡터가 아직 없는 상품(색인 실패 등)은 조용히 건너뛴다. 쓸 수 있는 벡터가 하나도 없으면 프로필을 저장하지 않고, 그 사용자의 개인화 추천은 빈 목록이 된다.
+벡터가 아직 없는 상품(색인 실패 등)은 조용히 건너뛴다. 쓸 수 있는 벡터가 하나도 없으면 취향 벡터를 만들지 못하고, 그 사용자의 개인화 추천은 빈 목록이 된다.
 
-## 저장 결과
+## 계산 결과
 
-```json
-{
-  "_id": "550e8400-e29b-41d4-a716-446655440000",
-  "_index": "user_profile_embeddings",
-  "_source": {
-    "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "userProfileVector": [0.0123456, -0.0234567, "… 총 768개"],
-    "lastUpdatedAt": "2026-09-07T12:30:00Z",
-    "sourceProductIds": ["…0001", "…0002", "…0004"]
-  }
-}
+결과는 `TasteProfile` 레코드 하나다. **어디에도 저장하지 않고** 이 요청의 추천에만 쓰고 버린다.
+
+```java
+new TasteProfile(
+    new float[] {0.0123456f, -0.0234567f, /* … 총 768개 */},   // vector — 길이가 1로 맞춰져 있다
+    List.of(productId1, productId2, productId4)                // experiencedProductIds
+)
 ```
 
-`sourceProductIds`는 **비중이 0이 아니었던** 상품이다. 개인화 추천은 이 상품들을 후보에서 뺀다 — 이미 담거나 산 것을 다시 권하지 않기 위해서다. 삭제한 P3은 비중이 0이라 여기 없고, 그래서 나중에 추천 후보로 다시 나올 수 있다.
+`experiencedProductIds`는 **비중이 0이 아니었던** 상품이다. 개인화 추천은 이 상품들을 후보에서 뺀다 — 이미 담거나 산 것을 다시 권하지 않기 위해서다. 삭제한 P3은 비중이 0이라 여기 없고, 그래서 나중에 추천 후보로 다시 나올 수 있다.
 
-### 인덱스 매핑
-
-```json
-{
-  "mappings": {
-    "properties": {
-      "userId": { "type": "keyword" },
-      "userProfileVector": { "type": "dense_vector", "dims": 768 },
-      "lastUpdatedAt": { "type": "date" },
-      "sourceProductIds": { "type": "keyword" }
-    }
-  }
-}
-```
+> 인덱스 매핑은 더 이상 없다. 2026-09-08까지는 `user_profile_embeddings` 인덱스에 `userProfileVector`·`lastUpdatedAt`·`sourceProductIds`로 저장했으나, 저장을 그만두면서 매핑도 함께 사라졌다 — 근거는 [`audits/taste-vector/refactor-log.md`](audits/taste-vector/refactor-log.md) 2026-09-08.
 
 ## 어떻게 쓰이는가
 
 ```java
-UserProfileEmbeddingDocument profile = userProfileEmbeddingRepository.findById(userId).orElse(null);
-float[] userVector = profile.getUserProfileVector();
+TasteProfile profile = userProfileEmbeddingService.computeProfile(userId).orElseThrow();
 
 // 경험 상품을 뺀 뒤 코사인 유사도로 후보를 뽑고, 다양화로 topK개를 고른다.
-List<ProductRecommendResponse> recommendations =
-    vectorRecommendPipeline.recommend(userVector, profile.getSourceProductIds(), topK);
+List<ProductSummaryResponse> recommendations =
+    vectorRecommendPipeline.recommend(profile.vector(), profile.experiencedProductIds(), topK);
 ```
 
 이 예시의 프로필은 P1 쪽으로 강하게 기울어 있으므로, 추천에는 경험 상품(P1·P2·P4)을 뺀 나머지 중 사과·과일과 가까운 상품이 먼저 올라온다. 카테고리 보너스는 주지 않는다 — 벡터 자체가 이미 그 방향으로 기울어 있어 같은 정보를 두 번 주는 셈이기 때문이다.
 
-> 저장 타입은 `float[]`이다(2026-09-05 상품 벡터와 통일). ES에 들어가는 JSON은 숫자 배열 그대로라 이미 만들어진 프로필 문서는 그대로 읽힌다.
+> 벡터 타입은 `float[]`이다(2026-09-05 상품 벡터와 통일). 상품 벡터와 차원·타입이 같아야 코사인 유사도를 바로 계산할 수 있다.
 
 ## 관련 문서
 

@@ -16,6 +16,7 @@ import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.listener.CommonErrorHandler;
+import org.springframework.kafka.listener.ConsumerRecordRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
@@ -44,6 +45,14 @@ public class KafkaConsumerConfig {
     @Value("${spring.kafka.consumer.group-id}")
     private String groupId;
 
+    /** 재시도를 다 쓴 메시지를 DLT로 옮기고 지표에 남기는 처리기 (KafkaDeadLetterConfig) */
+    private final ConsumerRecordRecoverer deadLetterRecoverer;
+
+    // @Value 필드와 달리 이 의존성은 다른 빈이라 생성자로 받는다.
+    public KafkaConsumerConfig(ConsumerRecordRecoverer deadLetterRecoverer) {
+        this.deadLetterRecoverer = deadLetterRecoverer;
+    }
+
     // === Product Event Consumer 설정 상수 ===
 
     /**
@@ -51,9 +60,10 @@ public class KafkaConsumerConfig {
      *
      * 2026-09-06 이전에는 1건이었다. 건당 외부 호출(임베딩·재료명 LLM)이 길어 max.poll.interval.ms를 넘길까 봐였는데,
      * 그 대신 처리량이 건당 지연의 역수로 고정됐다. 묶으면 임베딩은 묶음당 1회, ES 저장은 인덱스당 1회가 된다.
-     * 5로 정한 근거: 상품 1건의 최악 지연은 임베딩·재료명 호출 각각 30초 × 3회 재시도 = 90초씩 180초다(LlmClientConfig).
-     * 5건이면 최악 900초라 아래 PRODUCT_MAX_POLL_INTERVAL_MS(15분)와 같다 — 1건일 때 지키던 "최악에도 리밸런싱 없음"을
-     * 그대로 유지하는 최대값이다. 정상 지연(임베딩 묶음 1.5초 + 재료명 건당 약 1.5초)에서는 여유가 크다.
+     * 5로 정한 근거: 처음엔 상품 1건의 최악 지연을 임베딩·재료명 호출 각각 "30초 × 3회 = 90초씩 180초"로 봤고,
+     * 5건이면 900초라 아래 PRODUCT_MAX_POLL_INTERVAL_MS(15분)와 같다는 계산이었다. 실제로는 SDK 타임아웃이 재시도까지
+     * 통째로 감싸므로 호출 1회의 최악은 약 36초(30초 + 취소 뒤 대기)라 여유가 더 크다(docs/audits/cart-recipe/010 A-1) —
+     * 값은 그대로 두고 산정만 바로잡았다. 정상 지연(임베딩 묶음 1.5초 + 재료명 건당 약 1.5초)에서는 여유가 크다.
      * 근거: docs/audits/keyword-search/002-index-throughput-and-search-log.md A-1·M-3
      */
     private static final int PRODUCT_MAX_POLL_RECORDS = 5;
@@ -96,9 +106,14 @@ public class KafkaConsumerConfig {
             config, new StringDeserializer(), new ErrorHandlingDeserializer<>(jsonDeserializer));
     }
 
-    /** 1초 간격으로 최대 2회 다시 시도한 뒤 건너뛰는 공통 에러 핸들러. */
+    /**
+     * 1초 간격으로 최대 2회 다시 시도하고, 그래도 안 되면 그 메시지를 `{원래 토픽}.DLT`로 옮기는 공통 에러 핸들러.
+     *
+     * 2026-09-08까지는 재시도를 다 쓴 메시지를 로그 한 줄만 남기고 버렸다. 상품 하나가 영영 색인되지
+     * 않아도 알 방법이 없었기 때문에 옮겨 두는 쪽으로 바꿨다 — 상세는 {@link KafkaDeadLetterConfig}.
+     */
     private CommonErrorHandler retryingErrorHandler() {
-        return new DefaultErrorHandler(new FixedBackOff(RETRY_INTERVAL_MS, RETRY_MAX_ATTEMPTS));
+        return new DefaultErrorHandler(deadLetterRecoverer, new FixedBackOff(RETRY_INTERVAL_MS, RETRY_MAX_ATTEMPTS));
     }
 
     /**

@@ -1,6 +1,5 @@
 package com.barofarm.ai.event.consumer;
 
-import com.barofarm.ai.embedding.application.UserProfileRefreshTrigger;
 import com.barofarm.ai.event.model.CartLogEvent;
 import com.barofarm.ai.log.application.LogWriteService;
 import com.barofarm.log.history.model.EventDomain;
@@ -15,7 +14,9 @@ import org.springframework.stereotype.Component;
  * 장바구니 이벤트 Kafka Consumer.
  *
  * 'cart-events' 토픽에서 장바구니 변경 이벤트(추가, 수량변경, 삭제 등)를 수신하여
- * Elasticsearch에 사용자 행동 로그를 적재하고, 개인화 추천을 위한 사용자 취향 벡터 재계산을 비동기로 요청합니다.
+ * Elasticsearch에 사용자 행동 로그를 적재합니다. 여기서 하는 일은 로그 적재 하나뿐입니다 —
+ * 2026-09-08까지는 취향 벡터 재계산까지 비동기로 요청했으나, 그 계산을 추천 요청 시점으로 옮기면서
+ * 이 경로에서 뺐습니다(근거: {@code TasteProfile}).
  */
 @Slf4j
 @Component
@@ -25,11 +26,8 @@ public class CartEventConsumer {
     /** Elasticsearch 행동 로그 저장 서비스 */
     private final LogWriteService logWriteService;
 
-    /** 사용자 프로필 벡터 비동기 갱신 트리거 컴포넌트 */
-    private final UserProfileRefreshTrigger userProfileRefreshTrigger;
-
     /**
-     * 장바구니 이벤트를 수신하여 로그 저장 및 프로필 갱신을 수행하는 리스너 메서드.
+     * 장바구니 이벤트를 수신하여 행동 로그를 저장하는 리스너 메서드.
      *
      * @param event 수신된 장바구니 이벤트 페이로드
      * @param partition 수신된 Kafka 파티션 번호
@@ -64,7 +62,8 @@ public class CartEventConsumer {
             // 컨슈머 재시도가 발생하더라도 동일 문서를 덮어쓰도록 하여 로그 중복 적재를 방지합니다.
             // 취향 계산에 실제로 쓰이는 것만 저장합니다 — 행동 종류(추가 2점, 수량변경 1점, 삭제 0점)와
             // 발생 일시(30일 조회 창·최신순 정렬의 기준)입니다.
-            logWriteService.saveCartEventLog(
+            logWriteService.saveBehaviorLog(
+                EventDomain.CART,
                 partition + "-" + offset,
                 event.userId(),
                 data.productId(),
@@ -74,10 +73,6 @@ public class CartEventConsumer {
             );
             log.info("[CART_CONSUMER] Successfully saved cart event - Type: {}, User: {}, Product: {}",
                 event.event(), event.userId(), data.productName());
-
-            // [3단계: 사용자 취향 벡터 비동기 갱신 트리거]
-            // 장바구니 변경 사항이 사용자 취향 벡터에 반영되도록 UserProfileRefreshTrigger에 백그라운드 갱신을 위임합니다.
-            userProfileRefreshTrigger.refresh(event.userId());
         } catch (Exception e) {
             // [4단계: 예외 로깅 및 Kafka 재시도 유도]
             // 처리 중 예외 발생 시 에러 로그를 남기고 예외를 다시 던져(rethrow),

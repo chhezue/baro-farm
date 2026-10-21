@@ -46,7 +46,7 @@ public class ProductEmbeddingService {
      */
     private float[] embedProduct(String productName) {
         try {
-            log.debug("🔄 [PRODUCT_EMBEDDING] Generating embedding for product: {}", productName);
+            log.debug("[PRODUCT_EMBEDDING] Generating embedding for product: {}", productName);
 
             // [1단계: Spring AI EmbeddingModel을 통한 원격 임베딩 API 호출]
             // 단일 상품명을 List에 담아 호출하며, 결과가 비어있는 경우 get(0)에서 IndexOutOfBoundsException이 발생하여 catch 블록으로 이동합니다.
@@ -56,13 +56,13 @@ public class ProductEmbeddingService {
             // "벡터 없음" 상태는 null 하나로만 일관되게 표현하므로, 빈 배열 대신 정상 생성된 float[] 벡터를 그대로 반환합니다.
             float[] floatVector = embeddings.get(0);
 
-            log.debug("✅ [PRODUCT_EMBEDDING] Successfully generated embedding with {} dimensions", floatVector.length);
+            log.debug("[PRODUCT_EMBEDDING] Successfully generated embedding with {} dimensions", floatVector.length);
             return floatVector;
 
         } catch (Exception e) {
             // [3단계: 실패 로깅 및 '벡터 없음' 반환]
             // 외부 AI API 호출이 실패해도 색인은 계속돼야 하므로 예외를 올리지 않고 null을 돌려줍니다.
-            log.warn("⚠️ [PRODUCT_EMBEDDING] Failed to generate embedding for product: {}, Error: {}",
+            log.warn("[PRODUCT_EMBEDDING] Failed to generate embedding for product: {}, Error: {}",
                     productName, e.getMessage());
             return null;
         }
@@ -86,13 +86,13 @@ public class ProductEmbeddingService {
         try {
             List<float[]> vectors = embeddingModel.embed(productNames);
             if (vectors.size() == productNames.size()) {
-                log.debug("✅ [PRODUCT_EMBEDDING] Batch embedded {} products in one call", productNames.size());
+                log.debug("[PRODUCT_EMBEDDING] Batch embedded {} products in one call", productNames.size());
                 return vectors;
             }
-            log.warn("⚠️ [PRODUCT_EMBEDDING] Batch returned {} vectors for {} products. Falling back per product",
+            log.warn("[PRODUCT_EMBEDDING] Batch returned {} vectors for {} products. Falling back per product",
                 vectors.size(), productNames.size());
         } catch (Exception e) {
-            log.warn("⚠️ [PRODUCT_EMBEDDING] Batch embedding failed for {} products ({}). Falling back per product",
+            log.warn("[PRODUCT_EMBEDDING] Batch embedding failed for {} products ({}). Falling back per product",
                 productNames.size(), e.getMessage());
         }
 

@@ -75,6 +75,12 @@ dependencies {
 
     // ========= 테스트 (JUnit 5·Mockito·AssertJ — 2026-09-06 감사 cart-recipe/005 B-3) =========
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    // Elasticsearch 실물을 띄워 매핑·쿼리를 확인하는 통합 테스트용.
+    // 단위 테스트가 mock으로 고정할 수 있는 것은 "무엇을 호출했는가"까지고, 매핑이 실제로 만들어지는지나
+    // edge_ngram 접두어가 정말 걸리는지는 실물이 있어야 알 수 있다. Docker가 없으면 해당 테스트만 건너뛴다.
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:elasticsearch'
 }
 
 tasks.named('test') {
