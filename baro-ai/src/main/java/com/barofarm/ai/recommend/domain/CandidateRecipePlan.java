@@ -1,6 +1,5 @@
 package com.barofarm.ai.recommend.domain;
 
-import com.barofarm.ai.recommend.infrastructure.llm.RecipeCandidateDraft;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -10,7 +9,7 @@ import java.util.stream.Collectors;
  *
  * [핵심 검증 정책]
  * - LLM이 자체적으로 응답하는 "사용된 재료" 및 "부족한 재료"는 환각(Hallucination) 오류가 발생하기 쉬우므로 사용하지 않습니다.
- * - 대신 {@link #from(RecipeCandidateDraft, List)} 정적 팩토리 메서드에서 사용자의 실제 보유 재료와 레시피 필요 재료를
+ * - 대신 {@link #from(String, List, String, List)} 정적 팩토리 메서드에서 사용자의 실제 보유 재료와 레시피 필요 재료를
  *   정규화 비교하여 '실제 사용된 재료'와 '부족한 핵심 재료'를 서버가 100% 보증하여 계산합니다.
  * - 이 둘은 응답의 `ownedIngredients`·`missingCoreIngredients`가 되며, 합치면 핵심 재료가 됩니다.
  *   장바구니 전체가 아니라 '이 요리가 쓰는 것'만 내보내야 화면에서 앞뒤가 맞습니다.
@@ -30,17 +29,27 @@ public record CandidateRecipePlan(
 ) {
 
     /**
-     * LLM 원본 초안(RecipeCandidateDraft)과 사용자의 보유 재료 목록을 대조하여
+     * LLM 원본 초안의 값과 사용자의 보유 재료 목록을 대조하여
      * 재료 정규화 및 서버 측 사용/부족 재료를 계산한 후 CandidateRecipePlan 객체를 생성합니다.
      *
-     * @param draft            LLM이 생성한 레시피 원본 초안
-     * @param ownedIngredients 사용자의 장바구니 보유 재료명 목록
+     * <p>LLM 응답 타입(인프라 계약)이 아니라 원시값을 받습니다 — 도메인이 응답 스키마에 끌려가지 않게
+     * 하기 위해서입니다(docs/audits/cart-recipe/010 B-4). 풀어서 넘기는 쪽은 생성기입니다.
+     *
+     * @param recipeName            LLM이 낸 요리 이름
+     * @param recipeIngredientsCore LLM이 낸 핵심 재료 목록 (정규화 전)
+     * @param instructions          LLM이 낸 조리법
+     * @param ownedIngredients      사용자의 장바구니 보유 재료명 목록
      * @return 재료 정합성이 검증된 최종 레시피 계획 객체
      */
-    public static CandidateRecipePlan from(RecipeCandidateDraft draft, List<String> ownedIngredients) {
+    public static CandidateRecipePlan from(
+        String recipeName,
+        List<String> recipeIngredientsCore,
+        String instructions,
+        List<String> ownedIngredients
+    ) {
         // [1단계: LLM 응답 재료명 목록 정규화]
         // 핵심 재료(core) 문자열의 공백을 다듬고 빈 항목을 제거합니다.
-        List<String> core = IngredientProcessingUtil.normalizeList(draft.recipeIngredientsCore());
+        List<String> core = IngredientProcessingUtil.normalizeList(recipeIngredientsCore);
 
         // [2단계: 보유 재료 비교용 Set 구성]
         // 대소문자 무시 및 공백 제거된 정규화 키 집합을 생성하여 O(1) 포함 여부 조회를 준비합니다.
@@ -62,9 +71,9 @@ public record CandidateRecipePlan(
 
         // [5단계: 서버 검증이 완료된 CandidateRecipePlan 도메인 객체 생성]
         return new CandidateRecipePlan(
-            draft.recipeName(),
+            recipeName,
             core,
-            draft.instructions(),
+            instructions,
             usedOwned,
             missingCore
         );

@@ -1,17 +1,18 @@
 package com.barofarm.ai.search.infrastructure.llm;
 
+import com.barofarm.ai.common.llm.LlmCallKind;
+import com.barofarm.ai.common.llm.LlmGateway;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
 /**
  * 상품명에서 요리 재료명을 뽑아 {@code ProductDocument.ingredientName}에 넣을 값을 만든다.
  * 색인 시점(Kafka 상품 이벤트)에만 호출되며, 추천 요청 경로에서는 호출하지 않는다.
  * 근거: docs/decisions/002-ingredient-name-at-index-time.md
+ *
+ * <p>호출 자체(타임아웃·재시도·구조화 출력·지표)는 {@link LlmGateway}가 맡는다. 이 클래스가 정하는 것은
+ * 프롬프트 문구와 빈 값의 의미뿐이다.
  */
 @Slf4j
 @Component
@@ -24,68 +25,48 @@ public class ProductIngredientNormalizer {
 
     private static final String NO_CATEGORY = "(카테고리 없음)";
 
-    // 응답 형식을 Gemini API에 JSON 스키마로 못 박는다. 근거: docs/audits/cross-cutting/001-llm-call-infra.md A-2
-    private static final BeanOutputConverter<NormalizationResponse> RESPONSE_CONVERTER =
-        new BeanOutputConverter<>(NormalizationResponse.class);
-
-    private final ChatClient chatClient;
+    private final LlmGateway llmGateway;
 
     /**
      * 상품명과 카테고리명을 함께 넘겨 요리 재료명을 뽑는다.
      * 카테고리는 상품명만으로 애매한 경우를 좁혀 주는 힌트다. 예를 들어 카테고리가 "제철 과일"로
      * 함께 오면 산지·당도 같은 수식어를 떼고 과일 이름만 남기기가 쉬워진다.
-     * LLM 호출이 실패하거나 빈 답이 오면 예외를 던지지 않고 빈 문자열을 돌려준다.
+     * 호출이 실패하거나 빈 답이 오면 예외를 던지지 않고 빈 문자열을 돌려준다.
      * 빈 값은 "아직 재료명을 모른다"는 표시다. 레시피 추천은 빈 값인 상품을 보유 재료에서 건너뛰고
      * 재색인이 필요한 건수로 센다. 정규식으로 대충 만든 값을 넣으면 그 표시가 사라지고
      * "대란" 같은 틀린 재료명이 정상 값처럼 남으므로 폴백은 두지 않는다.
      */
     public String normalize(String productName, String categoryName) {
         // [1단계: 상품명 유효성 검증]
-        // 상품명이 비어있는 경우 재료를 추출할 수 없으므로 즉시 빈 문자열을 반환합니다.
         if (productName == null || productName.isBlank()) {
             return "";
         }
         String category = categoryName == null || categoryName.isBlank() ? NO_CATEGORY : categoryName;
 
-        try {
-            // [2단계: Gemini LLM 호출을 통한 재료명 추출]
-            // temperature=0.0(결정적 추출) 및 JSON 스키마를 강제하여 상품명과 카테고리로부터 재료명을 추출합니다.
-            String json = chatClient.prompt()
-                .options(GoogleGenAiChatOptions.builder()
-                    .temperature(DETERMINISTIC_TEMPERATURE)
-                    .responseMimeType(MediaType.APPLICATION_JSON_VALUE)
-                    .responseSchema(RESPONSE_CONVERTER.getJsonSchema())
-                    .build())
-                .user(u -> u.text(PROMPT)
-                    .param("productName", productName)
-                    .param("categoryName", category))
-                .call()
-                .content();
+        // [2단계: 관문을 통해 호출 — 상품명·카테고리는 판매자가 쓴 값이라 그대로 끼워 넣지 않는다]
+        String prompt = PROMPT
+            .replace("{productName}", LlmGateway.asData(productName))
+            .replace("{categoryName}", LlmGateway.asData(category));
 
-            // [3단계: JSON 응답 파싱 및 문자열 정제]
-            NormalizationResponse response = RESPONSE_CONVERTER.convert(json);
+        String normalized = llmGateway
+            .call(LlmCallKind.BATCH, prompt, NormalizationResponse.class, DETERMINISTIC_TEMPERATURE)
+            .map(NormalizationResponse::normalizedIngredient)
+            .map(String::trim)
+            .orElse("");
 
-            String normalized = response == null || response.normalizedIngredient() == null
-                ? "" : response.normalizedIngredient().trim();
-
-            // 이 쇼핑몰은 농산물과 그 가공·발효식품만 팔아 "재료가 아닌 상품"이라는 경우가 없다.
-            // 그래서 빈 답은 재료 아님이 아니라 추출 실패로만 해석한다.
-            if (normalized.isBlank()) {
-                log.warn("재료명 추출 결과가 비어 빈 값으로 색인합니다. 재색인 대상: '{}'", productName);
-                return "";
-            }
-
-            // [4단계: 정규화된 재료명 반환]
-            log.debug("상품명 정규화: '{}'에서 '{}'을(를) 추출", productName, normalized);
-            return normalized;
-        } catch (Exception e) {
-            // 외부 AI API 호출 실패 시 색인 전체 실패를 막기 위해 빈 문자열을 반환하고 경고 로그를 남깁니다.
-            log.warn("재료명 추출 실패로 빈 값으로 색인합니다. 재색인 대상: '{}'", productName, e);
+        // 이 쇼핑몰은 농산물과 그 가공·발효식품만 팔아 "재료가 아닌 상품"이라는 경우가 없다.
+        // 그래서 빈 답은 재료 아님이 아니라 추출 실패로만 해석한다.
+        if (normalized.isBlank()) {
+            log.warn("재료명 추출 결과가 비어 빈 값으로 색인합니다. 재색인 대상: '{}'", productName);
             return "";
         }
+
+        log.debug("상품명 정규화: '{}'에서 '{}'을(를) 추출", productName, normalized);
+        return normalized;
     }
 
-    private record NormalizationResponse(String normalizedIngredient) {
+    // 패키지 가시성: 같은 패키지의 단위 테스트가 관문의 응답을 흉내 낼 때 만든다
+    record NormalizationResponse(String normalizedIngredient) {
     }
 
     private static final String PROMPT = """

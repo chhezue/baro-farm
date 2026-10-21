@@ -327,3 +327,135 @@ review 소유 파일의 중복 설정 3건(`@EnableKafka` 중복, 본문이 빈 
 - **review 컨슈머는 손대지 않았다** — `ReviewConsumer`의 중복 `groupId`, `reviewEventConsumerFactory`의 역직렬화 방어·에러 핸들러 부재. 팀원 소유라 [`open-items.md`](../open-items.md) B-7로 넘겼다
 - **`topK` 상한 50은 근거가 얇다** — 화면에 그만큼 노출할 일이 없고 다양화 반복이 그만큼 늘어난다는 판단이지, 측정한 값이 아니다. 실제 사용 패턴이 보이면 조정한다
 - **`RecommendErrorCode`를 다시 만들었다** — cart-recipe 라운드에서 "던지는 곳이 없어" 지운 파일이다. 이번에 실제로 던지는 분기가 생겨 복구했고, 추천 실패를 빈 목록으로 흘리는 정책은 그대로다
+
+## 2026-09-08 — LLM 호출 관문 신설 · Kafka 실패 메시지 보존 · 남의 정보 조회 차단
+
+**근거:** 사용자 요청으로 2026-09-08에 `baro-ai` 전체를 다시 감사한 결과다. 기존 감사(`00N-*.md`)처럼 작업 단위 하나를 좁게 본 것이 아니라 모듈 전체를 훑었고, 결과 문서는 [`full-module/`](../full-module/001-complexity-and-overengineering.md) 세 편이다. 여기서 "P0"는 동작하지 않거나 잘못된 설계로 판정해 반드시 고치기로 한 것, "P1"은 백엔드 설계 판단을 코드에 드러내기 위해 보강하기로 한 것을 가리킨다 — `core-scope.md`의 `priority: must/could` 라벨과는 다른 축이다. review 패키지는 팀원 소유라 이번 범위에서 제외했다.
+
+
+### 왜 문제였나 (쉬운 말로)
+
+**첫째, 레시피 추천 한 번이 서버의 일손 하나를 최대 90초까지 붙잡을 수 있었다.** 생성 모델(Gemini) 호출에 30초까지 기다리고 실패하면 세 번까지 다시 시도하도록 돼 있었는데, 그 기다림이 사용자 요청을 받는 일손 위에서 일어났다. 그 일손은 검색·자동완성과 함께 쓰는 공용 인력이라, 모델이 느려지면 레시피와 아무 상관 없는 검색까지 같이 멈출 수 있는 구조였다. 실제로 이 서비스에서 일어날 만한 장애 중 가장 현실적인 것이 이것인데 대비가 없었다.
+
+**둘째, 처리하지 못한 메시지가 조용히 사라졌다.** 상품이 바뀌었다는 알림을 세 번 처리해 보고 안 되면 로그 한 줄만 남기고 버렸다. 그래서 어떤 상품이 검색에 안 뜨더라도 왜 안 뜨는지 되짚을 자료가 남지 않았다.
+
+**셋째, 주소창의 사용자 번호만 바꾸면 남의 정보를 볼 수 있었다.** 개인화 추천과 레시피 추천이 주소에 적힌 번호를 그대로 믿었고, 레시피 쪽은 그 번호로 장바구니 서비스에 다시 물어보기까지 했다.
+
+**넷째, 검색 엔진이 죽어도 "추천할 게 없음"과 똑같이 보였다.** 이 건은 같은 날 함께 고쳤지만 공유 인프라가 아니라 벡터 검색 고유 변경이라, 상세는 [`vector-similarity/refactor-log.md`](../vector-similarity/refactor-log.md) 2026-09-08에 있다. 여기서는 계약이 바뀐 사실만 아래 표에 남긴다.
+
+### 무엇을 바꿨나
+
+- **LLM 호출을 관문 하나로 모았다**(`common/llm/LlmGateway`). 사용자가 기다리는 호출은 3초에 끊고 다시 시도하지 않으며, 동시에 5건까지만 나간다. 색인처럼 사람이 안 기다리는 호출은 종전대로 30초·3회다. 응답 형식 강제와 호출 지표도 여기로 모았다.
+- 재시도를 다 쓴 메시지는 원래 토픽 이름 뒤에 `.DLT`가 붙은 토픽으로 옮긴다. 몇 건이 그렇게 됐는지는 지표로 본다.
+- 게이트웨이가 넣어 주는 `X-User-Id`가 오면 주소의 번호와 대조하고, 다르면 403으로 끊는다. **헤더가 없으면 막지 않는다** — 게이트웨이가 실제로 넣어 주는지 아직 확인되지 않았고(open-items B-2), 지금 필수로 만들면 두 API가 통째로 막힌다.
+
+### Before / After
+
+| 항목 | Before | After |
+|---|---|---|
+| 레시피 호출이 요청 스레드를 잡는 최대 시간 | 약 93초 (30초 × 3회 + 백오프) | 3초 |
+| 모델이 멈췄을 때 묶이는 요청 스레드 | 제한 없음 (기본 200까지) | 5개 |
+| 재시도 소진 메시지 | 폐기 (로그만) | `{토픽}.DLT`로 이동 + `kafka.records.dead_lettered` |
+| 다른 사용자 ID로 조회 | 그대로 응답 | 헤더가 오면 403 `USER_MISMATCH` |
+| ES 조회 실패 시 추천 응답 | 200 + 빈 배열 | 503 `SEARCH_UNAVAILABLE` |
+| LLM 호출 지표 | 없음 | `llm.call` (경로·결과 태그) |
+| 추천 결과 지표 | 없음 | `recommendation.results`, `recommendation.results.reason` |
+
+### API 계약 변경
+
+5인 공용 저장소라 팀원이 나중에 놀라지 않게 남긴다.
+
+| 엔드포인트 | 변경 |
+|---|---|
+| `GET /api/v1/recommendations/personalized/{userId}` | `X-User-Id` 헤더가 경로와 다르면 **403** (신규). 헤더 없으면 종전대로 |
+| `GET /api/v1/recommendations/recipes/{userId}` | 위와 같음 |
+| 추천·검색 전반 | ES 조회 실패 시 **503** (신규). 그전에는 200 + 빈 결과 |
+
+### 바꾼 파일
+
+- 신규: `common/llm/LlmGateway.java`·`LlmCallKind.java`, `config/KafkaDeadLetterConfig.java`, `recommend/application/RecommendationMetrics.java`
+- `config/LlmClientConfig.java` — 클라이언트를 요청/배치 두 개로 분리, 요청 경로 모델 직접 조립
+- `config/KafkaConsumerConfig.java` — 공통 에러 핸들러에 DLT 처리기 연결 (리뷰 팩토리는 손대지 않음)
+- `recommend/infrastructure/llm/RecipeCandidateGenerator.java`·`search/infrastructure/llm/ProductIngredientNormalizer.java` — 관문 경유로 전환
+- `recommend/presentation/RecommendationController.java` — 헤더 대조
+- `recommend/exception/RecommendErrorCode.java` — `USER_MISMATCH` 추가
+- 벡터 조회 실패 처리(`SearchErrorCode`·`VectorProductSearchService`)는 [`vector-similarity/refactor-log.md`](../vector-similarity/refactor-log.md) 2026-09-08 참고
+- 테스트(신규): `LlmClientConfigTest`(2)·`LlmGatewayTest`(2)
+
+### 검증
+
+- `./gradlew :baro-ai:test` — **전건 통과**
+- 요청 경로 채팅 클라이언트는 자동설정을 거치지 않고 직접 조립하므로, 배선이 실제로 되는지를 `LlmClientConfigTest`가 따로 확인한다 — 이 저장소에는 기동을 확인하는 테스트가 없어 빠뜨리면 배포 시점에야 드러난다
+- **미검증:** DLT 실제 발행(로컬 Kafka 필요), Gemini 실호출 지연이 3초 예산 안에 들어오는지, 게이트웨이가 `X-User-Id`를 넣는지
+
+### 남긴 것
+
+- 프롬프트 문구는 건드리지 않았다 — 골든셋으로 검증된 문장이라(69.0% → 90.5%) 고치면 같은 골든셋으로 다시 재야 한다. 관문은 외부 값의 중괄호만 지운다(치환 자리로 읽히는 것 방지)
+- 리뷰 요약(`ReviewSummaryService`)은 관문을 쓰지 않는다 — 팀원 소유 코드라 이번 범위 밖. 응답 스키마 강제도 그쪽만 빠져 있다
+- 요청 경로 상한 3초와 동시 5건은 실측이 아니라 게이트웨이 상한(5초)·기본 스레드 수(200)에서 끌어낸 값이다. 실호출 지연 분포를 재면 조정한다
+
+## 2026-09-09 — 죽은 설정·중복 DTO·형식이 어긋난 이벤트 모델 정리
+
+**근거:** [`full-module/003-target-architecture-and-priority.md`](../full-module/003-target-architecture-and-priority.md)의 P2·P3 항목이다. P0·P1은 2026-09-08에 반영했고, 이번에 나머지를 처리했다. review 패키지 소유 항목(P2-3·P2-4·P3-5)은 팀원 몫이라 손대지 않았다.
+
+### 왜 문제였나 (쉬운 말로)
+
+작은 것들이지만 전부 "읽는 사람을 헷갈리게 하는" 종류였다.
+
+**첫째, 아무 일도 하지 않는 설정이 남아 있었다.** "레시피 재료로 쓰지 않을 카테고리" 목록이 계속 비어 있어 아무것도 걸러내지 않았는데, 그 죽은 분기를 위해 설정 파일·설정 클래스·장바구니에서 받아 오는 필드가 함께 남아 있었다. 코드를 읽는 사람은 필터가 동작한다고 생각한다.
+
+**둘째, 똑같이 생긴 응답 타입이 둘이었다.** 검색 결과용과 추천 결과용이 필드까지 같은데 따로 있었고, 레시피 추천은 한쪽을 다른 쪽으로 **필드마다 옮겨 담는 반복문**을 갖고 있었다. 두 타입이 다른 것을 나타내지 않는데 변환 코드만 존재했다.
+
+**셋째, 이벤트 모델 다섯 중 하나만 모양이 달랐다.** 넷은 `record`인데 상품 이벤트만 옛 방식이었고, "역직렬화에 setter가 필요해서"라는 오해가 있었다 — 나머지 넷이 이미 record로 정상 소비되고 있어 근거가 없었다.
+
+**넷째, 로그에 이모지가 섞여 있었다.** 취향 문제로 볼 수도 있지만, 운영 도구에서 검색·필터링할 때 걸리적거리고 포트폴리오로 코드를 보여 줄 때도 인상이 갈린다.
+
+### 무엇을 바꿨나
+
+| 항목 | Before | After |
+|---|---|---|
+| 제외 카테고리 필터 | 설정 클래스 + yml + 장바구니 카테고리 필드 + 판정 메서드 | 전부 삭제 (필요해지면 되살린다) |
+| 상품 응답 타입 | `ProductSearchResponse` · `ProductRecommendResponse` (필드 동일) | `ProductSummaryResponse` 하나 |
+| 상품 이벤트 모델 | Lombok `@Getter`/`@Setter` 클래스 | `record` (다른 이벤트 넷과 통일) |
+| 로그 이모지 | ✅❌🔄📨⚠️ | 없음 |
+| 미사용 Kafka producer 설정 | `application.yml`에 있으나 전용 팩토리가 있어 읽히지 않음 | 삭제 + 이유 주석 |
+
+### API 계약 변경
+
+응답 **본문은 그대로**이고 OpenAPI 스키마 이름만 바뀐다.
+
+| 엔드포인트 | Before | After |
+|---|---|---|
+| 검색·추천·레시피의 상품 항목 | `ProductSearchResponse` / `ProductRecommendResponse` | `ProductSummaryResponse` |
+
+### 바꾼 파일
+
+- 삭제: `recommend/application/config/RecommendProperties.java`, `recommend/application/dto/ProductRecommendResponse.java`, `src/main/resources/recipe-recommend.yml`
+- `search/application/dto/product/ProductSummaryResponse.java` — `ProductSearchResponse`에서 이름을 바꾸고 `from(ProductDocument)` 흡수
+- `recommend/application/RecipeRecommendService.java` — 제외 필터·필드 복사 반복문 제거
+- `recommend/infrastructure/client/dto/CartItemInfo.java` — 카테고리 코드 제거
+- `search/infrastructure/event/ProductEvent.java` — record 전환
+- 로그 이모지 제거 5파일
+
+### 검증
+
+- `./gradlew :baro-ai:build` — 전건 통과
+- 상품 이벤트 record 전환은 **정적 확인까지만** 했다. 나머지 이벤트 넷이 이미 record로 소비되고 있다는 것이 근거이고, 실제 Kafka로 상품 이벤트를 흘려 보지는 않았다
+
+### 하지 않은 것
+
+- **`// [N단계: …]` 단계 주석과 Javadoc의 감사 문서 링크는 그대로 뒀다.** 감사에서 P3(건드리지 않아도 됨)으로 분류했던 항목인데, 확인해 보니 `java-comments.md`가 "baro-ai는 이 방식을 의도적으로 채택했다 — **되돌리지 않는다**"고 명시하고 있었다. 감사 항목이 프로젝트 규칙과 충돌했던 것이라 규칙을 따랐다
+- **`SwaggerConfig`를 yml로 옮기지 못했다.** springdoc은 API 제목·설명을 프로퍼티로 받지 않아 `OpenAPI` 빈이 반드시 필요하다. 감사 항목(P3-4)이 틀렸다
+
+## 2026-09-09 — 요청 경로 LLM 클라이언트의 숨은 SDK 재시도 차단 · 관문 실패 지표 복구 (cart-recipe 감사 010 A-1·B-1)
+
+공유 인프라(`config/LlmClientConfig`·`common/llm/LlmGateway`)를 고친 변경이라 여기에도 남긴다. 계기·검증·쉬운 설명은 [`cart-recipe/refactor-log.md`](../cart-recipe/refactor-log.md) 2026-09-09(010) 절이 SSOT다.
+
+| 무엇 | Before | After |
+|------|--------|-------|
+| `LlmClientConfig.buildClient` 재시도 옵션 | `attempts > 1`일 때만 명시 → 요청 경로는 SDK 기본(5회·백오프·타임아웃 취소도 재시도) | 두 경로 모두 명시. 1회일 때는 대기 0. `httpOptions(Duration, int)`로 분리 |
+| 배치 경로 최악 산정(주석) | "30초 × 3회 + 백오프 = 93초", 상품당 180초 | 타임아웃이 재시도까지 감싸므로 약 36초. 값(30초·3회·poll 5건·15분)은 그대로 |
+| `LlmGateway` 실패 결과 | 예외를 `invoke`에서 삼켜 전부 `empty` | `timed`가 `failed`로 기록 후 빈 결과. 결과 태그 4종(`success`·`empty`·`failed`·`rejected`) 전부 도달 가능 |
+
+2026-09-08 절의 "요청 경로는 3초에 끊고 재시도하지 않는다"는 이 변경으로 비로소 사실이 됐다. 그전 상태의 근거(google-genai 1.37.0 `ApiClient.createHttpClient`·`RetryInterceptor` 바이트코드)는 `cart-recipe/010` A-1.
+
