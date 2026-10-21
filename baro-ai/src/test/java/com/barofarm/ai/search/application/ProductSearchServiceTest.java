@@ -13,10 +13,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
-import com.barofarm.ai.search.application.dto.product.ProductSearchResponse;
+import com.barofarm.ai.search.application.dto.product.ProductSummaryResponse;
 import com.barofarm.ai.search.domain.ProductDocument;
 import com.barofarm.ai.search.exception.SearchErrorCode;
-import com.barofarm.ai.search.infrastructure.elasticsearch.ProductAutocompleteRepository;
 import com.barofarm.exception.CustomException;
 import java.util.List;
 import java.util.UUID;
@@ -31,8 +30,10 @@ import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.query.Query;
 
 /**
- * 검색 서비스의 ES 앞단 계약을 고정한다 — 페이징·자동완성 입력 검증(ES를 부르기 전에 400으로 끊는다)과
- * 키워드 여러 개 조회가 `multiSearch` 한 번으로 끝나는 것. ES·리포지토리는 전부 mock이다.
+ * 검색 서비스의 ES 앞단 계약을 고정한다 — 페이징 입력 검증(ES를 부르기 전에 400으로 끊는다)과
+ * 키워드 여러 개 조회가 `multiSearch` 한 번으로 끝나는 것. ES는 mock이다.
+ *
+ * 자동완성은 2026-09-09에 별도 서비스로 나가 `ProductAutocompleteServiceTest`가 맡는다.
  *
  * 검색 로그 적재·프로필 갱신 테스트는 2026-09-07에 지웠다 — 검색을 취향 신호에서 빼면서 그 경로 자체가
  * 없어졌다(docs/audits/taste-vector/005-signal-and-weight-simplification.md).
@@ -40,14 +41,12 @@ import org.springframework.data.elasticsearch.core.query.Query;
 class ProductSearchServiceTest {
 
     private ElasticsearchOperations operations;
-    private ProductAutocompleteRepository autocompleteRepository;
     private ProductSearchService service;
 
     @BeforeEach
     void setUp() {
         operations = mock(ElasticsearchOperations.class);
-        autocompleteRepository = mock(ProductAutocompleteRepository.class);
-        service = new ProductSearchService(operations, autocompleteRepository);
+        service = new ProductSearchService(operations);
     }
 
     // ---- 페이징 검증 (keyword-search/001 A-4 계약) ----
@@ -94,28 +93,6 @@ class ProductSearchServiceTest {
         verify(operations, times(1)).search(any(Query.class), eq(ProductDocument.class));
     }
 
-    // ---- 자동완성 검증 ----
-
-    @Test
-    @DisplayName("autocomplete — size는 1~20, 0과 21은 INVALID_AUTOCOMPLETE_SIZE")
-    void autocomplete_sizeOutOfRange_rejected() {
-        assertThatThrownBy(() -> service.autocomplete("토마", 0))
-            .isInstanceOf(CustomException.class)
-            .extracting("errorCode").isEqualTo(SearchErrorCode.INVALID_AUTOCOMPLETE_SIZE);
-        assertThatThrownBy(() -> service.autocomplete("토마", 21))
-            .isInstanceOf(CustomException.class)
-            .extracting("errorCode").isEqualTo(SearchErrorCode.INVALID_AUTOCOMPLETE_SIZE);
-        verifyNoInteractions(autocompleteRepository);
-    }
-
-    @Test
-    @DisplayName("autocomplete — 2글자 미만이면 리포지토리를 부르지 않고 빈 목록이다")
-    void autocomplete_shortQuery_emptyWithoutLookup() {
-        assertThat(service.autocomplete("토", 5)).isEmpty();
-        assertThat(service.autocomplete(null, 5)).isEmpty();
-        verifyNoInteractions(autocompleteRepository);
-    }
-
     // ---- multi-search (cart-recipe/005 A-2) ----
 
     @Test
@@ -126,7 +103,7 @@ class ProductSearchServiceTest {
             List.of(hits(document("대파 1단")), hits(), hits(document("새우젓 500g")));
         when(operations.multiSearch(anyList(), eq(ProductDocument.class))).thenReturn(perKeyword);
 
-        List<List<ProductSearchResponse>> result = service.searchByKeywords(List.of("대파", "겨자", "새우젓"), 2);
+        List<List<ProductSummaryResponse>> result = service.searchByKeywords(List.of("대파", "겨자", "새우젓"), 2);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<? extends Query>> captor = ArgumentCaptor.forClass(List.class);
@@ -135,9 +112,9 @@ class ProductSearchServiceTest {
         assertThat(captor.getValue()).hasSize(3);
 
         assertThat(result).hasSize(3);
-        assertThat(result.get(0)).extracting(ProductSearchResponse::productName).containsExactly("대파 1단");
+        assertThat(result.get(0)).extracting(ProductSummaryResponse::productName).containsExactly("대파 1단");
         assertThat(result.get(1)).isEmpty();
-        assertThat(result.get(2)).extracting(ProductSearchResponse::productName).containsExactly("새우젓 500g");
+        assertThat(result.get(2)).extracting(ProductSummaryResponse::productName).containsExactly("새우젓 500g");
     }
 
     @Test
@@ -178,7 +155,7 @@ class ProductSearchServiceTest {
         List<SearchHits<ProductDocument>> shorter = List.of(hits(document("대파 1단")), hits(document("새우젓 500g")));
         when(operations.multiSearch(anyList(), eq(ProductDocument.class))).thenReturn(shorter);
 
-        List<List<ProductSearchResponse>> result = service.searchByKeywords(List.of("대파", "겨자", "새우젓"), 2);
+        List<List<ProductSummaryResponse>> result = service.searchByKeywords(List.of("대파", "겨자", "새우젓"), 2);
 
         assertThat(result).hasSize(3);
         assertThat(result).allSatisfy(perKeyword -> assertThat(perKeyword).isEmpty());

@@ -233,3 +233,95 @@
 
 - 행동×수량의 15배 범위가 의도인지(판단 항목 2)는 개인화 추천 골든셋이 생긴 뒤 잰다. 지금은 `behaviorWeight_rangeIsZeroOrOneToFifteen`이 숫자만 고정한다
 - `taste-vector/002` C-1(저장 직후 조회가 1초 refresh 안에 있으면 최신 로그를 놓침)은 키워드 검색 라운드 A-2에서 순서를 확인한다
+
+## 2026-09-08 — 취향 벡터를 미리 만들지 않고 추천할 때 계산
+
+**근거:** 사용자 요청으로 2026-09-08에 `baro-ai` 전체를 다시 감사한 결과다. 기존 감사(`00N-*.md`)처럼 작업 단위 하나를 좁게 본 것이 아니라 모듈 전체를 훑었고, 결과 문서는 [`full-module/`](../full-module/001-complexity-and-overengineering.md) 세 편이다. 여기서 "P0"는 동작하지 않거나 잘못된 설계로 판정해 반드시 고치기로 한 것, "P1"은 백엔드 설계 판단을 코드에 드러내기 위해 보강하기로 한 것을 가리킨다 — `core-scope.md`의 `priority: must/could` 라벨과는 다른 축이다. review 패키지는 팀원 소유라 이번 범위에서 제외했다.
+
+
+### 왜 문제였나 (쉬운 말로)
+
+취향 벡터는 "최근에 담거나 산 상품 열 개의 평균"이다. 그런데 그 평균을 **미리 만들어 저장해 두려고** 딸려 온 장치가 계산 자체보다 훨씬 무거웠다.
+
+장바구니에 상품을 담을 때마다 별도 작업 인력에게 "이 사람 취향을 다시 계산해라"를 시켰고, 그 계산은 매번 검색 창고를 네 번 왕복했다. 상품 다섯 개를 담으면 스무 번을 왕복하면서 사실상 같은 결과를 다섯 번 만들었다.
+
+여기에 눈에 잘 안 띄는 문제가 둘 더 있었다. 같은 사람의 행동 두 개가 동시에 처리되면 두 계산이 각자 저장하는데 나중 것이 먼저 것을 덮어써서 **한쪽 행동이 조용히 사라질 수 있었다.** 그리고 계산이 뒤에서 도는 방식이라 방금 담은 상품이 추천에 바로 반영되지 않았고, 일감이 밀리면 갱신 자체를 버리도록 돼 있었다.
+
+정작 계산 비용은 벡터 열 개를 더하는 정도라, 추천을 요청받은 그 자리에서 해도 사람이 느낄 차이가 없다.
+
+### 무엇을 바꿨나
+
+미리 만들어 저장하는 방식을 없애고, 개인화 추천을 요청받았을 때 행동 로그를 읽어 그 자리에서 계산한다. 가중치 계산과 평균 방식은 **그대로다** — 바뀐 것은 "언제 계산하느냐"뿐이다.
+
+### Before / After
+
+| 항목 | Before | After |
+|---|---|---|
+| 장바구니 이벤트 1건당 ES 왕복 | 5회 (로그 저장 1 + 갱신 4) | 1회 (로그 저장만) |
+| 개인화 추천 1회당 ES 왕복 | 2회 (프로필 + 후보) | 4회 (로그 2 + 벡터 1 + 후보 1) |
+| 동시 갱신으로 행동이 사라질 가능성 | 있음 (버전 확인 없는 덮어쓰기) | 없음 (저장하지 않음) |
+| 방금 담은 상품의 반영 | 비동기 지연 + 새로고침 지연 뒤 | 즉시 |
+| 부하 시 갱신 유실 | 대기열 초과분 폐기 | 해당 없음 |
+| 관련 클래스 | 4개 + 전용 인덱스 1개 | 1개 (계산 서비스) |
+
+### 바꾼 파일
+
+- `embedding/application/UserProfileEmbeddingService.java` — `updateUserProfileEmbedding(UUID)`(저장) → `computeProfile(UUID)`(반환)
+- 신규: `embedding/domain/TasteProfile.java` — 저장하지 않는 계산 결과
+- 삭제: `embedding/application/UserProfileRefreshTrigger.java`, `embedding/domain/UserProfileEmbeddingDocument.java`, `embedding/infrastructure/elasticsearch/UserProfileEmbeddingRepository.java`, `config/AsyncConfig.java`
+- `recommend/application/PersonalizedRecommendService.java` — 프로필 조회 → 계산
+- `event/consumer/CartEventConsumer.java`·`OrderEventConsumer.java` — 갱신 요청 제거 (이제 로그 적재만 한다)
+
+### 검증
+
+- `./gradlew :baro-ai:test` — **전건 통과**. 가중치·가중 평균을 고정한 기존 테스트 6건은 계산 로직을 그대로 뒀으므로 **한 줄도 고치지 않고** 통과했다 — 바꾼 것이 계산이 아니라 시점이라는 근거다
+- **미검증:** 개인화 추천 응답 시간이 실제로 얼마나 늘었는지. 왕복이 2회에서 4회로 늘었고 늘어난 둘은 작은 조회지만, 로컬에 데이터를 심어 재 본 것은 아니다
+
+### 남긴 것
+
+- **`user_profile_embeddings` 인덱스는 이제 아무도 읽지도 쓰지도 않는다.** 삭제는 되돌릴 수 없어 사람이 실행한다 — `open-items.md` A-3
+- 로그를 유형별로 각각 5건씩 읽는 방식은 그대로 뒀다. 한 유형에 행동이 몰리면 최근순이 유형 경계에서 깨지는데, 두 로그 인덱스를 하나로 합쳐야 제대로 풀린다 — 이번 감사에서 "있으면 좋은 개선"으로 분류해 미뤘다
+- 신규 사용자는 여전히 행동 3건이 쌓여야 추천을 받는다 — 이번 변경과 무관한 별개 판단이다(`005` 판단 항목 1)
+
+## 2026-09-09 — 행동 로그 인덱스 둘을 하나로 합쳤다
+
+**근거:** [`full-module/003-target-architecture-and-priority.md`](../full-module/003-target-architecture-and-priority.md)의 P2·P3 항목이다. P0·P1은 2026-09-08에 반영했고, 이번에 나머지를 처리했다. review 패키지 소유 항목(P2-3·P2-4·P3-5)은 팀원 몫이라 손대지 않았다.
+
+### 왜 문제였나 (쉬운 말로)
+
+장바구니 기록과 주문 기록을 **서로 다른 창고 두 곳**에 나눠 담고 있었다. 그런데 담기는 내용이 완전히 같았고(누가·어떤 상품에·무엇을·언제), 꺼내 쓸 때는 둘을 합쳐서 썼다. 나눠서 얻는 것이 없었다.
+
+나눈 대가는 있었다. 취향을 계산할 때 **창고마다 최근 5건씩** 꺼내 왔는데, 이러면 "최근"의 뜻이 이상해진다. 오늘 장바구니에 20개를 담고 주문은 25일 전에 한 번 한 사람은, 오늘 담은 것 5건과 **25일 전 주문 1건**으로 취향이 정해졌다. 오늘 담은 나머지 15개는 25일 전 주문에 밀려 아예 반영되지 않았다.
+
+### 무엇을 바꿨나
+
+창고를 하나로 합치고, 구분 없이 최근 10건을 한 번에 꺼낸다. 꺼내는 총량은 같고 "최근"의 뜻만 정확해졌다.
+
+**합치면서 꼭 필요했던 것 하나** — 기록의 이름표에 출처를 붙였다. 이름표는 메시지가 놓인 자리(파티션·순번)로 만드는데, 그 번호는 장바구니 쪽과 주문 쪽이 **따로 세는 값**이다. 창고가 나뉘어 있을 때는 겹쳐도 무관했지만 한 창고에 넣으면 한쪽이 다른 쪽을 덮어쓴다. 그래서 앞에 `cart-`·`order-`를 붙였다.
+
+### Before / After
+
+| 항목 | Before | After |
+|---|---|---|
+| 인덱스 | `cart_event_logs` · `order_event_logs` | `user_behavior_logs` 하나 |
+| 문서 클래스·저장소 | 4개 (문서 2 + 저장소 2) | 2개 |
+| 취향 계산 시 조회 | 2회 (유형별 최근 5건) | 1회 (최근 10건) |
+| "최근"의 뜻 | 유형별 최근 — 한쪽에 몰리면 옛 기록이 우선 | 진짜 최근 |
+| 문서 ID | `{파티션}-{오프셋}` | `{도메인}-{파티션}-{오프셋}` (토픽 간 충돌 방지) |
+
+### 바꾼 파일
+
+- 신규: `log/domain/UserBehaviorLogDocument.java`, `log/infrastructure/elasticsearch/UserBehaviorLogRepository.java`
+- 삭제: `CartLogDocument`·`OrderLogDocument`·`CartLogRepository`·`OrderLogRepository`
+- `log/application/LogWriteService.java` — 저장 메서드 2개 → 1개(`saveBehaviorLog`)
+- `embedding/application/UserProfileEmbeddingService.java` — 조회 1회, `RECENT_LOG_LIMIT` 10
+- `event/consumer/CartEventConsumer.java`·`OrderEventConsumer.java` — 도메인을 함께 넘김
+
+### 검증
+
+- `./gradlew :baro-ai:build` — 전건 통과. 가중치·가중 평균 테스트 6건은 계산을 안 건드려 그대로 통과했다
+- **미검증:** 실제 Kafka로 두 토픽을 소비했을 때 문서 ID가 겹치지 않는지. 코드상 접두어가 다르지만 실물로 재현하지는 않았다
+
+### 남긴 것
+
+- **`user_behavior_logs` 인덱스를 새로 만들고, `cart_event_logs`·`order_event_logs`는 지운다.** 옛 기록을 옮기지는 않는다 — 30일 창이라 며칠이면 새 기록으로 채워지고, 운영 데이터가 없는 dev 전제다. 되돌릴 수 없는 삭제라 사람이 실행한다(`open-items.md` A-3)

@@ -9,7 +9,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.barofarm.ai.recommend.application.config.RecommendProperties;
 import com.barofarm.ai.recommend.application.dto.RecipeRecommendReason;
 import com.barofarm.ai.recommend.application.dto.RecipeRecommendResponse;
 import com.barofarm.ai.recommend.domain.CandidateRecipePlan;
@@ -18,9 +17,10 @@ import com.barofarm.ai.recommend.infrastructure.client.dto.CartInfo;
 import com.barofarm.ai.recommend.infrastructure.client.dto.CartItemInfo;
 import com.barofarm.ai.recommend.infrastructure.llm.RecipeCandidateGenerator;
 import com.barofarm.ai.search.application.ProductSearchService;
-import com.barofarm.ai.search.application.dto.product.ProductSearchResponse;
+import com.barofarm.ai.search.application.dto.product.ProductSummaryResponse;
 import com.barofarm.ai.search.domain.ProductDocument;
 import com.barofarm.dto.ResponseDto;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -47,10 +47,8 @@ class RecipeRecommendServiceTest {
         productSearchService = mock(ProductSearchService.class);
         generator = mock(RecipeCandidateGenerator.class);
 
-        RecommendProperties properties = new RecommendProperties();
-        properties.setExcludeRecipeCategoryCodes(List.of("AGRI_FRUIT"));
-
-        service = new RecipeRecommendService(cartClient, productSearchService, generator, properties);
+        service = new RecipeRecommendService(cartClient, productSearchService, generator,
+            new RecommendationMetrics(new SimpleMeterRegistry()));
     }
 
     @Test
@@ -80,10 +78,12 @@ class RecipeRecommendServiceTest {
     }
 
     @Test
-    @DisplayName("상품이 전부 제외 카테고리면 NO_ELIGIBLE_ITEMS — 목록은 운영에서 비어 있지만 거르는 동작 자체를 고정한다")
-    void allExcluded_isNoEligibleItems() {
+    @DisplayName("상품 식별자가 없는 항목뿐이면 NO_ELIGIBLE_ITEMS — 조회할 대상이 없다")
+    void noIdentifiableItems_isNoEligibleItems() {
+        // 2026-09-09까지는 "제외 카테고리" 필터가 이 이유 코드를 내는 주된 경로였는데,
+        // 그 목록이 계속 비어 있어 죽은 분기였다. 지금 남은 도달 경로는 이것 하나다.
         when(cartClient.getCart(USER_ID)).thenReturn(ResponseDto.ok(new CartInfo(List.of(
-            new CartItemInfo(UUID.randomUUID(), "사과", "AGRI_FRUIT")))));
+            new CartItemInfo(null, "식별자 없는 상품")))));
 
         assertThat(service.recommendFromCartWithMissing(USER_ID).reason())
             .isEqualTo(RecipeRecommendReason.NO_ELIGIBLE_ITEMS);
@@ -95,7 +95,7 @@ class RecipeRecommendServiceTest {
     void noIngredientName_isNotIndexed() {
         UUID productId = UUID.randomUUID();
         when(cartClient.getCart(USER_ID)).thenReturn(ResponseDto.ok(new CartInfo(List.of(
-            new CartItemInfo(productId, "곰곰 대란 30구", "AGRI_EGG")))));
+            new CartItemInfo(productId, "곰곰 대란 30구")))));
         stubOwnedDocuments(document(productId, ""));
 
         assertThat(service.recommendFromCartWithMissing(USER_ID).reason())
@@ -108,7 +108,7 @@ class RecipeRecommendServiceTest {
     void generationFailed_keepsOwnedIngredients() {
         UUID egg = UUID.randomUUID();
         when(cartClient.getCart(USER_ID)).thenReturn(ResponseDto.ok(new CartInfo(List.of(
-            new CartItemInfo(egg, "곰곰 대란 30구", "AGRI_EGG")))));
+            new CartItemInfo(egg, "곰곰 대란 30구")))));
         stubOwnedDocuments(document(egg, "계란"));
         when(generator.generateRecipe(anyList())).thenReturn(Optional.empty());
 
@@ -125,15 +125,15 @@ class RecipeRecommendServiceTest {
         UUID egg = UUID.randomUUID();
         UUID zucchini = UUID.randomUUID();
         when(cartClient.getCart(USER_ID)).thenReturn(ResponseDto.ok(new CartInfo(List.of(
-            new CartItemInfo(egg, "곰곰 대란 30구", "AGRI_EGG"),
-            new CartItemInfo(zucchini, "애호박 1개", "AGRI_VEG")))));
+            new CartItemInfo(egg, "곰곰 대란 30구"),
+            new CartItemInfo(zucchini, "애호박 1개")))));
         stubOwnedDocuments(document(egg, "계란"), document(zucchini, "애호박"));
 
         when(generator.generateRecipe(List.of("계란", "애호박"))).thenReturn(Optional.of(new CandidateRecipePlan(
             "애호박 계란국", List.of("계란", "애호박", "대파", "새우젓"), "1. 끓인다",
             List.of("계란", "애호박"), List.of("대파", "새우젓"))));
 
-        ProductSearchResponse scallion = new ProductSearchResponse(UUID.randomUUID(), "대파 1단", "채소", 2000L);
+        ProductSummaryResponse scallion = new ProductSummaryResponse(UUID.randomUUID(), "대파 1단", "채소", 2000L);
         when(productSearchService.searchByKeywords(List.of("대파", "새우젓"), 2))
             .thenReturn(List.of(List.of(scallion), List.of()));
 
@@ -155,7 +155,7 @@ class RecipeRecommendServiceTest {
     void productSearchFailure_keepsRecipe() {
         UUID egg = UUID.randomUUID();
         when(cartClient.getCart(USER_ID)).thenReturn(ResponseDto.ok(new CartInfo(List.of(
-            new CartItemInfo(egg, "곰곰 대란 30구", "AGRI_EGG")))));
+            new CartItemInfo(egg, "곰곰 대란 30구")))));
         stubOwnedDocuments(document(egg, "계란"));
         when(generator.generateRecipe(anyList())).thenReturn(Optional.of(new CandidateRecipePlan(
             "계란찜", List.of("계란", "대파"), "1. 찐다", List.of("계란"), List.of("대파"))));

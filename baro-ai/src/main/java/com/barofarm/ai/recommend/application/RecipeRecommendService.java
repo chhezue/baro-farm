@@ -1,8 +1,6 @@
 package com.barofarm.ai.recommend.application;
 
-import com.barofarm.ai.recommend.application.config.RecommendProperties;
 import com.barofarm.ai.recommend.application.dto.IngredientRecommendResponse;
-import com.barofarm.ai.recommend.application.dto.ProductRecommendResponse;
 import com.barofarm.ai.recommend.application.dto.RecipeRecommendReason;
 import com.barofarm.ai.recommend.application.dto.RecipeRecommendResponse;
 import com.barofarm.ai.recommend.domain.CandidateRecipePlan;
@@ -12,7 +10,7 @@ import com.barofarm.ai.recommend.infrastructure.client.dto.CartInfo;
 import com.barofarm.ai.recommend.infrastructure.client.dto.CartItemInfo;
 import com.barofarm.ai.recommend.infrastructure.llm.RecipeCandidateGenerator;
 import com.barofarm.ai.search.application.ProductSearchService;
-import com.barofarm.ai.search.application.dto.product.ProductSearchResponse;
+import com.barofarm.ai.search.application.dto.product.ProductSummaryResponse;
 import com.barofarm.ai.search.domain.ProductDocument;
 import com.barofarm.dto.ResponseDto;
 import java.util.ArrayList;
@@ -30,7 +28,7 @@ import org.springframework.stereotype.Service;
  *
  * [핵심 프로세스]
  * 1. CartClient를 통해 사용자의 현재 장바구니 품목들을 조회합니다.
- * 2. 레시피 재료로 쓰지 않기로 한 카테고리의 상품을 걸러냅니다 — **현재 그런 카테고리는 없어 아무것도 걸러지지 않습니다.**
+ * 2. 상품 식별자가 있는 항목만 남깁니다.
  * 3. Elasticsearch에 사전 색인된 상품 문서의 재료명(ProductDocument.ingredientName)을 일괄 조회하여 보유 재료 목록을 도출합니다.
  *    (요청 시점마다 LLM으로 재료를 파싱하지 않고 색인 시점에 미리 정규화된 재료명을 읽어 지연 시간과 비용을 획기적으로 절감)
  * 4. RecipeCandidateGenerator를 통해 LLM 기반으로 현재 보유 재료로 조리 가능한 레시피를 생성합니다.
@@ -56,8 +54,8 @@ public class RecipeRecommendService {
     /** Gemini LLM 구조화 출력을 활용해 식재료 기반 레시피를 생성하는 제너레이터 */
     private final RecipeCandidateGenerator recipeCandidateGenerator;
 
-    /** 레시피 추천에서 제외할 카테고리 코드 목록 등을 관리하는 설정 프로퍼티 */
-    private final RecommendProperties recommendProperties;
+    /** 응답이 왜 그 모양이 됐는지 이유별로 지표에 남기는 컴포넌트 */
+    private final RecommendationMetrics recommendationMetrics;
 
     /**
      * 특정 사용자의 장바구니 상품을 기반으로 레시피 및 부족한 재료 연관 상품을 추천합니다.
@@ -70,14 +68,19 @@ public class RecipeRecommendService {
         // 장바구니 서비스와의 네트워크 오류 등 외부 연동 실패가 프론트엔드 오류로 번지지 않도록
         // 전체 과정을 try-catch로 감싸고, 실패 시 UPSTREAM_ERROR로 표시한 빈 응답을 반환합니다.
         // 이 catch는 기능 전체의 마지막 방어선이라 스택트레이스를 반드시 남깁니다(예외 객체를 마지막 인자로).
+        RecipeRecommendResponse response;
         try {
-            ResponseDto<CartInfo> response = cartClient.getCart(userId);
-            CartInfo cart = response != null ? response.data() : null;
-            return recommendFromCart(cart, userId.toString());
+            ResponseDto<CartInfo> cartResponse = cartClient.getCart(userId);
+            CartInfo cart = cartResponse != null ? cartResponse.data() : null;
+            response = recommendFromCart(cart, userId.toString());
         } catch (Exception e) {
             log.warn("레시피 추천 실패(장바구니 조회·재료 조회·후보 생성 중 예외). userId: {}", userId, e);
-            return RecipeRecommendResponse.empty(RecipeRecommendReason.UPSTREAM_ERROR);
+            response = RecipeRecommendResponse.empty(RecipeRecommendReason.UPSTREAM_ERROR);
         }
+
+        // 이유를 여기 한 곳에서만 센다 — 아래 단계마다 흩어 놓으면 하나를 빠뜨렸을 때 알아채지 못한다.
+        recommendationMetrics.recordRecipe(response.reason());
+        return response;
     }
 
     /**
@@ -91,19 +94,15 @@ public class RecipeRecommendService {
             return RecipeRecommendResponse.empty(RecipeRecommendReason.EMPTY_CART);
         }
 
-        // [2단계: 레시피 제외 카테고리 상품 필터링]
-        // 설정 파일(recipe-recommend.yml)의 exclude-recipe-category-codes에 적힌 카테고리를 걸러냅니다.
-        // 목록은 2026-09-07부터 비어 있어 실제로는 아무것도 걸러지지 않습니다 — 이 쇼핑몰은 농산물만 팔아
-        // "요리에 못 쓰는 상품"이라는 분류 자체가 없기 때문입니다. 그전까지는 과일 4종을 뺐는데, 그 근거였던
-        // "과일이 이상한 요리를 만든다"가 현행 프롬프트에서는 재현되지 않는 것을 확인하고 풀었습니다.
-        // 근거: docs/audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md M-2·M-3
-        final List<String> categoriesToExcludeByCode =
-            recommendProperties.getExcludeRecipeCategoryCodes();
-
+        // [2단계: 상품 식별자가 있는 항목만 남긴다]
+        // 2026-09-09까지는 여기에 "레시피 재료로 쓰지 않을 카테고리" 필터가 하나 더 있었습니다. 그런데 그 목록은
+        // 2026-09-07부터 비어 있어 아무것도 걸러내지 않았고(이 쇼핑몰은 농산물만 팔아 "요리에 못 쓰는 상품"이라는
+        // 분류 자체가 없습니다), 그 죽은 분기를 위해 설정 파일·프로퍼티 클래스·장바구니 DTO의 카테고리 필드가
+        // 함께 남아 있었습니다. 필요해지면 그때 되살립니다.
+        // 비운 경위: docs/audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md M-2·M-3
         List<CartItemInfo> eligibleItems = cart.items().stream()
             .filter(Objects::nonNull)
             .filter(item -> item.productId() != null)
-            .filter(item -> isRecipeEligible(item, categoriesToExcludeByCode))
             .toList();
 
         if (eligibleItems.isEmpty()) {
@@ -165,7 +164,7 @@ public class RecipeRecommendService {
         }
 
         try {
-            List<List<ProductSearchResponse>> resultsPerIngredient =
+            List<List<ProductSummaryResponse>> resultsPerIngredient =
                 productSearchService.searchByKeywords(
                     // 검색어는 핵심 명사만 쓴다 — "국거리용 소고기"로는 색인된 재료명 "소고기"와 일치하지 않는다.
                     // 사용자에게 보이는 missingCoreIngredients는 원문 그대로 두므로 순서·개수는 그대로다.
@@ -174,15 +173,11 @@ public class RecipeRecommendService {
 
             // 검색 결과는 요청한 키워드 순서와 1:1로 정렬되어 돌아온다 — 길이가 다르면 ProductSearchService가
             // 전부 빈 목록으로 맞춰 준다(배치 안 쿼리 하나가 실패하면 순서를 알 수 없어서다).
+            // 검색 결과가 곧 응답 항목이다 — 2026-09-09까지는 같은 모양의 타입 둘을 오가느라
+            // 필드를 하나씩 옮겨 담는 반복문이 있었다.
             List<IngredientRecommendResponse> recommendations = new ArrayList<>();
             for (int i = 0; i < missingCore.size(); i++) {
-                List<ProductRecommendResponse> products = resultsPerIngredient.get(i).stream()
-                    .map(product -> new ProductRecommendResponse(
-                        product.productId(),
-                        product.productName(),
-                        product.productCategoryName(),
-                        product.price()))
-                    .toList();
+                List<ProductSummaryResponse> products = resultsPerIngredient.get(i);
                 if (!products.isEmpty()) {
                     recommendations.add(new IngredientRecommendResponse(missingCore.get(i), products));
                 }
@@ -192,21 +187,6 @@ public class RecipeRecommendService {
             log.error("ES 부족 재료 상품 검색 실패. ingredients={}, message={}", missingCore, e.getMessage(), e);
             return List.of();
         }
-    }
-
-    /**
-     * 특정 장바구니 상품이 레시피 추천 식재료로 적합한지 카테고리 코드로 판정합니다.
-     */
-    private boolean isRecipeEligible(CartItemInfo item, List<String> excludedCategoryCodes) {
-        if (excludedCategoryCodes == null || excludedCategoryCodes.isEmpty()) {
-            return true;
-        }
-        String categoryCode = safeTrim(item.productCategoryCode());
-        if (categoryCode.isEmpty() || !excludedCategoryCodes.contains(categoryCode)) {
-            return true;
-        }
-        log.info("레시피 추천에서 '{}' 상품 제외 (카테고리 코드: {})", item.productName(), categoryCode);
-        return false;
     }
 
     /**
@@ -246,10 +226,4 @@ public class RecipeRecommendService {
         return ingredientNames.stream().distinct().toList();
     }
 
-    /**
-     * null-safe 문자열 trim 헬퍼 함수
-     */
-    private static String safeTrim(String s) {
-        return s == null ? "" : s.trim();
-    }
 }

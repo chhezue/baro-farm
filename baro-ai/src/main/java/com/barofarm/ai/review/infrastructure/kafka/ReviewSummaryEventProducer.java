@@ -20,11 +20,11 @@ public class ReviewSummaryEventProducer {
         String key = toKey(event.productId());
         kafkaTemplate.send(TOPIC, key, event).whenComplete((result, ex) -> {
             if (ex != null) {
-                log.error("❌ [PRODUCER] Failed to send review summary. productId={}, error={}",
+                log.error("[PRODUCER] Failed to send review summary. productId={}, error={}",
                     event.productId(), ex.getMessage(), ex);
                 return;
             }
-            log.info("✅ [PRODUCER] Sent review summary. productId={}, sentiment={}",
+            log.info("[PRODUCER] Sent review summary. productId={}, sentiment={}",
                 event.productId(), event.sentiment());
         });
     }

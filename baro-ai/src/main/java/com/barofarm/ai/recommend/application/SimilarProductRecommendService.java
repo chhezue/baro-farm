@@ -1,6 +1,6 @@
 package com.barofarm.ai.recommend.application;
 
-import com.barofarm.ai.recommend.application.dto.ProductRecommendResponse;
+import com.barofarm.ai.search.application.dto.product.ProductSummaryResponse;
 import com.barofarm.ai.search.domain.ProductDocument;
 import com.barofarm.ai.search.infrastructure.elasticsearch.ProductSearchRepository;
 import java.util.List;
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
  * [주요 동작 원리]
  * 1. 기준 상품 문서(ProductDocument)를 Elasticsearch에서 조회하여 사전 계산된 768차원 임베딩 벡터를 추출합니다.
  * 2. 기준 상품 본인은 추천 목록에 다시 나오지 않도록 제외 목록(excludeProductIds)에 포함합니다.
- * 3. 공통 추천 파이프라인(VectorRecommendPipeline)에 위임하여 코사인 유사도 검색과 Max-Min 다양성 선별을 거친 추천 상품 목록을 반환합니다.
+ * 3. 공통 추천 파이프라인(VectorRecommendPipeline)에 위임하여 코사인 유사도 검색과 카테고리 상한 적용을 거친 추천 상품 목록을 반환합니다.
  */
 @Slf4j
 @Service
@@ -25,8 +25,11 @@ public class SimilarProductRecommendService {
     /** Elasticsearch에 색인된 상품 문서 및 임베딩 벡터를 조회하는 레포지토리 */
     private final ProductSearchRepository productSearchRepository;
 
-    /** 기준 벡터를 받아 벡터 유사도 검색 및 다양성 선별을 수행하는 공통 추천 파이프라인 */
+    /** 기준 벡터를 받아 벡터 유사도 검색과 카테고리 상한 적용을 수행하는 공통 추천 파이프라인 */
     private final VectorRecommendPipeline vectorRecommendPipeline;
+
+    /** 추천 결과가 실제로 채워졌는지 지표로 남기는 컴포넌트 */
+    private final RecommendationMetrics recommendationMetrics;
 
     /**
      * 기준 상품과 유사한 추천 상품 topK 목록을 반환합니다.
@@ -35,7 +38,7 @@ public class SimilarProductRecommendService {
      * @param topK      추천받을 상품 최대 개수
      * @return 유사 상품 추천 응답 DTO 목록 (기준 상품 미존재 또는 벡터 미생성 시 빈 리스트)
      */
-    public List<ProductRecommendResponse> recommendSimilarProducts(UUID productId, int topK) {
+    public List<ProductSummaryResponse> recommendSimilarProducts(UUID productId, int topK) {
         // [0단계: 요청 파라미터 검증]
         // 조회를 시작하기 전에 확인해, 기준 상품이 없어 아래에서 일찍 반환되는 경우에도 같은 400이 나가게 한다.
         VectorRecommendPipeline.validateTopK(topK);
@@ -48,6 +51,7 @@ public class SimilarProductRecommendService {
 
         if (product == null) {
             log.warn("유사 상품 추천을 위한 기준 상품을 찾을 수 없습니다. productId: {} (빈 리스트 반환)", productId);
+            recommendationMetrics.record(RecommendationMetrics.SIMILAR, 0);
             return List.of();
         }
 
@@ -56,11 +60,15 @@ public class SimilarProductRecommendService {
         if (product.getVector() == null || product.getVector().length == 0) {
             log.warn("기준 상품 '{}'의 벡터가 존재하지 않습니다. 임베딩이 필요합니다. productId: {}",
                 product.getProductName(), productId);
+            recommendationMetrics.record(RecommendationMetrics.SIMILAR, 0);
             return List.of();
         }
 
-        // [3단계: 공통 추천 파이프라인 위임 (자기 자신 제외 및 다양성 선별)]
+        // [3단계: 공통 추천 파이프라인 위임 (자기 자신 제외 및 카테고리 상한)]
         // 기준 상품의 벡터를 쿼리 벡터로 전달하고, 자기 자신(productId)은 추천 결과에서 제외하도록 지정합니다.
-        return vectorRecommendPipeline.recommend(product.getVector(), List.of(productId), topK);
+        List<ProductSummaryResponse> results =
+            vectorRecommendPipeline.recommend(product.getVector(), List.of(productId), topK);
+        recommendationMetrics.record(RecommendationMetrics.SIMILAR, results.size());
+        return results;
     }
 }

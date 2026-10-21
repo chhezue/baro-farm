@@ -113,16 +113,7 @@ class ProductEventConsumerTest {
     }
 
     private static ProductEvent event(ProductEvent.ProductEventType type, String name, UUID id) {
-        ProductEvent.ProductEventData data = new ProductEvent.ProductEventData();
-        data.setProductId(id);
-        data.setProductName(name);
-        data.setProductCategoryCode("AGRI_X");
-        data.setProductCategoryName("과일");
-        data.setPrice(1000L);
-        data.setStatus("ON_SALE");
-        ProductEvent event = new ProductEvent();
-        event.setType(type);
-        event.setData(data);
-        return event;
+        return new ProductEvent(type, new ProductEvent.ProductEventData(
+            id, name, null, "AGRI_X", "과일", 1000L, "ON_SALE", null));
     }
 }

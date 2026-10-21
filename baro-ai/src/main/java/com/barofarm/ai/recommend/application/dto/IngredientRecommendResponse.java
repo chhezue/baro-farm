@@ -1,5 +1,6 @@
 package com.barofarm.ai.recommend.application.dto;
 
+import com.barofarm.ai.search.application.dto.product.ProductSummaryResponse;
 import java.util.List;
 
 /**
@@ -10,5 +11,5 @@ import java.util.List;
  */
 public record IngredientRecommendResponse(
     String ingredientName,
-    List<ProductRecommendResponse> products
+    List<ProductSummaryResponse> products
 ) { }

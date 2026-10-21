@@ -4,6 +4,12 @@ server:
 api:
   v1: /api/v1
 
+# 상품 재색인 같은 운영 작업을 허용할 토큰. 비워 두면 그 경로는 항상 거절한다 —
+# 부를 때마다 상품 수만큼 외부 AI 호출이 나가므로 열어 두는 쪽이 기본값이 되지 않게 한다.
+baro:
+  ai:
+    admin-token: ${BARO_AI_ADMIN_TOKEN:}
+
 spring:
   application:
     name: ai-service
@@ -11,7 +17,6 @@ spring:
     import:
       - classpath:review-sentiment.yml
       - classpath:review-negative-keywords.yml
-      - classpath:recipe-recommend.yml
   # baro-common이 JPA 스타터를 끌어오므로, baro-ai에 엔티티가 없어도 자동설정이 DataSource를 찾다 기동에 실패한다.
   # baro-ai는 Elasticsearch만 쓰므로 두 자동설정을 끈다.
   autoconfigure:
@@ -24,7 +29,13 @@ spring:
   elasticsearch:
     uris: ${ELASTICSEARCH_URIS:http://elasticsearch:9200}
     connection-timeout: 1s
-    socket-timeout: 30s
+    # 응답 상한 3초. 2026-09-09에 30초에서 낮췄다 — 30초는 RestClient 기본값을 그대로 적어 둔 것이었고,
+    # 실제 조회는 상품 1만 건에서도 p95 8ms 미만이다(decisions/004). 게이트웨이 응답 상한(5초) 안에서
+    # 장바구니 호출(최대 3초)과 이어 붙는 경로가 있어 그보다 짧게 잡는다. 색인 bulk도 5건 단위라 여유가 있다.
+    socket-timeout: 3s
+    # 동시 연결 수는 설정하지 않는다 — Apache HttpClient 기본값(호스트당 10 · 전체 30)을 쓴다.
+    # Spring Boot가 프로퍼티로 노출하지 않아 바꾸려면 RestClientBuilderCustomizer 빈이 필요한데,
+    # 지금 규모에서 이 한도에 닿는다는 근거가 없어 아무 일도 하지 않는 빈을 만들지 않는다.
 
   # 다른 모듈 호출(Feign) 설정
   # Eureka가 꺼져 있어 서비스 이름만으로는 주소를 찾지 못한다 — k8s Service 주소를 직접 준다.
@@ -46,9 +57,8 @@ spring:
     # 역직렬화기·offset 정책은 리스너마다 지정한 커스텀 팩토리가 정하므로 여기 두지 않는다.
     consumer:
       group-id: ai-service
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    # producer 설정은 여기 두지 않는다 — 발행하는 곳마다 전용 팩토리(KafkaProducerConfig·
+    # KafkaDeadLetterConfig)가 직렬화기와 확인 정책을 직접 정하므로 이 자리의 값은 읽히지 않는다.
 
   # Spring AI 설정 (Google Gemini — 근거: docs/decisions/003-gemini-migration.md)
   # 타임아웃·재시도는 spring.ai.retry.*가 아니라 LlmClientConfig가 Gemini SDK 클라이언트에 직접 건다.

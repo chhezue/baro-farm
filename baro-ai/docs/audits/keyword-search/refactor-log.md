@@ -191,3 +191,99 @@
 
 - `taste-vector/002` C-1(저장 직후 조회가 1초 refresh 안이면 최신 로그를 놓침): 로그 저장과 갱신이 같은 스레드에서 순서대로 도니 순서 문제는 없어졌고, refresh 지연은 그대로다 — 다음 행동에서 따라잡는다
 - `DefaultErrorHandler`의 위치 기반 재시도(앞 레코드 커밋 → 실패 레코드부터 재시도 → 소진 시 그 레코드만 건너뜀)는 spring-kafka 소스 기준이며 로컬 Kafka로 재현하지 않았다 — 기동 확인 항목
+
+## 2026-09-08 — 자동완성 인덱스 통합 · 바뀐 상품만 다시 만들기 · Elasticsearch 통합 테스트
+
+**근거:** 사용자 요청으로 2026-09-08에 `baro-ai` 전체를 다시 감사한 결과다. 기존 감사(`00N-*.md`)처럼 작업 단위 하나를 좁게 본 것이 아니라 모듈 전체를 훑었고, 결과 문서는 [`full-module/`](../full-module/001-complexity-and-overengineering.md) 세 편이다. 여기서 "P0"는 동작하지 않거나 잘못된 설계로 판정해 반드시 고치기로 한 것, "P1"은 백엔드 설계 판단을 코드에 드러내기 위해 보강하기로 한 것을 가리킨다 — `core-scope.md`의 `priority: must/could` 라벨과는 다른 축이다. review 패키지는 팀원 소유라 이번 범위에서 제외했다.
+
+
+### 왜 문제였나 (쉬운 말로)
+
+**첫째, 상품 하나를 저장할 때 두 군데에 나눠 썼다.** 검색용 상품 창고와 자동완성 전용 창고에 같은 상품명을 각각 넣고 있었는데, Elasticsearch에는 "둘 다 되거나 둘 다 안 되게" 묶는 수단이 없다. 앞의 쓰기만 성공하면 자동완성에는 뜨는데 검색에는 없는 상품이 남는다. 같은 이유로 "지금 살 수 있는 상태" 목록도 두 곳에 따로 적혀 있어, 한쪽만 고치면 어긋나는 상태였다(코드 주석이 그걸 경고하고 있었다).
+
+**둘째, 가격만 바뀌어도 외부 AI를 두 번씩 다시 불렀다.** 상품이 바뀌었다는 알림이 오면 무조건 임베딩과 재료명 추출을 새로 했는데, 둘 다 상품명만 보고 만들어지는 값이라 이름이 그대로면 결과도 같다. 재고나 가격 변경이 잦을수록 순수한 낭비였고, 무료 사용 한도까지 함께 갉아먹고 있었다.
+
+**셋째, 매핑이 실제로 만들어지는지 확인할 방법이 사람 손밖에 없었다.** 손으로 확인해야 할 항목이 26건 쌓여 있었고 하나도 실행되지 않은 상태였다.
+
+### 무엇을 바꿨나
+
+- 자동완성 전용 창고를 없애고, 상품명 한 필드에 분석 방식 세 가지(형태소·띄어쓰기·접두어)를 함께 붙였다. 이제 저장은 한 번이고 상태 목록도 한 곳이다.
+- 색인 전에 이미 저장된 상품을 읽어 **이름이 그대로면** 기존 임베딩·재료명을 그대로 옮겨 쓴다. 지난번에 만들지 못해 비어 있으면 이번에 다시 시도한다.
+- Elasticsearch를 실제로 띄워 색인→검색 왕복, 자동완성 접두어, 벡터 후보 조회를 확인하는 테스트를 넣었다.
+
+### Before / After
+
+| 항목 | Before | After |
+|---|---|---|
+| 상품 1건 색인 시 인덱스 쓰기 | 2회 (product, product-autocomplete) | 1회 |
+| 한쪽만 성공해 어긋날 가능성 | 있음 | 없음 (쓰기가 하나) |
+| 구매 가능 상태 목록이 적힌 곳 | 2곳 (상수 + `@Query` 문자열) | 1곳 (`PURCHASABLE_STATUSES`) |
+| 이름이 그대로인 수정 이벤트의 외부 호출 | 임베딩 1회 + 재료명 1회 | 0회 |
+| ES 매핑·쿼리 자동 검증 | 없음 (사람이 로컬에서 확인) | 통합 테스트 3건 |
+
+### 바꾼 파일
+
+- `search/domain/ProductDocument.java` — `productName`에 `ac` 서브필드(Edge N-gram) 추가, `@Setting`으로 분석기 설정 연결
+- 삭제: `search/domain/ProductAutocompleteDocument.java`, `search/infrastructure/elasticsearch/ProductAutocompleteRepository.java`
+- `search/application/ProductSearchService.java` — 자동완성을 상품 인덱스 질의로, 자동완성 레포지토리 의존 제거
+- `search/application/ProductIndexService.java` — 이중 쓰기 제거, 변경 감지, 재사용·재계산 지표
+- `build.gradle` — Testcontainers(junit-jupiter, elasticsearch) 테스트 의존성
+- 테스트: `ProductIndexServiceTest` 재작성(9건, 변경 감지 5건 포함), `ProductSearchServiceTest` 자동완성 검증 갱신, `ProductIndexAndSearchIntegrationTest`(신규 3건)
+
+### 검증
+
+- `./gradlew :baro-ai:test` — **전건 통과** (통합 테스트 포함, 컨테이너 기동 포함 약 50초)
+- 통합 테스트가 실제로 확인한 것: 상품 매핑 생성, 한국어 형태소 검색이 "방울토마토"를 "토마토"로 찾는 것, 품절 상품이 상태 필터에서 빠지는 것, 통합된 인덱스에서 접두어 자동완성이 걸리는 것, 벡터 후보 조회의 Painless 스크립트가 도는 것
+- 이미지는 저장소에 이미 있던 `docker/local/Dockerfile.es-nori`를 그대로 빌드해 쓴다 — 로컬 확인 환경과 같은 파일이라 둘이 어긋날 일이 없다
+
+### 남긴 것
+
+- **`product` 인덱스 재생성이 필요하다.** 상품명 매핑이 바뀌었으므로 기존 인덱스에는 접두어 서브필드가 없다. 재생성 + 상품 이벤트 재발행 전까지 자동완성이 결과를 내지 못한다 — `open-items.md` A-3
+- **`product-autocomplete` 인덱스는 이제 아무도 쓰지 않는다.** 삭제는 되돌릴 수 없어 사람이 실행한다
+- 재료명 LLM 호출은 여전히 상품마다 1회다. 여러 상품을 한 프롬프트로 묶는 것은 골든셋 재측정이 필요해 별도 라운드로 남겼다
+
+## 2026-09-09 — 검색 서비스 셋으로 분리 · 재색인 API 신설
+
+**근거:** [`full-module/003-target-architecture-and-priority.md`](../full-module/003-target-architecture-and-priority.md)의 P2·P3 항목이다. P0·P1은 2026-09-08에 반영했고, 이번에 나머지를 처리했다. review 패키지 소유 항목(P2-3·P2-4·P3-5)은 팀원 몫이라 손대지 않았다.
+
+### 왜 문제였나 (쉬운 말로)
+
+**첫째, 한 파일이 426줄이었다.** 그 안에 성격이 다른 셋이 섞여 있었다 — 검색 엔진에 보낼 질의문을 조립하는 코드, 검색 유스케이스를 조율하는 코드, 자동완성. 특히 자동완성은 규칙이 따로다(2글자부터 시작, 개수 상한이 다름, 결과를 잠시 기억함). 검색어 가중치 하나를 고치려 해도 이 셋을 다 지나쳐야 했다.
+
+**둘째, 인덱스를 새로 만들면 채울 방법이 없었다.** 평소 색인은 상품 변경 알림(Kafka)으로 이뤄지는데 이미 지나간 알림은 다시 받을 수 없다. 그래서 저장 형식을 바꿔 인덱스를 새로 만들면 그 안이 텅 비고, 채우려면 **다른 팀 담당자에게 "전 상품을 다시 발행해 달라"고 부탁**하는 수밖에 없었다. 그 부탁이 걸린 채로 인덱스 재생성 항목이 계속 쌓여 있었다.
+
+### 무엇을 바꿨나
+
+- 파일을 셋으로 나눴다 — 질의 조립(`ProductQueryFactory`) · 검색(`ProductSearchService`) · 자동완성(`ProductAutocompleteService`).
+- 상품을 원본에서 다시 읽어 색인하는 관리 API를 만들었다. **한 번에 한 페이지씩** 처리한다 — 상품마다 재료명 AI를 부르므로 수천 건을 한 요청에서 하면 끝나지 않고 무료 한도에도 걸린다. 부르는 쪽이 페이지를 올리며 속도를 조절한다.
+- 이 API는 **토큰이 맞을 때만** 받는다. 부를 때마다 상품 수만큼 외부 AI 호출이 나가서, 아무나 부를 수 있으면 비용을 그대로 태울 수 있다. 토큰을 설정하지 않은 서버에서는 항상 거절한다.
+- **인덱스를 지우지는 않는다.** 저장 형식을 바꿔야 하면 사람이 먼저 지우고 다시 만든 뒤 이 API를 부른다 — 되돌릴 수 없는 삭제를 API 뒤에 숨기지 않았다.
+
+### Before / After
+
+| 항목 | Before | After |
+|---|---|---|
+| `ProductSearchService` | 426줄 (질의 조립 + 검색 + 자동완성) | 144줄 (검색만) |
+| — | | `ProductQueryFactory` 261줄 · `ProductAutocompleteService` 69줄 |
+| 전체 재색인 | 다른 팀에 전체 재발행 요청 | `POST /api/v1/search/admin/reindex?page=&size=` |
+| Elasticsearch 응답 상한 | 30초 (RestClient 기본값을 그대로 적어 둔 값) | 3초 |
+
+### API 계약 변경
+
+| 엔드포인트 | 변경 |
+|---|---|
+| `POST /api/v1/search/admin/reindex` | **신설.** `X-Admin-Token` 헤더 필요(불일치·미설정이면 403 `ADMIN_TOKEN_INVALID`). 이미 실행 중이면 409 `REINDEX_ALREADY_RUNNING` |
+
+### 바꾼 파일
+
+- 신규: `search/infrastructure/elasticsearch/ProductQueryFactory.java`, `search/application/ProductAutocompleteService.java`, `search/application/ProductReindexService.java`, `search/presentation/ProductReindexController.java`, `search/infrastructure/client/ProductCatalogClient.java`(+`dto/CatalogProduct`)
+- `search/application/ProductSearchService.java` — 426줄 → 144줄
+- `search/presentation/SearchController.java` — 자동완성 서비스 주입
+- `search/exception/SearchErrorCode.java` — `REINDEX_ALREADY_RUNNING`·`ADMIN_TOKEN_INVALID`
+- `application.yml` — ES 응답 상한 3초, 관리 토큰, 커넥션 풀 기본값 주석, 쓰이지 않던 producer 설정 삭제
+- 테스트: `ProductAutocompleteServiceTest` 분리 신설
+
+### 검증
+
+- `./gradlew :baro-ai:build` — 전건 통과. 통합 테스트 3건이 분리 후에도 색인→검색·자동완성이 그대로 동작함을 실물 ES로 확인
+- **미검증:** 재색인 API 실동작. `baro-shopping`이 떠 있어야 하고 Gemini 호출이 실제로 나가므로 로컬에서 돌리지 않았다

@@ -1,9 +1,8 @@
 package com.barofarm.ai.log.application;
 
-import com.barofarm.ai.log.domain.CartLogDocument;
-import com.barofarm.ai.log.domain.OrderLogDocument;
-import com.barofarm.ai.log.infrastructure.elasticsearch.CartLogRepository;
-import com.barofarm.ai.log.infrastructure.elasticsearch.OrderLogRepository;
+import com.barofarm.ai.log.domain.UserBehaviorLogDocument;
+import com.barofarm.ai.log.infrastructure.elasticsearch.UserBehaviorLogRepository;
+import com.barofarm.log.history.model.EventDomain;
 import com.barofarm.log.history.model.HistoryEventType;
 import java.time.Instant;
 import java.util.UUID;
@@ -12,85 +11,47 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * 사용자 행동 로그 영속화 서비스.
+ * 사용자 행동 로그를 Elasticsearch `user_behavior_logs` 인덱스에 저장합니다.
  *
- * 장바구니·주문 Kafka 컨슈머가 전달한 사용자 행동을 Elasticsearch 전용 인덱스
- * ('cart_event_logs', 'order_event_logs')에 저장합니다. 이 두 곳이 유일한 호출자입니다 —
- * 검색도 로그를 남기던 경로가 있었으나 검색을 취향 신호에서 빼면서 2026-09-07에 지웠습니다.
- * 근거: docs/audits/taste-vector/005-signal-and-weight-simplification.md
+ * 장바구니·주문 Kafka 컨슈머 두 곳이 유일한 호출자입니다. 2026-09-09까지는 도메인마다 저장 메서드와
+ * 인덱스가 따로 있었으나, 저장하는 내용이 같아 하나로 합쳤습니다({@link UserBehaviorLogDocument}).
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class LogWriteService {
 
-    /** 장바구니 행동 로그 레포지토리 */
-    private final CartLogRepository cartLogRepository;
-
-    /** 주문 행동 로그 레포지토리 */
-    private final OrderLogRepository orderLogRepository;
+    private final UserBehaviorLogRepository userBehaviorLogRepository;
 
     /**
-     * 장바구니 이벤트 로그를 Elasticsearch('cart_event_logs')에 저장합니다.
+     * 행동 하나를 저장합니다. 같은 메시지를 다시 처리하면 같은 문서를 덮어쓰므로 중복이 쌓이지 않습니다.
      *
-     * @param documentId Elasticsearch 문서 고유 식별자 (Kafka partition-offset)
-     * @param userId 행동을 수행한 사용자 ID
-     * @param productId 장바구니에 담긴 대상 상품 ID
+     * @param domain      장바구니인지 주문인지. 문서 ID 앞에 붙어 토픽 간 번호 충돌을 막는다
+     * @param messageKey  Kafka 메시지의 위치 (`{파티션}-{오프셋}`, 주문은 뒤에 항목 순번이 더 붙는다)
+     * @param userId      행동한 사용자
+     * @param productId   행동 대상 상품
      * @param productName 상품명
-     * @param eventType 장바구니 행동 종류 (CART_ITEM_ADDED, CART_ITEM_REMOVED, CART_QUANTITY_UPDATED)
-     * @param occurredAt 이벤트 발생 일시
+     * @param eventType   행동 종류 — 취향 벡터의 비중이 이 값으로 정해진다
+     * @param occurredAt  행동이 일어난 시각
      */
-    public void saveCartEventLog(String documentId,
-                                 UUID userId,
-                                 UUID productId,
-                                 String productName,
-                                 HistoryEventType eventType,
-                                 Instant occurredAt) {
-        // 전달받은 documentId('{partition}-{offset}')를 고유 ID로 지정하여,
-        // Kafka 컨슈머 재시도 시에도 동일 문서를 덮어쓰도록 함으로써 중복 로그 적재를 방지합니다.
-        CartLogDocument document = CartLogDocument.builder()
+    public void saveBehaviorLog(EventDomain domain,
+                                String messageKey,
+                                UUID userId,
+                                UUID productId,
+                                String productName,
+                                HistoryEventType eventType,
+                                Instant occurredAt) {
+        String documentId = domain.name().toLowerCase(java.util.Locale.ROOT) + "-" + messageKey;
+
+        userBehaviorLogRepository.save(UserBehaviorLogDocument.builder()
             .id(documentId)
             .userId(userId)
             .productId(productId)
             .productName(productName)
             .eventType(eventType)
             .occurredAt(occurredAt)
-            .build();
+            .build());
 
-        CartLogDocument saved = cartLogRepository.save(document);
-        log.debug("[LOG_WRITE] Saved cart event log - ID: {}, User: {}, Product: {}",
-            saved.getId(), userId, productName);
+        log.debug("[LOG_WRITE] 행동 로그 저장 - ID: {}, 사용자: {}, 상품: {}", documentId, userId, productName);
     }
-
-    /**
-     * 주문 이벤트 로그를 Elasticsearch('order_event_logs')에 저장합니다.
-     *
-     * @param documentId Elasticsearch 문서 고유 식별자 (Kafka partition-offset-index)
-     * @param userId 주문을 수행한 사용자 ID
-     * @param productId 주문된 상품 ID
-     * @param productName 상품명
-     * @param eventType 주문 행동 종류 (ORDER_CONFIRMED, ORDER_CANCELLED)
-     * @param occurredAt 주문 발생 일시
-     */
-    public void saveOrderEventLog(String documentId,
-                                  UUID userId,
-                                  UUID productId,
-                                  String productName,
-                                  HistoryEventType eventType,
-                                  Instant occurredAt) {
-        // 단일 주문 내 복수 상품 항목이 각각 보존되도록 '{partition}-{offset}-{itemIndex}'를 고유 ID로 지정합니다.
-        OrderLogDocument document = OrderLogDocument.builder()
-            .id(documentId)
-            .userId(userId)
-            .productId(productId)
-            .productName(productName)
-            .eventType(eventType)
-            .occurredAt(occurredAt)
-            .build();
-
-        OrderLogDocument saved = orderLogRepository.save(document);
-        log.debug("[LOG_WRITE] Saved order event log - ID: {}, User: {}, Product: {}",
-            saved.getId(), userId, productName);
-    }
-
 }

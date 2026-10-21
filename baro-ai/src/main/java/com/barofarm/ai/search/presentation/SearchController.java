@@ -1,9 +1,10 @@
 package com.barofarm.ai.search.presentation;
 
+import com.barofarm.ai.search.application.ProductAutocompleteService;
 import com.barofarm.ai.search.application.ProductSearchService;
 import com.barofarm.ai.search.application.dto.product.ProductAutoCompleteResponse;
 import com.barofarm.ai.search.application.dto.product.ProductSearchRequest;
-import com.barofarm.ai.search.application.dto.product.ProductSearchResponse;
+import com.barofarm.ai.search.application.dto.product.ProductSummaryResponse;
 import com.barofarm.dto.CustomPage;
 import com.barofarm.dto.ResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,8 +35,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class SearchController {
 
-    /** Elasticsearch 상품 키워드 검색 및 자동완성을 처리하는 애플리케이션 서비스 */
+    /** 상품 키워드 검색 서비스 */
     private final ProductSearchService productSearchService;
+
+    /** 상품명 접두어 자동완성 서비스 */
+    private final ProductAutocompleteService productAutocompleteService;
 
     /**
      * 키워드, 카테고리, 가격 범위를 조건으로 상품 목록을 페이지네이션 검색합니다.
@@ -50,7 +54,7 @@ public class SearchController {
      */
     @Operation(summary = "검색", description = "키워드로 상품 검색. 카테고리/가격 필터 선택 가능.")
     @GetMapping
-    public ResponseDto<CustomPage<ProductSearchResponse>> search(
+    public ResponseDto<CustomPage<ProductSummaryResponse>> search(
         @Parameter(description = "검색어", example = "토마토", required = false) @RequestParam(required = false) String q,
         @Parameter(description = "카테고리 (복수 가능)") @RequestParam(required = false) List<String> categories,
         @Parameter(description = "최소 가격") @RequestParam(required = false) Long priceMin,
@@ -82,6 +86,6 @@ public class SearchController {
     ) {
         // [서비스 위임 및 응답 반환]
         // Edge N-gram 인덱스를 조회하여 접두어와 일치하는 상품명 추출 후 반환
-        return ResponseDto.ok(productSearchService.autocomplete(q, size));
+        return ResponseDto.ok(productAutocompleteService.autocomplete(q, size));
     }
 }

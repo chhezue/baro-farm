@@ -4,17 +4,21 @@ import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.json.JsonData;
 import com.barofarm.ai.search.domain.ProductDocument;
+import com.barofarm.ai.search.exception.SearchErrorCode;
+import com.barofarm.exception.CustomException;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.data.elasticsearch.core.query.FetchSourceFilter;
 import org.springframework.stereotype.Service;
 
 /**
@@ -23,19 +27,17 @@ import org.springframework.stereotype.Service;
  *
  * [핵심 역할 및 특징]
  * 1. 유사 상품 추천 및 개인화 추천에서 요구하는 1차 후보군을 벡터 유사도 순으로 신속하게 조회합니다.
- * 2. 후속 단계인 Max-Min 다양성 선별(MaxMinDiversityService)에서 상호 거리 계산이 가능하도록
- *    상품 문서의 `vector` 필드를 온전히 유지한 채 `ProductDocument` 목록을 반환합니다.
- *    이것이 검색 경로와 달리 `_source`에서 벡터를 빼지 않는 이유다. 비용은 실측으로 확인했다 — 후보 15건(기본 topK=5)
- *    응답이 1536차원일 때 약 507KB였고 768차원으로 줄여 약 255KB가 됐다. 그 대가로 얻는 것(같은 카테고리 쌍
- *    45%→11.5%)은 유지된다 — 차원을 줄여도 상위 5개 이웃이 94.5% 그대로다.
- *    근거: docs/audits/vector-similarity/002 A-1·M-2, 003 A-1
- * 4. 후보 조회는 `script_score` 선형 스캔이다. native `knn`(HNSW)으로 바꾸지 않는 이유는 상품 1만 건까지 p95 8ms 미만으로
- *    두 방식의 지연이 같기 때문이다 — 상품이 수만 건을 넘으면 다시 연다. 근거: docs/decisions/004-script-score-over-knn.md
- * 3. 벡터가 미생성된 불완전 상품 문서가 존재하더라도 검색 쿼리가 중단되지 않도록 `exists(vector)` 필터를 사전 적용합니다.
+ * 2. **후보에 벡터를 싣지 않습니다**(2026-09-09). 그전에는 Max-Min 다양성 선별이 후보끼리 거리를 재야 해서
+ *    768차원 벡터를 문서마다 함께 실어 왔고(문서당 약 10KB), 그 전송량이 임베딩 차원을 줄이는 작업까지
+ *    불러왔습니다(후보 15건이 1536차원일 때 약 507KB, 768차원으로 줄여 약 255KB).
+ *    카테고리 상한 방식으로 바꾸면서 거리 계산이 사라져 벡터를 받을 이유도 함께 없어졌습니다.
+ *    근거: docs/audits/full-module/001-complexity-and-overengineering.md O3
+ * 3. 후보 조회는 `script_score` 선형 스캔입니다. native `knn`(HNSW)으로 바꾸지 않는 이유는 상품 1만 건까지 p95 8ms 미만으로
+ *    두 방식의 지연이 같기 때문입니다 — 상품이 수만 건을 넘으면 다시 엽니다. 근거: docs/decisions/004-script-score-over-knn.md
+ * 4. 벡터가 미생성된 불완전 상품 문서가 존재하더라도 검색 쿼리가 중단되지 않도록 `exists(vector)` 필터를 사전 적용합니다.
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class VectorProductSearchService {
 
     /**
@@ -44,8 +46,27 @@ public class VectorProductSearchService {
      */
     private static final double SCORE_OFFSET = 1.0;
 
+    /** 후보 응답에서 빼는 필드. 고르는 쪽이 벡터를 보지 않으므로 전송할 이유가 없다 */
+    private static final String[] EXCLUDED_SOURCE_FIELDS = {"vector"};
+
     /** Spring Data Elasticsearch 쿼리 실행 템플릿 */
     private final ElasticsearchOperations elasticsearchOperations;
+
+    /** 벡터 후보 조회가 실패한 횟수 — 이 값이 오르면 검색 엔진 쪽을 본다 */
+    private final Counter searchFailures;
+
+    // 생성자 바디에서 지표를 만들어 두므로 @RequiredArgsConstructor를 쓰지 않는다 — 조회마다
+    // Counter.builder를 다시 부르지 않기 위해 여기서 한 번만 등록한다.
+    public VectorProductSearchService(
+        ElasticsearchOperations elasticsearchOperations,
+        MeterRegistry meterRegistry
+    ) {
+        this.elasticsearchOperations = elasticsearchOperations;
+        this.searchFailures = Counter.builder("search.query.failures")
+            .tag("query", "vector_candidates")
+            .description("Elasticsearch 벡터 후보 조회 실패 횟수")
+            .register(meterRegistry);
+    }
 
     /**
      * 기준 쿼리 벡터와 코사인 유사도가 높은 판매 중 상품 문서들을 후보군 크기(candidateSize)만큼 조회합니다.
@@ -53,7 +74,9 @@ public class VectorProductSearchService {
      * @param queryVector       비교 기준이 되는 768차원 임베딩 벡터
      * @param candidateSize     조회할 최대 후보 상품 수 (예: topK * 3)
      * @param excludeProductIds 검색 결과에서 제외할 상품 UUID 목록 (자기 자신, 이미 구매한 상품 등)
-     * @return 768차원 벡터가 포함된 상품 문서 목록 (조회 실패 시 안전하게 빈 목록 반환)
+     * @return 유사도 순으로 정렬된 상품 문서 목록(벡터는 들어 있지 않다). 조건에 맞는 상품이 없으면 빈 목록
+     * @throws CustomException 조회 자체가 실패한 경우 ({@link SearchErrorCode#SEARCH_UNAVAILABLE}, 503).
+     *                         "추천할 것이 없다"와 "검색 엔진이 죽었다"를 같은 응답으로 내보내지 않기 위해서다
      */
     public List<ProductDocument> findSimilarProductDocumentsByVector(
         float[] queryVector,
@@ -91,8 +114,13 @@ public class VectorProductSearchService {
             return results;
 
         } catch (Exception e) {
+            // [5단계: 조회 실패는 빈 결과가 아니라 실패로 알린다]
+            // 2026-09-08까지는 여기서 빈 목록을 돌려줬다. 그러면 Elasticsearch가 죽어도 추천 API는
+            // 200 + 빈 배열을 내보내고, "추천할 게 없는 사용자"와 "검색 엔진 장애"가 같은 응답이 된다.
+            // 지표에도 아무 흔적이 남지 않아 운영 중에 알아챌 방법이 없었다.
+            searchFailures.increment();
             log.error("벡터 유사도 후보 검색 실패: {}", e.getMessage(), e);
-            return List.of();
+            throw new CustomException(SearchErrorCode.SEARCH_UNAVAILABLE);
         }
     }
 
@@ -125,6 +153,8 @@ public class VectorProductSearchService {
                     )
                 )
             )
+            // 부르는 쪽이 벡터를 쓰지 않으므로 받지 않는다 — 문서당 약 10KB가 붙는다
+            .withSourceFilter(FetchSourceFilter.of(null, EXCLUDED_SOURCE_FIELDS))
             // 후보군 크기(fetchSize)만큼 상위 문서를 페이징 조회
             .withPageable(PageRequest.of(0, fetchSize))
             .build();

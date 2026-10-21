@@ -51,19 +51,19 @@ public class ProductEventConsumer {
             // [1단계: 이벤트 본문(data) 유효성 검증]
             // 역직렬화 실패는 KafkaConsumerConfig의 ErrorHandlingDeserializer가 사전 차단하므로 여기까지 오지 않는다.
             // 값이 비어 있는 레코드(tombstone)는 event 자체가 null이라 한 줄로 걸러 둔다.
-            if (event == null || event.getData() == null) {
-                log.warn("⚠️ [CONSUMER] 본문이 없는 상품 이벤트를 건너뜁니다 - 종류: {}",
-                    event == null ? "(레코드 값 없음)" : event.getType());
+            if (event == null || event.data() == null) {
+                log.warn("[CONSUMER] 본문이 없는 상품 이벤트를 건너뜁니다 - 종류: {}",
+                    event == null ? "(레코드 값 없음)" : event.type());
                 continue;
             }
 
-            ProductEvent.ProductEventData data = event.getData();
-            log.debug("📨 [CONSUMER] 상품 이벤트 수신 - 종류: {}, 상품: {} ({})",
-                event.getType(), data.getProductName(), data.getProductId());
+            ProductEvent.ProductEventData data = event.data();
+            log.debug("[CONSUMER] 상품 이벤트 수신 - 종류: {}, 상품: {} ({})",
+                event.type(), data.productName(), data.productId());
 
             try {
                 // [2단계: 이벤트 타입별 분기 — 색인은 모으고, 삭제는 모인 것을 먼저 내보낸 뒤 처리]
-                switch (event.getType()) {
+                switch (event.type()) {
                     case PRODUCT_CREATED, PRODUCT_UPDATED -> {
                         if (pending.isEmpty()) {
                             pendingStartIndex = i;
@@ -73,21 +73,21 @@ public class ProductEventConsumer {
                     case PRODUCT_DELETED -> {
                         flushOrFail(pending, pendingStartIndex);
                         pendingStartIndex = -1;
-                        productIndexService.deleteProduct(data.getProductId());
-                        log.info("✅ [CONSUMER] 상품 색인 삭제 완료 - 상품: {} ({})",
-                            data.getProductName(), data.getProductId());
+                        productIndexService.deleteProduct(data.productId());
+                        log.info("[CONSUMER] 상품 색인 삭제 완료 - 상품: {} ({})",
+                            data.productName(), data.productId());
                     }
-                    default -> log.warn("⚠️ [CONSUMER] 알 수 없는 이벤트 종류 - 종류: {}, 상품 ID: {}",
-                        event.getType(), data.getProductId());
+                    default -> log.warn("[CONSUMER] 알 수 없는 이벤트 종류 - 종류: {}, 상품 ID: {}",
+                        event.type(), data.productId());
                 }
             } catch (BatchListenerFailedException e) {
                 throw e; // flush 실패 — 위치는 이미 담겨 있다
             } catch (Exception e) {
                 // [3단계: 삭제 실패 — 이 레코드 위치를 담아 던진다]
                 // 예외를 삼키면 재시도가 동작하지 않고, 위치 없이 던지면 묶음 전체가 재시도·폐기된다.
-                log.error("❌ [CONSUMER] Failed to process product event - Type: {}, Product: {} ({}), Error: {}",
-                    event.getType(), data.getProductName(), data.getProductId(), e.getMessage(), e);
-                throw new BatchListenerFailedException("상품 이벤트 처리 실패: " + data.getProductId(), e, i);
+                log.error("[CONSUMER] Failed to process product event - Type: {}, Product: {} ({}), Error: {}",
+                    event.type(), data.productName(), data.productId(), e.getMessage(), e);
+                throw new BatchListenerFailedException("상품 이벤트 처리 실패: " + data.productId(), e, i);
             }
         }
 
@@ -102,7 +102,7 @@ public class ProductEventConsumer {
         try {
             flush(pending);
         } catch (Exception e) {
-            log.error("❌ [CONSUMER] Failed to index product batch ({} products, from record {}) - Error: {}",
+            log.error("[CONSUMER] Failed to index product batch ({} products, from record {}) - Error: {}",
                 pending.size(), pendingStartIndex, e.getMessage(), e);
             throw new BatchListenerFailedException("상품 묶음 색인 실패", e, pendingStartIndex);
         }
@@ -116,7 +116,7 @@ public class ProductEventConsumer {
             return;
         }
         productIndexService.indexProducts(List.copyOf(pending));
-        log.info("✅ [CONSUMER] 상품 색인 완료 - {}건", pending.size());
+        log.info("[CONSUMER] 상품 색인 완료 - {}건", pending.size());
         pending.clear();
     }
 
@@ -125,13 +125,13 @@ public class ProductEventConsumer {
      */
     private ProductIndexRequest toRequest(ProductEvent.ProductEventData data) {
         return new ProductIndexRequest(
-            data.getProductId(),
-            data.getProductName(),
-            data.getProductCategoryId(),
-            data.getProductCategoryCode(),
-            data.getProductCategoryName(),
-            data.getPrice(),
-            data.getStatus(),
-            data.getUpdatedAt());
+            data.productId(),
+            data.productName(),
+            data.productCategoryId(),
+            data.productCategoryCode(),
+            data.productCategoryName(),
+            data.price(),
+            data.status(),
+            data.updatedAt());
     }
 }
