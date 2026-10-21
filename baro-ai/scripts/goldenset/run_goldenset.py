@@ -28,6 +28,9 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import classify_missing  # noqa: E402 — 축 5(판매 연결)를 카테고리 기준으로 센다
+
 from prompts import build_prompt, ARMS
 
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -213,10 +216,11 @@ def run(args) -> int:
                 done += 1
                 print(f"  [{done}/{total_calls}] {code} run{run_no} ({', '.join(owned)})")
                 prompt = build_prompt(args.arm, owned)
+                started = time.perf_counter()
                 try:
                     response = call_gemini(api_key, args.model, prompt, ARMS[args.arm]["schema"])
                 except Exception as e:
-                    record.update(error=str(e), chosen=None)
+                    record.update(error=str(e), chosen=None, elapsed_ms=round((time.perf_counter() - started) * 1000))
                     records.append(record)
                     raw_file.write(json.dumps(record, ensure_ascii=False) + "\n")
                     raw_file.flush()
@@ -227,6 +231,8 @@ def run(args) -> int:
                 chosen = choose_first(candidates)
                 usage = response.get("usageMetadata", {})
                 record.update(
+                    # 운영 요청 경로의 3초 상한이 실제 응답 분포에 맞는지 보려고 남긴다 (audits/cart-recipe/010 판단 항목 1)
+                    elapsed_ms=round((time.perf_counter() - started) * 1000),
                     candidate_count=len(candidates),
                     chosen=chosen,
                     missing_core=missing_core(chosen, owned) if chosen else [],
@@ -248,6 +254,17 @@ def run(args) -> int:
     return 0
 
 
+def latency_line(records: list[dict]) -> str:
+    """호출 소요 시간 분포 — 운영 요청 경로 상한(3초)과 견주기 위한 줄. 실행기 자체 상한은 30초다."""
+    xs = sorted(r["elapsed_ms"] for r in records if r.get("elapsed_ms") is not None)
+    if not xs:
+        return "- 소요 시간: 기록 없음"
+    pct = lambda q: xs[min(len(xs) - 1, int(round(q * (len(xs) - 1))))]
+    over3s = sum(1 for x in xs if x > 3000)
+    return (f"- 소요 시간(ms): p50 {pct(0.5)} · p90 {pct(0.9)} · p95 {pct(0.95)} · 최대 {xs[-1]} — "
+            f"3초 초과 {over3s}/{len(xs)}건 (운영 요청 경로 상한과 비교)")
+
+
 def write_grading_sheet(path: Path, args, records: list[dict]) -> None:
     """사람이 5축을 손으로 채우는 마크다운 시트를 만든다."""
     catalog = load_catalog()
@@ -261,7 +278,7 @@ def write_grading_sheet(path: Path, args, records: list[dict]) -> None:
         "판정 기준은 [`recipe-quality-redesign.md`]"
         "(../../../specs/cart-recipe/recipe-quality-redesign.md) \"합격 기준\" 절.",
         "",
-        "1 실재성 · 2 재료 정합성 · 3 보유 활용 · 4 조리법 타당성 · 5 판매 연결(부족 재료 ≥ 1)",
+        "1 실재성 · 2 재료 정합성 · 3 보유 활용 · 4 조리법 타당성 · 5 판매 연결(우리가 파는 종류의 부족 재료 ≥ 1, 카테고리 기준)",
         "",
         "| # | 회차 | 장바구니 | 추천 요리 | 핵심 재료 | 부족 재료(서버 계산) | 1 | 2 | 3 | 4 | 5 | 합격 |",
         "|---|------|----------|-----------|-----------|----------------------|---|---|---|---|---|------|",
@@ -296,8 +313,11 @@ def write_grading_sheet(path: Path, args, records: list[dict]) -> None:
         f"빈 응답 {len([r for r in records if not r.get('chosen') and not r.get('error') and not r.get('skipped')])}건",
         f"- 출력 토큰 합계 **{sum(tokens):,}** · 평균 {(sum(tokens) / len(tokens) if tokens else 0):.0f}",
         f"- 응답 후보 개수 평균 {(sum(r.get('candidate_count') or 0 for r in ok) / len(ok) if ok else 0):.2f}",
-        f"- 부족 재료 0개인 실행 {len([r for r in ok if not r.get('missing_core')])}건 "
-        f"(합격 기준 5축 위반 후보)",
+        latency_line(records),
+        f"- 부족 재료 0개인 실행 {len([r for r in ok if not r.get('missing_core')])}건",
+        f"- 판매 가능한 종류의 부족 재료가 없는 실행 "
+        f"{len([r for r in ok if not any(classify_missing.classify(m)[0] == 'REAL' for m in (r.get('missing_core') or []))])}건 "
+        f"(합격 기준 축 5 위반 — 카테고리 기준, `classify_missing.py`)",
     ]
 
     all_missing: dict[str, int] = {}
