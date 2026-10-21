@@ -25,22 +25,22 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 | 용어 | 뜻 | 상세 |
 |------|-----|------|
 | 요리 재료명 | 상품명에서 브랜드·산지·수량·단위를 걷어낸 한 단어 재료(예: "계란"). 색인 시 LLM으로 1회 계산 | `ProductDocument.ingredientName` |
-| 보유 재료 | 장바구니 상품들의 요리 재료명 집합(제외 카테고리를 걸러낸 뒤 — 목록이 비어 지금은 전부 통과). **응답의 `ownedIngredients`는 이것이 아니라 이 요리가 실제로 쓰는 부분집합이다** | `loadOwnedIngredientNames` / `usedOwnedIngredients` |
+| 보유 재료 | 장바구니 상품들의 요리 재료명 집합(`productId`가 있는 항목만 — 카테고리로 거르는 단계는 2026-09-09에 삭제, 아래 "레시피 제외 카테고리" 행). **응답의 `ownedIngredients`는 이것이 아니라 이 요리가 실제로 쓰는 부분집합이다** | `loadOwnedIngredientNames` / `usedOwnedIngredients` |
 | 레시피 후보 | LLM이 만드는 레시피. 2026-09-06부터 **1개**(응답은 배열 형태 유지, 이름이 있는 첫 항목을 생성기가 고른다) | `RecipeCandidateGenerator.generateRecipe` |
 | 후보 원본 | LLM이 돌려주는 그대로의 후보. 서버가 계산하는 두 필드가 없다 | `RecipeCandidateDraft` |
 | 핵심 재료 | 요리의 정체성을 정하는 재료 3~5개(개수 규칙은 프롬프트). 추가 재료(`Extra`)는 2026-09-06에 삭제 | `recipeIngredientsCore` |
 | 부족 핵심 재료 | 핵심 재료 − 보유 재료(서버 계산) | `missingIngredientsCore` |
-| 기본 양념 가정 | 소금·후추·식용유 등은 보유로 간주, 재료 목록에 넣지 않음 | 프롬프트 `<정책>` |
-| 레시피 제외 카테고리 | 설정 파일에 적힌 카테고리 코드. 이 카테고리 상품은 보유 재료에서 뺀다. **2026-09-07부터 목록이 비어 있어 아무것도 빠지지 않는다** | `recipe-recommend.yml` |
+| 판매 카테고리 규칙 | 프롬프트 규칙 4. 신선 농산물·축산물 6종(지역 특산물 제외)(과일·채소·곡류·버섯/특용작물·견과·계란/육류/유제품)만 판다고 알리고, 그 밖의 것(양념·장류·기름·가루·수산물·가공식품)은 핵심 재료에 넣지 않게 한다. 부족 핵심 재료는 판매 품목 안에서만 고른다. **2026-09-09 교체** — 그전까지는 기본 양념 7개만 나열했다(측정: [`audits/cart-recipe/009`](../../audits/cart-recipe/009-category-rule-in-prompt.md)). 카테고리 SSOT는 `scripts/init-db/02-init-categories.sql` | `RecipeCandidateGenerator.buildRecipeCandidateTemplate` |
+| 레시피 제외 카테고리 | **더 이상 없다**(2026-09-09 삭제). 2026-09-07부터 목록이 비어 아무것도 걸러내지 않는 죽은 분기여서 설정 파일·클래스까지 함께 지웠다 | — |
 
 ## 흐름
 
 | 단계 | 어디서 | 무엇을 | 근거 |
 |------|--------|--------|------|
 | 1. 장바구니 조회 | `CartClient.getCart` (Feign `shopping-service`, `X-User-Id`) → `baro-shopping` `GET /api/v1/carts` | 응답은 **`ResponseDto<CartInfo>`**(status·data·message). 장바구니가 없어도 404가 아니라 200 + 빈 `CartInfo`. 항목마다 상품 서비스를 다시 조회해 상품명·카테고리를 채우며, 실패하면 한글 폴백 문자열이 들어간다 | `baro-shopping/.../CartController.java:33-40`, `CartService.java:160-207`, `CartItemInfo.java:29-36` |
-| 2. 제외 필터 | `RecipeRecommendService.isRecipeEligible` | `productCategoryCode`가 제외 목록에 있으면 제거. **목록이 비어 있어 지금은 전부 통과한다** | [`RecipeRecommendService.java`](../../../src/main/java/com/barofarm/ai/recommend/application/RecipeRecommendService.java) |
+| 2. 항목 걸러내기 | `RecipeRecommendService.recommendFromCart` | `productId`가 없는 항목만 뺀다. 카테고리로 거르는 단계는 **2026-09-09에 삭제**했다(제외 목록이 2026-09-07부터 비어 있던 죽은 분기) | [`RecipeRecommendService.java`](../../../src/main/java/com/barofarm/ai/recommend/application/RecipeRecommendService.java) |
 | 3. 보유 재료 | `loadOwnedIngredientNames` | 상품 ID로 ES `product` 문서를 한 번에 조회(`ids` 쿼리, `_source`에서 `vector` 제외) → `ingredientName`이 빈 문서는 건너뛰고 건수 WARN | 동일 |
-| 4. 후보 생성 | `RecipeCandidateGenerator.generateRecipe` | Gemini `gemini-3.5-flash-lite`, temperature 0.7(전역), 응답 JSON 스키마 강제, 재시도 총 3회·호출당 30초. 프롬프트는 후보 **1개**를 요구하고, 응답 배열에서 이름이 있는 첫 항목을 `Optional`로 돌려준다(실패·빈 응답이면 empty) | [`RecipeCandidateGenerator.java`](../../../src/main/java/com/barofarm/ai/recommend/infrastructure/llm/RecipeCandidateGenerator.java) |
+| 4. 후보 생성 | `RecipeCandidateGenerator.generateRecipe` | Gemini `gemini-3.5-flash-lite`, temperature 0.7(전역), 응답 JSON 스키마 강제. **호출은 `LlmGateway`의 요청 경로로 나간다 — 3초 상한·재시도 없음·동시 5건**(2026-09-08. "재시도 없음"은 2026-09-09에야 실제가 됐다 — 그전에는 옵션이 비어 SDK 기본 5회 재시도가 붙어 있었다, [`audits/cart-recipe/010`](../../audits/cart-recipe/010-unit-wide-audit.md) A-1. 그전에는 30초×3회라 요청 스레드가 최대 93초 묶일 수 있었다). 프롬프트는 후보 **1개**를 요구하고, 응답 배열에서 이름이 있는 첫 항목을 `Optional`로 돌려준다(실패·빈 응답이면 empty) | [`RecipeCandidateGenerator.java`](../../../src/main/java/com/barofarm/ai/recommend/infrastructure/llm/RecipeCandidateGenerator.java) |
 | 5. 서버 계산 | `CandidateRecipePlan.from` | LLM 원본 후보에 `usedOwnedIngredients`(핵심 재료 ∩ 보유)·`missingIngredientsCore`(핵심 재료 − 보유)를 정규화 비교(`normalizeForCompare`: trim·소문자·공백 제거)로 채워 넣는다. 둘을 합치면 핵심 재료가 된다 | [`CandidateRecipePlan.java`](../../../src/main/java/com/barofarm/ai/recommend/domain/CandidateRecipePlan.java) |
 | 6. 후보 선택 | (4단계에 흡수) | 후보가 1개가 된 뒤 남아 있던 일급 컬렉션 `RecipeCandidates`는 2026-09-06에 삭제했다 — 빈 이름 방어 한 줄은 생성기 안에 있다. 서버 점수 계산은 2026-09-05에 삭제했다 | [`audits/cart-recipe/005`](../../audits/cart-recipe/005-request-path-defects-and-tests.md) B-1 |
 | 7. 부족 재료 상품 | `searchMissingIngredientProducts` → `ProductSearchService.searchByKeywords` | 부족 핵심 재료 전부를 **한 번의 `_msearch`**로 조회(재료당 size 2, 검색 로그·프로필 갱신 없음). 검색어는 원문이 아니라 **마지막 어절**만 쓴다(`국거리용 소고기` → `소고기`) — 사용자에게 보이는 `missingCoreIngredients`는 원문 그대로다. 2026-09-06 이전에는 재료마다 순차 호출이었다. 검색이 통째로 실패하면 카드만 비우고 레시피 본문은 살린다. 0건인 재료는 카드가 빠지고 `missingCoreIngredients`에는 남음 | [`audits/cart-recipe/005`](../../audits/cart-recipe/005-request-path-defects-and-tests.md) A-2 |
@@ -50,7 +50,7 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 
 | Method | Path | 인증 | 설명 |
 |--------|------|------|------|
-| GET | `/api/v1/recommendations/recipes/{userId}` | 없음(경로 userId 신뢰) | 실제 장바구니 기반 |
+| GET | `/api/v1/recommendations/recipes/{userId}` | `X-User-Id` 헤더가 오면 경로와 대조해 다르면 403 `USER_MISMATCH`. 헤더가 없으면 경로 값을 그대로 쓴다(2026-09-08) | 실제 장바구니 기반 |
 
 테스트용 `POST /api/v1/recommendations/recipes/test`는 2026-09-05에 삭제했다 — 인증 없이 임의 장바구니로 LLM 호출을 일으킬 수 있었고, A-1·A-2 반영으로 실제 경로에서 확인할 수 있게 됐다.
 
@@ -75,9 +75,9 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 |------|-----|------|
 | 읽는 ES 필드 | `product.ingredientName`(keyword)·`productName`. 부족 재료 검색은 일반 키워드 검색이 **아니라 전용 쿼리**다 — 아래 "부족 재료 상품 매칭" 절 | [`keyword-search`](../keyword-search/product-search-and-autocomplete.md) · [`audits/cart-recipe/006`](../../audits/cart-recipe/006-missing-ingredient-product-match.md) |
 | Feign 응답 타입 | `ResponseDto<CartInfo>` — 봉투째 받아 `data()`를 꺼낸다. 호출 상한은 연결 1초·읽기 3초 | `CartClient`, `application.yml` |
-| Feign 수신 DTO | `CartInfo`(items), `CartItemInfo`(productId·productName·productCategoryCode) — **실제로 읽는 칸만 옮겨 적는다**(2026-09-06 축소). 상류는 `cartId`·`totalPrice`·`quantity`·`unitPrice` 등을 함께 보내지만 Jackson이 모르는 필드를 무시한다 | `recommend.infrastructure.client.dto` |
+| Feign 수신 DTO | `CartInfo`(items), `CartItemInfo`(productId·productName) — **실제로 읽는 칸만 옮겨 적는다**(2026-09-06 축소, `productCategoryCode`는 2026-09-09 제외 필터 삭제와 함께 뺐다). 상류는 `cartId`·`totalPrice`·`quantity`·`unitPrice` 등을 함께 보내지만 Jackson이 모르는 필드를 무시한다 | `recommend.infrastructure.client.dto` |
 | LLM 응답 스키마 | `RecipeCandidateDrafts{candidates[RecipeCandidateDraft]}` — recipeName, recipeIngredientsCore, instructions **3개**(2026-09-06에 8개에서 축소). 서버가 계산하는 두 필드는 스키마에 없다 — 스키마 생성기가 모든 필드를 필수로 요구해서, 넣어 두면 버릴 값을 모델이 매번 출력해야 했다. 조리 방식·난이도·식사 유형·추가 재료·양념 가정 플래그는 응답에 닿지 않아 함께 삭제했다 | `RecipeCandidateDraft` |
-| 설정 | `baro.ai.recommend.exclude-recipe-category-codes` = **빈 목록**(2026-09-07 — 과일 4종을 뺐다가 근거가 재현되지 않아 풀었다, [`audits/cart-recipe/007`](../../audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md) A-2) | `recipe-recommend.yml` |
+| 설정 | **없음**(2026-09-09). 제외 카테고리 목록이 2026-09-07부터 비어 있어 죽은 분기였고, 관련 설정 파일·클래스를 함께 지웠다. 경위: [`audits/cart-recipe/007`](../../audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md) A-2 | — |
 
 ## 비즈니스 규칙
 
@@ -88,13 +88,13 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 | 장바구니 조회 응답 | `ResponseDto<CartInfo>`. 없으면 200 + `CartInfo.empty()` | `CartController.java:34-40`, `CartService.java:41-53` |
 | 항목 정보 원천 | 조회 시점에 상품·재고 서비스를 항목마다 재조회(N+1). 실패 시 `"(상품명을 불러오지 못했습니다)"`·`"(카테고리 코드를 불러오지 못했습니다)"`·`unit=-1` 폴백 | `CartItemInfo.java:29-36` |
 | `CART_NOT_FOUND`(404) | 조회에서는 나지 않고 수정·삭제 계열에서만. baro-ai 쪽 대응 코드는 2026-09-05에 삭제했다 | `CartService.findCart` |
-| 카테고리 | 22개 전부 농산물. 레시피 재료가 아닌 상품 카테고리는 존재하지 않음 | `02-init-categories.sql` |
+| 카테고리 | 루트 1 + Level 1 7개 + Level 2 14개 = 22개(루트를 빼면 21개), 전부 농산물·축산물 계열. 양념·가공식품 칸은 없다. 프롬프트 규칙 4가 판매 품목으로 나열하는 것은 Level 1 중 지역 특산물을 뺀 6종(해석 `[미정]`) | `02-init-categories.sql` |
 
 ### baro-ai
 
 | 규칙 | 값 | 구현 위치 |
 |------|-----|-----------|
-| 제외 카테고리 | **없음**(설정이 빈 목록). 코드는 남아 있어 설정만 채우면 다시 동작한다 | `RecommendProperties` |
+| 제외 카테고리 | **없음**(2026-09-09에 코드까지 삭제). 필요해지면 다시 넣는다 | — |
 | 보유 재료 판정 | `ingredientName`이 비어 있지 않은 상품만. 정규화 후 중복 제거 | `loadOwnedIngredientNames` |
 | 요청당 LLM 호출 | 후보 생성 1회 | [`decisions/002`](../../decisions/002-ingredient-name-at-index-time.md) |
 | 후보 개수·다양성 | **1개**, 핵심 재료 3~5개. 스타일·조리법 다양성 강제는 2026-09-06에 삭제 — 개수를 채우려는 압력이 억지 요리를 밀어내고 있었다 | 프롬프트 `<지켜야 할 것>` |
@@ -118,7 +118,7 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 
 - [x] 장바구니 조회 실패(Feign 예외) → 빈 응답
 - [x] 빈 장바구니 → 빈 응답
-- [x] 전부 제외 카테고리 → 빈 응답 (제외 목록이 빈 지금은 실제로 발생하지 않지만, 단위 테스트가 목록을 주입해 동작을 고정한다)
+- [x] `productId`가 없는 항목뿐 → `NO_ELIGIBLE_ITEMS` 빈 응답 (`RecipeRecommendServiceTest.noIdentifiableItems_isNoEligibleItems`. 카테고리 제외 필터는 2026-09-09에 삭제돼 이 경로 하나만 남았다)
 - [x] `ingredientName`이 전부 빈 문서 → 빈 응답 + "재색인 필요" WARN
 - [x] LLM 실패 → `ownedIngredients`만 채운 응답
 - [x] 정상 장바구니인데 봉투를 풀지 못해 `items == null` → 빈 응답 (2026-09-05 `ResponseDto<CartInfo>` 수신으로 해소, 실제 왕복은 미검증)
@@ -138,7 +138,7 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 
 - [x] 기능 구현
 - [ ] 위 "수동 확인 (로컬)" 절차 — baro-shopping 미기동으로 2026-09-05 리팩터에서는 수행하지 못했다
-- [x] `./gradlew :baro-ai:test` — 이 단위 20건 통과 (`RecipeRecommendServiceTest` 7 · `IngredientProcessingUtilTest` 8 · `CandidateRecipePlanTest` 5). 저장소 전체는 10클래스 59건
+- [x] `./gradlew :baro-ai:test` — 이 단위 20건 통과 (`RecipeRecommendServiceTest` 7 · `IngredientProcessingUtilTest` 8 · `CandidateRecipePlanTest` 5). 저장소 전체는 감사 010 반영 뒤 **93건**(2026-09-09 — 이 단위에 `RecipeCandidateGeneratorTest` 5·`ProductIngredientNormalizerTest` 5가 더해져 30건)
 
 ## 리스크·미결정
 
@@ -146,12 +146,12 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 |------|------|------|
 | **Feign 응답 언래핑 누락** | 해소 · 런타임 미검증 | 2026-09-05 `CartClient`가 `ResponseDto<CartInfo>`를 받도록 고쳤다. baro-shopping을 띄운 실제 왕복 확인은 아직 못 했다 |
 | **`shopping-service` 이름이 prod에서 해석 불가** | 해소 · 런타임 미검증 | 2026-09-05 `spring.cloud.openfeign.client.config.shopping-service.url`을 추가했다(기본값 `http://baro-shopping:8080`). 네임스페이스가 다르면 FQDN이 필요해 배포 담당자 확인 `[미정]` |
-| 게이트웨이 응답 타임아웃 5초 vs LLM 최악 약 93초 | 확정 | Gemini 재시도가 걸리면 게이트웨이가 먼저 끊는다. 상한을 어느 쪽에 맞출지 `[미정]` |
+| 게이트웨이 응답 타임아웃 5초 vs 레시피 경로 예산 | **해소(2026-09-09)** | 요청 경로는 3초 상한이고, 2026-09-09에 SDK 기본 재시도까지 꺼서 실제로 3초 근처에 끝난다([`audits/cart-recipe/010`](../../audits/cart-recipe/010-unit-wide-audit.md) A-1). 장바구니 조회 3초 + LLM 3초 + 상품 검색이 직렬이라 최악 합이 5초를 넘을 수 있는 점은 `open-items.md` B-3 |
 | 스코어링 가중치 미문서화·프롬프트 정책과 중복 | 해소 | 2026-09-05 점수 로직 삭제(사용자 결정). **되돌리려면 삭제 전 가중치가 필요하다** — 값은 [`audits/recommend/002`](../../audits/recommend/002-recipe-scoring.md) C-1에 남아 있다 |
 | 후보 선택 품질 비교 근거 없음 | 확정 | 점수를 지우기 전에도 후보별 점수를 로그로 남기지 않아, 삭제 전후 추천 품질을 비교할 자료가 없다 `[미정]` |
 | 테스트용 POST 엔드포인트가 운영에 노출 | 해소 | 2026-09-05 삭제 |
 | LLM 스키마에 서버가 덮어쓰는 필드 포함 | 해소 | 2026-09-05 `RecipeCandidateDraft` 분리 |
-| 모든 실패가 200 + 빈 값 | 확정(설계) | 레시피 경로는 실패해도 200 + 빈 값으로 나간다. `RecommendErrorCode`는 2026-09-05에 지웠다가 되살아나 있고(`INVALID_TOP_K` 1건), 쓰는 곳은 레시피가 아니라 `VectorRecommendPipeline.validateTopK`다 — 2026-09-06 코드 확인 |
+| 모든 실패가 200 + 빈 값 | 확정(설계) | 레시피 경로는 실패해도 200 + 빈 값으로 나간다. `RecommendErrorCode`는 2026-09-05에 지웠다가 되살아나 있고(`INVALID_TOP_K`·`USER_MISMATCH` 2건 — 후자는 2026-09-08 추가, 레시피·개인화 컨트롤러가 헤더 대조에 쓴다), `INVALID_TOP_K`를 쓰는 곳은 레시피가 아니라 `VectorRecommendPipeline.validateTopK`다 — 2026-09-06 코드 확인 |
 | 폴백 문자열이 `productCategoryCode`로 올 수 있음 | 확정 | 제외 목록과 안 맞아 통과되지만 `ingredientName` 조회는 `productId`로 하므로 영향 없음 |
 | ~~부족 재료 검색이 순차~~ | **해소(2026-09-06)** | `ProductSearchService.searchByKeywords`가 `_msearch` 1회로 묶는다. 부분 실패 시 결과 길이가 어긋나면 전부 빈 목록으로 맞춘다 |
 | `CandidateRecipePlan` 주석 2줄 불일치 | 해소 | 2026-09-05 record 전환과 함께 정정 |
@@ -177,3 +177,6 @@ LLM은 레시피 아이디어에는 강하지만 "보유·부족" 분류를 틀�
 | 2026-09-06 | 프롬프트 재설계 반영 — 후보 3개→1개, 판매 유도를 비율에서 "최소 1개"로, LLM 응답 필드 8개→3개, `ownedIngredients`를 장바구니 전체에서 "이 요리가 쓰는 보유 재료"로. 골든셋 측정 근거: [`audits/cart-recipe/002`](../../audits/cart-recipe/002-goldenset-before-after.md) |
 | 2026-09-06 | 감사 005 반영 — 응답에 `reason` 추가(계약 변경, 판단 항목 1 승인), 부족 재료 상품 조회를 재료별 순차 호출에서 `_msearch` 1회로, 최상위 catch에 스택트레이스, `RecipeCandidates` 삭제. 단위 테스트 4클래스 20건 도입(저장소 첫 테스트) |
 | 2026-09-07 | 감사 007 반영 — **레시피 제외 카테고리를 비웠다**(과일 4종 해제). 과일이 보유 재료로 들어오므로 `NO_ELIGIBLE_ITEMS`가 거의 나오지 않고 디저트·음료 레시피가 나온다. 프롬프트 규칙 1의 예시도 팔지 않는 과일에서 파는 채소·견과류로 교체. 근거: [`audits/cart-recipe/007`](../../audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md) |
+| 2026-09-08 | 레시피 생성 LLM 호출을 `LlmGateway` 요청 경로로 전환 — 3초 상한·재시도 없음·동시 5건. 요청 스레드가 최대 93초 묶이던 것을 막는다. 추천 이유별 지표(`recommendation.results.reason`) 추가 |
+| 2026-09-09 | 레시피 제외 카테고리 필터를 **통째로 삭제** — 목록이 계속 비어 있어 아무것도 걸러내지 않는 죽은 분기였다. `RecommendProperties`·`recipe-recommend.yml`·`CartItemInfo.productCategoryCode`가 함께 사라졌다. 상품 응답 타입이 `ProductSummaryResponse`로 통합됨(본문 동일) |
+| 2026-09-09 | 프롬프트 규칙 4 교체 — "기본 양념 7개 가정"에서 "판매 카테고리(농산물·축산물 6종, 지역 특산물 제외) 밖은 팔지 않는다"로. 팔지 않는 종류가 핵심 재료에 섞이는 비율 51%→22%(측정 [`audits/cart-recipe/009`](../../audits/cart-recipe/009-category-rule-in-prompt.md)). 용어 표 "기본 양념 가정" → "판매 카테고리 규칙" |

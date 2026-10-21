@@ -1,44 +1,34 @@
 package com.barofarm.ai.recommend.infrastructure.llm;
 
+import com.barofarm.ai.common.llm.LlmCallKind;
+import com.barofarm.ai.common.llm.LlmGateway;
 import com.barofarm.ai.recommend.domain.CandidateRecipePlan;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
 /**
- * Gemini LLM(구글 생성형 AI)을 호출하여 사용자가 보유한 장바구니 식재료를 활용할 수 있는
- * 맞춤형 요리 레시피를 생성하는 생성기 컴포넌트입니다.
+ * Gemini LLM을 호출하여 사용자가 보유한 장바구니 식재료로 만들 수 있는 레시피를 생성하는 생성기입니다.
  * 응답은 배열 형태를 유지하되(빈 이름 방어) 프롬프트는 후보 1개만 요구하고, 이 클래스는 그중
  * 이름이 채워진 첫 번째 것을 골라 {@link Optional}로 돌려줍니다.
  *
- * [주요 특징]
- * 1. Structured Outputs: Gemini API의 JSON 스키마 강제 기능(responseSchema)을 적용해
- *    마크다운 코드펜스나 설명 문장이 섞이지 않은 JSON을 받습니다. 프롬프트로 부탁하던 방식보다 훨씬 안정적이지만
- *    파싱 실패가 0이 된다는 보장은 아니라서, 아래 호출부는 여전히 예외를 잡아 빈 결과로 되돌립니다.
- * 2. 서버 측 재료 정합성 계산: 부족한 핵심 재료 및 사용된 재료는 LLM의 환각(Hallucination)에 의존하지 않고,
- *    서버(CandidateRecipePlan.from)에서 보유 재료 목록과 대조하여 정확히 계산합니다.
+ * <p><b>요청 경로 호출이다.</b> 사용자가 화면 앞에서 기다리므로 {@link LlmCallKind#INTERACTIVE}로 나가고,
+ * 3초 안에 답이 없거나 격벽이 가득 차면 기다리지 않고 빈 결과가 됩니다. 그러면 응답은
+ * {@code GENERATION_FAILED} 이유와 함께 200으로 나갑니다 — 레시피를 못 만든 것은 오류가 아니라
+ * 사용자 상태라는 이 도메인의 정책 그대로입니다.
+ *
+ * <p>서버 측 재료 정합성 계산: '사용한 재료'와 '부족한 핵심 재료'는 LLM의 환각에 의존하지 않고
+ * 서버({@link CandidateRecipePlan#from})가 보유 재료 목록과 대조하여 계산합니다.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class RecipeCandidateGenerator {
 
-    /**
-     * Gemini API로부터 수신할 JSON 응답을 Java DTO(RecipeCandidateDrafts) 객체로 파싱하고,
-     * API 호출 시 JSON 스키마를 제공하는 변환기.
-     */
-    private static final BeanOutputConverter<RecipeCandidateDrafts> RESPONSE_CONVERTER =
-        new BeanOutputConverter<>(RecipeCandidateDrafts.class);
-
-    /** Spring AI를 통해 Gemini LLM과 통신하는 대화형 클라이언트 */
-    private final ChatClient chatClient;
+    private final LlmGateway llmGateway;
 
     /**
      * 사용자가 보유한 식재료 목록을 기반으로 요리 레시피 1개를 생성합니다.
@@ -47,37 +37,33 @@ public class RecipeCandidateGenerator {
      * @return 부족한 재료 및 사용 재료가 계산된 레시피 (호출 실패·빈 응답이면 {@link Optional#empty()})
      */
     public Optional<CandidateRecipePlan> generateRecipe(List<String> ownedIngredients) {
-        try {
-            // [1단계: 프롬프트 템플릿 조립]
-            // 보유 재료 목록을 주입하고, 현실적인 요리 및 부족한 재료 유도 규칙이 포함된 시스템 프롬프트를 작성합니다.
-            String templateString = buildRecipeCandidateTemplate(ownedIngredients);
+        // [1단계: 프롬프트 조립]
+        String templateString = buildRecipeCandidateTemplate(ownedIngredients);
 
-            // [2단계: Gemini LLM 호출 및 구조화된 JSON 응답 획득]
-            // ChatClient를 통해 JSON 스키마를 전달하고 Gemini 모델로부터 레시피 초안 목록(Drafts)을 수신합니다.
-            RecipeCandidateDrafts drafts = callRecipeCandidateLLM(templateString);
+        // [2단계: 관문을 통해 요청 경로로 호출 — 예산·격벽·스키마·지표는 관문이 맡는다]
+        // 온도는 전역 기본값(0.7)을 쓴다. 레시피 생성은 추출이 아니라 창작에 가깝기 때문이다.
+        Optional<RecipeCandidateDrafts> drafts =
+            llmGateway.call(LlmCallKind.INTERACTIVE, templateString, RecipeCandidateDrafts.class, null);
 
-            if (drafts == null || drafts.candidates() == null) {
-                return Optional.empty();
-            }
-
-            // [3단계: 이름이 있는 첫 후보를 골라 서버 측 재료 매칭 연산]
-            // 프롬프트는 1개를 요구하지만 응답은 배열이라, 이름이 빈 항목을 걸러 첫 번째를 택합니다.
-            // LLM이 반환한 초안(Draft)과 보유 재료를 대조하여 '실제 사용된 재료'와 '부족한 핵심 재료'를 서버에서 계산합니다.
-            Optional<CandidateRecipePlan> plan = drafts.candidates().stream()
-                .filter(draft -> draft != null && draft.recipeName() != null && !draft.recipeName().isBlank())
-                .findFirst()
-                .map(draft -> CandidateRecipePlan.from(draft, ownedIngredients));
-
-            plan.ifPresentOrElse(
-                p -> log.debug("레시피 생성 완료: {}, core: {}, used: {}, missing: {}",
-                    p.recipeName(), p.recipeIngredientsCore(), p.usedOwnedIngredients(), p.missingIngredientsCore()),
-                () -> log.info("레시피 응답에 이름이 있는 후보가 없습니다. 후보 수: {}", drafts.candidates().size()));
-
-            return plan;
-        } catch (Exception e) {
-            log.error("레시피 생성 실패: {}", e.getMessage(), e);
+        if (drafts.isEmpty() || drafts.get().candidates() == null) {
             return Optional.empty();
         }
+
+        // [3단계: 이름이 있는 첫 후보를 골라 서버 측 재료 매칭 연산]
+        // 프롬프트는 1개를 요구하지만 응답은 배열이라, 이름이 빈 항목을 걸러 첫 번째를 택합니다.
+        List<RecipeCandidateDraft> candidates = drafts.get().candidates();
+        Optional<CandidateRecipePlan> plan = candidates.stream()
+            .filter(draft -> draft != null && draft.recipeName() != null && !draft.recipeName().isBlank())
+            .findFirst()
+            .map(draft -> CandidateRecipePlan.from(
+                draft.recipeName(), draft.recipeIngredientsCore(), draft.instructions(), ownedIngredients));
+
+        plan.ifPresentOrElse(
+            p -> log.debug("레시피 생성 완료: {}, core: {}, used: {}, missing: {}",
+                p.recipeName(), p.recipeIngredientsCore(), p.usedOwnedIngredients(), p.missingIngredientsCore()),
+            () -> log.info("레시피 응답에 이름이 있는 후보가 없습니다. 후보 수: {}", candidates.size()));
+
+        return plan;
     }
 
     /**
@@ -89,21 +75,29 @@ public class RecipeCandidateGenerator {
      *    "오이 파스타" 같은 억지 요리를 밀어내고 있었습니다.
      * 3. 판매 유도는 비율(구 30~50%)이 아니라 "부족 재료 최소 1개"로 겁니다. 보유 재료만으로
      *    완성되는 요리라면 재료를 끼워 넣는 대신 요리 선택 자체를 돌리게 합니다.
-     * 4. 기본 양념은 이미 보유한 것으로 가정하여 재료 목록에서 제외하도록 지시합니다.
-     * 5. 규칙 1의 예시는 팔지 않는 카테고리를 쓰지 않습니다. 과일은 레시피 재료에서 제외돼 있어
-     *    보유 재료로 들어올 수 없는데, 예전 예시가 사과였습니다 — 일어날 수 없는 상황을 가르치고 있었습니다.
+     * 4. 판매 품목을 카테고리(농산물·축산물 6종, 지역 특산물 제외)로 알려 주고, 그 밖의 것(양념·장류·기름·가루·수산물·
+     *    가공식품)은 핵심 재료에 넣지 않게 합니다. 2026-09-09까지는 기본 양념 7개만 나열했는데,
+     *    부족 재료의 약 3할이 팔지 않는 종류로 나와 상품 카드가 빠졌습니다. 목록을 늘리는 대신
+     *    판매 카테고리 자체를 기준으로 바꿨습니다 — 카테고리 SSOT는 scripts/init-db/02-init-categories.sql.
+     *    그 파일의 Level 1 카테고리 7개 중 "지역 특산물"은 일부러 나열하지 않았습니다 — 무엇이 들어가는 칸인지
+     *    미정이라 프롬프트에 넣으면 모델이 임의로 넓혀 읽을 수 있습니다. 해석이 정해지면 넣고 다시 잽니다.
+     * 5. 규칙 1의 예시는 팔지 않는 카테고리를 쓰지 않습니다.
      *
      * 이 문구는 골든셋 15종 × 3회 측정으로 검증했습니다 — 실행 합격률 69.0% → 90.5%.
      * 예시 교체(2026-09-07)는 같은 골든셋을 두 팔 × 2회(각 90건) 돌려 차이가 없음을 확인한 뒤 반영했습니다.
+     * 규칙 4의 카테고리 기준 전환(2026-09-09)은 바꾸기 전 프롬프트(`no-category-rule` 팔)와 42건씩 비교했습니다.
+     * **문구를 고치면 같은 골든셋으로 다시 재야 합니다.**
      * 근거: docs/audits/cart-recipe/002-goldenset-before-after.md,
-     *      docs/audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md
+     *      docs/audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md,
+     *      docs/audits/cart-recipe/009-category-rule-in-prompt.md
      *
      * @param ownedIngredients 장바구니에서 추출된 보유 식재료명 목록
      * @return 완성된 LLM 사용자 프롬프트 텍스트
      */
     private String buildRecipeCandidateTemplate(List<String> ownedIngredients) {
+        // 재료명은 색인 시점에 LLM이 만든 값이라 우리가 쓴 문자열이 아니다 — 그대로 끼워 넣지 않는다.
         String ownedText = ownedIngredients.stream()
-            .map(s -> "- " + s)
+            .map(s -> "- " + LlmGateway.asData(s))
             .collect(Collectors.joining("\n"));
 
         return """
@@ -123,8 +117,11 @@ public class RecipeCandidateGenerator {
                살리면서 한두 가지가 더 필요한 요리를 고르세요.
                예: ["쌀", "보리"]면 "보리밥"이 아니라 "콩보리밥"이나 "보리비빔밥"입니다.
                다만 개수를 맞추려고 어울리지 않는 재료를 넣지는 마세요.
-            4. 기본 양념(물·소금·후추·식용유·설탕·식초·간장 등)은 이미 있다고 가정하고
-               재료 목록에 넣지 않습니다.
+            4. 이 서비스는 신선 농산물·축산물만 팝니다: 과일, 채소, 곡류·잡곡, 버섯·특용작물, 견과류,
+               계란·육류·유제품. 그 밖의 것 — 양념·장류·기름·가루·조미료(물·소금·후추·식용유·설탕·식초·
+               간장·고추장·고춧가루·참기름 등), 수산물·건어물, 두부·김치·면·빵 같은 가공식품 — 은 팔지
+               않으므로 핵심 재료 목록에 넣지 않고, 필요하면 조리법 안에서만 언급합니다.
+               부족한 핵심 재료(규칙 3)는 반드시 위 판매 품목 안에서 고릅니다.
             5. 재료명은 일반적인 한 단어 명사로 씁니다. 예: "돼지고기", "김치", "양파"
 
             <출력 값>
@@ -132,28 +129,5 @@ public class RecipeCandidateGenerator {
             - recipeIngredientsCore: 요리의 정체성을 정하는 핵심 재료 3~5개
             - instructions: 3~6단계 조리법
             """.replace("{ownedIngredients}", ownedText);
-    }
-
-    /**
-     * Gemini LLM을 호출하여 정형화된 JSON 형태의 레시피 초안 목록(RecipeCandidateDrafts)을 수신합니다.
-     *
-     * @param templateString 완성된 사용자 및 시스템 프롬프트 텍스트
-     * @return 파싱된 레시피 초안 객체
-     */
-    private RecipeCandidateDrafts callRecipeCandidateLLM(String templateString) {
-        // [구조화 출력 설정]
-        // BeanOutputConverter를 통해 JSON Schema를 LLM 옵션에 등록하고 application/json MIME 타입을 지정합니다.
-        // 이를 통해 모델이 마크다운이나 잡담 없이 순수 JSON만 출력하도록 보장합니다.
-        String json = chatClient.prompt()
-            .options(GoogleGenAiChatOptions.builder()
-                .responseMimeType(MediaType.APPLICATION_JSON_VALUE)
-                .responseSchema(RESPONSE_CONVERTER.getJsonSchema())
-                .build())
-            .user(p -> p.text(templateString))
-            .call()
-            .content();
-
-        // JSON 응답을 DTO 객체로 변환하여 반환
-        return RESPONSE_CONVERTER.convert(json);
     }
 }

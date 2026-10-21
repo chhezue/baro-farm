@@ -34,16 +34,36 @@ cd baro-ai/scripts/goldenset && python3 run_goldenset.py --arm after
 
 | 옵션 | 기본값 | 쓰임 |
 |------|--------|------|
-| `--arm` | (필수) | `before`=재설계 이전, `after`=현행(운영) 프롬프트, `pantry`=기본 양념 목록을 넓힌 안, `fruit-example`=규칙 1 예시를 사과로 되돌린 2026-09-07 이전 프롬프트 |
-
-**`after`는 항상 운영 프롬프트(`RecipeCandidateGenerator`)의 사본이다.** 자바 쪽 문구를 고치면 `AFTER_TEMPLATE`도 같은 턴에 맞춘다 — 어긋나면 "현행 품질"을 잰다는 이 도구의 전제가 깨진다. 나머지 팔은 전부 `AFTER_TEMPLATE`에서 한 곳만 치환해 만들므로, 두 팔의 차이가 그 한 곳뿐임이 코드로 보장된다.
-
-> **2026-09-07 측정 파일의 이름 주의.** 그날 예시를 교체하면서 `raw-after-20260907-*.jsonl`은 **교체 전**, `raw-nofruit-20260907-*.jsonl`은 **교체 후**를 담았다. 교체를 반영한 뒤로 `after`는 교체 후를 가리키고, 교체 전을 다시 돌리려면 `fruit-example`을 쓴다. 비교 결과는 [`audits/cart-recipe/007`](../../docs/audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md) M-1.
+| `--arm` | (필수) | `before`=재설계 이전, `after`=현행(운영) 프롬프트, `pantry`=기본 양념 목록을 넓힌 안, `fruit-example`=규칙 1 예시를 사과로 되돌린 2026-09-07 이전 프롬프트, `no-sales-rule`=규칙 3(부족 재료 최소 1개)을 뺀 안, `no-category-rule`=규칙 4를 판매 카테고리 기준으로 바꾸기 전(2026-09-09 이전) 프롬프트 |
 | `--repeats` | 3 | 시나리오당 반복 횟수 |
 | `--scenarios` | 전체 | 부분 실행 (예: `--scenarios S4,S11`) |
 | `--delay` | 4.0 | 호출 간 대기 초 |
 | `--model` | `gemini-3.5-flash-lite` | 아래 "모델이 운영과 다르다" 참고 |
 | `--out` | `docs/audits/cart-recipe/goldenset/` | 산출물 위치 |
+
+`no-sales-rule`은 2026-09-09에 더한 팔이다 — 규칙 3("부족한 핵심 재료가 최소 1개는 반드시 있어야 한다")을 뺀 프롬프트로, 그 판매 유도 규칙이 요리 품질을 대가로 치르는지 보려고 만들었다.
+
+**`after`는 항상 운영 프롬프트(`RecipeCandidateGenerator`)의 사본이다.** 자바 쪽 문구를 고치면 `AFTER_TEMPLATE`도 같은 턴에 맞춘다 — 어긋나면 "현행 품질"을 잰다는 이 도구의 전제가 깨진다. 나머지 팔은 전부 `AFTER_TEMPLATE`에서 한 곳만 치환해 만들므로, 두 팔의 차이가 그 한 곳뿐임이 코드로 보장된다.
+
+> **2026-09-07 측정 파일의 이름 주의.** 그날 예시를 교체하면서 `raw-after-20260907-*.jsonl`은 **교체 전**, `raw-nofruit-20260907-*.jsonl`은 **교체 후**를 담았다. 교체를 반영한 뒤로 `after`는 교체 후를 가리키고, 교체 전을 다시 돌리려면 `fruit-example`을 쓴다. 비교 결과는 [`audits/cart-recipe/007`](../../docs/audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md) M-1.
+
+## 두 팔을 비교할 때
+
+두 팔을 돌린 뒤에는 **채점 시트를 하나로 합쳐** 쓴다. 팔마다 나오는 시트를 따로 채우면 줄을 맞춰 가며 비교해야 하고, 같은 결과를 세 번 채점하게 된다.
+
+```bash
+python3 compare_arms_sheet.py <기준선.jsonl> <비교.jsonl> \
+  --base-label "규칙 유지" --candidate-label "규칙 제거" \
+  --out ../../docs/audits/cart-recipe/goldenset/grading-compare-YYYYMMDD.md
+```
+
+이 시트는 셋을 해 준다 — 같은 시나리오의 두 팔을 나란히 놓고, 똑같은 결과는 "3회"로 합치고, 계산으로 정해지는 축 둘(보유 활용·판매 연결)을 미리 채운다. 사람이 채울 칸이 450개에서 198개로 준다.
+
+객관 지표만 먼저 보고 싶으면 채점 없이도 된다:
+
+```bash
+python3 analyse_arms.py <기준선.jsonl> <비교.jsonl>
+```
 
 ## 산출물
 
@@ -64,7 +84,7 @@ cd baro-ai/scripts/goldenset && python3 run_goldenset.py --arm after
 
 | 스크립트 | 무엇에 답하나 |
 |----------|---------------|
-| [`classify_missing.py`](classify_missing.py) | 부족 재료를 "우리가 파는 것 / 양념·기름 / 가공품"으로 나눠, **살 수 있는 게 하나도 없는 추천이 몇 %인지** 센다. 분류 목록을 코드에 박아 둬서 두 팔을 같은 기준으로 비교할 수 있다 — 손으로 세면 기준이 흔들린다 |
+| [`classify_missing.py`](classify_missing.py) | 부족 재료를 **카테고리 트리 기준**으로 분류해 "판매 가능 종류가 하나도 없는 추천" 비율을 낸다. 재료 → 카테고리 매핑이 가리키는 코드는 `scripts/init-db/02-init-categories.sql`에 실재해야 하고(실행마다 검사), 2026-09-06에 팔기로 한 김치·두부·장류는 예정 카테고리로 따로 센다. 값은 **종류 수준**이다 — 개별 상품의 판매 여부가 아니다([`008`](../../docs/audits/cart-recipe/008-open-problems-handoff.md) §3) |
 | [`fruit_scenarios.py`](fruit_scenarios.py) | "과일을 재료에 넣으면 이상한 요리가 나오는가"를 옛 프롬프트와 현행 프롬프트에서 같은 조건으로 비교한다. 결과는 [`audits/cart-recipe/007`](../../docs/audits/cart-recipe/007-fruit-exclusion-and-prompt-example.md) M-2 |
 | [`experiment_variants.py`](experiment_variants.py) | "대파·쪽파·실파처럼 비슷한 재료가 여러 개 담기면 추천이 나빠지는가", "이미 가진 재료의 다른 형태(마늘 vs 다진마늘)를 사라고 하는가"를 잰다. 결과는 [`audits/cart-recipe/003`](../../docs/audits/cart-recipe/003-pantry-staples-and-variants.md) |
 | [`check_normalizer.py`](check_normalizer.py) | 레시피가 아니라 **그 앞단**을 잰다 — 상품명에서 재료명을 뽑는 프롬프트가 상품명 17종에 어떤 답을 내는지. `current` 팔은 프롬프트를 Java 파일에서 직접 읽어 운영과 어긋날 수 없다. 결과는 [`audits/cart-recipe/004`](../../docs/audits/cart-recipe/004-index-time-ingredient-name.md) |
@@ -81,7 +101,7 @@ python3 check_normalizer.py --arm current
 
 - `before` 프롬프트 전문과 응답 스키마 8필드 (`prompts.py`)
 - temperature 0.7 · 응답 MIME `application/json` (모델은 예외 — 아래 참고)
-- 호출 타임아웃 30초 · 재시도 총 3회 · 지수 백오프 1→10초
+- 호출 타임아웃 30초 · 재시도 총 3회 · 지수 백오프 1→10초 — **이건 배치 경로 값이다.** 운영 레시피 요청 경로는 3초·재시도 0회라, 실행기는 운영이 겪을 타임아웃을 관측하지 못한다. 대신 2026-09-09부터 호출마다 `elapsed_ms`를 기록해 3초 상한과 견준다(`audits/cart-recipe/010` 판단 항목 1)
 - `chooseFirst`(이름이 있는 첫 후보)와 부족 재료 계산(`trim`·소문자·공백 제거 후 차집합)
 
 ## 모델
@@ -98,4 +118,4 @@ python3 check_normalizer.py --arm current
 
 이 수치가 카탈로그 그라운딩(부족 재료를 파는 재료로만 제한) 도입 여부를 정하는 근거다.
 
-**대신 쓰는 방법이 생겼다.** `catalog.txt`가 없어도 [`classify_missing.py`](classify_missing.py)가 카테고리 21종이 전부 농산물이라는 사실에 기대어 근사값을 낸다. 상품 시드가 생기면 `catalog.txt` 쪽이 더 정확하므로 그때 갈아탄다.
+**대신 쓰는 기준은 카테고리 트리다 (2026-09-09 사용자 결정).** `catalog.txt`가 없는 동안 [`classify_missing.py`](classify_missing.py)가 부족 재료를 카테고리 21종(+예정 3종)에 매핑해 "종류 수준"으로 판정한다. 개별 상품 판정은 상품 시드가 오면 상품 인덱스 집계로 갈아탄다. 경위는 [`008`](../../docs/audits/cart-recipe/008-open-problems-handoff.md) §3.
