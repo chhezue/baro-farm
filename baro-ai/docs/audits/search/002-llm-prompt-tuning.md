@@ -1,5 +1,8 @@
 # Search Architecture Audit 002 — LLM 프롬프트 튜닝 (2026-09-04)
 
+> **2026-09-09 주:** 이 문서가 현재형으로 적은 기본 모델 `gemini-2.5-flash-lite`는 2026-09-06에 `gemini-3.5-flash-lite`로 바뀌었다(신규 키에서 404, [`cart-recipe/002`](../cart-recipe/002-goldenset-before-after.md)). 모델 tier 선택 근거가 문서화돼 있지 않다는 C-1의 지적 자체는 그대로다.
+
+
 search 도메인에서 유일하게 LLM(Large Language Model, 거대 언어 모델)을 호출하는 `ProductIngredientNormalizer`(상품명 → 요리 재료명 추출)의 프롬프트 내용·모델 옵션을 감사한 결과다. 반드시 고칠 A 항목, 유지보수성 B 항목 모두 **0건**이다 — 재시도·구조화 출력 강제·관측은 이미 [`cross-cutting/001-llm-call-infra.md`](../cross-cutting/001-llm-call-infra.md)에서 감사·반영됐다. 이번 라운드가 새로 점검한 토큰 수·few-shot 구성·모델 선택 근거·배치화 가능성은 코드로 확인한 결과 "반드시 고쳐야 한다"는 근거가 나오지 않아 전부 참고(C)·유지(D) 항목으로 분류했다. 이 문서는 감사 시점의 근거·분류를 남기는 스냅샷이며, **A/B가 없으므로 이번 라운드는 승인·구현 단계 없이 감사만으로 종료할 것을 제안한다.**
 
 ## 범위

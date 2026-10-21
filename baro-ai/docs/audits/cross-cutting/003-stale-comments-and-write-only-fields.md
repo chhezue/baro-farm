@@ -31,7 +31,7 @@
   | `CartEventConsumer` | "수량, 발생 일시는 가중치 계산을 위해 원본 그대로 저장" | 수량은 저장하지 않게 됐다 |
   | `specs/cart-recipe/recipe-recommendation.md` 계약 표 | Feign 수신 DTO가 상류의 전체 칸(`cartId`·`quantity`·`unitPrice` …)을 그대로 갖는 것처럼 적혀 있었다 | 2026-09-06에 **실제로 읽는 3칸**으로 줄였는데 표가 따라가지 않았다 |
   | `CartLogEvent`의 `@param ts` | "최근 행동에 더 큰 **가중치**를 주는 계산의 기준값" | 시간 감쇠 축은 2026-09-06에 빠졌다. 지금 `ts`가 정하는 것은 30일 조회 창과 최신순 정렬뿐이다 |
-  | `RecipeRecommendService`(2곳)·`RecommendProperties` | 제외 카테고리가 "**가공식품·생필품·주방용품·가전**" | 설정값은 **과일 4종**뿐이고, 이 쇼핑몰은 농산물만 팔아 주방용품 카테고리가 존재하지 않는다. 같은 저장소의 `RecipeRecommendReason.NO_ELIGIBLE_ITEMS`는 "과일류"라고 맞게 적혀 있어 **한 저장소 안에서 서로 다른 말**을 했다 |
+  | `RecipeRecommendService`(2곳)·`RecommendProperties` | 제외 카테고리가 "**가공식품·생필품·주방용품·가전**" | 설정값은 **과일 4종**뿐이고, 이 쇼핑몰은 농산물만 팔아 주방용품 카테고리가 존재하지 않는다. 같은 저장소의 `RecipeRecommendReason.NO_ELIGIBLE_ITEMS`는 "과일류"라고 맞게 적혀 있어 **한 저장소 안에서 서로 다른 말**을 했다. (같은 날 [`cart-recipe/007`](../cart-recipe/007-fruit-exclusion-and-prompt-example.md) A-2가 과일 제외 목록을 비웠고, 2026-09-09에는 필터 코드 자체를 지웠다 — 지금은 제외 카테고리가 없다) |
 
 - **왜 문제인가**: 지난 라운드가 "검색 신호를 뺐다"는 사실 자체는 여러 문서에 잘 남겼는데, 그 사실이 **코드 안에서는 절반만 반영**됐다. 이런 상태가 굳으면 다음 사람이 주석을 근거로 판단하게 되고, 그게 정확히 이 저장소가 `core-guardrails.md` STOP §1로 막으려던 상황이다
 - **개선 방법**: 각 문장을 현재 동작으로 고치고, 지운 이유를 한 줄로 남긴다(왜를 지우지 않는다 — `java-comments.md` 두 번째 조건)

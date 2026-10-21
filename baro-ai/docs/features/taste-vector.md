@@ -27,18 +27,19 @@ flowchart LR
         S1[baro-shopping 장바구니] -->|cart-events| K
         S2[baro-order 주문 확정] -->|order-events| K
     end
-    K[Kafka] --> C[Cart/OrderEventConsumer] --> L[(행동 로그 인덱스 2개)]
-    C --> T[UserProfileRefreshTrigger @Async]
-    T --> P[UserProfileEmbeddingService<br/>30일·종류별 5건 → 비중 → 가중 평균 → L2]
-    P --> D[(user_profile_embeddings)]
-    D --> R[PersonalizedRecommendService] --> V[임베딩 검색 뒷단<br/>후보 → 다양화]
+    K[Kafka] --> C[Cart/OrderEventConsumer] --> L[(user_behavior_logs)]
+    Q[GET /recommendations/personalized/userId] --> R[PersonalizedRecommendService]
+    R --> P[UserProfileEmbeddingService<br/>30일·최근 10건 → 비중 → 가중 평균 → L2]
+    L --> P
+    P --> V[VectorRecommendPipeline<br/>후보 topK×3 → 카테고리 상한 2]
+    V --> A[개인화 추천 응답]
 ```
 
 | 단계 | 어디서 | 요약 |
 |---|---|---|
 | 발행 | `baro-shopping` `@TrackHistory` 3곳, `baro-order` 주문 확정 1곳 | `HistoryAspect`가 커밋 후 발행. 취소 이벤트 발행부는 아직 없다 |
 | 소비 | `CartEventConsumer`·`OrderEventConsumer` | 문서 ID `{partition}-{offset}`로 재시도 시 중복 없음. 역직렬화 실패는 그 레코드만 건너뜀 |
-| 갱신 예약 | `UserProfileRefreshTrigger` | 장바구니·주문 **두 경로**가 거치는 유일한 `@Async` 진입점. 큐 100건, 넘치면 버림 |
+| 취향 벡터 계산 | `UserProfileEmbeddingService.computeProfile` | 개인화 추천 요청 시 그 자리에서 계산한다. 저장하지 않으므로 갱신 예약도 대기열도 없다(2026-09-08) |
 | 벡터 계산 | `UserProfileEmbeddingService` | 로그 3건 미만이면 건너뜀. 비중 = 행동 종류(0 또는 1~3) 하나 |
 | 추천 | `PersonalizedRecommendService` | 프로필 없으면 빈 목록. 경험 상품 제외 → [임베딩 검색](vector-similarity.md) 뒷단 |
 
@@ -64,10 +65,11 @@ flowchart LR
 - **근거**: 감사 [`taste-vector/001`](../audits/taste-vector/001-profile-refresh-path.md) A-3 재설계(2026-09-05 승인). 같은 감사에서 장바구니 가중치가 **문자열 불일치로 전부 1**이던 결함(A-1)도 발견됐다 — 컨슈머는 `"ADD"`를 저장하고 계산은 `"CART_ITEM_ADDED"`와 비교하고 있었다.
 - **대가**: 벡터 없는 상품은 취향에 기여하지 못한다.
 
-### 2. `@Async`는 별도 빈을 거쳐야 실제로 비동기다
+### 2. `@Async`는 별도 빈을 거쳐야 실제로 비동기다 (2026-09-08에 비동기 자체를 걷어냈다 — 아래 배경은 그때까지의 이력이다)
 
 - **문제**: 컨슈머 두 곳이 같은 클래스 안에서 `@Async` 메서드를 불렀다. Spring AOP 프록시는 자기 호출을 가로채지 못해 **Kafka 리스너 스레드에서 동기로** 프로필을 계산하고 있었다.
-- **선택**: `UserProfileRefreshTrigger`를 유일한 진입점으로 분리. 큐가 차면 예외 대신 로그만 남기고 버린다 — 예외를 던지면 컨슈머 재시도 폭풍이 되고, 프로필은 다음 행동에서 어차피 재계산된다.
+- **선택**(당시): `UserProfileRefreshTrigger`를 유일한 진입점으로 분리했다. 큐가 차면 예외 대신 로그만 남기고 버렸다 — 예외를 던지면 컨슈머 재시도 폭풍이 되기 때문이다.
+- **그 뒤**(2026-09-08): 유실을 감수하는 이 구조 자체를 없앴다. 취향 벡터를 추천 요청 시 계산하게 되면서 비동기 경로가 사라졌다.
 - **대가**: 큐 초과 시 그 갱신이 사라진다. 허용 손실로 문서화했다. 유입이 장바구니·주문 이벤트뿐이라 실제로 넘칠 빈도는 아니다(2026-09-07 실측 — 검색 963회에 폐기 0건).
 
 ### 3. 시간 감쇠 축을 뺐다 — 계산은 하는데 결과에 영향이 없었다
@@ -85,7 +87,7 @@ flowchart LR
 
 ### 5. 스레드 풀은 "최대 5개"로 적혀 있지만 실제로는 2개로 돈다
 
-- **사실**: `AsyncConfig`는 상주 2 / 최대 5 / 대기열 100이다. 자바 `ThreadPoolExecutor`는 **상주 스레드가 다 차면 대기열부터 채우고, 대기열이 가득 차야 최대치까지 늘린다.** 즉 3~5번째 스레드는 대기 작업이 100건 쌓인 뒤에야 생기고 그 전까지는 항상 2개다. "부하가 오르면 5개까지 는다"고 읽으면 틀린다.
+- **사실**(당시): `AsyncConfig`는 상주 2 / 최대 5 / 대기열 100이었다. 자바 `ThreadPoolExecutor`는 **상주 스레드가 다 차면 대기열부터 채우고, 대기열이 가득 차야 최대치까지 늘린다.** 즉 3~5번째 스레드는 대기 작업이 100건 쌓인 뒤에야 생기고 그 전까지는 항상 2개다. "부하가 오르면 5개까지 는다"고 읽으면 틀린다.
 - **왜 이대로 두는가**: 이 풀이 맡은 일(프로필 벡터 재계산)은 사용자를 기다리게 하지 않고 유실도 허용된다. 스레드를 늘려 동시 ES 쓰기를 키우는 것보다, 상시 2개로 꾸준히 처리하며 순간 몰림을 대기열로 흡수하는 편이 맞다.
 - **한 번 뒤집혔다가 되돌아왔다**: 2026-09-06 실측에서 제출의 37~65%가 폐기되는 것을 확인해 "이 설정은 틀렸다"고 적었다. 그런데 그 유입의 대부분이 검색이었고, 2026-09-07에 검색을 신호에서 빼자 **같은 설정에서 폐기가 0건**이 됐다(회원 검색 963회). 고쳐야 했던 것은 풀이 아니라 **무엇을 그 풀에 넣는가**였다. 근거: [`003`](../audits/taste-vector/003-shared-executor-saturation.md) · [`005`](../audits/taste-vector/005-signal-and-weight-simplification.md)
 - **교훈**: 큐가 넘칠 때 늘려야 할 것을 먼저 보지 말고, 넣고 있는 것이 들어갈 가치가 있는지를 먼저 볼 것.
@@ -108,9 +110,8 @@ flowchart LR
 | 프로필 없음 | 빈 목록(200) — 홈 화면을 죽이지 않는다 |
 | 깨진 이벤트 | `ErrorHandlingDeserializer`가 그 레코드만 건너뜀. 처리 실패는 1초 간격 2회 재시도 후 건너뜀 |
 | 재시도로 같은 이벤트 두 번 | 문서 ID가 `{partition}-{offset}`라 덮어쓴다 |
-| 갱신 큐(100) 초과 | 로그 후 폐기. 다음 행동에서 재계산 |
-| 저장 직후 조회 | ES refresh(1초) 안이면 방금 쓴 로그를 못 볼 수 있다 — 다음 갱신에서 따라잡음 |
-| 인덱스 | `cart_event_logs`·`order_event_logs`·`user_profile_embeddings` 3개. 저장 형식이 바뀌어 재생성 필요(미실행). `search_logs`는 코드가 더 이상 만들지도 읽지도 않아 **삭제 대상**이다 |
+| 저장 직후 조회 | ES refresh(1초) 안이면 방금 쓴 로그를 못 볼 수 있다 — 다음 추천 요청에서 따라잡는다 |
+| 인덱스 | `user_behavior_logs` 하나(2026-09-09 통합, 앱 기동 시 자동 생성). `cart_event_logs`·`order_event_logs`(2026-09-09)·`search_logs`(2026-09-07)·`user_profile_embeddings`(2026-09-08)는 코드가 더 이상 쓰지 않아 **삭제 대상**이다 |
 
 ## 알려진 한계·다음 단계
 
@@ -127,5 +128,5 @@ flowchart LR
 - 예시: [`EMBEDDING_EXAMPLE.md`](../EMBEDDING_EXAMPLE.md)
 - 감사: [`audits/taste-vector/001`](../audits/taste-vector/001-profile-refresh-path.md) · [`002`](../audits/taste-vector/002-weight-axes-and-tests.md) · [`003`](../audits/taste-vector/003-shared-executor-saturation.md) · [`004`](../audits/taste-vector/004-executor-fix-measurement.md) · [`005`](../audits/taste-vector/005-signal-and-weight-simplification.md)
 - 반영 이력: [`audits/taste-vector/refactor-log.md`](../audits/taste-vector/refactor-log.md)
-- 코드: `event.consumer.CartEventConsumer`·`OrderEventConsumer`, `log.application.LogWriteService`, `embedding.application.UserProfileRefreshTrigger`·`UserProfileEmbeddingService`, `recommend.application.PersonalizedRecommendService`, `config.AsyncConfig`
+- 코드: `event.consumer.CartEventConsumer`·`OrderEventConsumer`, `log.application.LogWriteService`, `embedding.application.UserProfileEmbeddingService`, `embedding.domain.TasteProfile`, `recommend.application.PersonalizedRecommendService`
 - 발행 측: `baro-common` `HistoryAspect`, `baro-shopping` `CartService`, `baro-order` `InventoryConfirmedConsumer`

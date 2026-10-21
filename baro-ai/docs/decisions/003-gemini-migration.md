@@ -49,6 +49,15 @@ baro-ai가 쓰던 Spring AI **1.0.0-M5**의 BOM에는 Vertex AI 쪽만 있었다
 | 임베딩 연결 | `spring.ai.google.genai.embedding.api-key` (챗과 별도 속성) |
 | 임베딩 옵션 | `spring.ai.google.genai.embedding.text.options.*` |
 
+## 고려한 대안
+
+| 대안 | 기각 이유 |
+|------|-----------|
+| 챗만 Gemini, 임베딩은 OpenAI 유지 | 유료 OpenAI 키를 계속 유지해야 해서 "비용 0"이라는 목적을 달성하지 못한다. 임베딩 비용 자체는 이미 매우 작아 남길 실익도 없다 |
+| Spring AI 2.0.x로 올리기 | Spring Boot 4.1을 요구한다. 5인 공용 모노레포 전체에 영향을 주는 결정이라 baro-ai 혼자 정할 수 없다 |
+| M5에 머물고 Vertex AI Gemini 사용 | 무료가 아니고, GCP 프로젝트·서비스 계정 세팅이 필요해 목적과 수단이 모두 어긋난다 |
+| OpenAI 유지 | 목적이 비용 0이라 성립하지 않는다. 다만 무료 티어의 한도·데이터 사용 조건이 문제가 되면 되돌릴 수 있다 — 되돌리는 비용은 `build.gradle`·설정·`@Qualifier` 3곳과 재색인이다 |
+
 ## 트레이드오프
 
 무료 티어를 얻는 대가로 감수하는 것들이다.
@@ -64,15 +73,6 @@ baro-ai가 쓰던 Spring AI **1.0.0-M5**의 BOM에는 Vertex AI 쪽만 있었다
 - **`review` 도메인 동작이 함께 바뀐다.** `ReviewSummaryService`는 공용 `ChatClient`를 주입받으므로, 코드를 한 줄도 고치지 않았지만 요약을 만드는 모델이 OpenAI에서 Gemini로 바뀐다. `review`는 성능 리팩토링 범위 밖(팀원 소유)이라 **코드는 건드리지 않았고**, 이 사실만 기록해 둔다.
 - 환경 변수가 바뀐다: `BARO_AI_OPENAI_KEY`는 `BARO_AI_GEMINI_KEY`로, 모델명 오버라이드용 `SPRING_AI_OPENAI_MODEL`·`SPRING_AI_OPENAI_EMBEDDING_MODEL`은 `SPRING_AI_GEMINI_MODEL`·`SPRING_AI_GEMINI_EMBEDDING_MODEL`로 바뀐다. `k8s/apps/baro-ai/deployment.yml`의 키 이름은 함께 고쳤고, **클러스터의 `baro-ai-secrets` 시크릿에 `BARO_AI_GEMINI_KEY` 항목을 추가하는 것은 배포 담당자가 해야 한다**.
 - API 응답 계약은 변경 없음.
-
-## 고려한 대안
-
-| 대안 | 기각 이유 |
-|------|-----------|
-| 챗만 Gemini, 임베딩은 OpenAI 유지 | 유료 OpenAI 키를 계속 유지해야 해서 "비용 0"이라는 목적을 달성하지 못한다. 임베딩 비용 자체는 이미 매우 작아 남길 실익도 없다 |
-| Spring AI 2.0.x로 올리기 | Spring Boot 4.1을 요구한다. 5인 공용 모노레포 전체에 영향을 주는 결정이라 baro-ai 혼자 정할 수 없다 |
-| M5에 머물고 Vertex AI Gemini 사용 | 무료가 아니고, GCP 프로젝트·서비스 계정 세팅이 필요해 목적과 수단이 모두 어긋난다 |
-| OpenAI 유지 | 목적이 비용 0이라 성립하지 않는다. 다만 무료 티어의 한도·데이터 사용 조건이 문제가 되면 되돌릴 수 있다 — 되돌리는 비용은 `build.gradle`·설정·`@Qualifier` 3곳과 재색인이다 |
 
 ## 후속 (2026-09-06)
 

@@ -1,396 +1,121 @@
 # 바로팜 AI 모듈 (baro-ai)
 
-> **로그 기반 개인화 추천 엔진** - 사용자의 행동 패턴을 학습하여 맞춤 상품과 레시피를 추천하는 AI 서비스
+`baro-ai`는 바로팜(농산물 직거래) 백엔드의 AI 모듈이다. 사용자의 장바구니·주문 기록으로 상품을 추천하고, 장바구니 재료로 레시피를 제안하고, 상품 검색·자동완성을 제공한다. 이 문서는 모듈의 입구다 — 무엇을 하는지, 코드가 어떻게 놓여 있는지, 어떻게 띄우는지, 어느 문서를 더 읽을지를 한 장에 담는다.
 
-## 📋 목차
+## 언제 이 문서를 보는가
 
-- [시스템 개요](#-시스템-개요)
-- [핵심 기능](#-핵심-기능)
-- [아키텍처 설계](#-아키텍처-설계)
-- [폴더 구조 가이드라인](#-폴더-구조-가이드라인)
-- [기술 스택](#-기술-스택)
-- [개발 시작하기](#-개발-시작하기)
-- [문서 맵](#-문서-맵)
+- 이 모듈을 처음 보는 사람이 전체 그림을 잡을 때
+- 로컬에서 띄우거나 테스트를 돌려야 할 때
+- 어떤 문서가 어디에 있는지 찾을 때 — 아래 "문서 맵"
 
----
+## 무엇을 하나 — 작업 단위 4개
 
-## 🎯 시스템 개요
+2026-09-04부터 감사·스펙·설명의 기본 단위는 코드 패키지가 아니라 아래 4개다. 단위 ↔ 클래스 매핑의 SSOT는 [`specs/README.md`](specs/README.md)다.
 
-`baro-ai` 모듈은 **사용자 행동 기반 개인화 추천 시스템**으로, 다음과 같은 특징을 가집니다:
+| 작업 단위 | 한 줄 | API | 스펙 | 설명 문서 |
+|-----------|-------|-----|------|-----------|
+| 취향 벡터 | 장바구니·주문 로그 → 행동 비중 → 상품 벡터 가중 평균 → 개인화 추천 | `GET /api/v1/recommendations/personalized/{userId}` | [`taste-vector-pipeline.md`](specs/taste-vector/taste-vector-pipeline.md) | [`features/taste-vector.md`](features/taste-vector.md) |
+| 장바구니 레시피 | 장바구니 → 보유 재료 → LLM 레시피 1개 → 서버가 부족 재료 계산 → 상품 카드 | `GET /api/v1/recommendations/recipes/{userId}` | [`recipe-recommendation.md`](specs/cart-recipe/recipe-recommendation.md) | [`features/cart-recipe.md`](features/cart-recipe.md) |
+| 임베딩 유사도 검색 | 상품 벡터 → 코사인 유사도 후보 → 카테고리 상한으로 고르기 → 유사 상품 | `GET /api/v1/recommendations/similar/{productId}` | [`vector-similarity-search.md`](specs/vector-similarity/vector-similarity-search.md) | [`features/vector-similarity.md`](features/vector-similarity.md) |
+| 키워드 검색 | 상품 이벤트 색인 → 형태소·오탈자 검색 → 자동완성 | `GET /api/v1/search`, `/search/autocomplete`, `POST /search/admin/reindex` | [`product-search-and-autocomplete.md`](specs/keyword-search/product-search-and-autocomplete.md) | [`features/keyword-search.md`](features/keyword-search.md) |
 
-### 📈 핵심 가치
+그 밖에 둘이 있다. **리뷰 감정 분석·요약**(`review` 패키지)은 팀원 소유 도메인이라 이 문서 묶음의 범위 밖이고, 로드맵은 [`REVIEW_ANALYSIS_PHASES.md`](REVIEW_ANALYSIS_PHASES.md)에 있다. **챗봇**은 코드가 없다 — 목적이 정해지면 [`specs/chat/chatbot.md`](specs/chat/chatbot.md)에서 시작한다.
 
-- **데이터 중심**: 실시간으로 수집되는 사용자 행동 로그를 기반으로 한 추천
-- **벡터 기반**: Elasticsearch를 활용한 벡터 유사도 계산 (개인화 추천 등)
-- **이벤트 드리븐**: Kafka를 통한 실시간 데이터 처리
-- **확장성**: DDD 계층형 아키텍처(`presentation`·`application`·`domain`·`infrastructure`) 기반의 모듈화된 설계
+## 아키텍처
 
-### 🎪 작업 단위 (2026-09-04부터 이 4개가 감사·문서·설명의 기본 단위 — 매핑 SSOT: [`specs/README.md`](specs/README.md))
-
-1. **취향 벡터** — 장바구니/주문 로그 → 프로필 벡터 → 개인화 추천 ([스펙](specs/taste-vector/taste-vector-pipeline.md))
-2. **장바구니 레시피** — 장바구니 → 보유 재료 → LLM 레시피 후보 → 서버 검증 → 부족 재료 상품 ([스펙](specs/cart-recipe/recipe-recommendation.md))
-3. **임베딩 유사도 검색** — 상품 임베딩 → 벡터 검색 → 다양화 → 유사 상품 추천 ([스펙](specs/vector-similarity/vector-similarity-search.md))
-4. **키워드 검색** — 상품 이벤트 색인 → 키워드 검색 → 자동완성 ([스펙](specs/keyword-search/product-search-and-autocomplete.md))
-5. 서비스 챗봇 — **코드 없음**(빈 클래스 4개를 2026-09-05에 삭제해 `com.barofarm.ai.chat` 패키지 자체가 없다). 리뷰 감정분석·요약은 팀원 소유 도메인
-
-### 🔄 데이터 플로우
+RDB가 없다. 검색·추천·로그 전부 Elasticsearch 문서다. 상품 정보는 Kafka `product-events`로, 사용자 행동은 `cart-events`·`order-events`로 들어오고, 레시피 추천만 `baro-shopping`을 Feign으로 직접 부른다. LLM(Gemini)은 색인 시점의 재료명 추출과 레시피 생성 두 곳에서만 쓴다.
 
 ```mermaid
-graph LR
-    A[사용자 행동] --> B[Kafka 이벤트]
-    B --> C[baro-ai 수신]
-    C --> D[로그 저장 + 벡터화]
-    D --> E[추천 알고리즘]
-    E --> F[개인화 결과]
-    F --> G[추천 응답]
+flowchart LR
+    SHOP[baro-shopping] -->|product-events / cart-events| K[Kafka]
+    ORDER[baro-order] -->|order-events| K
+    K --> IDX[ProductIndexService<br/>임베딩 + 재료명 추출]
+    K --> LOG[Cart/OrderEventConsumer<br/>user_behavior_logs]
+    IDX --> ES[(Elasticsearch<br/>product)]
+    LOG --> ES2[(user_behavior_logs)]
+    GW[baro-gateway] --> API[SearchController<br/>RecommendationController]
+    API --> ES
+    API --> ES2
+    API -->|Feign| SHOP
+    API -->|레시피 생성| LLM[Gemini]
+    IDX -->|임베딩·재료명| LLM
 ```
 
----
+### 패키지 구조
 
-## 🚀 핵심 기능
-
-### 1. **로그 기반 개인화 추천** ⭐⭐⭐
-
-**사용자 행동 로그 → 행동 비중 → 상품 벡터 가중 평균 → 상품 매칭** 방식의 추천 엔진
-
-- **입력**: 장바구니/주문 로그 (각 타입별 최대 5개씩, 총 최대 10개)
-- **처리**:
-  - 로그마다 이벤트 종류로 비중 계산 (삭제·취소는 0이라 제외. 시간 감쇠 축은 2026-09-06에, 수량 축은 2026-09-07에 삭제 — 앞은 효과가 없었고 뒤는 선호가 아니라 소비량이었다)
-  - 로그에 등장한 상품이 이미 가진 벡터를 비중대로 가중 평균한 뒤 L2 정규화
-  - 768차원 벡터로 사용자 취향 표현 (외부 임베딩 API 호출 없음)
-- **출력**: Top-K 개인화 상품 리스트 (상품 ID, 이름, 카테고리, 가격 포함)
-- **품질 보장**: 최소 3개 이상 로그 필요
-- **API**: 
-  - `GET /api/v1/recommendations/personalized/{userId}` - 추천 상품 목록 (`topK` 쿼리 파라미터, 기본값 5)
-
-### 2. **레시피 추천** ✅ 구현 완료
-
-**장바구니 상품 → 보유 재료 확인 → 레시피 + 부족 재료 추천**
-
-- **입력**: 장바구니 상품 목록 (`productId` 기준)
-- **처리**:
-  - `RecipeRecommendService`: 장바구니 상품의 `ProductDocument.ingredientName`을 ES에서 한 번에 조회 (LLM 아님)
-  - `RecipeCandidateGenerator`: 보유 재료로 레시피 생성 (LLM — 요청 경로의 유일한 호출)
-  - `IngredientProcessingUtil`: 재료 정규화 및 비교
-- **재료명 계산 시점**: 상품 색인 시점 1회 (`ProductIngredientNormalizer`) — 근거: [`decisions/002-ingredient-name-at-index-time.md`](decisions/002-ingredient-name-at-index-time.md)
-- **출력**: 레시피 정보 + 부족 재료 + 추천 상품
-- **API**: `GET /api/v1/recommendations/recipes/{userId}`
-
-### 3. **비슷한 상품 추천** ✅ 구현 완료
-
-**상품 상세 페이지에서 유사한 상품 추천 (벡터 유사도 기반)**
-
-- **입력**: 기준 상품 ID
-- **처리**:
-  - 기준 상품의 임베딩 벡터 조회
-  - `VectorProductSearchService`: 코사인 유사도를 이용한 벡터 검색
-  - 자기 자신 제외 및 판매 중인 상품만 필터링
-- **출력**: 유사도가 높은 상품 목록 (Top-K)
-- **API**: `GET /api/v1/recommendations/similar/{productId}?topK=3`
-
-
-### 4. **서비스 챗봇** ⚠️ 미구현
-
-> 현재 미구현 상태입니다. 자리만 잡고 있던 빈 클래스 4개는 2026-09-05에 삭제했고, 목적이 정해지면 [`specs/chat/chatbot.md`](specs/chat/chatbot.md)를 근거로 새로 만듭니다.
-
-**정책 문서 기반 RAG**로 정확한 답변 제공
-
-- **RAG 구현**: 정책 문서 벡터화 + 유사도 검색
-- **안전성**: 정책 외 질문 거부
-- **실시간성**: 최신 정책 반영
-
-### 5. **리뷰 감정 분석/요약** (이벤트 + 배치)
-
-- Kafka: `review-events` 구독 → 별점/키워드 기반 감정 분류
-- Elasticsearch: `review_event`에 리뷰/감정 저장
-
----
-
-## 🏛️ 아키텍처 설계
-
-### DDD 계층형 아키텍처 (DDD Layered Architecture)
-
-`baro-ai` 모듈은 도메인 주도 설계(DDD)의 핵심 사상을 반영한 **계층형 아키텍처**를 지향합니다. 이 구조는 소프트웨어를 논리적인 세 개의 계층으로 분리하여 각 계층이 명확한 책임을 갖도록 합니다.
-
-```text
-┌─────────────────────────────────────────┐
-│        Infrastructure Layer             │  layered-architecture
-│ (Web, Persistence, Messaging, External APIs) │
-└───────────────────┬─────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────┐
-│          Application Layer              │
-│ (UseCases, DTOs, Transaction Control)   │
-└───────────────────┬─────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────┐
-│             Domain Layer                  │
-│   (Entities, Value Objects, Repositories)   │
-└─────────────────────────────────────────┘
-```
-
-#### 핵심 계층과 원칙
-
-1.  **Domain Layer (도메인 계층)**
-    *   **역할**: 애플리케이션의 핵심 비즈니스 로직과 규칙을 포함합니다. `Entity`, `Value Object`, `Repository Interface` 등이 여기에 속합니다.
-    *   **원칙**: 가장 안쪽에 위치하며, 다른 어떤 계층에도 의존하지 않는 순수한 영역입니다.
-
-2.  **Application Layer (애플리케이션 계층)**
-    *   **역할**: 도메인 계층의 객체들을 사용하여 실제 유스케이스(Use Case)를 구현합니다. 트랜잭션 처리, DTO 변환 등 응용 로직을 담당합니다.
-    *   **원칙**: 도메인 계층에만 의존합니다. 인프라 계층의 구체적인 기술을 알지 못합니다.
-
-3.  **Infrastructure Layer (인프라스트럭처 계층)**
-    *   **역할**: 외부 세계와의 통신과 기술적인 부분을 처리합니다. REST 컨트롤러, 데이터베이스 연동(Repository 구현체), 메시징(Kafka), 외부 API 호출 등이 여기에 속합니다.
-    *   **원칙**: 애플리케이션 계층을 호출하여 유스케이스를 실행하거나, 도메인 계층의 인터페이스를 구현합니다.
-
-#### 의존성 규칙
-오직 바깥쪽 계층에서 안쪽 계층으로만 의존성이 흐릅니다. (`Infrastructure` → `Application` → `Domain`) 이를 통해 비즈니스 로직(Domain)이 외부 기술 변화로부터 완벽하게 보호됩니다.
-
----
-
-## 📁 폴더 구조 가이드라인
-
-### DDD 계층형 아키텍처 기반 구조
-
-`recommend`, `search` 등 혼재된 도메인 관심사를 명확히 분리하고, 계층별 역할을 명확히 하기 위해 다음과 같은 구조를 제안합니다.
-
-> 아래 트리는 **아직 채택하지 않은 제안**이다. 현재 구조는 아래 "현재 구조 (As-Is)" 절이 SSOT다.
-> 트리에 보이는 `chatbot`은 코드가 없다 — 빈 클래스 4개를 2026-09-05에 삭제했다([`specs/chat/chatbot.md`](specs/chat/chatbot.md)).
+기능 패키지마다 `presentation → application → domain`, 그리고 외부 기술은 `infrastructure`에 둔다. 의존 방향은 안쪽(`domain`)으로만 흐른다.
 
 ```text
 src/main/java/com/barofarm/ai/
-├── 📁 domain/               # 🏛️ 도메인 계층: 순수한 비즈니스 로직과 데이터
-│   ├── model/              # 도메인 모델 (엔티티, VO)
-│   │   ├── recommendation/
-│   │   ├── search/
-│   │   └── chatbot/
-│   ├── repository/         # 리포지토리 인터페이스 (영속성 추상화)
-│   │   └── RecommendationRepository.java
-│   └── service/            # 도메인 서비스 (선택적)
-│
-├── 📁 application/          # 🚀 애플리케이션 계층: 유스케이스 구현
-│   ├── recommendation/
-│   │   ├── RecommendationService.java
-│   │   └── dto/
-│   ├── search/
-│   │   ├── SearchService.java
-│   │   └── dto/
-│   └── chatbot/
-│       ├── ChatbotService.java
-│       └── dto/
-│
-├── 📁 infrastructure/       # 🔧 인프라스트럭처 계층: 외부 기술 연동
-│   ├── web/                # REST 컨트롤러
-│   │   ├── RecommendationController.java
-│   │   └── SearchController.java
-│   ├── persistence/        # 데이터 영속성 구현체
-│   │   ├── jpa/
-│   │   └── elasticsearch/
-│   ├── messaging/          # 메시징 관련 (Kafka Consumers/Producers)
-│   │   └── consumer/
-│   └── config/             # Spring, Kafka 등 각종 설정
-│
-└── 📁 common/                # 🛠️ 공통 유틸리티 (계층에 속하지 않음)
-    ├── exception/
-    └── response/
+├── search/          키워드 검색·색인·자동완성·재색인 (presentation · application · domain · infrastructure · exception)
+├── recommend/       개인화·유사 상품·레시피 추천 (presentation · application · domain · infrastructure · exception)
+├── embedding/       상품 임베딩, 취향 벡터 계산 (application · domain)
+├── log/             행동 로그 문서·저장 (application · domain · infrastructure)
+├── event/           Kafka 컨슈머와 이벤트 모델 (consumer · model)
+├── config/          Kafka·LLM·캐시·Feign 설정
+├── common/          LLM 호출 관문(LlmGateway)·전역 예외 처리·Swagger
+└── review/          리뷰 감정 분석·요약 — 팀원 소유, 이 문서 범위 밖
 ```
 
-### 구조 설계 원칙
+## 기술 스택
 
-1.  **계층 분리 원칙**: 각 클래스는 `domain`, `application`, `infrastructure` 중 하나의 계층에만 속해야 합니다.
-2.  **명확한 책임**: `domain`은 비즈니스 규칙, `application`은 유스케이스 흐름, `infrastructure`는 기술 구현을 책임집니다.
-3.  **단방향 의존성**: `infrastructure`는 `application`을, `application`은 `domain`을 의존할 수 있지만, 그 반대는 절대 불가합니다.
+| 영역 | 무엇 |
+|------|------|
+| 언어·프레임워크 | Java 21 · Spring Boot 3.5 · Gradle 8.14 |
+| LLM | Google Gemini — 텍스트 `gemini-3.5-flash-lite`, 임베딩 `gemini-embedding-001`(768차원). Spring AI 1.1.8 `spring-ai-starter-model-google-genai` |
+| 저장·검색 | Elasticsearch 8.x — Spring Data Elasticsearch, `dense_vector` + `script_score` |
+| 메시징 | Apache Kafka — Spring Kafka, 실패 메시지는 `{토픽}.DLT` |
+| 모듈 간 호출 | Spring Cloud OpenFeign(`baro-shopping` 장바구니) |
+| 캐시 | Caffeine — 자동완성만. 근거: [`decisions/001`](decisions/001-autocomplete-caching.md) |
+| 관측 | Spring Boot Actuator · Micrometer |
 
-### 현재 구조 (As-Is)
+## 개발 시작하기
 
-현재 baro-ai 모듈은 다음과 같은 구조를 가지고 있습니다:
-
-```text
-src/main/java/com/barofarm/ai/
-├── search/
-│   ├── presentation/         # 검색 관련 컨트롤러
-│   ├── application/          # 검색 서비스 로직
-│   ├── domain/               # 검색 도메인 모델
-│   ├── infrastructure/       # Elasticsearch 리포지토리·Kafka 컨슈머·LLM
-│   └── exception/            # 검색 에러 코드 (SearchErrorCode)
-├── recommend/
-│   ├── application/           # 추천 서비스 (PersonalizedRecommendService, RecipeRecommendService)
-│   │   ├── config/           # 추천 설정 (RecommendProperties)
-│   │   └── dto/              # 추천 응답 DTO
-│   ├── domain/               # 도메인 모델 (CandidateRecipePlan, IngredientProcessingUtil)
-│   ├── infrastructure/       # 외부 연동
-│   │   ├── client/           # Cart API 클라이언트
-│   │   └── llm/              # LLM 서비스 (RecipeCandidateGenerator)
-│   └── presentation/          # 추천 컨트롤러 (RecommendationController)
-├── embedding/
-│   ├── application/           # 임베딩 서비스
-│   ├── domain/               # 임베딩 도메인 모델
-│   └── infrastructure/        # Elasticsearch 리포지토리
-│       └── elasticsearch/
-├── log/
-│   ├── domain/               # 로그 도메인 모델
-│   ├── infrastructure/       # Elasticsearch 리포지토리
-│   │   └── elasticsearch/
-│   └── application/          # 로그 서비스
-├── event/
-│   ├── consumer/              # Kafka 이벤트 컨슈머
-│   └── model/                # 이벤트 모델
-├── config/                   # Spring 설정
-├── review/                   # 리뷰 감정분석·요약 (팀원 소유 — 이 하네스의 리팩터 범위 밖)
-└── common/                   # SwaggerConfig · GlobalExceptionHandler
-```
-
-### 목표 구조 (To-Be)
-
-향후 DDD 계층형 아키텍처로 리팩토링할 계획입니다:
-
-| 현재 구조 (As-Is) | 목표 구조 (To-Be) | 설명 |
-| :--- | :--- | :--- |
-| `recommend/presentation` | `recommend/presentation` | REST 컨트롤러 (완료) |
-| `recommend/application` | `recommend/application` | 서비스 로직 (완료) |
-| `recommend/domain` | `recommend/domain` | 도메인 모델 (완료) |
-| `recommend/infrastructure` | `recommend/infrastructure` | 외부 연동 (완료) |
-| `recommend/application/dto` | `recommend/application/dto` | DTO (완료) |
-| `search/presentation` | `search/presentation` | REST 컨트롤러 (유지) |
-| `search/application` | `search/application` | 유스케이스 서비스 (유지) |
-| `search/domain` | `search/domain` | 도메인 모델 (유지) |
-| `search/infrastructure` | `search/infrastructure` | 리포지토리 구현체 (유지) |
-| `search/exception` | `search/exception` | 에러 코드 — `SearchErrorCode` (2026-09-05 신설) |
-| `log/domain` | `log/domain` | 도메인 모델 (유지) |
-| `log/infrastructure/elasticsearch` | `log/infrastructure/elasticsearch` | 리포지토리 구현체 (완료) |
-| `log/application` | `log/application` | 로그 서비스 (유지) |
-| `event` | `event` | Kafka 관련 로직 (공통 유지) |
-| `embedding/application` | `embedding/application` | 임베딩 서비스 (완료) |
-| `embedding/domain` | `embedding/domain` | 도메인 모델 (유지) |
-| `embedding/infrastructure/elasticsearch` | `embedding/infrastructure/elasticsearch` | 리포지토리 구현체 (완료) |
-| `config` | `config` | Spring, 모듈 설정 (유지) |
-| `common` | `common` | 공통 유틸리티 (유지) |
-
-> **참고**: DDD 계층형 아키텍처 기반 리팩토링이 완료되었습니다. 각 도메인은 `application`, `domain`, `infrastructure`, `presentation`, `exception` 계층으로 구성되어 있습니다.
-
-
-
----
-
-## 🛠️ 기술 스택
-
-### AI/ML
-- **Google Gemini (chat model)**: 텍스트 생성 (레시피/요약 등). 기본값은 `gemini-3.5-flash-lite` (`SPRING_AI_GEMINI_MODEL`)
-- **Google Gemini Embedding**: 벡터 생성 (`gemini-embedding-001`, 출력 차원을 768로 고정)
-- **Spring AI**: AI 통합 프레임워크
-- **LangChain**: RAG 구현 (향후)
-
-### 데이터/검색
-- **Elasticsearch**: 벡터 검색 및 로그 저장
-- **Cache**: 자동완성만 Caffeine 로컬 캐시 적용(최대 1,000개·TTL 5분). 개인화·추천 결과는 캐싱하지 않음 — 근거: [`decisions/001-autocomplete-caching.md`](decisions/001-autocomplete-caching.md)
-- **Spring Data Elasticsearch**: 문서 저장·검색 (baro-ai에는 RDB·JPA 엔티티가 없다)
-
-### 메시징/이벤트
-- **Apache Kafka**: 이벤트 스트림 처리
-- **Spring Kafka**: 메시징 통합
-
-### 인프라
-- **Spring Boot 3**: 마이크로서비스 프레임워크
-- **Spring Cloud**: 클라우드 네이티브 기능
-- **Docker/K8s**: 컨테이너화 및 오케스트레이션
-
-### 모니터링
-- **Spring Actuator**: 애플리케이션 메트릭
-- **Micrometer**: 메트릭 수집
-- **ELK Stack**: 로그 수집 및 분석
-
----
-
-## 🚀 개발 시작하기
-
-### 환경 요구사항
-
-```text
-- Java 21+
-- Gradle 7.6+
-- Elasticsearch 8.x
-- Kafka 3.x
-- Docker & Docker Compose
-```
-
-### 로컬 개발 환경 설정
+필요한 것: Java 21, Docker. 인프라(Elasticsearch·Kafka·MySQL)는 저장소 루트의 `docker-compose.data.yml`로 띄운다.
 
 ```bash
-# 1. 의존성 설치
-./gradlew build
-
-# 2. 인프라 서비스 실행
-docker-compose -f docker-compose.data.yml up -d
-
-# 3. 애플리케이션 실행
-./gradlew bootRun
-
-# 4. API 테스트
-curl "http://localhost:8092/api/v1/recommendations/personalized/550e8400-e29b-41d4-a716-446655440000?topK=5"
+docker compose -f docker-compose.data.yml up -d
 ```
 
-### 개발 워크플로우
+설정 파일은 `application.yml` 하나이고 환경 차이는 전부 환경변수다.
 
-1. **도메인 모델링**: 도메인 계층부터 시작
-2. **유스케이스 정의**: 애플리케이션 서비스 작성
-3. **포트 설계**: 인터페이스 기반 설계
-4. **어댑터 구현**: 외부 연동 구현
-5. **테스트 작성**: TDD 방식 권장
+| 환경변수 | 뜻 | 기본값 |
+|----------|-----|--------|
+| `BARO_AI_GEMINI_KEY` | Gemini API 키 (필수) | 없음 |
+| `ELASTICSEARCH_URIS` | Elasticsearch 주소 | `http://elasticsearch:9200` |
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka 주소 | `localhost:29092` |
+| `SHOPPING_SERVICE_URL` | 장바구니를 읽어 올 `baro-shopping` 주소 (레시피 추천용) | `http://baro-shopping:8080` (k8s 서비스 주소, 게이트웨이를 거치지 않음) |
+| `SPRING_AI_GEMINI_MODEL` · `SPRING_AI_GEMINI_EMBEDDING_MODEL` | 모델 이름 덮어쓰기 | 위 표의 값 |
+| `BARO_AI_ADMIN_TOKEN` | 전체 재색인 API의 `X-Admin-Token` | 없음(미설정이면 재색인 API 사용 불가) |
+| `SERVER_PORT` | 포트 | `8092` |
 
-### 코드 품질
+```bash
+export BARO_AI_GEMINI_KEY="..." ELASTICSEARCH_URIS="http://localhost:9200" KAFKA_BOOTSTRAP_SERVERS="localhost:9092"
+./gradlew :baro-ai:bootRun
+curl http://localhost:8092/actuator/health
+```
 
-- **테스트 커버리지**: 80% 이상 목표
-- **코드 리뷰**: 모든 PR에 필수
-- **아키텍처 준수**: 계층 의존 방향(안쪽으로만) 준수 검증
-- **성능 모니터링**: 메트릭 기반 최적화
+**테스트는 로컬에서 돌린다.** `./gradlew :baro-ai:test`(2026-09-09 기준 17클래스 93건 — 순수 단위 테스트와 Testcontainers로 Elasticsearch를 띄우는 통합 테스트 1클래스). 배포 워크플로 `.github/workflows/baro-ai-deploy.yml`은 `bootJar` → ECR push → `k8s/apps/baro-ai/deployment.yml` 태그 커밋(ArgoCD가 따라감)만 하고 **테스트를 실행하지 않는다.** 테스트 기준은 [`.claude/rules/testing.md`](../../.claude/rules/testing.md), 프롬프트 품질은 [`scripts/goldenset/`](../scripts/goldenset/README.md)이 담당한다.
 
----
+## 문서 맵
 
-## 📚 문서 맵
-
-`baro-ai/docs/`는 이 모듈의 **모든 마크다운 문서가 모이는 단일 저장소**입니다. 어떤 문서를 어디에 어떤 형식으로 쓰는지의 SSOT는 [**산출물 등록부**](templates/README.md)이고, 문장·구조 작성 기준은 [`.claude/rules/doc-writing.md`](../../.claude/rules/doc-writing.md)입니다. 새 문서를 만들기 전에 등록부에서 유형을 먼저 확인하세요.
-
-### 폴더
+`baro-ai/docs/`는 이 모듈의 모든 마크다운 문서가 모이는 곳이다. 어떤 문서를 어디에 어떤 형식으로 쓰는지는 [산출물 등록부](templates/README.md)가, 문장·구조 기준은 [`.claude/rules/doc-writing.md`](../../.claude/rules/doc-writing.md)가 SSOT다.
 
 | 경로 | 무엇이 있나 |
 |------|-------------|
-| [`features/`](features/README.md) | **기능·기술 문서** — 주제 4개(검색·임베딩 검색·장바구니 레시피·개인별 추천)마다 목표·흐름·설계 결정·실측·한계를 한 편에. 처음 보는 사람이 스펙 전에 읽는 문서 |
-| [`portfolio/`](portfolio/README.md) | **포트폴리오 케이스 스터디** — 같은 4개 주제를 문제·분석·대안·해결·자평·한계·회고로 |
-| [`specs/`](specs/README.md) | 기능 스펙 — **작업 단위 4개**(취향 벡터·장바구니 레시피·임베딩 유사도 검색·키워드 검색) 폴더, 각 스펙에 발행 모듈 규칙·리스크 포함. `Draft → Approved → Implemented` |
-| [`decisions/`](decisions/README.md) | 아키텍처 결정 기록(ADR) — 되돌리기 비싼 선택의 근거와 트레이드오프 |
-| [`audits/`](audits/README.md) | 아키텍처 감사·리팩터 반영 이력·하네스 회고 백로그 |
+| [`features/`](features/README.md) | 작업 단위 4개의 목표·흐름·설계 결정·실측·한계 — 처음 보는 사람이 스펙 전에 읽는 문서 |
+| [`specs/`](specs/README.md) | 기능 스펙(현재 동작·API·규칙의 SSOT). `Draft → Approved → Implemented` |
+| [`decisions/`](decisions/README.md) | 되돌리기 비싼 선택의 근거와 트레이드오프(ADR) |
+| [`audits/`](audits/README.md) | 아키텍처 감사·측정 보고서·리팩터 반영 이력·미결 항목·하네스 회고 |
+| [`portfolio/`](portfolio/README.md) | 같은 4개 주제의 케이스 스터디 — 코드 변경이 끝난 뒤 재작성 예정 |
 | [`product/`](product/README.md) | MVP 범위·용어 사전·클라이언트 전제 |
-| [`harness/`](harness/README.md) | AI 에이전트 하네스의 레이어별 설계 배경 |
-| [`templates/`](templates/README.md) | 산출물 등록부 + 유형별 문서 템플릿 4종 |
+| [`harness/`](harness/README.md) | AI 에이전트 하네스의 레이어별 동작 |
+| [`templates/`](templates/README.md) | 산출물 등록부 + 유형별 템플릿 4종 |
 
-### 단일 문서
+단일 문서: [Elasticsearch 인덱스 매핑](ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md)(매핑 SSOT) · [취향 벡터 계산 예시](EMBEDDING_EXAMPLE.md) · [하네스 설계 배경](harness-engineering.md) · [리뷰 분석 로드맵](REVIEW_ANALYSIS_PHASES.md)(팀원 소유).
 
-- [**기능 명세**](FEATURES.md) — 각 기능의 상세 설명(작업 단위 재편 이전 문서 — 최신 설명은 [`features/`](features/README.md))
-- [**구현 가이드**](IMPLEMENTATION.md) — 코드 예시 및 설정
-- [**검색·임베딩 아키텍처**](ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md) — Elasticsearch 인덱스 매핑 SSOT
-- [**임베딩 예시**](EMBEDDING_EXAMPLE.md) — 사용자 프로필 임베딩 생성 예시
-- [**검토 분석 확장**](REVIEW_ANALYSIS_PHASES.md) — 리뷰 분석·요약 고도화 로드맵
-- [**하네스 설계 배경**](harness-engineering.md) — AI를 어떻게 활용했는지에 대한 총정리
+`FEATURES.md`·`IMPLEMENTATION.md`는 2026-09-09에 지웠다 — 스펙·`features/`와 같은 내용을 옛 구조로 다시 적은 문서였고, 코드를 복사해 둔 발췌가 매 라운드 stale해졌다([`audits/harness-retro.md`](audits/harness-retro.md)). API 예시·실행 절차는 각 스펙과 이 문서로 옮겼다.
 
----
+## 기여
 
-## 🤝 기여하기
-
-1. **이슈 생성**: 개선사항이나 버그 리포트
-2. **브랜치 생성**: `feature/` 또는 `fix/` 접두사 사용
-3. **PR 제출**: 코드 리뷰 요청
-4. **테스트 확인**: CI/CD 파이프라인 통과 확인
-
-### 코드 리뷰 체크리스트
-
-- [ ] 계층형 아키텍처의 의존 방향 준수
-- [ ] 도메인 로직이 domain 패키지에 위치
-- [ ] 인터페이스(포트)를 통한 의존성 역전
-- [ ] 단위 테스트 및 통합 테스트 작성
-- [ ] 코드 커버리지 80% 이상 유지
-
----
-
-*이 문서는 지속적으로 업데이트됩니다. 최신 정보는 팀 문서를 참고해주세요.*
+브랜치·커밋·PR 규칙의 SSOT는 [`.claude/rules/core-workflow-git.md`](../../.claude/rules/core-workflow-git.md)다 — `feature/issue-{번호}-{설명}` 브랜치, `[Type] #번호 - 한글 설명` 커밋, `main`에 merge commit. PR 전에 확인할 것은 셋이다: 계층 의존 방향이 안쪽으로만 흐르는가, `./gradlew :baro-ai:test`가 로컬에서 통과하는가, 스펙·문서를 같은 변경에서 고쳤는가.

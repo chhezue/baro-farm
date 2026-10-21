@@ -154,9 +154,9 @@ Gemini 임베딩 모델의 권장 값은 768·1536·3072 세 가지인데, 그�
 | 후보 15건 응답 크기 | 507 KB | **255 KB** |
 | p95 (동시 30, 후보 15건) | 183.1ms | **52.7ms** |
 | 초당 처리량 (동시 30) | 310 | **724** |
-| `topK` 허용 범위 | 1~50 (34부터 배수 3 미만) | **1~33** (전 구간 3배 유지) |
+| `topK` 허용 범위 | 1~50 (34부터 배수 3 미만) | **1~33** (전 구간 3배 유지) — 2026-09-09 다양화 삭제로 다시 1~50 |
 | 음수 유사도 | 오류와 같은 `-1`로 뭉뚱그려 후보 제외 | 잴 수 없을 때만 `NaN`, 음수는 거리로 정상 반영 |
-| 알고리즘 이름 | `MedoidDiversityService`(실제 동작과 불일치) | `MaxMinDiversityService.selectDiverse` |
+| 알고리즘 이름 | `MedoidDiversityService`(실제 동작과 불일치) | `MaxMinDiversityService.selectDiverse` — 2026-09-09에 삭제, 카테고리 상한(`VectorRecommendPipeline.selectWithCategorySpread`)으로 교체 |
 | 고른 후보 판정 | `List.contains` 참조 비교 | `boolean[]` 인덱스 플래그 |
 | 두 추천의 파이프라인 | 5단계를 각자 복사 | `VectorRecommendPipeline` 하나 |
 | ES 접속 설정 | 아무도 읽지 않는 죽은 빈 | `spring.elasticsearch.*`(연결 1초·응답 30초) |
@@ -165,7 +165,7 @@ Gemini 임베딩 모델의 권장 값은 768·1536·3072 세 가지인데, 그�
 
 ### 검증
 
-- `./gradlew :baro-ai:test` 저장소 전체 **59건 통과**. 이 단위 몫은 `MaxMinDiversityServiceTest`(6) · `VectorRecommendPipelineTest`(2, `topK` 경계 33/34 포함).
+- `./gradlew :baro-ai:test` 통과. 이 단위 몫은 `VectorRecommendPipelineTest`(고르기 규칙 6 + `topK` 경계 2)와 통합 테스트다. **2026-09-09에 다양화 방식이 카테고리 상한으로 바뀌면서** `MaxMinDiversityServiceTest`는 사라졌다 — 아래 서술은 그전 시점의 기록이다.
 - **측정 도구의 신뢰를 먼저 확인했다** — `diversity.py --selfcheck`와 `selectDiverse_picksFarthestFirst`가 같은 3차원 예제에서 같은 답(`a, c, d`)을 낸다.
 - `selectDiverse_duplicateInstanceNotPickedTwice` — 같은 인스턴스가 두 번 있어도 무한 루프 없이 3개를 고른다.
 - `spring-reviewer` 지적 0건. `exists` 필터가 기존 상태 필터와 AND로 누적되는지, `NaN` 기반 "잴 수 없음" 처리가 루프·정렬에서 맞는지를 클라이언트 바이트코드까지 확인받았다.
@@ -199,6 +199,6 @@ Gemini 임베딩 모델의 권장 값은 768·1536·3072 세 가지인데, 그�
 | **분기점 감시 장치** | `product` 문서 수를 지표로 올리고 5만 건에서 알림을 건다. 그 시점에 `knn_bench.py`를 실데이터로 재실행한다 | 상품 수 자체가 `[미정]`이라 임계값의 근거가 아직 약하다 |
 | **벡터 검색 지연 관측** | Micrometer 타이머 1개를 후보 조회에 건다. 분기점을 상품 수가 아니라 실제 지연으로 알아채는 게 더 정확하다 | 관측 항목 전반이 다음 라운드 과제다 |
 | **다양화를 ES 안에서 수행** | 남은 전송량 255KB의 근본 해법은 후보 벡터를 앱으로 가져오지 않는 것이다. `rescore`나 collapse 계열로 ES 안에서 고르면 전송이 사라진다 | **다양화 정책 자체를 바꾸는 일**이다. max-min의 결과와 달라지므로 같은 판정 규칙으로 다시 재야 한다 |
-| **배포 환경 재색인** | `product`·`user_profile_embeddings`를 재생성하고 전량 재색인한다. 그전까지 배포 환경에서는 차원 변경이 적용되지 않는다(옛 1536차원 문서는 후보에서 걸러지기만 하고 오류는 나지 않는다) | 되돌릴 수 없는 작업이라 사람이 직접 실행한다. 재색인이 곧 전 상품 임베딩 재호출이라 Gemini 한도와 함께 계획해야 한다 (A-3) |
+| **배포 환경 재색인** | `product`를 재생성하고 전량 재색인한다(`user_profile_embeddings`는 2026-09-08부터 삭제 대상이라 재색인 대상이 아니다). 그전까지 배포 환경에서는 차원 변경이 적용되지 않는다(옛 1536차원 문서는 후보에서 걸러지기만 하고 오류는 나지 않는다) | 되돌릴 수 없는 작업이라 사람이 직접 실행한다. 재색인이 곧 전 상품 임베딩 재호출이라 Gemini 한도와 함께 계획해야 한다 (A-3) |
 
 **면접에서 할 한 문장** — "HNSW 전환은 1만 건에서 p95 7.4ms로 이득이 없어 하지 않았고, 다양화는 같은 카테고리 쌍 45%→11.5%에 유사도 손실 0.036이라 유지했습니다. 둘 다 판정 규칙을 재기 전에 적었고, 전환을 다시 볼 조건도 결정 기록에 남겼습니다."

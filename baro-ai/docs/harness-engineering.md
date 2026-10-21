@@ -65,7 +65,7 @@ Always-load 규칙 9개(`core-guardrails`·`core-workflow`·`core-workflow-git`�
 
 ### 실제 적용 사례 — 근거 기반 성능 리팩토링 이니셔티브 (2026-09-04~)
 
-`safe-refactor` 스킬을 `cross-cutting`·`recommend`·`search` 세 도메인에 적용한 사례입니다. 근거 기준(`baro-ai-performance-refactor.md`)이 실제로 값을 낸 지점 두 가지입니다.
+`safe-refactor` 스킬을 작업 단위 4개(취향 벡터·장바구니 레시피·임베딩 유사도 검색·키워드 검색)와 공유 인프라에 적용한 사례입니다(2026-09-04 이전 라운드는 옛 패키지 이름 `cross-cutting`·`recommend`·`search`로 남아 있습니다). 근거 기준(`baro-ai-performance-refactor.md`)이 실제로 값을 낸 지점 두 가지입니다.
 
 - **근거 기준이 처음 진단을 뒤집었습니다.** "Gemini 호출에 재시도가 0회 걸려 있다"는 조사 결과를 그대로 구현하지 않고 재확인했더니, 구글 SDK가 **아무 설정 없이도 기본 5회를 이미 재시도**하고 있어 문제의 방향이 정반대("통제되지 않는 재시도")였습니다. "적극적 증거" 요구가 없었다면 잘못된 전제 위에 코드를 얹을 뻔했습니다. 기록: [`cross-cutting/refactor-log.md`](audits/cross-cutting/refactor-log.md).
 - **"느릴 것 같다"가 아니라 실제로 죽어 있던 코드를 찾았습니다.** 자동완성 API에 `@Cacheable`이 붙어 있었지만 `@EnableCaching`이 빠져 있어 캐시가 **한 번도 동작한 적이 없었습니다** — grep과 Spring Boot 공식 문서·jar 바이트코드로 교차 확인한 뒤에야 A 항목(반드시 수정)으로 분류했습니다. 기록: [`search/refactor-log.md`](audits/search/refactor-log.md).
@@ -102,9 +102,9 @@ TripFit류 프로젝트에서는 `oasdiff` 기반 스키마 diff·Discord 알림
 
 ## 8. 데이터 스키마 — RDB 없음, Elasticsearch 인덱스가 유일한 SSOT
 
-baro-ai에는 RDB·JPA 엔티티가 **아예 없습니다.** 검색·추천·리뷰 전부 Elasticsearch 문서(`ProductDocument`, `UserProfileEmbeddingDocument` 등) 기반이라, "마이그레이션 금지" 정책의 의미가 RDB 프로젝트와 다릅니다 — Flyway/Liquibase가 해당사항 자체가 없고, ES 인덱스 매핑은 코드에서 `IndexOperations.createWithMapping()`으로 생성합니다.
+baro-ai에는 RDB·JPA 엔티티가 **아예 없습니다.** 검색·추천·리뷰 전부 Elasticsearch 문서(`ProductDocument`, `UserBehaviorLogDocument` 등) 기반이라, "마이그레이션 금지" 정책의 의미가 RDB 프로젝트와 다릅니다 — Flyway/Liquibase가 해당사항 자체가 없고, ES 인덱스 매핑은 코드에서 `IndexOperations.createWithMapping()`으로 생성합니다.
 
-**스키마 SSOT는 코드(Document 클래스) + [`docs/ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md`](ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md)**입니다. 상용 운영 서버가 내려가 있어 보존할 실데이터가 없으므로, 매핑 변경·인덱스 재생성·전체 재색인이 필요한 개선안도 "마이그레이션 비용" 때문에 기각하지 않습니다(`baro-ai-performance-refactor.md` "데이터 마이그레이션 방침" — 사용자 승인 후 실행). 실제로 재료명을 색인 시점에 미리 계산해 저장하도록 바꾼 변경([`recommend/refactor-log.md`](audits/recommend/refactor-log.md))이 이 방침 위에서 가능했습니다.
+**스키마 SSOT는 코드(Document 클래스)**이고, [`docs/ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md`](ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md)는 그 매핑을 한 자리에 옮겨 적은 참조 문서입니다. 상용 운영 서버가 내려가 있어 보존할 실데이터가 없으므로, 매핑 변경·인덱스 재생성·전체 재색인이 필요한 개선안도 "마이그레이션 비용" 때문에 기각하지 않습니다(`baro-ai-performance-refactor.md` "데이터 마이그레이션 방침" — 사용자 승인 후 실행). 실제로 재료명을 색인 시점에 미리 계산해 저장하도록 바꾼 변경([`recommend/refactor-log.md`](audits/recommend/refactor-log.md))이 이 방침 위에서 가능했습니다.
 
 ## 9. 승인 게이트 — 에이전트가 스스로 결정하지 않는 지점들
 
@@ -136,12 +136,12 @@ Superpowers 같은 서드파티 플러그인(`brainstorming`, `writing-plans`, `
 
 ## 13. 숫자로 보는 활용도
 
-2026-09-04 기준 실측:
+2026-09-09 기준 실측:
 
-- 전체 커밋 1,460개 중 `baro-ai/` 경로를 다루는 커밋이 **124개**. `Co-Authored-By: Claude` 트레일러가 붙은 커밋은 저장소 전체 기준 **16개**이고, 그중 **15개**가 `baro-ai/`를 건드림
-- 스펙 문서 6개(`docs/specs/` — search·recommend(2)·embedding·event-log·chat), ADR 3개
-- 감사 문서 5건(`cross-cutting` 1·`recommend` 2·`search` 2) — 근거 기반 성능 리팩토링 이니셔티브(§4) 진행분
-- 하네스 구성 요소: always-load 규칙 9개 + path-scoped 규칙 9개, 스킬 6개, 서브에이전트 3개, 훅 5개 (정확한 목록 SSOT: [`.claude/rules/README.md`](../../.claude/rules/README.md))
+- 전체 커밋 1,526개 중 `baro-ai/` 경로를 다루는 커밋이 **185개**. `Co-Authored-By: Claude` 트레일러가 붙은 커밋은 **80개**
+- 스펙 문서 7건(`docs/specs/` — 작업 단위 폴더 4개 + `chat`), ADR 4건, 기능 문서 4편(`docs/features/`)
+- 감사·측정 문서 31건(`docs/audits/` — 작업 단위 폴더 4개 + `cross-cutting`·`full-module`, 옛 폴더 `recommend`·`search` 포함) — 근거 기반 성능 리팩토링 이니셔티브(§4) 진행분
+- 하네스 구성 요소: 규칙 18개(always-load 9 + path-scoped 9), 스킬 6개, 서브에이전트 3개, 훅 파일 5개 중 **등록된 것 4개**(§5) — 정확한 목록 SSOT: [`.claude/rules/README.md`](../../.claude/rules/README.md)
 
 이 수치는 "AI가 얼마나 많이 타이핑했는가"가 아니라 — 위 §1~§12의 장치들이 실제로 매 세션 반복 적용됐다는 근거로 읽는 게 맞습니다. 코드 자체뿐 아니라 이 문서를 포함한 스펙·ADR·규칙 문서 대부분도 AI가 초안을 작성하고 사람이 승인·확정하는 방식으로 만들어졌습니다.
 

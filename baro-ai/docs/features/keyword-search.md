@@ -34,7 +34,7 @@ sequenceDiagram
     C->>I: indexProducts(묶음)
     I->>G: 임베딩 (묶음당 1회)
     I->>G: 재료명 추출 (상품당 1회)
-    I->>E: product · product-autocomplete saveAll
+    I->>E: product saveAll (자동완성은 같은 문서의 서브필드)
     U->>E: GET /search?q=사과 (ProductSearchService)
     E-->>U: 관련도순 상품 (벡터 제외)
     U->>E: GET /search/autocomplete?q=사 (Caffeine 캐시 경유)
@@ -44,9 +44,9 @@ sequenceDiagram
 |---|---|---|
 | 발행 | `baro-shopping` `ProductEventPublisher` | 트랜잭션 커밋 후 발행. 키 없음(순서 미보장 — 리스크) |
 | 소비 | `ProductEventConsumer` | 묶음 리스너. 생성·수정은 모으고, 삭제를 만나면 모인 것을 먼저 색인한 뒤 삭제 |
-| 색인 | `ProductIndexService.indexProducts` | 임베딩(묶음 1회) → 재료명(상품별) → 두 인덱스 bulk 저장 |
+| 색인 | `ProductIndexService.indexProducts` | 기존 문서 조회 → 바뀐 것만 임베딩(묶음 1회)·재료명(상품별) → `product` bulk 저장 1회 |
 | 검색 | `ProductSearchService.search` | 정확 구문·형태소·오탈자 3중 should + 상태·카테고리·가격 filter |
-| 자동완성 | `ProductSearchService.autocomplete` | `edge_ngram` 인덱스 + Caffeine 캐시 |
+| 자동완성 | `ProductSearchService.autocomplete` | 상품 문서의 `productName.ac`(edge_ngram) 서브필드 + Caffeine 캐시 |
 
 ## 어떻게 동작하는가
 
@@ -138,5 +138,5 @@ sequenceDiagram
 - 결정: [`decisions/001`](../decisions/001-autocomplete-caching.md)
 - 감사: [`audits/keyword-search/001`](../audits/keyword-search/001-query-path.md) · [`002`](../audits/keyword-search/002-index-throughput-and-search-log.md) · [`audits/search/001`](../audits/search/001-index-path.md)(색인 경로)
 - 반영 이력: [`audits/keyword-search/refactor-log.md`](../audits/keyword-search/refactor-log.md)
-- 코드: `search.infrastructure.event.ProductEventConsumer`, `search.application.ProductIndexService`·`ProductSearchService`, `search.domain.ProductDocument`·`ProductAutocompleteDocument`, `config.KafkaConsumerConfig`·`CacheConfig`
+- 코드: `search.infrastructure.event.ProductEventConsumer`, `search.application.ProductIndexService`·`ProductSearchService`, `search.domain.ProductDocument`, `config.KafkaConsumerConfig`·`CacheConfig`·`KafkaDeadLetterConfig`
 - 측정 도구: [`scripts/vectorbench/`](../../scripts/vectorbench/README.md)

@@ -1,324 +1,79 @@
-# baro-ai Elasticsearch 구조 및 임베딩 파이프라인 상세 문서
+# Elasticsearch 인덱스 매핑
 
-이 문서는 `baro-ai` 모듈에서 Elasticsearch가 어떻게 구현되어 있는지, 현재 스키마 구조, 검색 로직(키워드 + 자동완성), 그리고 상품 임베딩 파이프라인을 코드 기준으로 정리한 문서다.
+`baro-ai`가 만들고 읽는 Elasticsearch 인덱스의 매핑·analyzer·연결 설정을 코드 기준으로 적은 참조 문서다. **매핑의 SSOT는 각 `@Document` 클래스**이고 이 문서는 그것을 한 자리에 옮겨 적은 것이다 — 어긋나면 코드가 맞다. 쿼리가 어떻게 조립되는지, 색인·추천 흐름이 어떻게 도는지는 여기 두지 않고 각 작업 단위 스펙이 담당한다(아래 "흐름·쿼리는 어디에").
 
----
+## 언제 이 문서를 보는가
 
-## 1) 전체 아키텍처 개요
+- 어떤 인덱스에 어떤 필드가 어떤 타입으로 있는지 확인할 때
+- 필드·차원·analyzer를 바꾸기 전에 영향 범위(재색인 필요 여부)를 볼 때
+- 인덱스 이름이 코드 어디에서 정해지는지 찾을 때
 
-`baro-ai`는 검색/추천/로그를 Elasticsearch에 저장하고 조회하는 구조다.
+## 인덱스 목록
 
-- 검색 인덱스: `product`
-- 자동완성 인덱스: `product-autocomplete`
-- 사용자 프로필 벡터 인덱스: `user_profile_embeddings`
-- 로그 인덱스: 장바구니/주문 로그 전용 도큐먼트 인덱스
+| 인덱스 | 매핑 클래스 | 무엇 | 만드는 곳 |
+|--------|-------------|------|-----------|
+| `product` | `search.domain.ProductDocument` | 상품 검색·자동완성·벡터 검색·재료명. 자동완성은 별도 인덱스가 아니라 이 인덱스의 서브필드(2026-09-08 통합) | 상품 이벤트 색인(`ProductIndexService`) |
+| `user_behavior_logs` | `log.domain.UserBehaviorLogDocument` | 장바구니·주문 행동 로그(2026-09-09에 두 인덱스를 하나로 합침) | `CartEventConsumer`·`OrderEventConsumer` |
+| `review_event` · `product_review_summary` · `product_best_review_index` | `review.*` | 리뷰 감정 분석·요약 — **팀원 소유**, 이 문서에서 다루지 않는다 | `review` 패키지 |
 
-핵심 특징:
+`user_profile_embeddings` 인덱스는 더 이상 없다 — 취향 벡터는 2026-09-08부터 저장하지 않고 개인화 추천 요청 안에서 계산해 쓰고 버린다([`audits/taste-vector/refactor-log.md`](audits/taste-vector/refactor-log.md) 2026-09-08). 클러스터에 남은 옛 인덱스는 삭제 대상이다([`audits/open-items.md`](audits/open-items.md) A절).
 
-- 키워드 검색: `match_phrase` + `match` + `fuzzy` 가중치 조합
-- 자동완성: `edge_ngram` analyzer 색인 + `match`(`operator=and`) 조회
-- 벡터 검색: `dense_vector(768)` + `script_score(cosineSimilarity)`
-- 인덱싱 트리거: `product-events` Kafka 소비 기반 실시간 반영
+## `product`
 
----
+| 필드 | 타입 | 비고 |
+|------|------|------|
+| `productId` | `@Id` (UUID) | |
+| `productName` | `text`, `nori` | 형태소 검색. 아래 서브필드 둘을 갖는다 |
+| `productName.word` | `text`, `standard` | 오탈자 보정(`fuzzy`) — 띄어쓰기 단위 토큰 |
+| `productName.ac` | 색인 `autocomplete_analyzer`(edge_ngram 1~20자) / 조회 `standard` | 자동완성 접두어 |
+| `productCategoryId` · `productCategoryCode` · `productCategoryName` | `keyword` | 카테고리 SSOT는 `scripts/init-db/02-init-categories.sql` |
+| `price` | `long` | |
+| `status` | `keyword` | 구매 가능 상태는 `ProductDocument.PURCHASABLE_STATUSES`(`ON_SALE`·`DISCOUNTED`) |
+| `updatedAt` | `date` | 이벤트가 실어 보낸 값(발행 시각). 정렬 2순위 |
+| `ingredientName` | `keyword` | 상품명에서 뽑은 요리 재료명(예: "계란"). 색인 시점에 LLM으로 1회 계산 — [`decisions/002`](decisions/002-ingredient-name-at-index-time.md) |
+| `vector` | `dense_vector`, `dims=768` | Gemini `gemini-embedding-001` 출력 차원 768 고정 — [`audits/vector-similarity/003`](audits/vector-similarity/003-embedding-dims-and-candidate-multiplier.md). 차원을 바꾸면 인덱스 재생성·전량 재색인 |
 
-## 2) Elasticsearch 연결 및 런타임 설정
+analyzer 설정은 `src/main/resources/settings/autocomplete-analyzer.json`(`ProductDocument`의 `@Setting`이 가리킨다): `edge_ngram_tokenizer`(`min_gram=1`, `max_gram=20`, `token_chars` letter·digit) + `lowercase`.
 
-### 2.1 연결 설정
+임베딩 실패·재료명 추출 실패는 색인을 막지 않는다 — `vector`가 `null`이거나 `ingredientName`이 빈 문서가 생길 수 있고, 벡터 검색은 `exists(vector)` 필터로 그런 문서를 뺀다. 빈 값이 쌓이면 재색인(`POST /api/v1/search/admin/reindex`)이 필요하다.
 
-- `spring.elasticsearch.*`(`application.yml`)만으로 구성한다. Spring Boot 자동설정이 그 값을 읽어 `RestClient` → `ElasticsearchTemplate`까지 만든다 — 별도 설정 클래스는 없다(2026-09-05 `ElasticsearchConfig` 삭제)
+## `user_behavior_logs`
 
-운영 설정 포인트:
+| 필드 | 타입 | 비고 |
+|------|------|------|
+| `id` | `@Id` | `{도메인}-{파티션}-{오프셋}` — 도메인 접두어가 없으면 두 토픽의 같은 번호가 서로를 덮어쓴다 |
+| `userId` · `productId` | `keyword` (UUID) | |
+| `productName` | `text`, `nori` | |
+| `eventType` | `keyword` | 발행 측 `HistoryEventType` enum 그대로 |
+| `occurredAt` | `date` | 30일 조회 창·최신순 정렬 기준 |
 
-- 기본 URI: `http://elasticsearch:9200`
-- connect timeout: 1초
-- socket timeout: 30초
+`quantity`·`categoryCode`는 2026-09-07에 뺐다 — 저장만 되고 읽는 곳이 없었다.
 
-### 2.2 Spring AI VectorStore 설정과 실제 사용 방식
+## 연결 설정
 
-Spring AI의 VectorStore 추상화는 쓰지 않는다. 예전에는 `spring-ai-elasticsearch-store` 의존성을 두고
-`application.yml`에서 그 자동설정을 제외했는데, 실제로 쓰는 코드가 없어 2026-09-04에 의존성과
-제외 설정을 함께 제거했다.
+`application.yml`의 `spring.elasticsearch.*`만으로 구성한다(별도 설정 클래스 없음 — 2026-09-05 `ElasticsearchConfig` 삭제). 기본 URI `http://elasticsearch:9200`, connect timeout 1초, socket timeout 30초. Spring AI VectorStore 추상화는 쓰지 않는다 — Spring Data Elasticsearch + `NativeQuery` 직접 조립이고, 별도 벡터 DB 연동도 없다.
 
-즉, 현재 구조는 Spring AI의 VectorStore 추상화 자동구성이 아니라,  
-Spring Data Elasticsearch + 커스텀 쿼리(`NativeQuery`) 기반 직접 구현이다.
+## 흐름·쿼리는 어디에
 
----
+| 무엇 | 문서 |
+|------|------|
+| 키워드 검색 쿼리(should 3종·필터·정렬), 자동완성 조회, 상품 이벤트 색인 순서, 재색인 | [`specs/keyword-search/product-search-and-autocomplete.md`](specs/keyword-search/product-search-and-autocomplete.md) |
+| 벡터 검색(`script_score`), 후보 수·`topK` 상한, 카테고리 상한으로 고르기 | [`specs/vector-similarity/vector-similarity-search.md`](specs/vector-similarity/vector-similarity-search.md) |
+| 행동 로그 → 취향 벡터 계산 규칙 | [`specs/taste-vector/taste-vector-pipeline.md`](specs/taste-vector/taste-vector-pipeline.md) · 예시 [`EMBEDDING_EXAMPLE.md`](EMBEDDING_EXAMPLE.md) |
+| `ingredientName`을 읽는 레시피 추천, 부족 재료 상품 검색(`buildIngredientQuery`) | [`specs/cart-recipe/recipe-recommendation.md`](specs/cart-recipe/recipe-recommendation.md) |
 
-## 3) 인덱스 스키마 구조
+## 관련 코드
 
-## 3.1 `product` 인덱스 (상품 검색 + 벡터 검색)
-
-매핑 클래스: `ProductDocument` (`@Document(indexName = "product")`)
-
-- `productId`: `@Id` (UUID)
-- `productName`: `@MultiField`
-  - main: `text` + `nori` analyzer (일반 검색용)
-  - subfield: `productName.word` = `text` + `standard` analyzer (오탈자 검색용 — 띄어쓰기 단위 토큰)
-- `productCategoryId`: `keyword`
-- `productCategoryCode`: `keyword`
-- `productCategoryName`: `keyword`
-- `price`: `long`
-- `status`: `keyword`
-- `updatedAt`: `date`
-- `ingredientName`: `keyword` — 상품명에서 뽑은 요리 재료명 (예: "계란"). 색인 시점에 1회 계산
-- `vector`: `dense_vector`, `dims=768`
-
-설계 의도:
-
-- 텍스트 검색(nori 형태소 기반)과 띄어쓰기 단위 오탈자 보정(`productName.word`)을 멀티필드로 분리
-- 추천/유사도 검색을 위해 벡터를 동일 도큐먼트에 포함
-- `ingredientName`은 레시피 추천이 읽는다. 상품이 바뀔 때만 달라지는 값이라 추천 요청마다 LLM으로 다시 뽑지 않고 상품 도큐먼트에 저장해 둔다 — 근거: [`decisions/002-ingredient-name-at-index-time.md`](decisions/002-ingredient-name-at-index-time.md)
-
-## 3.2 `product-autocomplete` 인덱스 (자동완성)
-
-매핑 클래스: `ProductAutocompleteDocument` (`@Document(indexName = "product-autocomplete")`)
-
-- `productId`: `@Id` (UUID)
-- `productName`: `text`, analyzer=`autocomplete_analyzer`, searchAnalyzer=`standard`
-- `status`: `keyword`
-
-인덱스 세팅 파일:
-
-- `settings/autocomplete-analyzer.json`
-  - `edge_ngram_tokenizer` (`min_gram=1`, `max_gram=20`)
-  - `token_chars`: `letter`, `digit`
-  - `lowercase` filter
-
-즉, 색인 시 prefix 조각을 만들어 자동완성 응답 속도를 높이고, 검색 시 표준 analyzer로 입력어를 처리한다.
-
-## 3.3 `user_profile_embeddings` 인덱스 (개인화 추천용)
-
-매핑 클래스: `UserProfileEmbeddingDocument` (`@Document(indexName = "user_profile_embeddings")`)
-
-- `userId`: `@Id`
-- `userProfileVector`: `dense_vector`, `dims=768` (타입은 `float[]` — 상품 벡터와 동일)
-- `lastUpdatedAt`: `date`
-- `sourceProductIds`: `keyword[]` — 비중이 0이 아닌 cart/order 로그의 productId(중복 제거). 추천에서 제외할 상품 목록
-
-벡터는 상품 벡터들을 가중 평균한 뒤 L2 정규화한 값이라 길이가 항상 1이다. `product` 인덱스의 `vector`와 차원이 반드시 같아야 한다.
-
----
-
-## 4) 검색 구조 상세
-
-## 4.1 API 엔드포인트
-
-`SearchController`
-
-- `GET /api/v1/search`
-  - 파라미터: `q`, `categories`, `priceMin`, `priceMax`, `page`, `size`
-  - 헤더 없음 — 사용자를 식별하지 않는다
-- `GET /api/v1/search/autocomplete`
-  - 파라미터: `q`, `size`
-
-## 4.2 키워드 검색 쿼리 (`ProductSearchService`)
-
-`NativeQuery` 기반 `bool` 쿼리를 생성한다.
-
-### should 조합
-
-1. 정확 구문 검색 (`match_phrase`)
-- field: `productName`
-- `slop=1`
-- boost: `2.0`
-
-2. 일반 키워드 검색 (`match`)
-- field: `productName`
-- operator: `OR`
-- boost: `1.0`
-
-3. 오탈자 허용 (`fuzzy match`)
-- 조건: 검색어 길이 2 이상일 때만
-- field: `productName.word` (`text`, standard analyzer)
-- `fuzziness=1` (단어마다 한 글자)
-- `prefixLength=1`
-- boost: `0.3`
-
-추가 규칙:
-
-- `minimum_should_match = 1`
-
-### filter 조합
-
-- `status` in `ON_SALE`, `DISCOUNTED`
-- `productCategoryCode` terms 필터 (옵션)
-- `price` range 필터 (옵션)
-
-### 정렬
-
-1) `_score desc`  
-2) `updatedAt desc`
-
-### 부가 동작
-
-**없다. 검색은 조회만 한다.** 2026-09-07까지는 회원 검색마다 검색 로그를 남기고 취향 벡터 갱신을 예약했으나, 그 신호(검색 결과 상위 상품)가 사용자의 선택이 아니라 검색 엔진의 출력이라는 이유로 경로를 통째로 지웠다 — `search_logs` 인덱스도 코드가 더 이상 만들지 않는다([`audits/taste-vector/005`](audits/taste-vector/005-signal-and-weight-simplification.md)). 프로필 갱신을 예약하는 곳은 장바구니·주문 컨슈머 둘뿐이다.
-
----
-
-## 5) 자동완성 구조 상세
-
-## 5.1 인덱싱
-
-상품 인덱싱 시 `ProductIndexService.indexProducts()`(묶음 최대 5건)가
-
-- `product` 인덱스 저장
-- `product-autocomplete` 인덱스 저장
-
-을 동시에 수행한다.
-
-## 5.2 조회 쿼리
-
-`ProductAutocompleteRepository.findByPrefix`의 `@Query`:
-
-- `must`: `match(productName, query=?0, operator=and)`
-- `filter`: `status` in `ON_SALE`, `DISCOUNTED`
-
-색인 쪽 `edge_ngram`이 접두어 조각을 이미 토큰으로 갖고 있어 조회에서 다시 확장하지 않는다.
-`match_phrase_prefix`는 조각마다 위치가 밀려 두 단어 입력("청송 사과")에서 0건이 됐다.
-
-`ProductSearchService.autocomplete()`:
-
-- `size` 범위 검증(1~20), 벗어나면 400
-- 2글자 미만 입력 시 빈 결과 반환
-- `PageRequest.of(0, size)`로 상위 N개
-- `@Cacheable("autocomplete", key = "#query + '-' + #size")`
-
-## 5.3 Completion Suggester 사용 여부
-
-현재 코드 기준으로 Elasticsearch `completion` field / completion suggester는 사용하지 않는다.  
-자동완성은 `edge_ngram` 색인 + `match` 조회 전략이다.
-
----
-
-## 6) 벡터 검색 및 추천 구조
-
-## 6.1 상품 벡터 저장
-
-`ProductDocument.vector`에 768차원 float 벡터를 저장한다.
-
-벡터 생성은 `ProductEmbeddingService.embedProducts(List<String>)`에서 수행한다 — 묶음 전체가 `batchEmbedContents` **1회**로 나가고, 그 호출이 실패할 때만 상품별로 폴백한다:
-
-- 모델 빈: `googleGenAiTextEmbedding`
-- 기본 모델명: `gemini-embedding-001`, 출력 차원 768 고정 (`application.yml`). 차원 근거는 [`audits/vector-similarity/003`](audits/vector-similarity/003-embedding-dims-and-candidate-multiplier.md) A-1
-- 실패 시 `null` 벡터를 돌려주며, 호출부(`ProductIndexService`)는 벡터 없이 색인을 계속 진행
-
-## 6.2 벡터 검색 쿼리 (`VectorProductSearchService`)
-
-벡터 유사도 검색은 ES `script_score` 사용:
-
-- 스크립트(하나뿐이다):
-  - `cosineSimilarity(params.query_vector, 'vector') + 1.0`
-- bool 필터:
-  - `status` in `ON_SALE`, `DISCOUNTED`
-  - `exists` on `vector` — 벡터 없는 문서에서 `cosineSimilarity`가 오류를 던지므로 후보 단계에서 걷어낸다
-  - 제외 상품 ID는 `mustNot ids`
-
-카테고리 보너스는 두 추천 경로 모두 없다(2026-09-05 재설계).
-
-주의:
-
-- 현재 구현은 native `knn` DSL 기반 ANN 쿼리가 아니라 `script_score` 방식이다.
-
-## 6.3 추천 서비스와 연계
-
-두 경로 모두 기준 벡터만 다르고 그 뒤(후보 조회 → max-min 다양화 → 응답 변환)는 `VectorRecommendPipeline` 하나를 공유한다.
-
-- 유사상품 추천: `SimilarProductRecommendService`
-  - 기준 상품 벡터로 후보(`min(topK×3, 100)`) 검색, 기준 상품 자신은 제외
-- 개인화 추천: `PersonalizedRecommendService`
-  - 사용자 프로필 벡터로 후보 검색
-  - 이미 경험한 상품(`sourceProductIds`) 제외
-- 두 경로 모두 카테고리 보너스는 주지 않는다(2026-09-05 재설계)
-
----
-
-## 7) 상품 임베딩 파이프라인 (실시간 인덱싱)
-
-## 7.1 이벤트 입력
-
-`ProductEventConsumer`가 Kafka `product-events` 토픽 구독:
-
-- `PRODUCT_CREATED`·`PRODUCT_UPDATED` -> 묶음에 모아 뒀다가 `indexProducts`로 한 번에 색인(업데이트도 재색인)
-- 묶음 처리 중 삭제 이벤트를 만나면 **모인 색인을 먼저 내보낸 뒤** 삭제해 순서가 뒤집히지 않게 한다
-- `PRODUCT_DELETED` -> `deleteProduct`
-
-## 7.2 인덱싱 처리 (`ProductIndexService`)
-
-`indexProducts(requests)` 처리 순서(묶음 기준):
-
-1. 묶음 전체의 상품명을 `embedProducts`로 한 번에 임베딩 (실패 시 상품별 폴백)
-2. 상품마다 요리 재료명 추출 (`ProductIngredientNormalizer.normalize`) — **여기만 상품당 LLM 1회**다. 실패·빈 답이면 `ingredientName`을 빈 값으로 두고 재색인 대상으로 남긴다
-3. `ProductDocument` 생성 (`updatedAt`은 이벤트 값 = 발행 시각, 없으면 현재 시각. `ingredientName`·`vector` 포함)
-4. `ProductAutocompleteDocument` 생성
-5. `product-autocomplete`에 `saveAll` 1회(bulk)
-6. `product`에 `saveAll` 1회(bulk)
-
-임베딩 실패 시에도 색인은 계속 진행되므로, 일부 문서는 `vector`가 null/빈 상태일 수 있다.
-재료명 추출도 마찬가지로 실패해도 색인을 막지 않는다 — 다만 `ingredientName`이 빈 문서는 레시피 추천에서 그 상품을 보유 재료로 세지 못하므로, 빈 값이 쌓이면 재색인이 필요하다.
-
-## 7.3 삭제 처리
-
-`deleteProduct(productId)`에서:
-
-- `product` 삭제
-- `product-autocomplete` 삭제
-
-동시에 정리한다.
-
----
-
-## 8) 사용자 프로필 임베딩 파이프라인 (개인화 추천 보조)
-
-장바구니·주문 두 경로가 `UserProfileRefreshTrigger.refresh(userId)`를 거쳐 백그라운드로 실행한다(검색은 2026-09-07에 신호에서 빠졌다):
-
-1. 최근 30일 로그 수집 (cart/order, 각 최대 5개)
-2. 로그 수가 최소치(총 3개) 미만이면 스킵
-3. 로그마다 비중 계산(이벤트 종류 하나로 결정 — 주문 3·담기 2·수량 변경 1). 비중 0(삭제·취소)인 로그는 여기서 빠진다
-4. 로그의 상품 벡터를 `product` 인덱스에서 일괄 조회
-5. 비중대로 더한 뒤 L2 정규화
-6. `user_profile_embeddings` 저장
-
-이 벡터는 개인화 추천 검색 시 query vector로 사용된다. **외부 임베딩 API를 부르지 않는다** — 상품이 색인 시점에 이미 만들어 둔 벡터를 재사용하므로 갱신 1회의 비용은 ES 조회뿐이다(2026-09-05 재설계, 근거: `docs/audits/taste-vector/001-profile-refresh-path.md`).
-
----
-
-## 9) 벡터 DB 연동 관점 정리
-
-질문: "별도 벡터 DB 연동이 있는가?"
-
-현재 코드 기준 결론:
-
-- 별도 벡터 DB(Pinecone/Weaviate/Qdrant/pgvector) 연동 없음
-- Elasticsearch `dense_vector`에 직접 저장 + `script_score`로 검색
-- 의존성도 ES 중심(`spring-boot-starter-data-elasticsearch`)
-
-즉, 현행 구조는 **Elasticsearch 단일 스토어 기반(텍스트 + 벡터 통합)** 이다.
-
----
-
-## 10) 운영 관점 체크 포인트
-
-1. `script_score` 벡터 검색은 데이터가 커질수록 비용이 커질 수 있어, 트래픽/문서수 증가 시 성능 검증 필요
-2. 임베딩 실패 허용 전략으로 인해 일부 상품은 벡터가 없을 수 있으므로 추천 품질 모니터링 필요
-3. 자동완성은 `edge_ngram` 기반이라 색인 크기 증가 및 언어 특성(한글 형태소) 튜닝 여지 존재
-4. 현재는 status 필터가 검색/자동완성/벡터검색에 일관 적용되어 노출 안정성은 높음
-
----
-
-## 11) 관련 코드 위치 모음
-
-- ES 설정: `src/main/resources/application.yml`의 `spring.elasticsearch.*` (설정 클래스 없음)
 - 상품 스키마: `src/main/java/com/barofarm/ai/search/domain/ProductDocument.java`
-- 자동완성 스키마: `src/main/java/com/barofarm/ai/search/domain/ProductAutocompleteDocument.java`
-- 자동완성 analyzer: `src/main/resources/settings/autocomplete-analyzer.json`
-- 검색 서비스: `src/main/java/com/barofarm/ai/search/application/ProductSearchService.java`
-- 자동완성 저장/조회: `src/main/java/com/barofarm/ai/search/application/ProductIndexService.java`
-- 자동완성 리포지토리: `src/main/java/com/barofarm/ai/search/infrastructure/elasticsearch/ProductAutocompleteRepository.java`
-- 벡터 검색 서비스: `src/main/java/com/barofarm/ai/search/application/VectorProductSearchService.java`
-- 상품 임베딩: `src/main/java/com/barofarm/ai/embedding/application/ProductEmbeddingService.java`
-- 상품 이벤트 소비: `src/main/java/com/barofarm/ai/search/infrastructure/event/ProductEventConsumer.java`
-- 사용자 프로필 벡터: `src/main/java/com/barofarm/ai/embedding/domain/UserProfileEmbeddingDocument.java`
-- 사용자 프로필 임베딩 서비스: `src/main/java/com/barofarm/ai/embedding/application/UserProfileEmbeddingService.java`
-- 설정: `src/main/resources/application.yml` (프로필별 파일 없음 — 환경 차이는 전부 환경변수)
-- 의존성: `build.gradle`
+- 행동 로그 스키마: `src/main/java/com/barofarm/ai/log/domain/UserBehaviorLogDocument.java`
+- 질의 조립: `src/main/java/com/barofarm/ai/search/infrastructure/elasticsearch/ProductQueryFactory.java`
+- 검색·벡터 검색: `search/application/ProductSearchService.java` · `VectorProductSearchService.java`
+- 색인·재색인: `search/application/ProductIndexService.java` · `ProductReindexService.java`
+- 상품 임베딩: `embedding/application/ProductEmbeddingService.java` · 취향 벡터: `embedding/application/UserProfileEmbeddingService.java`
+- 설정: `src/main/resources/application.yml` · `settings/autocomplete-analyzer.json`
+
+## 관련 문서
+
+- [`specs/README.md`](specs/README.md) — 작업 단위 ↔ 코드 매핑
+- [`product/glossary.md`](product/glossary.md) — 용어
+- [`.claude/rules/harness-map.md`](../../.claude/rules/harness-map.md) — 이 문서를 `{{스키마 SSOT}}` 슬롯으로 지정

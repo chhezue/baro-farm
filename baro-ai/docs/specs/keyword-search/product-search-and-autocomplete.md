@@ -24,7 +24,7 @@ baro-ai에는 RDB가 없다. 상품의 원본은 `baro-shopping`(MySQL)이고, b
 
 | 용어 | 뜻 | 상세 |
 |------|-----|------|
-| 색인 경로 | `product-events` 수신부터 `product`·`product-autocomplete` 저장까지 | `ProductEventConsumer` → `ProductIndexService.indexProducts` |
+| 색인 경로 | `product-events` 수신부터 `product` 저장까지 | `ProductEventConsumer` → `ProductIndexService.indexProducts` |
 | 정확·일반·오탈자 매칭 | `match_phrase` · `match` OR · fuzzy 세 `should` 절(boost·조건은 아래 비즈니스 규칙) | `ProductSearchService` |
 | 단어 서브필드 | 상품명을 띄어쓰기 단위로 토큰화한 `productName.word`. 오탈자 매칭 전용이며 형태소 분석기 결과에 좌우되지 않는다 | `ProductDocument` |
 | 상태 필터 | `ON_SALE`·`DISCOUNTED`만 노출 | 검색·자동완성·벡터 검색 공통 |
@@ -35,11 +35,11 @@ baro-ai에는 RDB가 없다. 상품의 원본은 `baro-shopping`(MySQL)이고, b
 | 단계 | 어디서 | 무엇을 | 근거 |
 |------|--------|--------|------|
 | 1. 상품 이벤트 발행 | `baro-shopping` `ProductService.createProduct`·`updateProduct`·`deleteProduct` | 트랜잭션 **커밋 후**(`AFTER_COMMIT`) `product-events`에 발행. 키 없음, 값은 `ProductEvent{type, data}` JSON(타입 헤더 없음). `updatedAt`은 발행 시각 | `ProductTransactionEventListener.java:17-46`, `ProductEventPublisher.java:42-57`, `ProductEventProducer.java:26` |
-| 2. 소비 | `ProductEventConsumer` | 그룹 `ai-service`(팩토리가 정한다 — 리스너 어노테이션에는 적지 않는다), **묶음 리스너 — poll당 최대 5건, 묶음 처리 허용 15분**(2026-09-06), 실패 시 실패 레코드 위치를 담아 던져(`BatchListenerFailedException`) 앞 레코드는 커밋, 실패 레코드부터 1초 간격 2회 재시도 후 그 레코드만 건너뜀. 생성·수정은 모아서 한 번에 색인하고, 삭제를 만나면 모인 색인을 먼저 내보낸 뒤 삭제한다(같은 상품의 생성→삭제 순서 보존). 역직렬화 실패 레코드는 리스너에 닿기 전에 `DefaultErrorHandler`가 재시도 없이 건너뜀 | [`KafkaConsumerConfig.java`](../../../src/main/java/com/barofarm/ai/config/KafkaConsumerConfig.java), [`ProductEventConsumer.java`](../../../src/main/java/com/barofarm/ai/search/infrastructure/event/ProductEventConsumer.java) |
-| 3. 색인 | `ProductIndexService.indexProducts` | 묶음 임베딩(Gemini `batchEmbedContents` 1회, 실패 시 상품별 폴백 → 실패한 상품만 `null`) → 요리 재료명(상품별 1회)(LLM(Large Language Model, 거대 언어 모델), 실패 시 `""`) → `product-autocomplete` `saveAll` → `product` `saveAll`(인덱스당 bulk 1회). `updatedAt`은 이벤트 값(발행 시각)을 그대로 쓰고 없을 때만 현재 시각. CREATED·UPDATED 모두 전체 덮어쓰기 | [`ProductIndexService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductIndexService.java) |
-| 4. 삭제 | `ProductIndexService.deleteProduct` | 두 인덱스에서 삭제 | 동일 |
+| 2. 소비 | `ProductEventConsumer` | 그룹 `ai-service`(팩토리가 정한다 — 리스너 어노테이션에는 적지 않는다), **묶음 리스너 — poll당 최대 5건, 묶음 처리 허용 15분**(2026-09-06), 실패 시 실패 레코드 위치를 담아 던져(`BatchListenerFailedException`) 앞 레코드는 커밋, 실패 레코드부터 1초 간격 2회 재시도 후 그 레코드만 `product-events.DLT` 토픽으로 옮기고 다음으로 넘어감(2026-09-08 [`KafkaDeadLetterConfig.java`](../../../src/main/java/com/barofarm/ai/config/KafkaDeadLetterConfig.java)). 생성·수정은 모아서 한 번에 색인하고, 삭제를 만나면 모인 색인을 먼저 내보낸 뒤 삭제한다(같은 상품의 생성→삭제 순서 보존). 역직렬화 실패 레코드는 리스너에 닿기 전에 `DefaultErrorHandler`가 재시도 없이 건너뜀 | [`KafkaConsumerConfig.java`](../../../src/main/java/com/barofarm/ai/config/KafkaConsumerConfig.java), [`ProductEventConsumer.java`](../../../src/main/java/com/barofarm/ai/search/infrastructure/event/ProductEventConsumer.java) |
+| 3. 색인 | `ProductIndexService.indexProducts` | **기존 문서 일괄 조회 → 상품명이 그대로면 임베딩·재료명을 그대로 옮겨 쓴다**(2026-09-08). 바뀐 상품만 묶음 임베딩(Gemini `batchEmbedContents` 1회, 실패 시 상품별 폴백 → 실패한 상품만 `null`) → 요리 재료명(상품별 1회)(LLM(Large Language Model, 거대 언어 모델), 실패 시 `""`) → `product` `saveAll`(bulk 1회). `updatedAt`은 이벤트 값(발행 시각)을 그대로 쓰고 없을 때만 현재 시각. CREATED·UPDATED 모두 전체 덮어쓰기 | [`ProductIndexService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductIndexService.java) |
+| 4. 삭제 | `ProductIndexService.deleteProduct` | `product` 인덱스에서 삭제(2026-09-08 자동완성 인덱스 통합 후 한 곳이다) | 동일 |
 | 5. 검색 | `GET /api/v1/search` | 페이징 파라미터 검증 → `bool` 쿼리(should 3 + filter) → `_score desc, updatedAt desc` → 벡터를 뺀 `_source`만 받아 `CustomPage`. **조회만 하고 아무것도 기록하지 않는다** — 2026-09-07까지는 검색 로그를 남겼으나 검색이 취향 신호에서 빠지며 제거됐다 | [`ProductSearchService.java`](../../../src/main/java/com/barofarm/ai/search/application/ProductSearchService.java) |
-| 6. 자동완성 | `GET /api/v1/search/autocomplete` | `size` 검증 → 2글자 미만 빈 배열 → Caffeine 캐시(키 `query-size`, 1,000개·5분) → `match`(`operator=and`) + 상태 필터 | `ProductSearchService.autocomplete`, `ProductAutocompleteRepository` |
+| 6. 자동완성 | `GET /api/v1/search/autocomplete` (`ProductAutocompleteService`) | `size` 검증 → 2글자 미만 빈 배열 → Caffeine 캐시(키 `query-size`, 1,000개·5분) → `product` 인덱스의 `productName.ac`에 `match`(`operator=and`) + 상태 필터 | `ProductSearchService.autocomplete` |
 
 ## API / 인터페이스
 
@@ -47,6 +47,7 @@ baro-ai에는 RDB가 없다. 상품의 원본은 `baro-shopping`(MySQL)이고, b
 |--------|------|------|------|
 | GET | `/api/v1/search` | 없음(사용자 식별 안 함) | `q`·`categories[]`·`priceMin`·`priceMax`·`page`(0)·`size`(10). `q`가 없으면 필터만으로 검색 |
 | GET | `/api/v1/search/autocomplete` | 없음 | `q`(필수)·`size`(5) |
+| POST | `/api/v1/search/admin/reindex` | `X-Admin-Token` 헤더(`BARO_AI_ADMIN_TOKEN`) | 전체 재색인 시작(2026-09-09 신설, [`ProductReindexController.java`](../../../src/main/java/com/barofarm/ai/search/presentation/ProductReindexController.java)). 이미 진행 중이면 409 |
 
 두 API 모두 `ResponseDto<…>`로 감싼다. 2026-09-05부터 추천 API도 같은 envelope를 쓴다.
 
@@ -60,6 +61,8 @@ baro-ai에는 RDB가 없다. 상품의 원본은 `baro-shopping`(MySQL)이고, b
 | `INVALID_PAGE_SIZE` | 400 | `size < 1` 또는 `size > 100` |
 | `PAGE_RANGE_EXCEEDED` | 400 | `(page + 1) × size > 10,000` (ES `index.max_result_window`) |
 | `INVALID_AUTOCOMPLETE_SIZE` | 400 | 자동완성 `size < 1` 또는 `size > 20` |
+| `ADMIN_TOKEN_INVALID` | 403 | 재색인 요청의 `X-Admin-Token`이 없거나 다름 |
+| `REINDEX_ALREADY_RUNNING` | 409 | 재색인이 이미 진행 중 |
 
 SSOT: `search/exception/SearchErrorCode.java`
 
@@ -70,7 +73,6 @@ SSOT: `search/exception/SearchErrorCode.java`
 | 인덱스 | 문서 | 이 단위가 읽는 필드 | 비고 |
 |--------|------|---------------------|------|
 | `product` | `ProductDocument` | `productName`(nori) · `productName.word`(standard) · `productCategoryCode` · `price` · `status` · `updatedAt` | `vector`·`ingredientName`도 같은 문서에 있지만 검색 응답 조회는 `_source`에서 `vector`를 제외한다 |
-| `product-autocomplete` | `ProductAutocompleteDocument` | `productName`(edge_ngram / search: standard) · `status` | 상품당 1건 |
 
 ## 비즈니스 규칙
 
@@ -82,7 +84,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 | 발행 조건 | 판매자의 생성·수정·삭제 API. 수정은 필드 diff 없이 **항상** UPDATED 발행(상태만 바뀌어도, 아무것도 안 바뀌어도) | `Product.update` 전 필드 대입 |
 | 재고 변경 | 재고 수량 변경·주문에 의한 차감은 **이벤트 없음** | `InventoryService`에 발행 코드 0건 |
 | 상품 상태 | `ON_SALE`·`DISCOUNTED`·`SOLD_OUT`·`HIDDEN`·`DELETED`. 생성 시 `ON_SALE` 고정, 이후 판매자 수정으로만 변경. **재고 0 → SOLD_OUT 자동 전환 없음** | `ProductStatus`, `ProductService.java:90` |
-| 카테고리 | 3단계 22개, 전부 농산물(`AGRI_*`). 리프 카테고리 코드가 `productCategoryCode`로 온다 | `scripts/init-db/02-init-categories.sql` |
+| 카테고리 | 루트 1 + Level 1 7개 + Level 2 14개 = 22개(루트를 빼면 21개), 전부 농산물·축산물 계열(`AGRI_*`). 양념·가공식품 칸은 없다. 리프 카테고리 코드가 `productCategoryCode`로 온다 | `scripts/init-db/02-init-categories.sql` |
 | 페이로드 | productId·productName·productCategoryId·Code·Name·price·status(문자열)·updatedAt(발행 시각) | `ProductEventData` |
 | 순서 | 키 없이 발행 → 같은 상품의 이벤트 순서 미보장 | `ProductEventProducer.java:26` |
 | 토픽 생성 | 선언적 생성 없음(자동 생성 의존). 파티션 수 `[미정]` | `k8s/infra/kafka/`·`docker-compose.data.yml` |
@@ -92,7 +94,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 | 규칙 | 값 | 구현 위치 |
 |------|-----|-----------|
 | poll당 건수 · 처리 허용 · 재시도 | 최대 5건(묶음) · 15분 · 실패 레코드부터 1초 간격 2회 | `KafkaConsumerConfig` product 팩토리. 5는 상품 1건 최악 지연 180초(임베딩·재료명 각 30초×3회) × 5 = 15분에서 나왔다 — 1건일 때 지키던 "최악에도 리밸런싱 없음"을 유지하는 최대값([`audits/keyword-search/002`](../../audits/keyword-search/002-index-throughput-and-search-log.md) A-1) |
-| 색인 시 원격 호출 | 묶음당 임베딩 1회 + 상품당 재료명 LLM 1회, 각 30초 상한·SDK 재시도 총 3회 | `LlmClientConfig` |
+| 색인 시 원격 호출 | **상품명이 바뀐 상품에 대해서만** 묶음당 임베딩 1회 + 상품당 재료명 LLM 1회, 각 30초 상한·SDK 재시도 총 3회(배치 경로 클라이언트). 이름이 그대로면 0회 | `LlmClientConfig`, `ProductIndexService` |
 | 임베딩 실패 | 묶음이 실패하면 상품별로 다시 시도, 그래도 실패한 상품만 벡터 `null`로 색인 계속 | `ProductEmbeddingService.embedProducts` |
 | 재료명 실패 | `""`로 색인, "재색인 대상" WARN. 정규식 폴백 없음 | [`decisions/002`](../../decisions/002-ingredient-name-at-index-time.md) |
 | 정확 매칭 | `match_phrase`, `slop=1`, boost 2.0 | `applyExactMatch` |
@@ -106,7 +108,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 | 자동완성 개수 상한 | `size` 1~20 | `autocomplete` |
 | 자동완성 캐시 | Caffeine 최대 1,000개·TTL 5분·인스턴스별 | `CacheConfig`, [`decisions/001`](../../decisions/001-autocomplete-caching.md) |
 | 자동완성 접두어 길이 | `edge_ngram` 1~20자, `token_chars` letter·digit | `settings/autocomplete-analyzer.json` |
-| 자동완성 쿼리 | `match`(`operator=and`) + 상태 필터. 색인 쪽 `edge_ngram`이 이미 접두어를 갖고 있어 조회에서 다시 확장하지 않는다 | `ProductAutocompleteRepository` |
+| 자동완성 쿼리 | `productName.ac`에 `match`(`operator=and`) + 상태 필터. 색인 쪽 `edge_ngram`이 이미 접두어를 갖고 있어 조회에서 다시 확장하지 않는다. **2026-09-08부터 별도 인덱스가 아니라 상품 문서의 서브필드다** — 한 상품을 두 인덱스에 나눠 쓰면 한쪽만 성공할 수 있고 구매 가능 상태 목록도 두 곳에 갈라졌기 때문이다 | `ProductSearchService.autocomplete` |
 | 검색 로그 | **없다.** 검색 API는 부작용이 없는 조회다. `X-User-Id` 헤더도 더 이상 읽지 않는다(2026-09-07, [`audits/taste-vector/005`](../../audits/taste-vector/005-signal-and-weight-simplification.md) A-1) | — |
 
 ### 배포 전제 (게이트웨이·인프라)
@@ -150,7 +152,7 @@ SSOT: `search/exception/SearchErrorCode.java`
 
 - [x] 기능 구현
 - [ ] 위 "수동 확인 (로컬)" 절차 — 로컬 ES 미기동으로 2026-09-05 리팩터에서는 수행하지 못했다
-- [x] `./gradlew :baro-ai:test` — 이 단위 20건 통과 (`ProductSearchServiceTest` 10 · `ProductIndexServiceTest` 5 · `ProductEventConsumerTest` 5). 저장소 전체는 10클래스 59건
+- [x] `./gradlew :baro-ai:test` — 이 단위 39건 통과 (`ProductSearchServiceTest` 8 · `ProductIndexServiceTest` 10 · `ProductEventConsumerTest` 5 · `ProductAutocompleteServiceTest` 2 · `ProductReindexServiceTest` 6 · `ProductReindexControllerTest` 4 · `ProductIndexAndSearchIntegrationTest` 4). 저장소 전체는 17클래스 93건(2026-09-09 감사 010 반영 뒤 `./gradlew :baro-ai:test` 실행 기준)
 
 ## 리스크·미결정
 
@@ -182,6 +184,8 @@ SSOT: `search/exception/SearchErrorCode.java`
 
 | 날짜 | 변경 |
 |------|------|
+| 2026-09-09 | `ProductSearchService`(426줄)를 질의 조립(`ProductQueryFactory`)·검색·자동완성(`ProductAutocompleteService`) 셋으로 분리. **전체 재색인 관리 API**(`POST /api/v1/search/admin/reindex`, 관리 토큰 필요) 신설 — 인덱스를 새로 만든 뒤 상류에 재발행을 부탁하지 않고 직접 채운다. Elasticsearch 응답 상한 30초 → 3초 |
+| 2026-09-08 | 자동완성을 `product-autocomplete` 인덱스에서 `product.productName.ac` 서브필드로 통합(이중 쓰기·상태 목록 이원화 제거). 색인에 변경 감지 도입 — 상품명이 그대로면 임베딩·재료명을 재사용. Testcontainers 통합 테스트 3건 추가 |
 | 2026-09-04 | 초안 — 기존 구현을 코드 기준으로 역작성(retro-spec) |
 | 2026-09-04 | `search/`에서 작업 단위 `keyword-search/`로 이동. 발행 모듈(`baro-shopping`) 규칙·게이트웨이·인프라 전제·오탈자 매칭 리스크 추가 |
 | 2026-09-05 | 감사 001 A·B 전 항목 반영 — 오탈자 매칭 필드·허용 범위·최소 길이 변경, 자동완성 쿼리 단순화, `_source`에서 벡터 제외, 페이징 검증·`SearchErrorCode` 신설, 자동완성 조회를 `ProductSearchService`로 이동, `updatedAt`을 이벤트 값으로 |

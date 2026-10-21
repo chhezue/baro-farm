@@ -90,7 +90,7 @@
   - `k8s/apps/baro-shopping/service.yml:4,12-13` — Service 이름 `baro-shopping`, 포트 8080(→ 컨테이너 8082). `k8s/apps/baro-ai/deployment.yml:27-36`과 `k8s/apps/common/infra-configmap.yml`에 shopping 주소를 주입하는 항목 없음
   - 같은 클러스터에서 다른 모듈은 이름 대신 주소를 박아 쓴다: `baro-gateway/.../application-prod.yml:113-114` — `uri: http://baro-shopping:8080`. `baro-order/.../application-prod.yml:42-46` — `feign.client.config.shopping-service.url: ${SHOPPING_SERVICE_URL:http://baro-shopping:8080}`(참고: 이 키는 Spring Cloud OpenFeign 4.x의 prefix `spring.cloud.openfeign.client`와 다르다 — baro-order 소유이므로 여기서는 관찰만, 판단 항목 2)
   - 실패 경로(jar): `FeignClientFactoryBean.getTarget` → `url` 비어 있음 → `loadBalance(...)`; `DiscoveryClient`는 `SimpleDiscoveryClient`(인스턴스 0개); `FeignBlockingLoadBalancerClient.execute` → 인스턴스 없음 → `HttpStatus.SERVICE_UNAVAILABLE`로 `Response` 생성 → `CartFeignErrorDecoder.java:18-20` default → `CustomException(CommonErrorCode.FEIGN_ERROR)` → `RecipeRecommendService.java:46-49` catch → 빈 응답. 로그에는 `"Feign 통신 오류입니다."`만 남는다
-  - 로컬도 같다: `application.yml:10-11`은 기본 프로필을 `local`로 두지만 `application-local.yml`이 없고, [`IMPLEMENTATION.md`](../../IMPLEMENTATION.md) 89줄의 로컬 실행 절차는 `SPRING_PROFILES_ACTIVE=prod`를 내보내라고 안내한다 — 즉 로컬에서도 prod 프로필로 도는데 `shopping-service`를 풀어 줄 것이 없다. 저장소의 `docker-compose.data.yml`·`docker/`에도 Eureka는 없다(`grep -rin eureka` 0건)
+  - 로컬도 같다: `application.yml:10-11`은 기본 프로필을 `local`로 두지만 `application-local.yml`이 없고, `IMPLEMENTATION.md`(2026-09-09 삭제) 89줄의 로컬 실행 절차는 `SPRING_PROFILES_ACTIVE=prod`를 내보내라고 안내한다 — 즉 로컬에서도 prod 프로필로 도는데 `shopping-service`를 풀어 줄 것이 없다. 저장소의 `docker-compose.data.yml`·`docker/`에도 Eureka는 없다(`grep -rin eureka` 0건)
   - **불확실한 것**: 실제 클러스터에서의 관찰은 없다(서버 내려감). 위 사슬은 코드·매니페스트·jar로 닫혀 있다
 - **왜 문제인가**: A-1과 함께, 기능이 배포 환경에서 한 번도 동작한 적이 없을 가능성이 높다. 이름 해석 실패가 503 → 예외 → 빈 응답으로 세 번 포장되면서, 로그만 봐서는 "shopping이 죽었다"와 "주소를 모른다"를 구분할 수 없다
 - **개선 방법**: baro-ai의 `application-prod.yml`에 아래를 추가한다(다른 모듈·k8s 파일은 건드리지 않는다).
@@ -139,7 +139,7 @@
 - **Priority**: Medium
 - **Category**: Cleanup (API 계약 변경)
 - **문제**: 운영 컨트롤러에 "테스트용"이라고 적힌 엔드포인트가 살아 있다. 인증 없이 임의 `CartInfo`를 넣어 LLM 호출(비용·지연)을 일으킬 수 있고, 문서 두 곳이 이걸 정식 API처럼 소개한다
-- **근거**: `RecommendationController.java:47-57` — `summary = "… (테스트용)"`, `@PostMapping("/recipes/test")`, `@RequestBody CartInfo`. `RecipeRecommendService.java:53-55` — `testRecommendFromCartWithMissing`. 문서: [`FEATURES.md`](../../FEATURES.md) 195-197줄이 요청 본문 예시까지 싣고, [`docs/README.md`](../../README.md) 77줄이 "테스트용"으로 나열. 호출부는 이 두 곳뿐(`grep -rn "recipes/test\|testRecommendFromCartWithMissing"`)
+- **근거**: `RecommendationController.java:47-57` — `summary = "… (테스트용)"`, `@PostMapping("/recipes/test")`, `@RequestBody CartInfo`. `RecipeRecommendService.java:53-55` — `testRecommendFromCartWithMissing`. 문서: `FEATURES.md`(2026-09-09 삭제) 195-197줄이 요청 본문 예시까지 싣고, [`docs/README.md`](../../README.md) 77줄이 "테스트용"으로 나열. 호출부는 이 두 곳뿐(`grep -rn "recipes/test\|testRecommendFromCartWithMissing"`)
 - **왜 문제인가**: 이 엔드포인트가 A-1·A-2를 우회하는 유일한 경로였기 때문에 "기능이 된다"는 착각을 만들 수 있었다. A-1·A-2가 반영되면 실제 경로로 확인할 수 있으므로 우회 경로를 유지할 이유가 약해진다
 - **개선 방법** (사용자 선택 — 판단 항목 3):
   - (a) **삭제** — 컨트롤러 메서드·서비스 메서드·`FEATURES.md` 절·`README.md` 항목·스펙 API 표 행을 같은 변경에서 제거(STOP §4). 권장

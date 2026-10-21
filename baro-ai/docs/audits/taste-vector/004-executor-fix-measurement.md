@@ -90,10 +90,16 @@ C안을 재려면 사용자 수를 파라미터로 받아 분산시키는 기능
 
 ## 남은 결정
 
-`003` A-1의 방향 선택(`open-items.md` B-8)은 그대로 열려 있다. 이 문서가 더한 것은 A안의 값표 하나다.
+`003` A-1의 방향 선택([`open-items.md`](../open-items.md) C-14)은 그대로 열려 있다. 이 문서가 더한 것은 A안의 값표 하나다.
 
 - A안을 택하면: 검색 기록 유실 0%, 대신 검색 p95가 75~146ms
 - A안을 안 택하면: 검색은 지금처럼 빠르고, 취향 데이터의 35~63%를 계속 버린다
 - 위 "근본적인 질문"이 먼저 정리되면 선택지 자체가 달라질 수 있다 — 검색을 신호에서 빼면 이 부하의 대부분이 사라진다
 
 코드는 측정 후 되돌렸다. 저장소에는 이 문서와 측정 원본만 남는다.
+
+## 관련 문서
+
+- [`003-shared-executor-saturation.md`](003-shared-executor-saturation.md) — A-1 방향 선택의 원래 감사
+- [`open-items.md`](../open-items.md) C-14 — 유실 허용 범위 결정 대기
+- [`005-signal-and-weight-simplification.md`](005-signal-and-weight-simplification.md) — 검색을 신호에서 뺀 뒤의 후속

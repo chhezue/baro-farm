@@ -21,7 +21,7 @@ baro-ai의 기능을 **주제 4개**로 나누고, 주제마다 "무엇을 왜 �
 
 경계에서 헷갈리기 쉬운 것 두 가지:
 
-- **임베딩 검색과 개인별 추천은 뒷단을 공유한다.** 후보 조회(`VectorProductSearchService`)와 다양화(`MaxMinDiversityService`)는 "임베딩 검색" 문서가 설명하고, "개인별 추천" 문서는 기준 벡터(취향 벡터)를 어떻게 만드는지에 집중한다.
+- **임베딩 검색과 개인별 추천은 뒷단을 공유한다.** 후보 조회(`VectorProductSearchService`)와 고르기(`VectorRecommendPipeline`)는 "임베딩 검색" 문서가 설명하고, "개인별 추천" 문서는 기준 벡터(취향 벡터)를 어떻게 만드는지에 집중한다.
 - **장바구니 레시피의 재료명은 검색 색인 시점에 만들어진다.** 상품이 색인될 때 LLM이 재료명을 뽑아 저장하고, 레시피 요청은 그 값을 읽기만 한다. 색인 경로는 "검색" 문서가, 재료명 추출의 이유는 "장바구니 레시피" 문서가 설명한다.
 
 리뷰 분석(`review` 패키지)은 팀원 소유라 이 묶음에 없다([`REVIEW_ANALYSIS_PHASES.md`](../REVIEW_ANALYSIS_PHASES.md)). 챗봇은 미착수다([`specs/chat/chatbot.md`](../specs/chat/chatbot.md)).

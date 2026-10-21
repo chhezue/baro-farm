@@ -18,6 +18,7 @@
 |--------|-----------|-----------|------|--------|
 | 기능 스펙 | `specify` · `defer` 스킬 | `docs/specs/{unit}/{kebab-case}.md` (`{unit}` = 작업 단위 폴더, [`specs/README.md`](../specs/README.md)) | 참조 | [`reference-doc.md`](reference-doc.md) |
 | 아키텍처 감사 | `safe-refactor` 스킬 (Audit 단계) | `docs/audits/{unit}/{NNN}-{kebab-topic}.md` (작업 단위 안에서 001부터 증가, 규칙은 [`audits/README.md`](../audits/README.md)) | 문제 해결 | [`how-to-doc.md`](how-to-doc.md) |
+| 모듈 전체 감사 | 사용자 요청 시 수동 작성(`safe-refactor` 절차 준용) | `audits/full-module/{NNN}-*.md` | 문제 해결 | [`how-to-doc.md`](how-to-doc.md) — 단 **A/B/C/D 대신 P0~P3**을 쓰고 절 구성도 자체적이다. 작업 단위 하나가 아니라 모듈 전부를 비교하는 감사라 항목별 승인이 아니라 우선순위 배열이 목적이기 때문이다(2026-09-08 신설) |
 | 측정 보고서 | 사용자 승인 후 수동 작성(골든셋 등 Before/After 측정 결과) | `docs/audits/{unit}/{NNN}-{kebab-topic}.md` — 감사와 같은 번호 체계를 쓰되 A/B/C/D 분류 대신 결과·해석 구조 | 설명 | [`explanation-doc.md`](explanation-doc.md) |
 | 리팩터 반영 이력 | `safe-refactor` 스킬 (G4 Report) | `docs/audits/{unit}/refactor-log.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
 | 하네스 회고 백로그 | `retro` 스킬 | `docs/audits/harness-retro.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
@@ -29,7 +30,8 @@
 | 온보딩·개념 입문 | (아직 없음) | `docs/` | 학습 | [`learning-doc.md`](learning-doc.md) |
 | ES 인덱스 매핑 | 사용자 승인 후 수동 작성 | `docs/ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
 | 임베딩 입출력 예시 | 사용자 승인 후 수동 작성 | `docs/EMBEDDING_EXAMPLE.md` | 참조 | [`reference-doc.md`](reference-doc.md) |
-| 구현·기능 설명 | 사용자 승인 후 수동 작성 | `docs/IMPLEMENTATION.md` · `FEATURES.md` · `REVIEW_ANALYSIS_PHASES.md` | 설명 | [`explanation-doc.md`](explanation-doc.md) |
+| 리뷰 분석 로드맵 (팀원 소유) | 팀원 작성 | `docs/REVIEW_ANALYSIS_PHASES.md` | 설명 | [`explanation-doc.md`](explanation-doc.md) — 이 하네스가 고치지 않는다 |
+| 인계 문서 | 사용자 승인 후 수동 작성(세션을 넘길 때 미해결 문제를 모음) | `docs/audits/{unit}/{NNN}-*-handoff.md` — 감사 번호 체계를 쓰되 A/B/C/D가 아니라 "측정된 사실 / 근거 없는 것 / 결론 난 것 / 선택지" 구성 | 참조 | [`reference-doc.md`](reference-doc.md) |
 | 기능·기술 문서 (주제별) | 사용자 승인 후 수동 작성 | `docs/features/{unit}.md` — 절 구성·참고 자료는 [`features/README.md`](../features/README.md) | 설명 (Google 설계 문서의 목표·비목표·대안·교차 관심사 절을 더함) | [`explanation-doc.md`](explanation-doc.md) 골격 + `features/README.md` 절 표 |
 | 포트폴리오 케이스 스터디 | 사용자 승인 후 수동 작성 | `docs/portfolio/{unit}.md` — 절 구성은 [`portfolio/README.md`](../portfolio/README.md) | 설명 (배경 → 분석 → 대안 → 해결 → 자평 → 한계 → 회고) | [`explanation-doc.md`](explanation-doc.md) 골격 + `portfolio/README.md` 절 표 |
 | 기술 비교·분석 메모 | 사용자 승인 후 수동 작성 | `docs/audits/{주제}.md` (예: `ssoss-llm-comparison.md`) | 설명 | [`explanation-doc.md`](explanation-doc.md) |

@@ -34,7 +34,7 @@
 | `{{스키마 SSOT}}` | `baro-ai/docs/ELASTICSEARCH_SEARCH_EMBEDDING_ARCHITECTURE.md` (ES 인덱스 매핑 — RDB 스키마 아님) | `core-followup` 💡 ERD |
 | `{{API 응답 규격}}` | `baro-common/src/main/java/com/barofarm/dto/ResponseDto.java` · `CustomPage.java` | `core-guardrails` ⛔ §2 |
 | `{{API 문서}}` | springdoc 기본 경로(`/v3/api-docs`, `/swagger-ui/index.html`) — `SwaggerConfig.java`는 최소 설정만 있고 별도 문서 URL 미고정. 게이트웨이 경유 시 경로 재확인 필요 | `core-guardrails` ⛔ §5 |
-| `{{제품 범위}}` | `baro-ai/docs/product/mvp.md` (상세 근거는 `baro-ai/docs/FEATURES.md`) | `core-workflow` 진입 |
+| `{{제품 범위}}` | `baro-ai/docs/product/mvp.md` (작업 단위별 상세는 `baro-ai/docs/features/`) | `core-workflow` 진입 |
 | `{{클라이언트 전제}}` | `baro-ai/docs/product/platform.md` — 외부 클라이언트 없음, 내부 MSA(다른 모듈의 Feign/Kafka 호출)만 존재 | `core-workflow` 진입 · `specify` 스킬 |
 | `{{용어집}}` | `baro-ai/docs/product/glossary.md` | `core-scope` |
 | `{{결정 기록}}` | `baro-ai/docs/decisions/` | `core-guardrails` ⛔ §1 · `core-workflow` 진입 |
@@ -58,7 +58,7 @@
 |------|-------------|------|
 | **DB 마이그레이션 금지** | ☑ 켬 | baro-ai에는 RDB/JPA 엔티티가 없다 — 검색·추천·리뷰 전부 Elasticsearch 문서(`ProductDocument` 등) 기반. Flyway/Liquibase 자체가 해당 없음. ES 인덱스는 코드에서 `IndexOperations.createWithMapping()`으로 생성 |
 | **에러코드 enum 동시갱신** | ☑ 켬 | `SearchErrorCode`·`RecommendErrorCode` + `CustomException` 패턴이 이미 있음. `EmbeddingErrorCode`는 HTTP로 나갈 경로가 없어 2026-09-07에 지웠다(`audits/cross-cutting/003` B-4) |
-| **권한·활동 어노테이션(AOP)** | ❌ 끔 | `@Aspect`·커스텀 권한 어노테이션 없음. 인증은 게이트웨이가 처리하고 baro-ai는 `X-User-Id` 헤더를 신뢰하는 방식 |
+| **권한·활동 어노테이션(AOP)** | ❌ 끔 | `@Aspect`·커스텀 권한 어노테이션 없음. 인증은 게이트웨이가 처리하고 baro-ai는 `X-User-Id` 헤더를 신뢰한다. 컨트롤러가 그 헤더와 경로 변수를 대조하는 것은 AOP가 아니라 컨트롤러 안의 한 줄 검사다(2026-09-08) |
 | **OpenAPI 계약 보호** | ❌ 끔 (일단) | `oasdiff`·CI 계약 검증 미구축. 나중에 도입하면 켜고 `warn-breaking-change.sh` 훅 활성화 |
 | **생성 문서 검증** | ☑ 켬 | 이 세션에서 실제로 문서-코드 drift(README가 미구현 Redis 캐시·바뀐 API 파라미터를 사실처럼 서술)를 발견한 이력이 있어, Swagger 실물(`/v3/api-docs`) 확인 규율이 특히 필요한 프로젝트 |
 | **스택 함정 메모** | ❌ 끔 | Java 21 / Spring Boot 표준 사용, 현재까지 알려진 버전 함정 없음 |

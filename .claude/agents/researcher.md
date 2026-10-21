@@ -35,7 +35,7 @@ find ~/.gradle/caches/modules-2 -name "<artifact>*.jar" # 필요하면 jar 직�
 | 대상 | URL |
 |------|-----|
 | Spring Boot | `https://docs.spring.io/spring-boot/{버전}/reference/{web\|data\|features\|actuator}/index.html` — baro-ai는 **3.5.x**. 버전 경로를 URL로 확정하지 말고 도착한 페이지 상단 버전 표시로 재확인(아래 함정 참고) |
-| Spring AI | `https://docs.spring.io/spring-ai/reference/{버전}/...` — baro-ai는 **1.0.0-M5(마일스톤, GA 아님)**. GA(1.0.0 이상) 문서와 API가 다를 수 있음, 아래 함정 참고 |
+| Spring AI | `https://docs.spring.io/spring-ai/reference/{버전}/...` — baro-ai는 **1.1.8 GA**(SSOT: `baro-ai/build.gradle` `ext`의 `springAiVersion`). 1.0.x·마일스톤 기준 문서와 API가 다를 수 있음, 아래 함정 참고 |
 | Spring Framework / Data Elasticsearch / Kafka | 각 프로젝트 공식 reference (버전 경로 포함) |
 | 인프라 | Elasticsearch 8.x · Kafka 3.x · AWS 공식 문서 |
 
@@ -59,7 +59,7 @@ find ~/.gradle/caches/modules-2 -name "<artifact>*.jar" # 필요하면 jar 직�
 ## ⚠️ 이 저장소 고유 함정
 
 - **Spring Boot 3.5.8 / Java 21 / Spring Cloud 2025.0.0을 쓴다** (`build.gradle`, `baro-ai/build.gradle` `ext` 블록이 SSOT). 웹 검색 결과가 4.x(최신 major)를 기준으로 나올 수 있으니, 3.5 reference로 재확인 없이 그대로 적용하지 않는다.
-- **Spring AI는 `1.0.0-M5`(마일스톤 빌드, GA 아님)를 쓴다.** GA(1.0.0 이상) 이후 문서·블로그는 API가 바뀌었을 수 있다 — `ChatClient`·`EmbeddingModel` 등 인터페이스 시그니처를 웹 문서만 보고 단정하지 말고, 실제로는 **로컬 jar**(`~/.gradle/caches/modules-2/.../spring-ai-*-1.0.0-M5.jar`)나 IDE의 실제 클래스 시그니처로 교차 확인한다. Milestone 저장소(`repo.spring.io/milestone` 등)가 `build.gradle`에 선언돼 있는지도 확인 대상.
+- **Spring AI는 `1.1.8`(GA)을 쓴다.** 값의 SSOT는 `baro-ai/build.gradle` `ext` 블록의 `springAiVersion`이다 — 규칙 문서의 숫자가 아니라 이 파일을 먼저 확인한다. 2026-09-04 이전 문서·커밋은 `1.0.0-M5`를 전제하므로 저장소 안의 오래된 문구를 그대로 믿지 않는다([`decisions/003`](../../baro-ai/docs/decisions/003-gemini-migration.md)). 웹 검색 결과는 1.0.x GA나 마일스톤 기준일 수 있다 — `ChatClient`·`GoogleGenAiChatOptions` 등 시그니처를 웹 문서만 보고 단정하지 말고 **로컬 jar**(`~/.gradle/caches/modules-2/.../spring-ai-*-1.1.8.jar`)의 실제 클래스로 교차 확인한다.
 - `docs.spring.io`의 버전 경로는 최신 stable이면 버전 없는 URL로 리다이렉트될 수 있다 — 리다이렉트를 따라가되 **도착한 페이지 상단의 버전 표시를 반드시 확인**하고, 근거에 그 버전을 적는다. 문서 버전이 우리 패치 버전과 다르면 핵심 사실은 **로컬 jar·BOM(Bill of Materials) 실물로 교차 확인**한다.
 - `WebFetch`는 https→http 리다이렉트를 자동으로 따라가지 않는다. 리다이렉트 안내가 오면 반환된 URL로 한 번 더 호출한다.
 
@@ -70,7 +70,7 @@ find ~/.gradle/caches/modules-2 -name "<artifact>*.jar" # 필요하면 jar 직�
 (3줄 이내. 질문에 대한 답만.)
 
 ## 우리 버전 적용 여부
-(Spring Boot 3.5.8 / Java 21 / 필요 시 Spring AI 1.0.0-M5 기준으로 그대로 적용 가능한지. 조건부라면 조건을 명시.)
+(Spring Boot 3.5.8 / Java 21 / 필요 시 Spring AI 1.1.8 기준으로 그대로 적용 가능한지. 조건부라면 조건을 명시.)
 
 ## 근거
 - 웹: <URL> — 문서상 버전: <x.y.z> · 확인일: <YYYY-MM-DD>
