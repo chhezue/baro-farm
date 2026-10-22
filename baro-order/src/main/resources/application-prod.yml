@@ -38,14 +38,12 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.add.type.headers: false
-  # Feign 설정은 spring.cloud.openfeign 아래에 둔다.
-  # OpenFeign 4.x가 읽는 접두사가 이것뿐이라, 최상위 feign.client.* 는 적용되지 않는다.
-  cloud:
-    openfeign:
-      client:
-        config:
-          shopping-service:
-            url: ${SHOPPING_SERVICE_URL:http://baro-shopping:8080}
+
+feign:
+  client:
+    config:
+      shopping-service:
+        url: ${SHOPPING_SERVICE_URL:http://baro-shopping:8080}
 
 eureka:
   client:
