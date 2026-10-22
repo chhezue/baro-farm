@@ -17,7 +17,7 @@ java {
 
 ext {
     set('springCloudVersion', "2025.0.0")
-    set('springAiVersion', "1.0.0-M5")
+    set('springAiVersion', "1.1.8")
 }
 
 dependencyManagement {
@@ -27,6 +27,8 @@ dependencyManagement {
     imports {
         mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
     }
+    // ES 클라이언트 버전 고정 — 해제는 인프라 담당자의 서버 버전(운영 9.1.2) 확인 후.
+    // 근거·해제 절차: docs/audits/cross-cutting/002-dependencies-config-and-dead-code.md B-8
     dependencies {
         dependency 'org.springframework.data:spring-data-elasticsearch:5.3.6'
         dependency 'org.springframework.data:spring-data-commons:3.3.6'
@@ -35,12 +37,6 @@ dependencyManagement {
 
 configurations.all {
     resolutionStrategy {
-        force 'io.swagger.core.v3:swagger-core-jakarta:2.2.28'
-        force 'io.swagger.core.v3:swagger-models-jakarta:2.2.28'
-        force 'io.swagger.core.v3:swagger-annotations-jakarta:2.2.28'
-        force 'io.swagger.core.v3:swagger-core:2.2.22'
-        force 'io.swagger.core.v3:swagger-models:2.2.22'
-        force 'io.swagger.core.v3:swagger-annotations:2.2.22'
         force 'co.elastic.clients:elasticsearch-java:8.13.3'
     }
 }
@@ -50,19 +46,12 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
-    // .env 로딩
-    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
-
     // Swagger(OpenAPI)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5'
 
     // ========= AI 서비스 공통 인프라 =========
     implementation project(':baro-common')
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
-    implementation 'org.springframework.cloud:spring-cloud-starter-config'
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 
     // ========= Elasticsearch / 벡터 스토어 =========
@@ -70,20 +59,28 @@ dependencies {
         exclude group: 'co.elastic.clients', module: 'elasticsearch-java'
     }
     implementation 'co.elastic.clients:elasticsearch-java:8.13.3'
-    implementation 'org.springframework.ai:spring-ai-elasticsearch-store'
 
     // ========= 메시징 / Kafka =========
     implementation 'org.springframework.kafka:spring-kafka'
 
-    // ========= Spring AI =========
-    implementation 'org.springframework.ai:spring-ai-openai-spring-boot-starter'
-    implementation 'org.springframework.ai:spring-ai-ollama-spring-boot-starter'
+    // ========= 캐시 (로컬, 자동완성 전용 — docs/decisions/001-autocomplete-caching.md) =========
+    implementation 'com.github.ben-manes.caffeine:caffeine'
+    // Spring AI가 이미 갖춘 LLM 호출 관측 훅(토큰·지연·오류 지표)을 켜기 위한 것. 근거: docs/audits/cross-cutting/audit.md B-1
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
-    // ========= OpenFeign 클라이언트 =========
-    implementation 'io.github.openfeign:feign-okhttp:13.6'
+    // ========= Spring AI (Google Gemini — 챗·임베딩 모두) =========
+    // 근거: docs/decisions/003-gemini-migration.md
+    implementation 'org.springframework.ai:spring-ai-starter-model-google-genai'
+    implementation 'org.springframework.ai:spring-ai-starter-model-google-genai-embedding'
 
-    // ========= 데이터베이스 =========
-    runtimeOnly 'com.mysql:mysql-connector-j'
+    // ========= 테스트 (JUnit 5·Mockito·AssertJ — 2026-09-06 감사 cart-recipe/005 B-3) =========
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    // Elasticsearch 실물을 띄워 매핑·쿼리를 확인하는 통합 테스트용.
+    // 단위 테스트가 mock으로 고정할 수 있는 것은 "무엇을 호출했는가"까지고, 매핑이 실제로 만들어지는지나
+    // edge_ngram 접두어가 정말 걸리는지는 실물이 있어야 알 수 있다. Docker가 없으면 해당 테스트만 건너뛴다.
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:elasticsearch'
 }
 
 tasks.named('test') {

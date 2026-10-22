@@ -1,0 +1,11 @@
+{
+ "docs": 1000,
+ "bulk_size": 100,
+ "doc_bytes": 34311,
+ "single_seconds": 4.95,
+ "single_docs_per_sec": 202.0,
+ "bulk_seconds": 1.163,
+ "bulk_docs_per_sec": 859.9,
+ "speedup": 4.26,
+ "es_version": "8.12.0"
+}

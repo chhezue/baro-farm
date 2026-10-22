@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+
+# 로컬 ES에 실제로 심긴 상품을 가리키는 파일이라 사람마다 다르다.
+# 커밋해 두면 남의 ES에 없는 상품 ID를 스텁이 집어 조용히 어긋난다 — seed_catalog.py --dump-only로 다시 만든다.
+seeded-products.json

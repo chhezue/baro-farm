@@ -1,286 +1,133 @@
-# 📊 UserProfileEmbeddingDocument 생성 예시
+# 취향 벡터가 만들어지는 과정 (예시)
 
-## 🎯 실제 데이터 흐름 예시
+사용자 한 명의 행동 로그가 취향 벡터 하나로 바뀌는 과정을 실제 숫자로 따라간다. **2026-09-08부터 이 벡터는 인덱스에 저장되지 않고 개인화 추천을 요청받은 자리에서 계산된다**(`TasteProfile`) — 아래 JSON은 계산 결과가 어떤 모양인지 보여주는 예시이지 저장된 문서가 아니다. 계산 규칙 자체의 SSOT는 [`specs/taste-vector/taste-vector-pipeline.md`](specs/taste-vector/taste-vector-pipeline.md) 비즈니스 규칙 표이고, 이 문서는 그 규칙을 한 사례에 적용해 "왜 이런 벡터가 나오는지"를 보여준다.
 
-### **입력 데이터 (사용자 행동 로그)**
+## 언제 이 문서를 보는가
+
+- 특정 사용자에게 왜 그 상품이 추천됐는지를 로그·가중치 수준에서 되짚어야 할 때
+- 가중치 규칙을 바꾸기 전에 그 변경이 결과를 얼마나 움직이는지 감을 잡을 때
+- 취향 벡터 계산에 처음 손대는 사람이 전체 흐름을 한 사례로 훑을 때
+
+행동 하나가 어떤 비중을 갖는지, 삭제한 상품이 왜 결과에 전혀 남지 않는지, 그 비중이 어떻게 벡터 하나로 합쳐지는지를 알 수 있다.
+
+> **2026-09-15 기준이다.** 장바구니 삭제는 그 로그만 빠지는 게 아니라 같은 상품의 이전 담기 비중까지 지우고, 최소 조건은 로그 건수가 아니라 서로 다른 상품 수로 센다 — 근거는 [`audits/taste-vector/006`](audits/taste-vector/006-behavior-weight-semantics.md)에 있다.
+>
+> **2026-09-09 기준이다.** 이 예시에 검색 로그가 없는 이유는 검색을 취향 신호에서 뺐기 때문이고, 비중에 수량을 곱하지 않는 이유도 그날 그 축을 뺐기 때문이다 — 근거는 [`audits/taste-vector/005`](audits/taste-vector/005-signal-and-weight-simplification.md)에 있다.
+>
+> **2026-09-05 재설계 반영본이다.** 예전에는 상품명을 가중치만큼 반복한 긴 문장을 만들어 Gemini 임베딩 API에 보냈다. 지금은 그 호출이 없다 — 로그에 등장한 상품이 색인 시점에 이미 갖고 있는 벡터를 비중대로 섞는다. 바꾼 이유는 [`audits/taste-vector/001-profile-refresh-path.md`](audits/taste-vector/001-profile-refresh-path.md) "A-3 재설계" 절에 있다.
+
+## 입력 데이터
 
 사용자 ID: `550e8400-e29b-41d4-a716-446655440000`
 
-#### **1. 검색 로그 (최대 5개)**
+등장하는 상품 4개는 모두 `product` 인덱스에 색인돼 있고 각자 768차원 벡터를 갖고 있다.
+
+| 표기 | productId 끝자리 | 상품명 |
+|------|------------------|--------|
+| P1 | `…0001` | 청송사과 프리미엄 1kg |
+| P2 | `…0002` | 바나나 1송이 |
+| P3 | `…0003` | 오렌지 1kg |
+| P4 | `…0004` | 홍로사과 2kg |
+
+### 1. 장바구니 로그
+
 ```json
 [
-  {
-    "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "searchQuery": "사과",
-    "category": "과일",
-    "searchedAt": "2026-01-12T10:00:00Z"  // 1시간 전
-  },
-  {
-    "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "searchQuery": "바나나",
-    "category": "과일",
-    "searchedAt": "2026-01-11T15:00:00Z"  // 1일 전
-  },
-  {
-    "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "searchQuery": "청송사과",
-    "category": "과일",
-    "searchedAt": "2026-01-10T09:00:00Z"  // 2일 전
-  }
+  { "productId": "…0001", "eventType": "CART_ITEM_ADDED",       "occurredAt": "1시간 전" },
+  { "productId": "…0002", "eventType": "CART_ITEM_ADDED",       "occurredAt": "1일 전" },
+  { "productId": "…0004", "eventType": "CART_QUANTITY_UPDATED", "occurredAt": "1일 전" },
+  { "productId": "…0003", "eventType": "CART_ITEM_REMOVED",     "occurredAt": "2일 전" }
 ]
 ```
 
-#### **2. 장바구니 로그 (최대 5개)**
+### 2. 주문 로그
+
 ```json
 [
-  {
-    "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "productId": "product-001",
-    "productName": "청송사과 프리미엄 1kg",
-    "eventType": "ADD",
-    "quantity": 3,
-    "occurredAt": "2026-01-12T11:00:00Z"  // 1시간 전
-  },
-  {
-    "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "productId": "product-002",
-    "productName": "바나나 1송이",
-    "eventType": "ADD",
-    "quantity": 2,
-    "occurredAt": "2026-01-11T16:00:00Z"  // 1일 전
-  },
-  {
-    "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "productId": "product-003",
-    "productName": "오렌지 1kg",
-    "eventType": "REMOVE",
-    "quantity": 1,
-    "occurredAt": "2026-01-10T10:00:00Z"  // 2일 전 (제거됨)
-  }
+  { "productId": "…0001", "eventType": "ORDER_CONFIRMED", "occurredAt": "30분 전" }
 ]
 ```
 
-#### **3. 주문 로그 (최대 5개)**
-```json
-[
-  {
-    "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "productId": "product-001",
-    "productName": "청송사과 프리미엄 1kg",
-    "eventType": "ORDER_CREATED",
-    "quantity": 2,
-    "occurredAt": "2026-01-12T12:00:00Z"  // 30분 전
-  },
-  {
-    "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "productId": "product-002",
-    "productName": "바나나 1송이",
-    "eventType": "ORDER_CREATED",
-    "quantity": 1,
-    "occurredAt": "2026-01-11T17:00:00Z"  // 1일 전
-  }
-]
-```
+로그는 유형을 나누지 않고 `user_behavior_logs` 한 인덱스에서 **최근 30일 안의 최신 10건**을 한 번에 읽는다(2026-09-09 인덱스 통합 전에는 장바구니·주문을 각각 5건씩 따로 읽었고, 그래서 유형 경계에서 최근순이 깨질 수 있었다). 이 예시는 비중이 남는 상품이 3개(P1·P2·P4)라 최소 상품 수(3개)를 넘겨 계산을 진행한다. 로그에 남는 것은 위 네 항목뿐이다 — 수량과 카테고리 코드는 상류가 보내지만 2026-09-07부터 받지도 저장하지도 않는다.
 
----
+## 비중 계산
 
-## 🔄 가중치 계산 과정
+로그 1건의 비중은 **행동 종류 하나로** 정해진다. 주문 확정 3 · 장바구니 담기 2 · 수량 변경 1이고, 삭제·취소는 0이다. 곱하는 축이 없어서 범위가 0 또는 1~3이다.
 
-### **1단계: 검색 로그 가중치 계산**
+> 한때 여기에 두 축을 더 곱했다. **시간 감쇠**(최근 3.0에서 7일마다 절반)는 당시 유형별 최근 5건만 읽던 구조에서 한 번의 쇼핑 로그가 전부 같은 시간대라 감쇠값이 같고, 마지막 L2 정규화가 그 배수를 소거해 결과에 영향이 없어서 2026-09-06에 뺐다([`002`](audits/taste-vector/002-weight-axes-and-tests.md) F-1·F-2). **수량**은 선호의 세기가 아니라 소비량이어서 2026-09-07에 뺐다([`005`](audits/taste-vector/005-signal-and-weight-simplification.md) A-2). 발생 시각은 30일 조회 창과 최신순 정렬에 쓰이므로 계속 저장하지만, 수량은 아예 저장하지 않게 됐다([`cross-cutting/003`](audits/cross-cutting/003-stale-comments-and-write-only-fields.md) B-1).
 
-| 검색어 | 시간 | 시간 가중치 | 반복 횟수 |
-|--------|------|------------|----------|
-| "사과" | 1시간 전 | 2.8 | 3번 |
-| "바나나" | 1일 전 | 1.5 | 2번 |
-| "청송사과" | 2일 전 | 1.2 | 1번 |
+### 장바구니
 
-**검색어 텍스트:**
-```
-"사과, 사과, 사과, 바나나, 바나나, 청송사과"
-```
+| 상품 | 이벤트 | 비중 |
+|------|--------|------|
+| P1 | CART_ITEM_ADDED | 2 |
+| P2 | CART_ITEM_ADDED | 2 |
+| P4 | CART_QUANTITY_UPDATED | 1 |
+| P3 | CART_ITEM_REMOVED | **0 — 완전히 제외** |
 
-### **2단계: 장바구니 로그 가중치 계산**
+담은 개수는 비중에 들어가지 않는다 — 수량은 2026-09-07에 축에서 빠졌고, 지금은 이벤트에서 받지도 로그에 저장하지도 않는다. "몇 개 담았나"가 아니라 "담았나"만 본다.
 
-| 상품명 | 이벤트 | 수량 | 시간 | 시간 가중치 | 최종 가중치 | 반복 횟수 |
-|--------|--------|------|------|------------|------------|----------|
-| "청송사과 프리미엄 1kg" | ADD | 3 | 1시간 전 | 2.8 | 2 × 3 × 2.8 = 16.8 | 17번 |
-| "바나나 1송이" | ADD | 2 | 1일 전 | 1.5 | 2 × 2 × 1.5 = 6.0 | 6번 |
-| "오렌지 1kg" | REMOVE | 1 | 2일 전 | 1.2 | 0 × 1 × 1.2 = 0 | 0번 (제외) |
+P3은 마지막 장바구니 행동이 삭제라 비중이 남지 않는다. 삭제 전에 담기 로그가 있었더라도 삭제가 그 비중까지 지운다(2026-09-15). 그래서 평균에서 빠질 뿐 아니라 경험 상품 목록에도 들어가지 않는다. 관심이 없어진 상품이므로 나중에 추천에 다시 나와도 된다. 단, 주문 확정 비중은 삭제로 지워지지 않는다 — 산 뒤 장바구니를 정리해도 구매 신호는 남는다.
 
-**장바구니 텍스트:**
-```
-"청송사과 프리미엄 1kg" × 17번
-"바나나 1송이" × 6번
-```
+### 주문
 
-### **3단계: 주문 로그 가중치 계산**
+| 상품 | 이벤트 | 비중 |
+|------|--------|------|
+| P1 | ORDER_CONFIRMED | 3 |
 
-| 상품명 | 이벤트 | 수량 | 시간 | 시간 가중치 | 최종 가중치 | 반복 횟수 |
-|--------|--------|------|------|------------|------------|----------|
-| "청송사과 프리미엄 1kg" | ORDER_CREATED | 2 | 30분 전 | 2.9 | 3 × 2 × 2.9 = 17.4 | 17번 |
-| "바나나 1송이" | ORDER_CREATED | 1 | 1일 전 | 1.5 | 3 × 1 × 1.5 = 4.5 | 5번 |
+## 상품별 합계
 
-**주문 텍스트:**
-```
-"청송사과 프리미엄 1kg" × 17번
-"바나나 1송이" × 5번
-```
+| 상품 | 장바구니 | 주문 | 합계 | 전체 대비 |
+|------|----------|------|------|-----------|
+| P1 청송사과 프리미엄 1kg | 2 | 3 | **5** | 62.5% |
+| P2 바나나 1송이 | 2 | — | **2** | 25.0% |
+| P4 홍로사과 2kg | 1 | — | **1** | 12.5% |
+| P3 오렌지 1kg | 0 | — | — | 0% |
 
----
+## 벡터 합치기
 
-## 📝 최종 대표 텍스트 생성
-
-모든 텍스트를 쉼표로 구분하여 결합:
+상품 벡터를 비중대로 더한 뒤 길이를 1로 맞춘다(L2 정규화).
 
 ```
-"사과, 사과, 사과, 바나나, 바나나, 청송사과, 청송사과 프리미엄 1kg, 청송사과 프리미엄 1kg, ..., 청송사과 프리미엄 1kg(17번), 바나나 1송이, 바나나 1송이, ..., 바나나 1송이(6번), 청송사과 프리미엄 1kg, 청송사과 프리미엄 1kg, ..., 청송사과 프리미엄 1kg(17번), 바나나 1송이, 바나나 1송이, ..., 바나나 1송이(5번)"
+프로필 = 정규화( 5 × v(P1) + 2 × v(P2) + 1 × v(P4) )
 ```
 
-**요약:**
-- 총 텍스트 길이: 약 500-600자
-- 주요 키워드 반복:
-  - "청송사과 프리미엄 1kg": 34번 (장바구니 17 + 주문 17)
-  - "바나나 1송이": 11번 (장바구니 6 + 주문 5)
-  - "사과": 3번 (검색)
-  - "바나나": 2번 (검색)
-  - "청송사과": 1번 (검색)
+비중의 합(8)으로 나누는 단계는 코드에 없다. 마지막에 길이를 1로 맞추기 때문에 그 전에 전체를 같은 수로 나누든 말든 방향이 같아서다. 길이를 맞추는 것은 생략할 수 없다 — 상품 벡터와 코사인 유사도로 비교하려면 같은 기준이어야 한다.
 
----
+벡터가 아직 없는 상품(색인 실패 등)은 조용히 건너뛴다. 쓸 수 있는 벡터가 하나도 없으면 취향 벡터를 만들지 못하고, 그 사용자의 개인화 추천은 빈 목록이 된다.
 
-## 🤖 임베딩 벡터 생성
+## 계산 결과
 
-### **OpenAI Embedding API 호출**
+결과는 `TasteProfile` 레코드 하나다. **어디에도 저장하지 않고** 이 요청의 추천에만 쓰고 버린다.
 
 ```java
-embeddingModel.embed(List.of(representativeText))
+new TasteProfile(
+    new float[] {0.0123456f, -0.0234567f, /* … 총 768개 */},   // vector — 길이가 1로 맞춰져 있다
+    List.of(productId1, productId2, productId4)                // experiencedProductIds
+)
 ```
 
-**입력:**
-```
-"사과, 사과, 사과, 바나나, 바나나, 청송사과, 청송사과 프리미엄 1kg, ..."
-```
+`experiencedProductIds`는 상품별로 묶었을 때 **비중이 남은** 상품이다. 개인화 추천은 이 상품들을 후보에서 뺀다 — 이미 담거나 산 것을 다시 권하지 않기 위해서다. 삭제한 P3은 비중이 남지 않아 여기 없고, 그래서 나중에 추천 후보로 다시 나올 수 있다.
 
-**출력:**
-```java
-float[] vector = [
-  0.0123456f, -0.0234567f, 0.0345678f, ...,  // 1536차원
-  // ... 총 1536개의 float 값
-]
-```
+> 인덱스 매핑은 더 이상 없다. 2026-09-08까지는 `user_profile_embeddings` 인덱스에 `userProfileVector`·`lastUpdatedAt`·`sourceProductIds`로 저장했으나, 저장을 그만두면서 매핑도 함께 사라졌다 — 근거는 [`audits/taste-vector/refactor-log.md`](audits/taste-vector/refactor-log.md) 2026-09-08.
 
-**변환:**
-```java
-List<Double> userProfileVector = [
-  0.0123456, -0.0234567, 0.0345678, ...,  // 1536차원 Double 리스트
-  // ... 총 1536개의 Double 값
-]
-```
-
----
-
-## 💾 Elasticsearch 저장 형태
-
-### **최종 UserProfileEmbeddingDocument**
-
-```json
-{
-  "_id": "550e8400-e29b-41d4-a716-446655440000",
-  "_index": "user_profile_embeddings",
-  "_source": {
-    "userId": "550e8400-e29b-41d4-a716-446655440000",
-    "userProfileVector": [
-      0.0123456,
-      -0.0234567,
-      0.0345678,
-      0.0456789,
-      // ... 총 1536개의 Double 값
-      -0.0123456,
-      0.0234567,
-      -0.0345678
-    ],
-    "lastUpdatedAt": "2026-01-12T12:30:00Z"
-  }
-}
-```
-
-### **Elasticsearch 인덱스 매핑**
-
-```json
-{
-  "mappings": {
-    "properties": {
-      "userId": {
-        "type": "keyword"
-      },
-      "userProfileVector": {
-        "type": "dense_vector",
-        "dims": 1536,
-        "index": true,
-        "similarity": "cosine"
-      },
-      "lastUpdatedAt": {
-        "type": "date"
-      }
-    }
-  }
-}
-```
-
----
-
-## 🔍 실제 사용 예시
-
-### **1. 사용자 프로필 벡터 조회**
+## 어떻게 쓰이는가
 
 ```java
-UserProfileEmbeddingDocument profile = 
-    userProfileEmbeddingRepository.findById(userId);
+TasteProfile profile = userProfileEmbeddingService.computeProfile(userId).orElseThrow();
 
-List<Double> userVector = profile.getUserProfileVector();
-// [0.0123456, -0.0234567, ..., -0.0345678] (1536차원)
+// 경험 상품을 뺀 뒤 코사인 유사도로 후보를 뽑고, 카테고리 상한으로 topK개를 고른다.
+List<ProductSummaryResponse> recommendations =
+    vectorRecommendPipeline.recommend(profile.vector(), profile.experiencedProductIds(), topK);
 ```
 
-### **2. 상품 벡터와 유사도 계산**
+이 예시의 프로필은 P1 쪽으로 강하게 기울어 있으므로, 추천에는 경험 상품(P1·P2·P4)을 뺀 나머지 중 사과·과일과 가까운 상품이 먼저 올라온다. 카테고리 보너스는 주지 않는다 — 벡터 자체가 이미 그 방향으로 기울어 있어 같은 정보를 두 번 주는 셈이기 때문이다.
 
-```java
-// ProductDocument의 vector와 비교
-float[] productVector = productDocument.getVector();
+> 벡터 타입은 `float[]`이다(2026-09-05 상품 벡터와 통일). 상품 벡터와 차원·타입이 같아야 코사인 유사도를 바로 계산할 수 있다.
 
-// 코사인 유사도 계산
-double similarity = cosineSimilarity(userVector, productVector);
-```
+## 관련 문서
 
-### **3. 개인화 추천**
-
-```java
-// 유사도가 높은 상품들을 추천
-List<ProductDocument> recommendedProducts = 
-    elasticsearchService.findSimilarProducts(userVector, topK=15);
-```
-
----
-
-## 📊 데이터 통계
-
-### **이 예시에서의 통계**
-
-- **총 로그 개수**: 8개 (검색 3 + 장바구니 3 + 주문 2)
-- **최종 텍스트 길이**: 약 500-600자
-- **임베딩 차원**: 1536차원
-- **벡터 크기**: 약 12KB (1536 × 8 bytes)
-- **주요 관심사**: 
-  - 청송사과 프리미엄 1kg (34번 반복) ⭐⭐⭐
-  - 바나나 1송이 (11번 반복) ⭐⭐
-  - 사과 관련 검색 (3번 반복) ⭐
-
----
-
-## 🎯 핵심 포인트
-
-1. **가중치 적용**: 단순 반복이 아닌, 행동의 의미를 반영한 가중치 적용
-2. **시간 감쇠**: 최근 행동일수록 높은 영향력
-3. **이벤트 타입**: 주문 > 장바구니 추가 > 검색 순으로 중요도 반영
-4. **수량 반영**: 구매 수량이 많을수록 높은 관심도
-5. **벡터 저장**: 1536차원 벡터로 사용자의 취향을 수치화
-
-이렇게 생성된 벡터는 나중에 상품 벡터와 비교하여 개인화 추천에 사용됩니다! 🚀
+- [`specs/taste-vector/taste-vector-pipeline.md`](specs/taste-vector/taste-vector-pipeline.md) — 계산 규칙·값의 SSOT
+- [`specs/vector-similarity/vector-similarity-search.md`](specs/vector-similarity/vector-similarity-search.md) — 이 벡터로 후보를 뽑는 벡터 검색·다양화
+- [`audits/taste-vector/001-profile-refresh-path.md`](audits/taste-vector/001-profile-refresh-path.md) — 재설계 배경과 근거
+- [`product/glossary.md`](product/glossary.md) — 용어

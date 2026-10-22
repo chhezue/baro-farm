@@ -1,0 +1,5 @@
+# 로컬 통합 확인용 Elasticsearch — 운영과 같은 9.1.2에 nori 형태소 분석기를 넣는다.
+# 운영 이미지(docker/elasticsearch/Dockerfile)는 bitnami 기반이고 이건 elastic 공식 기반이라
+# 베이스가 다르다. 여기서 확인하려는 것은 nori 분석 결과와 쿼리 동작이라 베이스 차이는 무관하다.
+FROM docker.elastic.co/elasticsearch/elasticsearch:9.1.2
+RUN bin/elasticsearch-plugin install --batch analysis-nori

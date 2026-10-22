@@ -1,0 +1,32 @@
+{"arm": "before", "scenario": "F1", "run": 1, "owned": ["사과", "계란"], "intent": "사용자가 기억하는 '사과 계란' 케이스", "recipeNames": ["애플파이", "부드러운 계란찜", "토마토계란볶음"]}
+{"arm": "before", "scenario": "F1", "run": 2, "owned": ["사과", "계란"], "intent": "사용자가 기억하는 '사과 계란' 케이스", "recipeNames": ["애플파이", "부드러운 계란국", "계란 토마토 볶음"]}
+{"arm": "before", "scenario": "F2", "run": 1, "owned": ["토마토", "쌀"], "intent": "'토마토밥' 재현 조건 — 과일과 주식", "recipeNames": ["토마토 리조또", "토마토 치즈 닭구이", "계란 볶음밥"]}
+{"arm": "before", "scenario": "F2", "run": 2, "owned": ["토마토", "쌀"], "intent": "'토마토밥' 재현 조건 — 과일과 주식", "recipeNames": ["토마토 리조또", "계란 볶음밥", "토마토 샐러드"]}
+{"arm": "before", "scenario": "F3", "run": 1, "owned": ["딸기", "우유"], "intent": "디저트로 자연스러운 조합", "recipeNames": ["딸기 라떼", "딸기 수플레 팬케이크", "크림 크루더 프라이드"]}
+{"arm": "before", "scenario": "F3", "run": 2, "owned": ["딸기", "우유"], "intent": "디저트로 자연스러운 조합", "recipeNames": ["딸기 라떼", "딸기 수플레 팬케이크", "크림 크루더 스튜"]}
+{"arm": "before", "scenario": "F4", "run": 1, "owned": ["감귤", "당근"], "intent": "과일 + 뿌리채소", "recipeNames": ["당근라페", "당근케이크 머핀", "감귤 샐러드"]}
+{"arm": "before", "scenario": "F4", "run": 2, "owned": ["감귤", "당근"], "intent": "과일 + 뿌리채소", "recipeNames": ["당근라페", "감귤샐러드", "당근케이크"]}
+{"arm": "before", "scenario": "F5", "run": 1, "owned": ["수박", "돼지고기"], "intent": "가장 안 어울리는 조합", "recipeNames": ["제육볶음", "시원한 수박화채", "돼지고기 김치찌개"]}
+{"arm": "before", "scenario": "F5", "run": 2, "owned": ["수박", "돼지고기"], "intent": "가장 안 어울리는 조합", "recipeNames": ["제육볶음", "수박화채", "돼지고기 김치찌개"]}
+{"arm": "before", "scenario": "F6", "run": 1, "owned": ["포도", "쌀", "계란"], "intent": "과일 + 주식 + 축산", "recipeNames": ["계란죽", "계란볶음밥", "포도샐러드"]}
+{"arm": "before", "scenario": "F6", "run": 2, "owned": ["포도", "쌀", "계란"], "intent": "과일 + 주식 + 축산", "recipeNames": ["계란죽", "포도 타르트", "계란볶음밥"]}
+{"arm": "before", "scenario": "F7", "run": 1, "owned": ["사과", "양파", "돼지고기"], "intent": "과일이 섞인 보통 장바구니", "recipeNames": ["돼지고기 양파볶음", "사과 폭찹", "사과 양파 상추무침"]}
+{"arm": "before", "scenario": "F7", "run": 2, "owned": ["사과", "양파", "돼지고기"], "intent": "과일이 섞인 보통 장바구니", "recipeNames": ["돼지고기 양파볶음", "사과 양파 샐러드", "사과 돼지고기 오븐구이"]}
+{"arm": "before", "scenario": "F8", "run": 1, "owned": ["블루베리", "보리"], "intent": "베리류 + 곡류", "recipeNames": ["보리 닭죽", "블루베리 요거트 샐러드", "블루베리 크림치즈 타르트"]}
+{"arm": "before", "scenario": "F8", "run": 2, "owned": ["블루베리", "보리"], "intent": "베리류 + 곡류", "recipeNames": ["닭가슴살 보리 리조또", "블루베리 리코타 샐러드", "블루베리 크럼블 타르트"]}
+{"arm": "after", "scenario": "F1", "run": 1, "owned": ["사과", "계란"], "intent": "사용자가 기억하는 '사과 계란' 케이스", "recipeNames": ["애플파이"]}
+{"arm": "after", "scenario": "F1", "run": 2, "owned": ["사과", "계란"], "intent": "사용자가 기억하는 '사과 계란' 케이스", "recipeNames": ["애플파이"]}
+{"arm": "after", "scenario": "F2", "run": 1, "owned": ["토마토", "쌀"], "intent": "'토마토밥' 재현 조건 — 과일과 주식", "recipeNames": ["토마토 리조또"]}
+{"arm": "after", "scenario": "F2", "run": 2, "owned": ["토마토", "쌀"], "intent": "'토마토밥' 재현 조건 — 과일과 주식", "recipeNames": ["토마토계란볶음밥"]}
+{"arm": "after", "scenario": "F3", "run": 1, "owned": ["딸기", "우유"], "intent": "디저트로 자연스러운 조합", "recipeNames": ["딸기라떼"]}
+{"arm": "after", "scenario": "F3", "run": 2, "owned": ["딸기", "우유"], "intent": "디저트로 자연스러운 조합", "recipeNames": ["딸기라떼"]}
+{"arm": "after", "scenario": "F4", "run": 1, "owned": ["감귤", "당근"], "intent": "과일 + 뿌리채소", "recipeNames": ["당근 감귤샐러드"]}
+{"arm": "after", "scenario": "F4", "run": 2, "owned": ["감귤", "당근"], "intent": "과일 + 뿌리채소", "recipeNames": ["당근 감귤샐러드"]}
+{"arm": "after", "scenario": "F5", "run": 1, "owned": ["수박", "돼지고기"], "intent": "가장 안 어울리는 조합", "recipeNames": ["제육볶음"]}
+{"arm": "after", "scenario": "F5", "run": 2, "owned": ["수박", "돼지고기"], "intent": "가장 안 어울리는 조합", "recipeNames": ["제육볶음"]}
+{"arm": "after", "scenario": "F6", "run": 1, "owned": ["포도", "쌀", "계란"], "intent": "과일 + 주식 + 축산", "recipeNames": ["계란볶음밥"]}
+{"arm": "after", "scenario": "F6", "run": 2, "owned": ["포도", "쌀", "계란"], "intent": "과일 + 주식 + 축산", "recipeNames": ["계란볶음밥"]}
+{"arm": "after", "scenario": "F7", "run": 1, "owned": ["사과", "양파", "돼지고기"], "intent": "과일이 섞인 보통 장바구니", "recipeNames": ["돼지고기 양파볶음"]}
+{"arm": "after", "scenario": "F7", "run": 2, "owned": ["사과", "양파", "돼지고기"], "intent": "과일이 섞인 보통 장바구니", "recipeNames": ["돼지고기 양파볶음"]}
+{"arm": "after", "scenario": "F8", "run": 1, "owned": ["블루베리", "보리"], "intent": "베리류 + 곡류", "recipeNames": ["블루베리 보리샐러드"]}
+{"arm": "after", "scenario": "F8", "run": 2, "owned": ["블루베리", "보리"], "intent": "베리류 + 곡류", "recipeNames": ["블루베리 보리샐러드"]}

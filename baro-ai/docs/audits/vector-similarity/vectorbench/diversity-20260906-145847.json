@@ -1,0 +1,71 @@
+{
+ "products": 154,
+ "categories": 14,
+ "queries": 20,
+ "runs": [
+  {
+   "k": 5,
+   "arm": "OFF (top-k)",
+   "candidates": null,
+   "mean_pairwise_distance": 0.2375,
+   "same_category_pair_ratio": 0.45,
+   "mean_similarity_to_query": 0.7935
+  },
+  {
+   "k": 5,
+   "arm": "ON x2",
+   "candidates": 10.0,
+   "mean_pairwise_distance": 0.2801,
+   "same_category_pair_ratio": 0.14,
+   "mean_similarity_to_query": 0.7698
+  },
+  {
+   "k": 5,
+   "arm": "ON x3",
+   "candidates": 15.0,
+   "mean_pairwise_distance": 0.2975,
+   "same_category_pair_ratio": 0.115,
+   "mean_similarity_to_query": 0.7579
+  },
+  {
+   "k": 5,
+   "arm": "ON x5",
+   "candidates": 25.0,
+   "mean_pairwise_distance": 0.3232,
+   "same_category_pair_ratio": 0.075,
+   "mean_similarity_to_query": 0.7404
+  },
+  {
+   "k": 10,
+   "arm": "OFF (top-k)",
+   "candidates": null,
+   "mean_pairwise_distance": 0.2554,
+   "same_category_pair_ratio": 0.2578,
+   "mean_similarity_to_query": 0.7709
+  },
+  {
+   "k": 10,
+   "arm": "ON x2",
+   "candidates": 20.0,
+   "mean_pairwise_distance": 0.2981,
+   "same_category_pair_ratio": 0.1189,
+   "mean_similarity_to_query": 0.7438
+  },
+  {
+   "k": 10,
+   "arm": "ON x3",
+   "candidates": 30.0,
+   "mean_pairwise_distance": 0.3209,
+   "same_category_pair_ratio": 0.0856,
+   "mean_similarity_to_query": 0.7272
+  },
+  {
+   "k": 10,
+   "arm": "ON x5",
+   "candidates": 50.0,
+   "mean_pairwise_distance": 0.3375,
+   "same_category_pair_ratio": 0.0544,
+   "mean_similarity_to_query": 0.7068
+  }
+ ]
+}
