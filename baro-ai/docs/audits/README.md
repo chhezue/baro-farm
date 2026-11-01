@@ -30,7 +30,7 @@
 |------|------|------------------|
 | [`taste-vector/001-profile-refresh-path.md`](taste-vector/001-profile-refresh-path.md) | 행동 로그 수집 → 프로필 갱신 → 개인화 추천 | A 5 · B 4 · C 3 · D 4 |
 | [`cart-recipe/001-cart-integration-and-request-path.md`](cart-recipe/001-cart-integration-and-request-path.md) | 장바구니 Feign 연동 → 레시피 요청 경로 (프롬프트·스코어링은 `recommend/001`·`002`) | A 2 · B 5 · C 6 · D 4 |
-| [`cart-recipe/002-goldenset-before-after.md`](cart-recipe/002-goldenset-before-after.md) | 프롬프트 재설계 Before/After 골든셋 측정 (A/B/C/D 아닌 측정 보고서) | 실행 합격 69.0%→90.5% |
+| [`cart-recipe/002-goldenset-before-after.md`](cart-recipe/002-goldenset-before-after.md) | 프롬프트 재설계 Before/After 골든셋 측정 (A/B/C/D 아닌 측정 보고서) | 실행 합격 69.0%→90.5%, 출력 토큰 −70.8% |
 | [`cart-recipe/003-pantry-staples-and-variants.md`](cart-recipe/003-pantry-staples-and-variants.md) | 기본 양념 확대안·재료명 변종 가설 측정 (측정 보고서) | 가설 2건 모두 기각, 코드 변경 없음 |
 | [`cart-recipe/004-index-time-ingredient-name.md`](cart-recipe/004-index-time-ingredient-name.md) | 색인 시점 재료명 추출 프롬프트 (측정 보고서) | 16/17→17/17, 프롬프트 반영 |
 | [`vector-similarity/001-vector-search-and-diversity.md`](vector-similarity/001-vector-search-and-diversity.md) | 상품 임베딩 · 벡터 검색 · 다양화 · ES 설정 | A 2 · B 5 · C 2 · D 5 |
