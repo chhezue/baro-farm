@@ -30,10 +30,10 @@ baro-ai 코드·문서에서 반복해서 쓰는 도메인 용어의 SSOT. `harn
 | 행동 로그 | 장바구니 변경·주문 확정 1건을 ES에 저장한 문서. 2026-09-09에 두 인덱스를 `user_behavior_logs` 하나로 합쳤다 | `UserBehaviorLogDocument` |
 | 프로필 벡터 (취향 벡터) | 행동 로그에 등장한 상품들의 벡터를 행동 비중대로 섞어 길이를 1로 맞춘 768차원 벡터. **저장하지 않고 개인화 추천을 요청받은 자리에서 계산한다**(2026-09-08). 외부 임베딩 API를 부르지 않는다 | `TasteProfile.vector`, `UserProfileEmbeddingService.computeProfile` |
 | 행동 비중 | 로그 1건이 취향에 기여하는 정도 = **행동 종류 그 자체**(주문 3·담기 2·수량 변경 1·삭제 0). 곱하는 축이 더 없다 — 경과 시간은 2026-09-06, 수량은 2026-09-07에 뺐다. 값: [`taste-vector` 스펙](../specs/taste-vector/taste-vector-pipeline.md) 비즈니스 규칙 | `calculateEventWeight` |
-| 행동 가중치 | 행동 종류별 계수. 주문 확정 > 장바구니 담기 > 수량 변경 순이고, 취소·삭제는 0이라 취향에 전혀 반영되지 않는다 | `calculateEventWeight` |
+| 행동 가중치 | 행동 종류별 계수. 주문 확정 > 장바구니 담기 > 수량 변경 순이고, 취소·삭제는 0이다. 장바구니 삭제는 같은 상품의 이전 장바구니 비중까지 지운다(주문 확정 비중은 남는다) | `calculateEventWeight`·`aggregateByProduct` |
 | 가중 평균 · L2 정규화 | 상품 벡터를 비중대로 더한 뒤 길이를 1로 맞추는 것. 길이를 맞춰야 상품 벡터와 코사인 유사도로 비교할 수 있다 | `blendIntoProfileVector` |
-| 갱신 스킵 게이트 | 조회 기간 안의 로그가 최소 개수에 못 미치면 프로필을 만들지 않는 조건(값: `taste-vector` 스펙 비즈니스 규칙) | `MIN_TOTAL_LOGS_FOR_EMBEDDING` |
-| 경험 상품 | 비중이 0이 아닌 장바구니·주문 로그의 상품 ID. 개인화 추천에서 제외한다. 삭제·취소한 상품은 여기 들어가지 않아 다시 추천될 수 있다 | `TasteProfile.experiencedProductIds` (2026-09-08 이전 이름은 `sourceProductIds`) |
+| 갱신 스킵 게이트 | 비중이 남은 서로 다른 상품이 최소 개수에 못 미치면 프로필을 만들지 않는 조건(값: `taste-vector` 스펙 비즈니스 규칙) | `MIN_PRODUCTS_FOR_EMBEDDING` |
+| 경험 상품 | 장바구니·주문 로그를 상품별로 묶었을 때 비중이 남은 상품 ID. 개인화 추천에서 제외한다. 담았다가 뺀 상품은 담기 비중까지 지워져 여기 들어가지 않고 다시 추천될 수 있다. 주문한 상품은 장바구니에서 빼도 남는다 | `TasteProfile.experiencedProductIds` (2026-09-08 이전 이름은 `sourceProductIds`) |
 | 취향 벡터 계산 시점 | 개인화 추천 요청 1건마다 그 자리에서 계산한다. 장바구니·주문 이벤트는 행동 로그만 적재하고 계산을 예약하지 않는다(2026-09-08 — 그전에는 이벤트마다 비동기로 미리 만들었다) | `UserProfileEmbeddingService.computeProfile` |
 | 주문 확정 시점 | `baro-order`가 `inventory-confirmed`를 받아 `AWAITING_PAYMENT → CONFIRMED`로 바꾸는 순간. `ORDER_CONFIRMED` 이벤트는 여기서만 발행 | `InventoryConfirmedConsumer` |
 | 게스트 장바구니 | `X-Session-Key`만 있는 장바구니. userId가 없어 Kafka 이벤트가 발행되지 않는다 | `HistoryLogWriter.sendToKafka` |
