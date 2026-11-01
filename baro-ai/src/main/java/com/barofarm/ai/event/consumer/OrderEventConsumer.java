@@ -66,7 +66,9 @@ public class OrderEventConsumer {
             // 문서 ID를 '{partition}-{offset}-{index}' 조합으로 생성하여,
             // 한 주문 내 동일 상품이 중복 라인으로 존재하더라도 데이터 유실 없이 각각 저장되며,
             // Kafka 컨슈머 재시도 시에도 동일 ID를 덮어쓰므로 멱등성이 보장됩니다.
-            // (이벤트 타입은 ORDER_CONFIRMED: 관심도 최상 3점, ORDER_CANCELLED: 취소 0점으로 저장)
+            // 이벤트 타입은 받은 그대로 저장하고, 비중은 취향 벡터를 계산할 때 매깁니다(ORDER_CONFIRMED는 3).
+            // ORDER_CANCELLED는 현재 발행하는 모듈이 없고, 들어와도 주문 ID를 저장하지 않아 어느 확정을
+            // 취소하는지 짝지을 수 없습니다 — docs/audits/taste-vector/006-behavior-weight-semantics.md B-2
             List<OrderLogEvent.OrderEventData.OrderItemData> orderItems =
                 data.orderItems() != null ? data.orderItems() : List.of();
 

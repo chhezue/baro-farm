@@ -91,7 +91,7 @@
 | 검색 반영 | 검색어 문자열을 대표 텍스트에 포함 | `SearchLogDocument.topProductIds`(최대 3개)의 벡터 |
 | 수량 가중치 | `max(1, quantity)` — 상한 없음 | `min(max(1, quantity), 5)` |
 | 시간 가중치 | `3.0 × e^(−h/168)` — 7일에 0.37배(주석과 불일치) | `3.0 × 2^(−h/168)` — 7일에 정확히 0.5배 |
-| 가중치 0 행동 | `max(1, …)` 때문에 1회 반영 + 경험 상품 포함 | 평균·경험 상품 모두에서 제외 |
+| 가중치 0 행동 | `max(1, …)` 때문에 1회 반영 + 경험 상품 포함 | 평균·경험 상품 모두에서 제외 *(2026-09-15 정정: 제외된 것은 삭제 로그 자신뿐이었고, 같은 상품의 담기 로그는 남았다 — [`006`](006-behavior-weight-semantics.md) A-1)* |
 | 프로필 문서 필드 | 7개(`source*LogIds` 3종·`preferredCategoryCode` 포함) | 4개(`userId`·벡터·`lastUpdatedAt`·`sourceProductIds`) |
 | `sourceProductIds` 타입 | `List<String>`(UUID→String→UUID 왕복 변환) | `List<UUID>` |
 | 개인화 카테고리 보너스 | `preferredCategoryCode` + 0.3 | 없음(유사 상품 경로는 유지) |
@@ -325,3 +325,50 @@
 ### 남긴 것
 
 - **`user_behavior_logs` 인덱스를 새로 만들고, `cart_event_logs`·`order_event_logs`는 지운다.** 옛 기록을 옮기지는 않는다 — 30일 창이라 며칠이면 새 기록으로 채워지고, 운영 데이터가 없는 dev 전제다. 되돌릴 수 없는 삭제라 사람이 실행한다(`open-items.md` A-3)
+
+## 2026-09-15 — 장바구니 삭제가 관심 철회로 작동하게 · 최소 조건을 상품 수로 (감사 006 A-1·B-1·B-2·B-3·B-4)
+
+**근거:** [`006-behavior-weight-semantics.md`](006-behavior-weight-semantics.md) "승인 결과" 절. A-1은 정책 (가)(코드를 결정에 맞춘다), B-1은 서로 다른 상품 수로 결정됐다. C·D는 다루지 않았다.
+
+### 왜 문제였나 (쉬운 말로)
+
+상품을 장바구니에 담았다가 빼면, "뺐다"는 기록만 버려지고 "담았다"는 기록은 그대로 남아 있었다. 그래서 뺀 상품이 계속 취향에 섞였고, 동시에 "이미 본 상품" 목록에도 남아 다시 추천되지 않았다. 2026-09-05에 승인된 결정("뺀 상품은 다시 추천돼도 된다")과 반대로 동작하고 있었다.
+
+"기록이 3건 미만이면 추천하지 않는다"는 조건도 기록 건수를 셌다. 상품 하나를 담고 수량만 두 번 바꿔도 3건이 되어, 그 상품 하나로 취향이 정해졌다.
+
+### 무엇을 바꿨나
+
+- 기록을 상품별로 묶은 뒤에 비중을 정한다. 오래된 기록부터 훑으며 상품마다 장바구니 비중과 주문 비중을 따로 쌓는다. 장바구니 삭제를 만나면 그 상품의 장바구니 비중을 0으로 되돌린다.
+- 주문 확정 비중은 삭제로 지우지 않는다. 주문해도 장바구니가 자동으로 비워지지 않아서, 산 뒤에 사용자가 장바구니를 정리할 때 구매 기록까지 지워지면 안 되기 때문이다.
+- 뺐다가 다시 담으면 그때부터 다시 쌓인다.
+- 최소 조건은 비중이 남은 서로 다른 상품 수(3개)로 센다.
+- 같은 상품의 비중을 더하는 방식(담기 2 + 주문 3 = 5)은 그대로 뒀다(C-1, 판단 보류).
+
+### Before / After
+
+| 항목 | Before | After |
+|---|---|---|
+| 비중을 매기는 단위 | 로그 한 줄 | 상품 (같은 상품의 로그를 묶음) |
+| 담기 → 삭제한 상품 | 담기 비중 2가 남아 취향·경험 상품에 계속 포함 | 취향·경험 상품 양쪽에서 빠짐 |
+| 주문 → 장바구니 삭제한 상품 | 주문 3 + 담기 2 = 5 | 주문 3만 남음 |
+| 삭제 → 다시 담은 상품 | 담기 두 번 = 4 | 삭제 이후 담기만 = 2 |
+| 최소 조건 | 로그 3건 (`MIN_TOTAL_LOGS_FOR_EMBEDDING`) | 서로 다른 상품 3개 (`MIN_PRODUCTS_FOR_EMBEDDING`) |
+| API 형식 | — | 변화 없음. 개인화 추천 응답의 내용만 달라진다 |
+
+### 바꾼 파일
+
+- `embedding/application/UserProfileEmbeddingService.java` — `aggregateByProduct`·`ProductSignal` 추가, 로그 한 줄씩 변환하던 `toWeightedProduct` 삭제, 최소 조건 상수 교체, `ORDER_CANCELLED` 설명 정정(B-2)
+- `event/consumer/OrderEventConsumer.java` — 취소 이벤트를 "취소 0점으로 저장"이라 적은 주석 정정(B-2)
+- `UserProfileEmbeddingServiceTest.java` — `computeProfile` 경로 테스트 5건 추가(B-3). 로그·상품 저장소는 mock
+- 문서(B-4): `specs/taste-vector/taste-vector-pipeline.md`, `product/glossary.md`, `EMBEDDING_EXAMPLE.md`, `features/taste-vector.md`, `audits/open-items.md` B-5, 이력 문서 두 곳(`full-module/004`, 이 파일 2026-09-05 표)에는 정정 주석만 붙였다
+
+### 검증
+
+- **새 테스트가 결함을 잡는지 먼저 확인했다.** 코드를 고치기 전에 새 테스트 5건을 돌려 4건이 실패했다(삭제·주문 보존·다시 담기·최소 조건). 합산을 고정한 1건은 통과했다 — 바꾸지 않기로 한 동작이다.
+- 수정 후 `./gradlew :baro-ai:test` — **98건 통과, 0 실패**(`UserProfileEmbeddingServiceTest` 12건).
+- **미검증:** 실제 Kafka로 장바구니 담기·삭제 이벤트를 흘려 개인화 추천 응답이 달라지는지. 로그 저장소를 mock으로 대신했고, 실물 확인은 하지 않았다.
+
+### 남긴 것
+
+- C-1(같은 상품 비중 합산), C-2(주문 확정 중복 발행 가능성), C-3(장바구니 비우기 이벤트 없음) — 감사 문서의 이유대로 보류
+- `ORDER_CANCELLED` 발행 코드 복원은 baro-order 쪽이라 이 모듈에서 하지 않았다. 병합 이력은 `open-items.md` B-5에 적었다
